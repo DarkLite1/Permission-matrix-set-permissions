@@ -1,0 +1,261 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+	<style type="text/css">
+		body {
+			font-family: verdana;
+			background-color: white;
+		}
+
+		h1 {
+			background-color: black;
+			color: white;
+			margin-bottom: 10px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		h2 {
+			background-color: lightGrey;
+			margin-bottom: 10px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		h3 {
+			background-color: lightGrey;
+			margin-bottom: 10px;
+			font-size: 16px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		p {
+			font-size: 14px;
+			margin-left: 10px;
+		}
+
+		p.italic {
+			font-style: italic;
+			font-size: 12px;
+		}
+
+		table {
+			font-size: 14px;
+			border-collapse: collapse;
+			border: 1px none;
+			padding: 3px;
+			text-align: left;
+			padding-right: 10px;
+			margin-left: 10px;
+		}
+
+		td,
+		th {
+			font-size: 14px;
+			border-collapse: collapse;
+			border: 1px none;
+			padding: 3px;
+			text-align: left;
+			padding-right: 10px
+		}
+
+		li {
+			font-size: 14px;
+		}
+
+		base {
+			target="_blank"
+		}
+	</style>
+</head>
+
+<body>
+	<style>
+		a {
+			color: black;
+			text-decoration: none;
+		}
+
+		a:hover {
+			color: blue;
+			text-decoration: underline;
+		}
+
+		#matrixTable {
+			border: none;
+			/* padding-bottom: 60px; */
+			/* border-spacing: 0.5em; */
+			border-collapse: separate;
+			border-spacing: 0px 0.6em;
+			min-width: 600px;
+			max-width: 97%;
+			padding: 10px;
+		}
+
+		#matrixTitle {
+			border: none;
+			background-color: lightgray;
+			text-align: center;
+			padding: 6px;
+		}
+
+		#matrixHeader {
+			font-weight: normal;
+			letter-spacing: 5pt;
+			font-style: italic;
+		}
+		
+		#matrixFileInfo {
+			font-weight: normal;
+			font-size: 12px;
+			font-style: italic;
+			text-align: center;
+		}
+
+		#LegendTable {
+			border-collapse: collapse;
+			border: 1px solid Black;
+			table-layout: fixed;
+			width: 600px;
+		}
+
+		#LegendTable td {
+			text-align: center;
+		}
+
+		#probTitle {
+			font-weight: bold;
+		}
+
+		#probTypeWarning {
+			background-color: orange;
+		}
+
+		#probTypeError {
+			background-color: red;
+		}
+
+		#probTypeInfo {
+			background-color: lightgray;
+		}
+
+		table tbody tr td a {
+			display: block;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+
+
+	<table id="matrixTable">
+		<tr>
+			<th id="matrixTitle" colspan="8"><a name="01 BEL MTX-RMC-IB G-drive top level" href="\\unite.grouphc.nex">BEL
+					MTX-RMC-IB G-drive top level</a></th>
+		</tr>
+
+		<th id="matrixHeader" colspan="8">Settings</th>
+
+		<tr>
+			<td></td>
+			<td>ID</td>
+			<td>ComputerName</td>
+			<td>Path</td>
+			<td>Action</td>
+			<td>Duration</td>
+		</tr>
+		<tr>
+			<td id="probTypeError"></td>
+			<td>1</td>
+			<td>DEUSFFRAN0010</td>
+			<td>E:\DEPARTMENTS\RMC\IB\03-DISTRICT\05-All</td>
+			<td>Fix</td>
+			<td>00:13:07</td>
+		</tr>
+
+		<th id="matrixHeader" colspan="8">Error</th>
+		<tr>
+			<td id="probTypeError"></td>
+			<td colspan="7">
+				<p id="probTitle">Unknown AD object</p>
+				<p>Every AD object defined in the header row needs to exist before the matrix can be correctly executed.</p>
+				<ul>
+					<li>Bob</li>
+					<li>Mike</li>
+				</ul>
+			</td>
+		</tr>
+		<tr>
+			<td id="probTypeError"></td>
+			<td colspan="7">
+				<p id="probTitle">Administrator privileges</p>
+				<p>Administrator privileges are required to be able to apply permissions.</p>
+				<ul>
+					<li>Oops, this went so wrong!</li>
+				</ul>
+			</td>
+		</tr>
+
+		<th id="matrixHeader" colspan="8">Warning</th>
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td colspan="7">
+				<p id="probTitle">No folder access</p>
+				<p>Every folder defined in the first column needs to have at least one user account that is able to access it.
+					Group
+					membership is checked to verify if groups granting access to the folder have at least one user account as a member
+					that
+					is not a place holder account.</p>
+				<ul>
+					<li>Folder1</li>
+					<li>Folder2</li>
+				</ul>
+			</td>
+		</tr>
+		<th id="matrixHeader" colspan="8">Information</th>
+		<tr>
+			<td id="probTypeInfo"></td>
+			<td colspan="7">
+				<p id="probTitle">Conflichting AD Objects</p>
+				<p>AD Objects defined in the matrix are duplicate with the ones defined in the default permissions. In such cases
+					the AD
+					objects in the matrix win over those in the default permissions. This to ensure a folder can be made completely
+					private
+					to those defined in the matrix. This can be desired for departments like 'Legal' or 'HR' where data might contian
+					sensitive information that should not be visible to IT admins defined in the default permissions.</p>
+				<ul>
+					<li>BNL Service Desk</li>
+				</ul>
+			</td>
+		</tr>
+	</table>
+	<table id="LegendTable">
+		<tr>
+			<td id="probTypeError">Error</td>
+			<td id="probTypeWarning">Warning</td>
+			<td id="probTypeInfo">Information</td>
+		</tr>
+	</table>
+	<h2>About</h2>
+	<table>
+		<tr>
+			<th>GroupName</th>
+			<td>Brussels</td>
+		</tr>
+		<tr>
+			<th>SiteCode</th>
+			<td>RMC-IB</td>
+		</tr>
+		<tr>
+			<th>Start time</th>
+			<td>21/05/2018 04:00:10</td>
+		</tr>
+		<tr>
+			<th>End time</th>
+			<td>21/05/2018 05:10:15</td>
+		</tr>
+	</table>
+</body>
+
+</html>

@@ -1,0 +1,379 @@
+﻿<!DOCTYPE html>
+<html>
+
+<head>
+	<style type="text/css">
+		body {
+			font-family: verdana;
+			background-color: white;
+		}
+
+		h1 {
+			background-color: black;
+			color: white;
+			margin-bottom: 10px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		h2 {
+			background-color: lightGrey;
+			margin-bottom: 10px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		h3 {
+			background-color: lightGrey;
+			margin-bottom: 10px;
+			font-size: 16px;
+			text-indent: 10px;
+			page-break-before: always;
+		}
+
+		p {
+			font-size: 14px;
+			margin-left: 10px;
+		}
+
+		p.italic {
+			font-style: italic;
+			font-size: 12px;
+		}
+
+		table {
+			font-size: 14px;
+			border-collapse: collapse;
+			border: 1px none;
+			padding: 3px;
+			text-align: left;
+			padding-right: 10px;
+			margin-left: 10px;
+		}
+
+		td,
+		th {
+			font-size: 14px;
+			border-collapse: collapse;
+			border: 1px none;
+			padding: 3px;
+			text-align: left;
+			padding-right: 10px
+		}
+
+		li {
+			font-size: 14px;
+		}
+
+		base {
+			target="_blank"
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Permission matrix (BNL Weekly)</h1>
+	<h2>The following has been reported:</h2>
+	<style>
+		a {
+			color: black;
+			text-decoration: none;
+		}
+
+		a:hover {
+			color: blue;
+			text-decoration: underline;
+		}
+
+		#matrixTable {
+			border: 1px solid Black;
+			/* padding-bottom: 60px; */
+			/* border-spacing: 0.5em; */
+			border-collapse: separate;
+			border-spacing: 0px 0.6em;
+			/* max-width: 97%; */
+			padding: 10px;
+			max-width: 600px;
+			/* table-layout:fixed; */
+		}
+
+		#matrixTitle {
+			border: none;
+			background-color: lightgrey;
+			text-align: center;
+			padding: 6px;
+		}
+
+		#matrixHeader {
+			font-weight: normal;
+			letter-spacing: 5pt;
+			font-style: italic;
+		}
+
+		#LegendTable {
+			border-collapse: collapse;
+			border: 1px solid Black;
+			table-layout: fixed;
+			/* width: 400px; */
+		}
+
+		#matrixFileInfo {
+			font-weight: normal;
+			font-size: 12px;
+			font-style: italic;
+			text-align: center;
+		}
+
+		#LegendTable td {
+			text-align: center;
+		}
+
+		#probTitle {
+			font-weight: bold;
+		}
+
+		#probTypeWarning {
+			background-color: orange;
+		}
+
+		#probTypeError {
+			background-color: red;
+		}
+
+		#probTypeInfo {
+			background-color: lightgrey;
+		}
+
+		table tbody tr td a {
+			display: block;
+			width: 100%;
+			height: 100%;
+		}
+	</style>
+	<!-- Intro -->
+	<p>Details per matrix file:</p>
+	<!-- Intro end -->
+	<table id="matrixTable">
+		<!-- Title -->
+		<tr>
+			<th id="matrixTitle" colspan="8"><a href="\\unite.grouphc.nex">BEL MTX-RMC-IB G-drive top level</a></th>
+		</tr>
+		<tr>
+			<th id="matrixFileInfo" colspan="8">Last change: Verbruggen, Nicole (Brussels) BEL @ 03/05/2017 15:03:38</th>
+		</tr>
+		<!-- Title end-->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">File</th>
+		<!-- Header end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td colspan="7">
+				<p id="probTitle">Archiving </p>
+				<p> When the '-Archive' switch is used the file is moved to the archive folder.In case a file is still in use, the
+					move operation might fail.</p>
+				<ul>
+					<li>Failed moving the file 'myfile.xlsx</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeError"></td>
+			<td colspan="7">
+				<p id="probTitle">Unknown error</p>
+				<p> While checking the input and generating the matrix an error was reported.</p>
+				<ul>
+					<li>Oops, this went so wrong!</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">Permissions</th>
+		<!-- Header end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td colspan="7">
+				<p id="probTitle">Matrix design flaw</p>
+				<p>All folders need to be accessible by the end user. Please define at least (R)ead or (W)rite permissions on the
+					deepest
+					folder or use the permnission (I)gnore.</p>
+				<ul>
+					<li>Folder1</li>
+					<li>Folder2</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">Settings</th>
+		<!-- Header end -->
+		<!-- Header Settings -->
+		<tr>
+			<td></td>
+			<td>ID</td>
+			<td>ComputerName</td>
+			<td>Path</td>
+			<td>Action</td>
+			<td>Duration</td>
+		</tr>
+		<!-- Header Settings end-->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeError"></td>
+			<td><a href="person1.html">1</a></td>
+			<td><a href="person1.html">DEUSFFRAN0010</a></td>
+			<td><a href="person1.html">E:\DEPARTMENTS\RMC\IB\03-DISTRICT\05-All</a></td>
+			<td><a href="person1.html">Fix</a></td>
+			<td><a href="person1.html">00:13:07</a></td>
+		</tr>
+		<!-- Problem end -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td><a href="person1.html">2</a></td>
+			<td><a href="person1.html">DEUSFFRAN0010</a></td>
+			<td><a href="person1.html">E:\DEPARTMENTS\RMC\IB\03-DISTRICT\05-All</a></td>
+			<td><a href="person1.html">Fix</a></td>
+			<td><a href="person1.html">00:13:07</a></td>
+		</tr>
+	</table><br>
+	<br>
+	<table id="matrixTable">
+		<!-- Title -->
+		<tr>
+			<th id="matrixTitle" colspan="8"><a href="\\unite.grouphc.nex">BEL MTX-RMC-IB G-drive top level</a></th>
+		</tr>
+		<tr>
+			<th id="matrixFileInfo" colspan="8">Last change: Verbruggen, Nicole (Brussels) BEL @ 03/05/2017 15:03:38</th>
+		</tr>
+		<!-- Title end-->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">File</th>
+		<!-- Header end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td colspan="7">
+				<p id="probTitle">Archiving failed</p>
+				<p> When the '-Archive' switch is used the file is moved to the archive folder.In case a file is still in use, the
+					move operation might fail.</p>
+				<ul>
+					<li>Failed moving the file 'myfile.xlsx</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeError"></td>
+			<td colspan="7">
+				<p id="probTitle">Unknown error</p>
+				<p> While checking the input and generating the matrix an error was reported.</p>
+				<ul>
+					<li>Oops, this went so wrong!</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">Permissions</th>
+		<!-- Header end -->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td colspan="7">
+				<p id="probTitle">Matrix design flaw</p>
+				<p>All folders need to be accessible by the end user. Please define at least (R)ead or (W)rite permissions on the
+					deepest
+					folder or use the permnission (I)gnore.</p>
+				<ul>
+					<li>Folder1</li>
+					<li>Folder2</li>
+				</ul>
+			</td>
+		</tr>
+		<!-- Problem end -->
+		<!-- Header -->
+		<th id="matrixHeader" colspan="8">Settings</th>
+		<!-- Header end -->
+		<!-- Header Settings -->
+		<tr>
+			<td></td>
+			<td>ID</td>
+			<td>ComputerName</td>
+			<td>Path</td>
+			<td>Action</td>
+			<td>Duration</td>
+		</tr>
+		<!-- Header Settings end-->
+		<!-- Problem -->
+		<tr>
+			<td id="probTypeError"></td>
+			<td><a href="person1.html">1</a></td>
+			<td><a href="person1.html">DEUSFFRAN0010</a></td>
+			<td><a href="person1.html">E:\DEPARTMENTS\RMC\IB\03-DISTRICTdddddddddddddddddddddddddddddddddddddddddd\05-All</a></td>
+			<td><a href="person1.html">Fix</a></td>
+			<td><a href="person1.html">00:13:07</a></td>
+		</tr>
+		<!-- Problem end -->
+		<tr>
+			<td id="probTypeWarning"></td>
+			<td><a href="person1.html">2</a></td>
+			<td><a href="person1.html">DEUSFFRAN0010</a></td>
+			<td><a href="person1.html">E:\DEPARTMENTS\RMC\IB\03-DISTRICT\05-All</a></td>
+			<td><a href="person1.html">Fix</a></td>
+			<td><a href="person1.html">00:13:07</a></td>
+		</tr>
+	</table><br>
+	<br>
+	<table id="LegendTable">
+		<tr>
+			<td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
+			<td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
+			<td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
+		</tr>
+	</table>
+
+	<h2>About</h2>
+	<table>
+		<colgroup>
+			<col />
+			<col />
+		</colgroup>
+		<tr>
+			<th>Start time</th>
+			<td>21/05/2018 04:00 (Monday)</td>
+		</tr>
+		<tr>
+			<th>Total runtime</th>
+			<td>03:02:53 </td>
+		</tr>
+		<tr>
+			<th>Log folder</th>
+			<td><a href="\\DEUSGFRANIT03\Log\Permission matrix\Permission matrix (BNL Weekly)">Open log folder</a></td>
+		</tr>
+
+		<tr>
+			<th>Script location</th>
+			<td>S:\Prod\Permission matrix\Permission matrix.ps1</td>
+		</tr>
+		<tr>
+			<th>Launched from</th>
+			<td>Scheduled task or console (not ISE)</td>
+		</tr>
+		<tr>
+			<th>Server</th>
+			<td>DEUSGFRANIT03</td>
+		</tr>
+		<tr>
+			<th>Whoami</th>
+			<td>GROUPHC.NET\SrvBatch</td>
+		</tr>
+	</table>
+	<p class=italic>"When Chuck Norris writes a book the letters order themselves in fear."</p>
+</body>
+
+</html>
