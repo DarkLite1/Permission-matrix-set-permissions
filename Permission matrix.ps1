@@ -862,18 +862,6 @@ End {
             Write-EventLog @EventVerboseParams -Message "Format HTML"
 
             #region HTML <style> for Mail and Settings
-<# 
-    a {
-        color: black;
-        text-decoration: none;
-    }
-
-    a:hover {
-        color: blue;
-        text-decoration: underline;
-    }
-#>
-
             $htmlStyle = @"
 <style>
     a {
