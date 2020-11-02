@@ -1357,10 +1357,6 @@ End {
             <p><b>Export to <a href="$CherwellFolder">Cherwell</a>:</b></p>
             <table id="overviewTable">
             <tr>
-                <td></td>
-                <td>Rows</td>
-            </tr>
-            <tr>
                 <th>
                 $(
                     if ($adObjectNamesSheet.count -and 
