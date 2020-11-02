@@ -868,6 +868,23 @@ End {
         color: black;
         text-decoration: underline;
     }
+    a:hover {
+        color: blue;
+    }
+
+    #overviewTable {
+        border-collapse: collapse;
+        border: 1px solid Black;
+        table-layout: fixed;
+    }
+
+    #overviewTable th {
+        font-weight: normal;
+        text-align: left;
+    }
+    #overviewTable td {
+        text-align: center;
+    }
 
     #matrixTable {
         border: 1px solid Black;
@@ -916,9 +933,17 @@ End {
     #probTypeWarning {
         background-color: orange;
     }
+    #probTextWarning {
+        color: orange;
+        font-weight: bold;
+    }
 
     #probTypeError {
         background-color: red;
+    }
+    #probTextError {
+        color: red;
+        font-weight: bold;
     }
 
     #probTypeInfo {
@@ -1332,15 +1357,18 @@ End {
             $htmlFormData = if ($CherwellFolder) {
                 @"
             <p><b>Export to <a href="$CherwellFolder">Cherwell</a>:</b></p>
-            <table  id="LegendTable">
-            <tr><td></td><td>Rows</td></tr>
+            <table id="overviewTable">
             <tr>
-                <td style="text-align:left">AD objects</td>
-                <td style="text-align:center">$($adObjectNamesSheet.count)</td>
+                <td></td>
+                <td>Rows</td>
             </tr>
             <tr>
-                <td style="text-align:left">Form data</td>
-                <td style="text-align:center;">$($formDataSheet.count)</td>
+                <th>AD objects</th>
+                <td>$($adObjectNamesSheet.count)</td>
+            </tr>
+            <tr>
+                <th>Form data</th>
+                <td>$($formDataSheet.count)</td>
             </tr>
             </table>
             $(
@@ -1369,26 +1397,23 @@ End {
             $htmlErrorWarningTable = if ($errorCount + $warningCount) {
                 @"
             <p><b>Detected issues:</b></p>
-            <table id="LegendTable">
+            <table id="overviewTable">
             <tr>
                 <td></td>
-                <td id="probTypeError" style="border: 1px solid Black;width: 80px;">
-                    Errors
-                </td>
-                <td id="probTypeWarning" style="border: 1px solid Black;width: 80px;">
-                    Warnings
-                </td>
+                <td>Errors</td>
+                <td>Warnings</td>
             </tr>
             $(
                 foreach ($item in ($count.GetEnumerator())) {
                     if ($item.Value.Error + $item.Value.warning) {
 @"
                     <tr>
-                        <td style="text-align:left">$($item.Key)</td>
-                        <td style="text-align:center;">$($item.Value.Error)</td>
-                        <td style="text-align:center;">$($item.Value.warning)</td>
+                        <th>$($item.Key)</th>
+                        <td{0}>$($item.Value.Error)</td>
+                        <td{1}>$($item.Value.Warning)</td>
                     </tr>
-"@
+"@ -f $(if ($item.Value.Error) {'id="probTextError"'}), 
+$(if ($item.Value.Warning) {'id="probTextWarning"'})
                     }
                 }
             )
