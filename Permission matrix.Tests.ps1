@@ -1119,7 +1119,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'a Warning is registered for the FormData sheet' {
             $actual = $ImportedMatrix.FormData.Check
             $actual.Type | Should -contain 'Warning'
-            $actual.Name | Should -contain 'Email address not found'
+            $actual.Name | Should -contain 'AD object not found'
             $actual.Value | Should -contain 'bob@contoso.com'
         }
         It 'the permissions script is not executed' {
@@ -1132,7 +1132,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Subject -eq '1 matrix file, 1 warning') -and
                 ($Priority -eq 'High') -and
                 ($Message -like "*Errors*Warnings*FormData*") -and
-                ($Message -like "*FormData*Email address not found*") -and
+                ($Message -like "*FormData*AD object not found*") -and
                 ($Message -like '*Check the*overview*for details*')
             }
         }

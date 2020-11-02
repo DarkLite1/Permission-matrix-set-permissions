@@ -577,8 +577,8 @@ Process {
                     if ($result.notFound) {
                         $I.FormData.Check += [PSCustomObject]@{
                             Type        = 'Warning'
-                            Name        = 'Email address not found'
-                            Description = "The email addresses are not found in AD."
+                            Name        = 'AD object not found'
+                            Description = 'The email address or SamAccountName is not found in the active directory.'
                             Value       = $result.notFound
                         }
                     }
