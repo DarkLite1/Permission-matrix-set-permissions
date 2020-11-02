@@ -797,14 +797,12 @@ End {
                 $outAdParams = @{
                     literalPath = Join-Path $CherwellFolder $CherwellAdObjectsFileName
                     Encoding    = 'utf8'
-                    NoClobber   = $true
                 }
                 $outAdParams.literalPath | Remove-Item -EA Ignore
 
                 $outFormDataParams = @{
                     literalPath = Join-Path $CherwellFolder $CherwellFormDataFileName
                     Encoding    = 'utf8'
-                    NoClobber   = $true
                 }
                 $outFormDataParams.literalPath | Remove-Item -EA Ignore
                 #endregion
@@ -820,7 +818,7 @@ End {
                     #region Export AD object names to a csv file
                     Write-EventLog @EventOutParams -Message "Export AD object names to '$($outAdParams.literalPath)'"
     
-                    $adObjectNamesSheet | ConvertTo-Csv -Delimiter ';' | 
+                    $adObjectNamesSheet | ConvertTo-Csv -Delimiter ';' -NoTypeInformation | 
                     Out-File @outAdParams
                     #endregion
 
@@ -844,7 +842,7 @@ End {
                     #region Export FormData to a csv file
                     Write-EventLog @EventOutParams -Message "Export FormData to '$($outFormDataParams.literalPath)'"
     
-                    $formDataSheet | ConvertTo-Csv -Delimiter ';' | 
+                    $formDataSheet | ConvertTo-Csv -Delimiter ';' -NoTypeInformation | 
                     Out-File @outFormDataParams
                     #endregion
 
