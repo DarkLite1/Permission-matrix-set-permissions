@@ -1436,7 +1436,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 }
             )
             </table>
-            <p><i>* Check the matrix results below for more details.</i></p>
+            <p><i>* Check the matrix results below for details.</i></p>
             <hr style="width:50%;text-align:left;margin-left:0">
 "@
             }
