@@ -107,12 +107,12 @@ Describe 'stop the script and send an e-mail to the admin when' {
         }
         It 'ScriptTestRequirements' {
             $testParams = $testParams.Clone()
-            $testParams.ScriptTestRequirements = 'SchareConfigNotExisting.ps1'
+            $testParams.ScriptTestRequirements = 'ShareConfigNotExisting.ps1'
 
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*SchareConfigNotExisting.ps1*not found*")
+                (&$MailAdminParams) -and ($Message -like "*ShareConfigNotExisting.ps1*not found*")
             }
 
             Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }

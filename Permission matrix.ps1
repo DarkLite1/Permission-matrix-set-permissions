@@ -1095,42 +1095,42 @@ End {
 
                         #region HTML Settings Create tables
                         $SettingsDetailFatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
-                            $HTMLvalue = ConvertTo-HtmlValueHC
+                            $htmlValue = ConvertTo-HtmlValueHC
                             @"
                             <tr>
                                 <td id="probTypeError"></td>
                                 <td colspan="7">
                                     <p id="probTitle">$($E.Name)</p>
                                     <p>$($E.Description)</p>
-                                    $HTMLvalue
+                                    $htmlValue
                                 </td>
                             </tr>
 "@
                         }
 
                         $SettingsDetailWarning = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Warning' })) {
-                            $HTMLvalue = ConvertTo-HtmlValueHC
+                            $htmlValue = ConvertTo-HtmlValueHC
                             @"
                             <tr>
                                 <td id="probTypeWarning"></td>
                                 <td colspan="7">
                                     <p id="probTitle">$($E.Name)</p>
                                     <p>$($E.Description)</p>
-                                    $HTMLvalue
+                                    $htmlValue
                                 </td>
                             </tr>
 "@
                         }
 
                         $SettingsDetailInfo = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Information' })) {
-                            $HTMLvalue = ConvertTo-HtmlValueHC
+                            $htmlValue = ConvertTo-HtmlValueHC
                             @"
                             <tr>
                                 <td id="probTypeInfo"></td>
                                 <td colspan="7">
                                     <p id="probTitle">$($E.Name)</p>
                                     <p>$($E.Description)</p>
-                                    $HTMLvalue
+                                    $htmlValue
                                 </td>
                             </tr>
 "@
