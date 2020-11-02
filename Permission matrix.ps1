@@ -1363,11 +1363,35 @@ End {
                 <td>Rows</td>
             </tr>
             <tr>
-                <th>AD objects</th>
+                <th>
+                $(
+                    if ($adObjectNamesSheet.count -and 
+                        $outAdParams.literalPath -and
+                        (Test-Path -LiteralPath $outAdParams.literalPath)
+                    ) {
+@"
+                        <a href="$($outAdParams.literalPath)">AD objects</a>
+"@
+                    }
+                    else {'AD objects'}
+                )
+                </th>
                 <td>$($adObjectNamesSheet.count)</td>
             </tr>
             <tr>
-                <th>Form data</th>
+                <th>
+            $(
+                if ($formDataSheet.count -and 
+                    $outFormDataParams.literalPath -and
+                    (Test-Path -LiteralPath $outFormDataParams.literalPath)
+                ) {
+@"
+                    <a href="$($outFormDataParams.literalPath)">Form data</a>
+"@
+                }
+                else {'From data'}
+            )
+                </th>
                 <td>$($formDataSheet.count)</td>
             </tr>
             </table>
