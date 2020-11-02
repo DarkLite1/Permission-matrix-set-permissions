@@ -578,7 +578,7 @@ Process {
                         $I.FormData.Check += [PSCustomObject]@{
                             Type        = 'Warning'
                             Name        = 'AD object not found'
-                            Description = 'The email address or SamAccountName is not found in the active directory.'
+                            Description = "The email address or SamAccountName is not found in the active directory. Multiple entries are supported with the comma ',' separator."
                             Value       = $result.notFound
                         }
                     }
