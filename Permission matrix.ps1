@@ -568,7 +568,7 @@ Process {
 
                     #region Convert MatrixResponsible to UserPrincipalName
                     $params = @{
-                        email = $I.FormData.Import.MatrixResponsible.Split(',').Trim()
+                        Name = $I.FormData.Import.MatrixResponsible.Split(',').Trim()
                     }
                     $result = Get-AdUserPrincipalNameHC @params
     
@@ -1372,12 +1372,16 @@ End {
 
             $htmlErrorWarningTable = if ($errorCount + $warningCount) {
                 @"
-            <p>Summary:</p>
-            <table>
+            <p>Detected issues:</p>
+            <table id="LegendTable">
             <tr>
-                <th></t>
-                <th>Errors</th>
-                <th>Warnings</th>
+                <td></td>
+                <td id="probTypeError" style="border: 1px solid Black;width: 80px;">
+                    Errors
+                </td>
+                <td id="probTypeWarning" style="border: 1px solid Black;width: 80px;">
+                    Warnings
+                </td>
             </tr>
             $(
                 foreach ($item in ($count.GetEnumerator())) {
@@ -1393,16 +1397,7 @@ End {
                 }
             )
             </table>
-            $(
-                if (
-                    ($ExportParams.Path) -and 
-                    (Test-Path -LiteralPath $ExportParams.Path)
-                ) { 
-@"
-<p>For more details see the <a href="$($ExportParams.Path)">Excel file overview</a>.</p>
-"@
-                }
-            )
+            <p>Check the matrix results below For more details.</p>
 "@
             }
 
