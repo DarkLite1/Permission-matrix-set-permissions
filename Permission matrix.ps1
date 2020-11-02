@@ -1434,8 +1434,8 @@ End {
                         <td{0}>$($item.Value.Error)</td>
                         <td{1}>$($item.Value.Warning)</td>
                     </tr>
-"@ -f $(if ($item.Value.Error) {'id="probTextError"'}), 
-$(if ($item.Value.Warning) {'id="probTextWarning"'})
+"@ -f $(if ($item.Value.Error) {' id="probTextError"'}), 
+$(if ($item.Value.Warning) {' id="probTextWarning"'})
                     }
                 }
             )
