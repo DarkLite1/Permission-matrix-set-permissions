@@ -862,92 +862,99 @@ End {
             Write-EventLog @EventVerboseParams -Message "Format HTML"
 
             #region HTML <style> for Mail and Settings
+<# 
+    a {
+        color: black;
+        text-decoration: none;
+    }
+
+    a:hover {
+        color: blue;
+        text-decoration: underline;
+    }
+#>
+
             $htmlStyle = @"
 <style>
-		a {
-			color: black;
-			text-decoration: none;
-		}
+    a {
+        color: black;
+        text-decoration: underline;
+    }
 
-		a:hover {
-			color: blue;
-			text-decoration: underline;
-		}
+    #matrixTable {
+        border: 1px solid Black;
+        /* padding-bottom: 60px; */
+        /* border-spacing: 0.5em; */
+        border-collapse: separate;
+        border-spacing: 0px 0.6em;
+        /* padding: 10px; */
+        width: 600px;
+    }
 
-		#matrixTable {
-			border: 1px solid Black;
-			/* padding-bottom: 60px; */
-			/* border-spacing: 0.5em; */
-			border-collapse: separate;
-			border-spacing: 0px 0.6em;
-			/* padding: 10px; */
-            width: 600px;
-		}
+    #matrixTitle {
+        border: none;
+        background-color: lightgrey;
+        text-align: center;
+        padding: 6px;
+    }
 
-		#matrixTitle {
-			border: none;
-			background-color: lightgrey;
-			text-align: center;
-			padding: 6px;
-		}
+    #matrixHeader {
+        font-weight: normal;
+        letter-spacing: 5pt;
+        font-style: italic;
+    }
 
-		#matrixHeader {
-			font-weight: normal;
-			letter-spacing: 5pt;
-			font-style: italic;
-        }
+    #matrixFileInfo {
+        font-weight: normal;
+        font-size: 12px;
+        font-style: italic;
+        text-align: center;
+    }
 
-        #matrixFileInfo {
-			font-weight: normal;
-			font-size: 12px;
-			font-style: italic;
-			text-align: center;
-		}
+    #LegendTable {
+        border-collapse: collapse;
+        border: 1px solid Black;
+        table-layout: fixed;
+    }
 
-		#LegendTable {
-			border-collapse: collapse;
-			border: 1px solid Black;
-			table-layout: fixed;
-		}
+    #LegendTable td {
+        text-align: center;
+    }
 
-		#LegendTable td {
-			text-align: center;
-        }
+    #probTitle {
+        font-weight: bold;
+    }
 
-		#probTitle {
-			font-weight: bold;
-		}
+    #probTypeWarning {
+        background-color: orange;
+    }
 
-		#probTypeWarning {
-			background-color: orange;
-		}
+    #probTypeError {
+        background-color: red;
+    }
 
-		#probTypeError {
-			background-color: red;
-		}
+    #probTypeInfo {
+        background-color: lightgrey;
+    }
 
-		#probTypeInfo {
-			background-color: lightgrey;
-		}
-
-		table tbody tr td a {
-			display: block;
-			width: 100%;
-			height: 100%;
-        }
-    </style>
+    table tbody tr td a {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+</style>
 "@
             #endregion
 
             #region HTML LegendTable for Mail and Settings
             $htmlLegend = @"
-            	<table id="LegendTable">
-		<tr>
-			<td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
-			<td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
-			<td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
-		</tr>
-	</table>
+<table id="LegendTable">
+    <tr>
+        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
+        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
+        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
+    </tr>
+</table>
 "@
             #endregion
 
@@ -1336,15 +1343,15 @@ End {
 
             $htmlFormData = if ($CherwellFolder) {
                 @"
-            <p>Details of the export to <a href="$CherwellFolder">Cherwell</a>:</p>
-            <table>
+            <p><b>Export to <a href="$CherwellFolder">Cherwell</a>:</b></p>
+            <table  id="LegendTable">
             <tr><td></td><td>Rows</td></tr>
             <tr>
-                <th>AD objects</th>
+                <td style="text-align:left">AD objects</td>
                 <td style="text-align:center">$($adObjectNamesSheet.count)</td>
             </tr>
             <tr>
-                <th>Form data</th>
+                <td style="text-align:left">Form data</td>
                 <td style="text-align:center;">$($formDataSheet.count)</td>
             </tr>
             </table>
@@ -1354,10 +1361,11 @@ End {
                     (Test-Path -LiteralPath $ExportParams.Path)
                 ) { 
 @"
-<p>For more details see the <a href="$($ExportParams.Path)">Excel file overview</a>.</p>
+<p><i>* Check the <a href="$($ExportParams.Path)">overview</a> for details.</i></p>
 "@
                 }
             )
+            <hr style="width:50%;text-align:left;margin-left:0">
 "@
             }
 
@@ -1372,7 +1380,7 @@ End {
 
             $htmlErrorWarningTable = if ($errorCount + $warningCount) {
                 @"
-            <p>Detected issues:</p>
+            <p><b>Detected issues:</b></p>
             <table id="LegendTable">
             <tr>
                 <td></td>
@@ -1388,7 +1396,7 @@ End {
                     if ($item.Value.Error + $item.Value.warning) {
 @"
                     <tr>
-                        <th>$($item.Key)</th>
+                        <td style="text-align:left">$($item.Key)</td>
                         <td style="text-align:center;">$($item.Value.Error)</td>
                         <td style="text-align:center;">$($item.Value.warning)</td>
                     </tr>
@@ -1397,7 +1405,8 @@ End {
                 }
             )
             </table>
-            <p>Check the matrix results below For more details.</p>
+            <p><i>* Check the matrix results below for more details.</i></p>
+            <hr style="width:50%;text-align:left;margin-left:0">
 "@
             }
 
@@ -1405,7 +1414,7 @@ End {
                 $htmlStyle
                 $htmlErrorWarningTable
                 $htmlFormData
-                <p>Details per matrix file:</p>
+                <p><b>Matrix results per file:</b></p>
                 $htmlMatrixTables
                 $htmlLegend
 "@

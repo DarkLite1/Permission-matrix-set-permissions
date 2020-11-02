@@ -753,7 +753,7 @@ Describe 'on a successful run' {
             ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
             ($Message -notLike '*Cherwell*') -and
-            ($Message -like '*Details per matrix file*') -and
+            ($Message -like '*Matrix results per file*') -and
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
@@ -1038,7 +1038,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like "*Worksheet 'FormData' not found*") -and
-                ($Message -notLike '*Excel file overview*')
+                ($Message -notLike '*Check the*overview*for details*')
             }
         }
     }
@@ -1086,7 +1086,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Priority -eq 'High') -and
                 ($Message -like "*Errors*Warnings*FormData*") -and
                 ($Message -like "*FormData*incorrect data*") -and
-                ($Message -notLike '*Excel file overview*')
+                ($Message -notLike '*Check the*overview*for details*')
             }
         }
     }
@@ -1133,7 +1133,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Priority -eq 'High') -and
                 ($Message -like "*Errors*Warnings*FormData*") -and
                 ($Message -like "*FormData*Email address not found*") -and
-                ($Message -like '*Excel file overview*')
+                ($Message -like '*Check the*overview*for details*')
             }
         }
     }
@@ -1319,11 +1319,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
-            ($Message -like '*Details of the export to*Cherwell*') -and
-            ($Message -like '*Excel file overview*') -and
+            ($Message -like '*Export to*Cherwell*') -and
+            ($Message -like '*Check the*overview*for details*') -and
             ($Message -like '*AD objects*2*') -and
             ($Message -like '*Form data*1*') -and
-            ($Message -like '*Details per matrix file*') -and
+            ($Message -like '*Matrix results per file*') -and
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
@@ -1331,4 +1331,4 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-}
+} -tag test
