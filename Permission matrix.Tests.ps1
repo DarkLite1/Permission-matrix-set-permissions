@@ -1244,10 +1244,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual = @{
                     logFolder      = @{
                         Excel    = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'FormData'
-                        FormData = Import-Csv -Path $testLogFolder.FormDataCsvFile.FullName -Delimiter ';'
+                        FormData = Import-Csv -Path $testLogFolder.FormDataCsvFile.FullName
                     }
                     cherwellFolder = @{
-                        FormData = Import-Csv -Path $testCherwellFolder.FormDataCsvFile.FullName -Delimiter ';'
+                        FormData = Import-Csv -Path $testCherwellFolder.FormDataCsvFile.FullName
                     }
                 }
             }
@@ -1293,10 +1293,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual = @{
                     logFolder      = @{
                         Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
-                        AdObjectNames = Import-Csv -Path $testLogFolder.AdObjectsCsvFile.FullName -Delimiter ';'
+                        AdObjectNames = Import-Csv -Path $testLogFolder.AdObjectsCsvFile.FullName
                     }
                     cherwellFolder = @{
-                        AdObjectNames = Import-Csv -Path $testCherwellFolder.AdObjectsCsvFile.FullName -Delimiter ';'
+                        AdObjectNames = Import-Csv -Path $testCherwellFolder.AdObjectsCsvFile.FullName
                     }
                 }
             }

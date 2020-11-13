@@ -794,17 +794,19 @@ End {
                 }
                 $ExportParams.Path | Remove-Item -EA Ignore
 
-                $outAdParams = @{
-                    literalPath = Join-Path $CherwellFolder $CherwellAdObjectsFileName
-                    Encoding    = 'utf8'
+                $exportCsvAdParams = @{
+                    literalPath       = Join-Path $CherwellFolder $CherwellAdObjectsFileName
+                    Encoding          = 'utf8'
+                    NoTypeInformation = $true
                 }
-                $outAdParams.literalPath | Remove-Item -EA Ignore
+                $exportCsvAdParams.literalPath | Remove-Item -EA Ignore
 
-                $outFormDataParams = @{
-                    literalPath = Join-Path $CherwellFolder $CherwellFormDataFileName
-                    Encoding    = 'utf8'
+                $exportCsvFormParams = @{
+                    literalPath       = Join-Path $CherwellFolder $CherwellFormDataFileName
+                    Encoding          = 'utf8'
+                    NoTypeInformation = $true
                 }
-                $outFormDataParams.literalPath | Remove-Item -EA Ignore
+                $exportCsvFormParams.literalPath | Remove-Item -EA Ignore
                 #endregion
 
                 if ($AdObjectNamesSheet) {
@@ -816,15 +818,14 @@ End {
                     #endregion
 
                     #region Export AD object names to a csv file
-                    Write-EventLog @EventOutParams -Message "Export AD object names to '$($outAdParams.literalPath)'"
-    
-                    $adObjectNamesSheet | ConvertTo-Csv -Delimiter ';' -NoTypeInformation | 
-                    Out-File @outAdParams
+                    Write-EventLog @EventOutParams -Message "Export AD object names to '$($exportCsvAdParams.literalPath)'"
+
+                    $adObjectNamesSheet | Export-Csv @exportCsvAdParams
                     #endregion
 
                     #region Copy csv file to log folder
                     $copyParams = @{
-                        LiteralPath = $outAdParams.literalPath
+                        LiteralPath = $exportCsvAdParams.literalPath
                         Destination = "$matrixLogFile - Cherwell - $CherwellAdObjectsFileName"
                     }
                     Copy-Item @copyParams
@@ -840,15 +841,14 @@ End {
                     #endregion
     
                     #region Export FormData to a csv file
-                    Write-EventLog @EventOutParams -Message "Export FormData to '$($outFormDataParams.literalPath)'"
+                    Write-EventLog @EventOutParams -Message "Export FormData to '$($exportCsvFormParams.literalPath)'"
     
-                    $formDataSheet | ConvertTo-Csv -Delimiter ';' -NoTypeInformation | 
-                    Out-File @outFormDataParams
+                    $formDataSheet | Export-Csv @exportCsvFormParams
                     #endregion
 
                     #region Copy csv file to log folder
                     $copyParams = @{
-                        LiteralPath = $outFormDataParams.literalPath
+                        LiteralPath = $exportCsvFormParams.literalPath
                         Destination = "$matrixLogFile - Cherwell - $CherwellFormDataFileName"
                     }
                     Copy-Item @copyParams
@@ -1360,11 +1360,11 @@ End {
                 <th>
                 $(
                     if ($adObjectNamesSheet.count -and 
-                        $outAdParams.literalPath -and
-                        (Test-Path -LiteralPath $outAdParams.literalPath)
+                        $exportCsvAdParams.literalPath -and
+                        (Test-Path -LiteralPath $exportCsvAdParams.literalPath)
                     ) {
 @"
-                        <a href="$($outAdParams.literalPath)">AD objects</a>
+                        <a href="$($exportCsvAdParams.literalPath)">AD objects</a>
 "@
                     }
                     else {'AD objects'}
@@ -1376,11 +1376,11 @@ End {
                 <th>
             $(
                 if ($formDataSheet.count -and 
-                    $outFormDataParams.literalPath -and
-                    (Test-Path -LiteralPath $outFormDataParams.literalPath)
+                    $exportCsvFormParams.literalPath -and
+                    (Test-Path -LiteralPath $exportCsvFormParams.literalPath)
                 ) {
 @"
-                    <a href="$($outFormDataParams.literalPath)">Form data</a>
+                    <a href="$($exportCsvFormParams.literalPath)">Form data</a>
 "@
                 }
                 else {'From data'}
