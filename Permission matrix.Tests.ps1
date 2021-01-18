@@ -51,7 +51,7 @@ BeforeAll {
 
     $testDefaultSettings | Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
 
-    $testComputerName = "$env:COMPUTERNAME"
+    $testComputerName = $env:COMPUTERNAME
     $testComputerName2 = 'DEUSFFRAN0031'
 
     if (-not (Test-Connection -ComputerName $testComputerName2 -Count 1 -Quiet)) {
@@ -535,7 +535,7 @@ Describe 'a FatalError object is registered' {
             .$testScript @testParams
 
             $ImportedMatrix.Permissions.Check.Name | 
-            Should -contain 'Matrix permission incorrect'
+            Should -Contain 'Matrix permission incorrect'
         }
     }
     Context "for the worksheet 'Settings' when" {
@@ -733,9 +733,9 @@ Describe 'on a successful run' {
             }
         }
         It 'saves the start/end/duration times for each job in the settings' {
-            $ImportedMatrix.Settings.JobTime.Start | Should -haveCount 3
-            $ImportedMatrix.Settings.JobTime.End | Should -haveCount 3
-            $ImportedMatrix.Settings.JobTime.Duration | Should -haveCount 3
+            $ImportedMatrix.Settings.JobTime.Start | Should -HaveCount 3
+            $ImportedMatrix.Settings.JobTime.End | Should -HaveCount 3
+            $ImportedMatrix.Settings.JobTime.Duration | Should -HaveCount 3
         }
         It 'saves the job result in Settings for each matrix' {
             ($ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })).Check |
@@ -1025,8 +1025,8 @@ Describe 'when the argument CherwellFolder is used' {
         }
         It 'a FatalError is registered for the file' {
             $actual = $ImportedMatrix.File.Check
-            $actual.Type | Should -contain "FatalError"
-            $actual.Name | Should -contain "Worksheet 'FormData' not found"
+            $actual.Type | Should -Contain "FatalError"
+            $actual.Name | Should -Contain "Worksheet 'FormData' not found"
         }
         It 'the permissions script is not executed' {
             Should -Not -Invoke Invoke-Command
@@ -1072,8 +1072,8 @@ Describe 'when the argument CherwellFolder is used' {
         }
         It 'a FatalError is registered for the FormData sheet' {
             $actual = $ImportedMatrix.FormData.Check
-            $actual.Type | Should -contain 'FatalError'
-            $actual.Name | Should -contain 'incorrect data'
+            $actual.Type | Should -Contain 'FatalError'
+            $actual.Name | Should -Contain 'incorrect data'
         }
         It 'the permissions script is not executed' {
             Should -Not -Invoke Invoke-Command
@@ -1118,9 +1118,9 @@ Describe 'when the argument CherwellFolder is used' {
         }
         It 'a Warning is registered for the FormData sheet' {
             $actual = $ImportedMatrix.FormData.Check
-            $actual.Type | Should -contain 'Warning'
-            $actual.Name | Should -contain 'AD object not found'
-            $actual.Value | Should -contain 'bob@contoso.com'
+            $actual.Type | Should -Contain 'Warning'
+            $actual.Name | Should -Contain 'AD object not found'
+            $actual.Value | Should -Contain 'bob@contoso.com'
         }
         It 'the permissions script is not executed' {
             Should -Not -Invoke Invoke-Command
@@ -1331,4 +1331,4 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-} -tag test
+} -Tag test
