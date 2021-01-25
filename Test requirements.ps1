@@ -14,8 +14,8 @@
     is only available from Windows Server 2012+. The current environment still has older
     servers that need to be supported too. That's why this script is built.
 
-.PARAMETER Name
-    Name of the share.
+.PARAMETER Path
+    Shared folder paths.
 
 .PARAMETER Flag
     If set to TRUE, ABE will be enabled. Otherwise it will be disabled.
@@ -92,7 +92,7 @@ Begin {
             foreach ($s in $lss) {
                 Write-Verbose "Share name '$($S.Name)'"
 
-                $sh = $Shares | Where-Object {$_.Name -eq $S.Name}
+                $sh = $Shares | Where-Object { $_.Name -eq $S.Name }
                 $sd = (Invoke-CimMethod -InputObject $s -MethodName GetSecurityDescriptor -Verbose:$false).Descriptor
         
                 $Obj = [PSCustomObject]@{
@@ -103,16 +103,16 @@ Begin {
 
                 ($sd.DACL).Foreach( {
                         $permission = Switch ($_.AccessMask) {
-                            1179817 {‘Read’; Break}
-                            1245631 {‘Change’; Break}
-                            2032127 {‘FullControl’; Break}
-                            default {‘Special’}
+                            1179817 { ‘Read’; Break }
+                            1245631 { ‘Change’; Break }
+                            2032127 { ‘FullControl’; Break }
+                            default { ‘Special’ }
                         }
 
                         $domain = $_.Trustee.Domain
-                        $userName = if ($tn = $_.Trustee.Name) {$tn} else {$_.Trustee.SID}
+                        $userName = if ($tn = $_.Trustee.Name) { $tn } else { $_.Trustee.SID }
 
-                        $User = if ($domain) {"$domain\$userName"} else {$userName}
+                        $User = if ($domain) { "$domain\$userName" } else { $userName }
                         $Permission = $permission
 
                         $Obj.Acl.Add($user, $permission)
@@ -438,7 +438,7 @@ Process {
 
     #region Require at least .NET 4.6.2
     $DotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' | 
-        Get-ItemPropertyValue -Name Release | ForEach-Object {$_ -ge 394802}
+    Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
  
     if (-not $DotNet) {
         Return [PSCustomObject]@{
@@ -616,8 +616,9 @@ Process {
     Try {
         $AbeCorrected = @{}
         foreach ($P in $Path) {
-            ($Shares).Where( {((($_.Path -like "$P\*") -or ($_.Path -eq $P)) -and 
-                        (Test-AccessBasedEnumerationHC -Name $_.Name) -ne $Flag)}).ForEach( {
+            ($Shares).Where( { (
+                        (($_.Path -like "$P\*") -or ($_.Path -eq $P)) -and 
+                        (Test-AccessBasedEnumerationHC -Name $_.Name) -ne $Flag) }).ForEach( {
                         
                     Set-AccessBasedEnumerationHC -Name $_.Name -Flag $Flag
                     $AbeCorrected.Add($_.Name, $_.Path)
