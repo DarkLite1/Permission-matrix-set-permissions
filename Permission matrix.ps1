@@ -1,6 +1,5 @@
 #Requires -Version 5.1
-#Requires -Modules ImportExcel
-#Requires -Modules Toolbox.PermissionMatrix
+#Requires -Modules ImportExcel, Toolbox.PermissionMatrix
 
 <#
     .SYNOPSIS
@@ -850,6 +849,16 @@ End {
                     $copyParams = @{
                         LiteralPath = $exportCsvFormParams.literalPath
                         Destination = "$matrixLogFile - Cherwell - $CherwellFormDataFileName"
+                    }
+                    Copy-Item @copyParams
+                    #endregion
+                }
+
+                if ($adObjectNamesSheet -or $formDataSheet) {
+                    #region Copy Excel file from log folder to Cherwell folder
+                    $copyParams = @{
+                        LiteralPath = $ExportParams.Path
+                        Destination = Join-Path $CherwellFolder $CherwellExcelOverviewFileName
                     }
                     Copy-Item @copyParams
                     #endregion

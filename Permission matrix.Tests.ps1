@@ -1,7 +1,5 @@
 #Requires -Version 5.1
-#Requires -Modules Assert
-#Requires -Modules Pester
-#Requires -Modules ImportExcel
+#Requires -Modules Assert, Pester, ImportExcel
 
 BeforeAll {
     # Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
@@ -1207,9 +1205,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
 
         $testCherwellFolder = @{
+            ExcelFile        = $testCherwellExport | 
+            Where-Object Name -Like '*Overview.xlsx'
             FormDataCsvFile  = $testCherwellExport | 
             Where-Object Name -EQ 'Form data.csv'
-    
             AdObjectsCsvFile = $testCherwellExport | 
             Where-Object Name -EQ 'AD object names.csv'
         }
@@ -1236,7 +1235,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.FormDataCsvFile.FullName | 
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel sheet in the log folder' {
+        It 'to an Excel file in the Cherwell folder' {
+            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
@@ -1247,6 +1249,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                         FormData = Import-Csv -Path $testLogFolder.FormDataCsvFile.FullName
                     }
                     cherwellFolder = @{
+                        Excel    = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'FormData'
                         FormData = Import-Csv -Path $testCherwellFolder.FormDataCsvFile.FullName
                     }
                 }
@@ -1262,6 +1265,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'MatrixFolderPath'; Value = 'e' }
             ) {
                 $actual.cherwellFolder.FormData.$Name | Should -Be $Value
+                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.FormData.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
@@ -1269,13 +1273,15 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 # scoping issue in Pester
                 $actual.cherwellFolder.FormData.MatrixFilePath | 
                 Should -Be $SettingsParams.Path
+                $actual.cherwellFolder.Excel.MatrixFilePath | 
+                Should -Be $SettingsParams.Path
                 $actual.logFolder.FormData.MatrixFilePath | 
                 Should -Be $SettingsParams.Path
                 $actual.logFolder.Excel.MatrixFilePath | 
                 Should -Be $SettingsParams.Path
             }
         }
-    }
+    } -tag test
     Context 'the AD object names are exported' {
         It 'to a CSV file in the Cherwell folder' {
             $testCherwellFolder.AdObjectsCsvFile.FullName | 
@@ -1285,7 +1291,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.AdObjectsCsvFile.FullName | 
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel sheet in the log folder' {
+        It 'to an Excel file in the Cherwell folder' {
+            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
@@ -1296,6 +1305,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                         AdObjectNames = Import-Csv -Path $testLogFolder.AdObjectsCsvFile.FullName
                     }
                     cherwellFolder = @{
+                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
                         AdObjectNames = Import-Csv -Path $testCherwellFolder.AdObjectsCsvFile.FullName
                     }
                 }
@@ -1308,11 +1318,12 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'Name'; Value = 'Manager' }
             ) {
                 $actual.cherwellFolder.AdObjectNames.$Name | Should -Be $Value
+                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.AdObjectNames.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    }
+    } -tag test
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
