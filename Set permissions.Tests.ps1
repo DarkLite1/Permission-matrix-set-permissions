@@ -180,9 +180,6 @@ BeforeAll {
     $testParentFolder = (New-Item 'TestDrive:\testFolder' -ItemType Directory -Force).FullName
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
-    # $testParams = @{
-    #     Path = (New-Item 'TestDrive:\testFolder' -ItemType Directory).FullName
-    # }
 }
 
 Describe 'the mandatory parameters are' {
