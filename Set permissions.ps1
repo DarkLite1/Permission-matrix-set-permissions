@@ -3,7 +3,8 @@
 
 <#
     .SYNOPSIS
-        Creates/checks/fixes a folder structure based on permissions defined in an Excel file.
+        Create, check or fix a folder structure based on folder names and
+        folder permission characters in an Excel file.
 
     .DESCRIPTION
         Check/Fix:
@@ -626,7 +627,7 @@ Process {
             
             Write-Verbose "Parent folder '$Path'"
             
-            Set-Location -Path $Path
+            # Set-Location -Path $Path
         }
         Catch {
             throw "Failed checking the existence of the parent folder: $_"
