@@ -419,7 +419,12 @@ Process {
                     #endregion
 
                     #region Copy file to log folder
-                    $Obj.File.SaveFullName = (Copy-Item -LiteralPath $_.FullName -Destination $Obj.File.LogFolder -PassThru).FullName
+                    $copyParams = @{
+                        LiteralPath = $_.FullName 
+                        Destination = $Obj.File.LogFolder 
+                        PassThru    = $true
+                    }
+                    $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
                     #endregion
 
                     #region Get Excel file details
