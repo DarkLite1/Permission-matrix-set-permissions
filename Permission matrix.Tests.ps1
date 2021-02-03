@@ -80,7 +80,6 @@ BeforeAll {
     Mock Test-FormDataHC
     Mock Get-AdUserPrincipalNameHC
 }
-
 Describe 'the mandatory parameters are' {
     It "<Name>" -TestCases @(
         @{Name = 'ScriptName' }

@@ -680,16 +680,16 @@ Process {
 
             if ($AdObjects.count -ne 0) {
                 $params = @{
-                    Name          = ($AdObjects | Sort-Object -Unique)
-                    ExcludeMember = $PlaceHolderAccounts
+                    SamAccountName = ($AdObjects | Sort-Object -Unique)
                 }
                 $ADObjectDetail = @(Get-ADObjectDetailHC @params)
 
                 @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach( {
                         $params = @{
-                            Matrix     = $_.Matrix
-                            ADObject   = $ADObjectDetail
-                            DefaultAcl = $DefaultAcl
+                            Matrix                 = $_.Matrix
+                            ADObject               = $ADObjectDetail
+                            DefaultAcl             = $DefaultAcl
+                            ExcludedSamAccountName = $PlaceHolderAccounts
                         }
                         $_.Check += Test-ExpandedMatrixHC @params
                     })
