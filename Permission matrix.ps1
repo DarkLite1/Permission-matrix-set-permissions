@@ -395,180 +395,183 @@ Process {
     Try {
         $ID = 0
 
-        $ImportedMatrix = @(Get-ChildItem -Path ImportDir:\* -Include *.xlsx -File).Where( { $_.FullName -ne $DefaultsItem.FullName }).ForEach( {
+        [Array]$ImportedMatrix = foreach (
+            $matrixFile in 
+            @(Get-ChildItem -Path ImportDir:\* -Include *.xlsx -File).Where( { $_.FullName -ne $DefaultsItem.FullName })
+        ) {
+            Try {
+                $Obj = [PSCustomObject]@{
+                    File        = @{
+                        Item         = $matrixFile
+                        SaveFullName = $matrixFile.FullName
+                        ExcelInfo    = $null
+                        LogFolder    = $null
+                        Check        = @()
+                    }
+                    Settings    = @()
+                    Permissions = @{
+                        Import = @()
+                        Check  = @()
+                    }
+                    FormData    = @{
+                        Import = $null
+                        Check  = @()
+                    }
+                }
+
+                #region Create log folder
+                $Obj.File.LogFolder = New-FolderHC -Path $LogFolder -ChildPath (
+                    '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $StartDate.Year, $StartDate.Month,
+                    $StartDate.Day, $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek, $matrixFile.BaseName)
+
+                $BeginEvent = "$($matrixFile.Name)`n`nExcel file details:`n"
+                #endregion
+
+                #region Copy file to log folder
+                $copyParams = @{
+                    LiteralPath = $matrixFile.FullName 
+                    Destination = $Obj.File.LogFolder 
+                    PassThru    = $true
+                }
+                $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
+                #endregion
+
+                #region Get Excel file details
+                $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile
+
+                Write-EventLog @EventVerboseParams -Message ($BeginEvent +
+                    "- Name:`t`t`t" + $matrixFile.Name + "`n" +
+                    "- DirectoryName:`t`t" + $matrixFile.DirectoryName + "`n" +
+                    "- LastModifiedBy:`t`t" + $Obj.File.ExcelInfo.LastModifiedBy + "`n" +
+                    "- LastModifiedDate:`t" + $Obj.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))
+                #endregion
+
+                #region Import sheets Settings, Permissions, FormData
                 Try {
-                    $Obj = [PSCustomObject]@{
-                        File        = @{
-                            Item         = $_
-                            SaveFullName = $_.FullName
-                            ExcelInfo    = $null
-                            LogFolder    = $null
-                            Check        = @()
-                        }
-                        Settings    = @()
-                        Permissions = @{
-                            Import = @()
-                            Check  = @()
-                        }
-                        FormData    = @{
-                            Import = $null
-                            Check  = @()
-                        }
+                    $ImportParams = @{
+                        Path        = $matrixFile
+                        DataOnly    = $true
+                        ErrorAction = 'Stop'
                     }
+                    #region Import sheet Settings
+                    $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
 
-                    #region Create log folder
-                    $Obj.File.LogFolder = New-FolderHC -Path $LogFolder -ChildPath (
-                        '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $StartDate.Year, $StartDate.Month,
-                        $StartDate.Day, $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek, $_.BaseName)
-
-                    $BeginEvent = "$($_.Name)`n`nExcel file details:`n"
+                    Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
                     #endregion
 
-                    #region Copy file to log folder
-                    $copyParams = @{
-                        LiteralPath = $_.FullName 
-                        Destination = $Obj.File.LogFolder 
-                        PassThru    = $true
-                    }
-                    $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
-                    #endregion
+                    if ($Settings) {
+                        foreach ($S in $Settings) {
+                            $ID++
 
-                    #region Get Excel file details
-                    $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $_
-
-                    Write-EventLog @EventVerboseParams -Message ($BeginEvent +
-                        "- Name:`t`t`t" + $_.Name + "`n" +
-                        "- DirectoryName:`t`t" + $_.DirectoryName + "`n" +
-                        "- LastModifiedBy:`t`t" + $Obj.File.ExcelInfo.LastModifiedBy + "`n" +
-                        "- LastModifiedDate:`t" + $Obj.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))
-                    #endregion
-
-                    #region Import sheets Settings, Permissions, FormData
-                    Try {
-                        $ImportParams = @{
-                            Path        = $_
-                            DataOnly    = $true
-                            ErrorAction = 'Stop'
+                            $Obj.Settings += [PSCustomObject]@{
+                                ID        = $ID
+                                Import    = Format-SettingStringsHC -Settings $S
+                                Check     = @()
+                                Matrix    = @()
+                                AdObjects = @{}
+                                JobTime   = @{}
+                            }
                         }
-                        #region Import sheet Settings
-                        $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
 
-                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
+                        #region Import sheet Permissions
+                        $Obj.Permissions.Import = @(Import-Excel @ImportParams -Sheet 'Permissions' -NoHeader |
+                            Format-PermissionsStringsHC)
+
+                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Permissions' imported"
                         #endregion
 
-                        if ($Settings) {
-                            foreach ($S in $Settings) {
-                                $ID++
+                        #region Import sheet FormData
+                        if ($CherwellFolder) {
+                            try {
+                                $formData = Import-Excel @ImportParams -Sheet 'FormData'
+                                    
+                                Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'FormData' imported" 
 
-                                $Obj.Settings += [PSCustomObject]@{
-                                    ID        = $ID
-                                    Import    = Format-SettingStringsHC -Settings $S
-                                    Check     = @()
-                                    Matrix    = @()
-                                    AdObjects = @{}
-                                    JobTime   = @{}
+                                $Obj.FormData.Check += Test-FormDataHC $formData
+                                    
+                                if (-not $Obj.FormData.Check) {
+                                    $Obj.FormData.Import = $formData
                                 }
                             }
-
-                            #region Import sheet Permissions
-                            $Obj.Permissions.Import = @(Import-Excel @ImportParams -Sheet 'Permissions' -NoHeader |
-                                Format-PermissionsStringsHC)
-
-                            Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Permissions' imported"
-                            #endregion
-
-                            #region Import sheet FormData
-                            if ($CherwellFolder) {
-                                try {
-                                    $formData = Import-Excel @ImportParams -Sheet 'FormData'
-                                    
-                                    Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'FormData' imported" 
-
-                                    $Obj.FormData.Check += Test-FormDataHC $formData
-                                    
-                                    if (-not $Obj.FormData.Check) {
-                                        $Obj.FormData.Import = $formData
-                                    }
+                            catch {
+                                $Obj.File.Check += [PSCustomObject]@{
+                                    Type        = 'FatalError'
+                                    Name        = "Worksheet 'FormData' not found"
+                                    Description = "When the argument 'CherwellFolder' is used the Excel file needs to have a worksheet 'FormData'."
+                                    Value       = @($_)
                                 }
-                                catch {
-                                    $Obj.File.Check += [PSCustomObject]@{
-                                        Type        = 'FatalError'
-                                        Name        = "Worksheet 'FormData' not found"
-                                        Description = "When the argument 'CherwellFolder' is used the Excel file needs to have a worksheet 'FormData'."
-                                        Value       = @($_)
-                                    }
         
-                                    $Error.RemoveAt(0)
-                                }
+                                $Error.RemoveAt(0)
                             }
-                            #endregion
                         }
-                        else {
-                            $Obj.File.Check += [PSCustomObject]@{
-                                Type        = 'FatalError'
-                                Name        = 'Matrix disabled'
-                                Description = 'Every Excel file needs at least one enabled matrix.'
-                                Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
-                            }
-                            Write-EventLog @EventVerboseParams -Message "$BeginEvent - No lines found with status 'Enabled' in the worksheet 'Settings'"
-                        }
+                        #endregion
                     }
-                    Catch {
-                        $M = Switch -Wildcard ($_) {
-                            "*Worksheet 'Settings' not found*" {
-                                "Worksheet 'Settings' not found"; Break
-                            }
-                            "*worksheet 'Settings': No column headers found on top row '1'*" {
-                                "Worksheet 'Settings' is empty"; Break
-                            }
-                            "*Worksheet 'Permissions' not found*" {
-                                "Worksheet 'Permissions' not found"; Break
-                            }
-                            "*worksheet 'Permissions': No column headers found on top row '1'*" {
-                                "Worksheet 'Permissions' is empty"; Break
-                            }
-                            Default {
-                                throw "Failed importing the Excel file '$($Obj.File.FullName)': $_"
-                            }
-                        }
+                    else {
                         $Obj.File.Check += [PSCustomObject]@{
                             Type        = 'FatalError'
-                            Name        = 'Excel file incorrect'
-                            Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                            Value       = $M
+                            Name        = 'Matrix disabled'
+                            Description = 'Every Excel file needs at least one enabled matrix.'
+                            Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
                         }
-
-                        Try { $Error.RemoveRange(0, 2) }
-                        Catch { throw 'Import-Excel throws 2 errors normally' }
+                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - No lines found with status 'Enabled' in the worksheet 'Settings'"
                     }
-                    #endregion
-
-                    if ($Archive) {
-                        Try {
-                            Move-Item -LiteralPath $_ -Destination $ArchiveItem -Force -EA Stop
-                            Write-EventLog @EventVerboseParams -Message "$BeginEvent - Moved file to archive folder:`n$($ArchiveItem.FullName)"
-                        }
-                        Catch {
-                            $Obj.File.Check += [PSCustomObject]@{
-                                Type        = 'Warning'
-                                Name        = 'Archiving failed'
-                                Description = "When the '-Archive' switch is used the file is moved to the archive folder.In case a file is still in use, the move operation might fail."
-                                Value       = @($_)
-                            }
-
-                            $Error.RemoveAt(0)
-                        }
-                    }
-
-                    $Obj
                 }
                 Catch {
-                    Write-Warning $_
-                    Send-MailHC -To $ScriptAdmin -Subject 'FAILURE' -Priority 'High' -Message $_ -Header $ScriptName
-                    Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
-                    Write-EventLog @EventEndParams; Exit 1
+                    $errorMessage = Switch -Wildcard ($_) {
+                        "*Worksheet 'Settings' not found*" {
+                            "Worksheet 'Settings' not found"; Break
+                        }
+                        "*worksheet 'Settings': No column headers found on top row '1'*" {
+                            "Worksheet 'Settings' is empty"; Break
+                        }
+                        "*Worksheet 'Permissions' not found*" {
+                            "Worksheet 'Permissions' not found"; Break
+                        }
+                        "*worksheet 'Permissions': No column headers found on top row '1'*" {
+                            "Worksheet 'Permissions' is empty"; Break
+                        }
+                        Default {
+                            throw "Failed importing the Excel file '$($Obj.File.FullName)': $_"
+                        }
+                    }
+                    $Obj.File.Check += [PSCustomObject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Excel file incorrect'
+                        Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
+                        Value       = $errorMessage
+                    }
+
+                    Try { $Error.RemoveRange(0, 2) }
+                    Catch { throw 'Import-Excel throws 2 errors normally' }
                 }
-            })
+                #endregion
+
+                if ($Archive) {
+                    Try {
+                        Move-Item -LiteralPath $matrixFile -Destination $ArchiveItem -Force -EA Stop
+                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Moved file to archive folder:`n$($ArchiveItem.FullName)"
+                    }
+                    Catch {
+                        $Obj.File.Check += [PSCustomObject]@{
+                            Type        = 'Warning'
+                            Name        = 'Archiving failed'
+                            Description = "When the '-Archive' switch is used the file is moved to the archive folder.In case a file is still in use, the move operation might fail."
+                            Value       = @($_)
+                        }
+
+                        $Error.RemoveAt(0)
+                    }
+                }
+
+                $Obj
+            }
+            Catch {
+                Write-Warning $_
+                Send-MailHC -To $ScriptAdmin -Subject 'FAILURE' -Priority 'High' -Message $_ -Header $ScriptName
+                Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
+                Write-EventLog @EventEndParams; Exit 1
+            }
+        }
 
         if ($ImportedMatrix) {
             #region Build FormData for CherwellFolder
