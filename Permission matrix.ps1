@@ -312,7 +312,13 @@ Begin {
         }
         #endregion
 
-        $LogFolder = New-FolderHC -Path $LogFolder -ChildPath "Permission matrix\$ScriptName"
+        #region Create log folder
+        $newFolderParams = @{
+            Path      = $LogFolder 
+            ChildPath = "Permission matrix\$ScriptName"
+        }
+        $LogFolder = New-FolderHC @newFolderParams
+        #endregion
 
         #region Map share with Excel files
         if (-not (Test-Path -LiteralPath ImportDir:)) {
