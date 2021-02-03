@@ -2,7 +2,7 @@
 #Requires -Modules Assert, Pester, ImportExcel
 
 BeforeAll {
-    # Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
+    Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -1280,7 +1280,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 Should -Be $SettingsParams.Path
             }
         }
-    } -tag test
+    }
     Context 'the AD object names are exported' {
         It 'to a CSV file in the Cherwell folder' {
             $testCherwellFolder.AdObjectsCsvFile.FullName | 
@@ -1322,7 +1322,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    } -tag test
+    }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
@@ -1341,4 +1341,4 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-} -Tag test
+}
