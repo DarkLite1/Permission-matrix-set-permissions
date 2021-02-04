@@ -56,14 +56,14 @@ Begin {
             Name    Path             Acl                                                     
             ----    ----             ---                                                     
             Log     L:\              {Everyone}                                              
-            Scripts T:\Input\Scripts {GROUPHC\Domain Users, Everyone, BUILTIN\Administrators}
+            Scripts T:\Input\Scripts {contoso\Domain Users, Everyone, BUILTIN\Administrators}
 
             $Shares[0].Acl
             Name  : Everyone
             Value : FullControl
 
             $Shares[0].Acl
-            Name  : GROUPHC\Domain Users
+            Name  : contoso\Domain Users
             Value : FullControl
 
             Name  : Everyone
