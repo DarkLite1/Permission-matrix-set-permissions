@@ -1568,6 +1568,21 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
             Get-ScriptRuntimeHC -Stop
             Send-MailHC @MailParams
             #endregion
+
+            #region Non terminating errors are reported to the admin
+            if ($error) {
+                $MailParams = @{
+                    To        = $ScriptAdmin
+                    Priority  = 'High'
+                    Subject   = "FAILURE - $($error.count) non terminating errors"
+                    Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message  | ConvertTo-HtmlListHC -Spacing Wide )"
+                    Save      = "$matrixLogFile - Mail - $($error.count) non terminating errors.html"
+                    Header    = $ScriptName
+                    LogFolder = $LogFolder
+                }
+                Send-MailHC @MailParams
+            }
+            #endregion
         }
     }
     Catch {
