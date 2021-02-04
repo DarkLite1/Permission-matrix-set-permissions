@@ -19,14 +19,7 @@
 
 .PARAMETER Flag
     If set to TRUE, ABE will be enabled. Otherwise it will be disabled.
-
-.NOTE
-    CHANGELOG
-        2018/06/29 Script born
-        2018/07/09 Added test for local admin
-        2018/10/02 Added check for .NET version 4.6.2 (needed for long path name support)
-
-    AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
 
 [OutputType([PSCustomObject])]
 [CmdLetBinding()]
@@ -71,16 +64,7 @@ Begin {
 
             Name  : BUILTIN\Administrators
             Value : FullControl
-
-        .NOTE
-            CHANGELOG
-                2016/02/26 Function born
-                2018/06/29 Optimized code with 'CIM' CmdLets instead of 'WMI'
-                           Speed up with '.Foreach' method
-                           Added error handling
-                2019/08/22 Fixed a bug with weird characters in the share name
-
-            AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
         
         [CmdletBinding()]
         Param ()
@@ -151,15 +135,7 @@ Begin {
             Set-AccessBasedEnumerationHC -Name log -Flag $true -Verbose
 
             VERBOSE: Access Based Enumeration enabled on share 'log' for 'ServerName'
-
-        .NOTE
-            CHANGELOG
-                2018/06/29 Rewrote the function to just return a boolean
-                Optimized for speed by using the method '.Foreach'
-                Removed object creation as it's overkill
-                Improved help and added OutputType
-
-            AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
 
         [CmdLetbinding()]
         [OutputType()]
@@ -238,12 +214,7 @@ Begin {
     
     .PARAMETER Name
         Name of the shared folder.
-   
-    .NOTES
-    	CHANGELOG
-    	2018/07/03 Function born
-    
-    	AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+   #>
 
         [CmdLetbinding()]
         [OutputType()]
@@ -317,16 +288,7 @@ Begin {
             Test-AccessBasedEnumerationHC -Name Log
 
             The boolean 'True' is returned because the share has ABE set to enabled.
-
-        .NOTE
-            CHANGELOG
-                2016/09/28 Function born
-                2018/06/29 Rewrote the function to just return a boolean
-                           Optimized for speed by using the method '.Foreach'
-                           Removed object creation as it's overkill
-                           Improved help and added OutputType
-
-            AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
 
         [CmdLetbinding()]
         [OutputType([Boolean])] 

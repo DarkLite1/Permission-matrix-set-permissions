@@ -38,95 +38,7 @@
 
         Keep in mind that when enabling DetailedLog, the script execution performance will drop. For
         this reason it is only advised to use this feature only in case of troubleshooting.
-
-    .NOTES
-        CHANGELOG
-        2014/08/25 Script born
-        2014/10/27 Added checks for existing folder structures
-        2014/10/28 Added fixing of incorrect ACL's on the target folders
-        2014/10/30 Added switch 'Action' for 'New', 'Check' and 'Fix'
-        2014/11/26 Code clean-up
-        2014/11/28 Added reading in first line as target path instead of Excel field A1
-        2014/12/02 Added remoting capability, so we can run on another server
-        2014/12/03 Updated functions to use 'LiteralPath' instead of 'Path'
-        2014/12/05 Improved script logic & execution order
-        2014/12/05 Made '$ComputerName' a variable in the input file
-        2014/12/11 Added '$Mail' to allow sending e-mails when needed
-        2015/01/26 Added 'New-LogFileNameHC'
-        2015/02/09 Added 'IgnoredFolders' to not treat everything we find in the Excel sheet
-        2015/02/09 Added support for users in the Excel sheet
-        2015/03/13 Updated e-mail content when error found in the input file
-        2015/03/18 Added preflight checks 'online, remoting enabled, PS Version up-to-date'
-        2015/03/18 Changed 'MailTo' as input from the Excel sheet
-        2015/03/18 Removed BNL Naming Convention check, for use with other countries
-        2015/03/19 Updated descriptions to be more clear for end-users
-        2015/03/23 Added check for OS version if remoting fails
-        2015/04/16 Switched UserName and Password for a PS Credential object in the parameters '$Credential'
-        2015/04/29 Rewritten the whole thing to output objects and remove all the different 'Invoke-Commands'
-        2015/10/19 Moved to new script server
-        2015/12/03 Added check for incorrect paths in the worksheet 'Settings' that end with '\' $PathIncorrect
-        2015/12/04 Improved 'Test-Input' to update the object immediately instead of creating extra variables
-        2015/12/08 Improved searching for files
-        2016/01/21 Improved error checking for the line 'Path' in the worksheet 'Permissions'
-                    The option 'ignore' ('i') is not allowed on this line
-        2016/01/21 Fixed a bug where we check file inheritance in case the target folder is empty
-        2016/02/05 Improved file ACL check to make sure we catch the files that Windows reports being 'Inherited'
-                    but actually aren't (SR-859049)
-        2016/02/05 Improved speed by removing 'Add-Member' in 'Compare-PermissionsHC'
-        2016/02/09 Fixed 'PathTooLong' in case we can't create a file in the folder anymore
-        2016/02/10 Added parameter 'NrFilesToReport' to avoid huge lists of files that have incorrect permissions
-        2016/02/10 Simplified 'Test-AclInheritedOnlyHC'
-        2016/02/15 Rewrote 'Compare-PermissionsHC' completely
-        2016/02/18 Improved code with break for switch statements
-        2016/02/18 Added '$NoPermissions'
-        2016/02/19 Added '$DeadFiles', files that are in folders with list only permissions, so no one 
-                   has access to them
-        2016/02/26 Added 'Get-SharePermissionsHC' to check the permissions on share level, not only NTFS
-        2016/03/08 Added 'GroupName' parameter for HTML log file
-        2016/03/08 Improved 'Get-SharePermissionsHC' to collect all share permissions that are not 
-                   'Everyone Full control'
-        2016/03/29 Improved error handling messages and statuses, added 'Unknown error' this allows us to have
-                    the correct errors in the site specific log file instead of in the body of the general e-mail.
-        2016/03/30 Fixed 'Test-AclEqualHC' to use 'AccessToString' instead of 'Access'
-        2016/04/11 Improved 'Add-AclHC', 'Set-AclEqualHC', 'Set-AclOwnerHC' to use '-LiteralPath' instead of '-Path'
-        2016/04/11 Improved 'Test-AclEqualHC'
-        2016/06/17 Rewrote the whole script to use Workflows for load balancing
-        2016/07/22 Improved 'Test-AclEqualHC' to not check for folder existence in the parameters
-        2016/08/01 Fixed a race condition with the creation of the temp folder '$TempSourceFolder' for each matrix.
-                   We now use a unique code instead of a combination of 'SiteCode' and 'Path' ending.
-        2016/09/23 Added Windows Event Logging
-        2016/09/29 Added 'ShareABECorrected' to avoid users seeing files and folders where they don't have access on
-                   We enable the option Access Based Enumeration on Shares to avoid this
-        2017/04/10 Enhanced Windows Event Logging
-        2017/05/19 Fixed 'SrcFolder' by ireplace which is case insensitive
-        2017/06/27 Improved Test-AclEqualHC to be faster by using SDDL
-        2017/07/03 Changed Test-AclEqualHC again because files were reported incorrect which was not the case
-        2017/07/24 Changed Test-AclEqualHC again, because incorrect permissions were reported 
-                   when this wasn't the case
-        2017/09/12 Changed Test-AclEqualHC again, in case of duplicate admin accounts we don't report this as incorrect
-        2018/08/07 Changed parameters to Path, Action, Matrix
-                   Rewrote functions for speed, simplicity and testability with Pester
-                   Redesigned script to run as a job for a single matrix
-        2018/08/10 Added DetailedLog
-                   Removed unused functions
-        2019/05/07 Added more detailed error handing in Get-FolderContentHC
-        2020/01/23 Fixed an issue where old ACE's were not removed from the ACL for folders
-                   Speed-up the applying of an ACL for files and folders
-                   Added verbose messages
-        2020/01/28 Moved object creation on inherited only ACL's outside the loop for better speed
-                   Converted function Test-AclIsInheritedOnlyHC to code for speed
-                   Added a workaround for a bug in .NET where the non inherited permissions are not being removed
-                   https://social.microsoft.com/Forums/en-US/5770f0bd-fddd-442b-b917-daf88ff28b10/removing-modifysync-ntfs-permissions-using-removeaccessruleall-in-powershell?forum=Offtopic&prof=required
-        2020/02/28 Fixed ignored folders not always handled correctly
-        2020.02.03 Fixed a bug where the AD object name was not returned in the error message when the ACL creation failed
-                   Inherited folders are now filtered with a '.where' clause instead of an an 'if'
-        2020/03/05 Added better Pester tests
-                   Changed the way that inherited folders and files are checked:
-                   Previously we only checked if AccessRulesAreProtected was true, this was not sufficient
-                   now we check each entry in the ACL to make sure that the folder/file is inheriting the correct permissions
-        2020/08/06 Replaced SetAccessControl with Set-Acl as repetitive changes for correcting intherited folders were not correctly applied
-
-        AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
 
 [OutputType([PSCustomObject[]])]
 [CmdLetBinding()]
@@ -158,13 +70,7 @@ Begin {
 
         .PARAMETER Name
             Name of the AD object, used to identify the user or group within AD.
-
-        .NOTES
-	        CHANGELOG
-	        2018/08/07 Function born
-            2019/03/22 Add verbose
-
-	        AUTHOR Brecht.Gijbels@heidelbergcement.com #>
+#>
 
         [CmdLetBinding()]
         Param (
@@ -402,15 +308,7 @@ Begin {
 
         .PARAMETER DifferenceAce
             Difference collection of Access Control Entries of the second list
-
-        .NOTES
-            2018/08/06 Function born
-            2018/08/09 Rewritten to only compare ACE's and not ACL's
-            2019/01/22 Renamed to Test-AclEqualHC
-                       Add verbose
-
-            AUTHOR Brecht.Gijbels@heidelbergcement.com
-	    #>
+#>
 
         [OutputType([Boolean])]
         Param (
