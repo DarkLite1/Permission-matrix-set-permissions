@@ -1570,6 +1570,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
             #endregion
 
             #region Non terminating errors are reported to the admin
+            # usually when Get-ADObjectDetailHC times out for groups too large
             if ($error) {
                 $MailParams = @{
                     To        = $ScriptAdmin
