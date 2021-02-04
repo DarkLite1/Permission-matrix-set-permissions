@@ -908,7 +908,7 @@ Describe 'on a successful run' {
         $testFiles = Get-ChildItem $testParams.logFolder -Filter '*.xlsx' -Recurse -File
         Import-Excel -Path $testFiles.FullName -WorksheetName 'adObjects' |
         Should -Not -BeNullOrEmpty
-    } -Tag test
+    }
 } 
 Describe 'when a job fails' {
     Context 'the test requirements script' {
