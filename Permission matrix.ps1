@@ -687,7 +687,7 @@ Process {
                 })
             #endregion
 
-            #region Check expanded matrix
+            #region Check expanded matrix and get AD object details
             Write-EventLog @EventVerboseParams -Message 'Check expanded matrix'
             
             $AdObjects = $ImportedMatrix.Settings.Matrix.ACL.Keys
@@ -696,12 +696,12 @@ Process {
                 $params = @{
                     SamAccountName = ($AdObjects | Sort-Object -Unique)
                 }
-                $ADObjectDetail = @(Get-ADObjectDetailHC @params)
+                $allAdObjects = @(Get-ADObjectDetailHC @params)
 
                 @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach( {
                         $params = @{
                             Matrix                 = $_.Matrix
-                            ADObject               = $ADObjectDetail
+                            ADObject               = $allAdObjects
                             DefaultAcl             = $DefaultAcl
                             ExcludedSamAccountName = $PlaceHolderAccounts
                         }
@@ -710,7 +710,7 @@ Process {
             }
             #endregion
 
-            #region Test server requirements (ABE, Share permissions, PS version, ..)
+            #region Test minimal server requirements (PS version, ..)
             Write-EventLog @EventVerboseParams -Message 'Check server requirements'
 
             if ($ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)) {
@@ -880,9 +880,72 @@ End {
             }
             #endregion
 
+            #region Add worksheet 'adObject' to matrix Excel log file
+            foreach ($I in $ImportedMatrix) {
+                #region Get unique SamAccountNames for all matrix in Settings
+                $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName | 
+                Select-Object -Property @{
+                    Name       = 'name'; 
+                    Expression = { "$($_)".Trim() } 
+                } -Unique |
+                Select-Object -ExpandProperty name
+
+                $M = "Matrix '$($i.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                #endregion
+
+                #region Create flat AD objects to export to Excel
+                $adObjectsToExport = foreach ($s in $matrixSamAccountNames) {
+                    $adData = $allAdObjects | Where-Object {
+                        $s -EQ $_.samAccountName }
+                
+                    if (-not $adData.adObject) {
+                        $M = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
+                        Write-Warning $M; Write-EventLog @EventWarnParams -Message $M
+                    }
+                    elseif (-not $adData.adGroupMember) {
+                        $adData | Select-Object -Property SamAccountName, 
+                        @{Name = 'Name'; Expression = { $_.adObject.Name } },
+                        @{Name = 'Type'; Expression = { $_.adObject.ObjectClass } },
+                        MemberName, MemberSamAccountName
+                    }
+                    else {
+                        $adData.adGroupMember | Select-Object -Property @{
+                            Name       = 'SamAccountName'; 
+                            Expression = { $s } 
+                        },
+                        @{Name = 'Name'; Expression = { $adData.adObject.Name } },
+                        @{Name = 'Type'; Expression = { $adData.adObject.ObjectClass } },
+                        @{Name = 'MemberName'; Expression = { $_.Name } },
+                        @{Name = 'MemberSamAccountName'; Expression = { $_.SamAccountName } }
+                    }
+                }
+                #endregion
+
+                #region Export AD objects to Excel file
+                if ($adObjectsToExport) {
+                    $excelParams = @{
+                        Path               = $I.File.SaveFullName
+                        AutoSize           = $true
+                        WorksheetName      = 'adObjects'
+                        TableName          = 'adObjects'
+                        FreezeTopRow       = $true
+                        NoNumberConversion = '*'
+                        ClearSheet         = $true
+                    }
+                
+                    $M = "Export $($adObjectsToExport.Count) AD object rows to Excel file '$($excelParams.Path)'"
+                    Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+
+                    $adObjectsToExport | Export-Excel @excelParams
+                }
+                #endregion
+            }
+            #endregion
+            
+            #region HTML <style> for Mail and Settings
             Write-EventLog @EventVerboseParams -Message "Format HTML"
 
-            #region HTML <style> for Mail and Settings
             $htmlStyle = @"
 <style>
     a {

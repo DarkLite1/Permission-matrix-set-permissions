@@ -67,8 +67,21 @@ BeforeAll {
 
     # Mock ConvertTo-MatrixAclHC
     Mock ConvertTo-MatrixAclHC { $true }
-    Mock ConvertTo-MatrixADNamesHC { @{SamAccountName = 'bob' } }
-    Mock Get-ADObjectNotExistingHC
+    Mock ConvertTo-MatrixADNamesHC { @{
+            'P2' = @{
+                SamAccountName = 'bob'
+                Original       = @{
+                    Begin  = ''
+                    Middle = ''
+                    End    = 'bob'
+                }
+                Converted      = @{
+                    Begin  = ''
+                    Middle = ''
+                    End    = 'bob'
+                }
+            }
+        } }
     Mock Invoke-Command
     Mock New-PSSession
     Mock Optimize-ExecutionOrderHC { $Name }
@@ -655,6 +668,137 @@ Describe 'on a successful run' {
         }
         #endregion
 
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                samAccountName = 'A B bob'
+                adObject       = @{ 
+                    ObjectClass    = 'user'
+                    Name           = 'A B Bob'
+                    SamAccountName = 'A B bob'
+                }
+                adGroupMember  = $null
+            }
+            [PSCustomObject]@{
+                samAccountName = 'C D bob'
+                adObject       = @{ 
+                    ObjectClass    = 'user'
+                    Name           = 'C D Bob'
+                    SamAccountName = 'C D bob'
+                }
+                adGroupMember  = $null
+            }
+            [PSCustomObject]@{
+                samAccountName = 'E F bob'
+                adObject       = @{ 
+                    ObjectClass    = 'user'
+                    Name           = 'E F Bob'
+                    SamAccountName = 'E F bob'
+                }
+                adGroupMember  = $null
+            }
+        }
+
+        Mock ConvertTo-MatrixAclHC { 
+            @(
+                [PSCustomObject]@{
+                    Path   = 'E:\Department'
+                    Parent = $true
+                    ACL    = @{'A B bob' = 'L' }
+                    Ignore = $false
+                }
+                [PSCustomObject]@{
+                    Path   = 'folder'
+                    Parent = $false
+                    ACL    = @{'A B bob' = 'W' }
+                    Ignore = $false
+                }
+            )
+        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'A B bob' }
+        Mock ConvertTo-MatrixAclHC { 
+            @(
+                [PSCustomObject]@{
+                    Path   = 'E:\Reports'
+                    Parent = $true
+                    ACL    = @{'C D bob' = 'L' }
+                    Ignore = $false
+                }
+                [PSCustomObject]@{
+                    Path   = 'folder'
+                    Parent = $false
+                    ACL    = @{'C D bob' = 'W' }
+                    Ignore = $false
+                }
+            )
+        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'C D bob' }
+        Mock ConvertTo-MatrixAclHC { 
+            @(
+                [PSCustomObject]@{
+                    Path   = 'E:\Finance'
+                    Parent = $true
+                    ACL    = @{'E F bob' = 'L' }
+                    Ignore = $false
+                }
+                [PSCustomObject]@{
+                    Path   = 'folder'
+                    Parent = $false
+                    ACL    = @{'E F bob' = 'W' }
+                    Ignore = $false
+                }
+            )
+        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'E F bob' }
+
+        Mock ConvertTo-MatrixADNamesHC {  
+            @{
+                'P2' = @{
+                    SamAccountName = 'A B bob'
+                    Original       = @{
+                        Begin  = 'GroupName'
+                        Middle = 'SiteCode'
+                        End    = 'bob'
+                    }
+                    Converted      = @{
+                        Begin  = 'A'
+                        Middle = 'B'
+                        End    = 'bob'
+                    }
+                }
+            } 
+        } -ParameterFilter { $Begin -eq 'A' }
+        Mock ConvertTo-MatrixADNamesHC {  
+            @{
+                'P2' = @{
+                    SamAccountName = 'C D bob'
+                    Original       = @{
+                        Begin  = 'GroupName'
+                        Middle = 'SiteCode'
+                        End    = 'bob'
+                    }
+                    Converted      = @{
+                        Begin  = 'C'
+                        Middle = 'D'
+                        End    = 'bob'
+                    }
+                }
+            } 
+        } -ParameterFilter { $Begin -eq 'C' }
+        Mock ConvertTo-MatrixADNamesHC {  
+            @{
+                'P2' = @{
+                    SamAccountName = 'E F bob'
+                    Original       = @{
+                        Begin  = 'GroupName'
+                        Middle = 'SiteCode'
+                        End    = 'bob'
+                    }
+                    Converted      = @{
+                        Begin  = 'E'
+                        Middle = 'F'
+                        End    = 'bob'
+                    }
+                }
+            } 
+        } -ParameterFilter { $Begin -eq 'E' }
+
         @(
             [PSCustomObject]@{
                 Status = 'Enabled'; ComputerName = $testComputerName; 
@@ -760,6 +904,11 @@ Describe 'on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
+    It "the worksheet 'adObjects' is added to the matrix log file" {
+        $testFiles = Get-ChildItem $testParams.logFolder -Filter '*.xlsx' -Recurse -File
+        Import-Excel -Path $testFiles.FullName -WorksheetName 'adObjects' |
+        Should -Not -BeNullOrEmpty
+    } -Tag test
 } 
 Describe 'when a job fails' {
     Context 'the test requirements script' {
