@@ -694,7 +694,7 @@ Process {
 
             if ($AdObjects.count -ne 0) {
                 $params = @{
-                    SamAccountName = ($AdObjects | Sort-Object -Unique)
+                    SamAccountName = $AdObjects | Sort-Object -Unique
                 }
                 $allAdObjects = @(Get-ADObjectDetailHC @params)
 

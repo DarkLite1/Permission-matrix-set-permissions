@@ -2,7 +2,7 @@
 #Requires -Modules Assert, Pester, ImportExcel
 
 BeforeAll {
-    # Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
+    Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
