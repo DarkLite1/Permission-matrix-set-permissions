@@ -625,6 +625,37 @@ Describe 'a FatalError object is registered' {
         }
     }
 }
+Describe 'a Warning object is registered' {
+    AfterEach {
+        $Error.Clear()
+        Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testParams.ImportDir)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+    }
+    Context "for the Excel 'File' when" {
+        It "the worksheet 'Settings' has no row with status 'Enabled'" {
+            @(
+                [PSCustomObject]@{
+                    Status       = $null
+                    ComputerName = 'A'
+                    Path         = 'E:\Reports'
+                    Action       = 'Check' 
+                }
+            ) | Export-Excel @SettingsParams
+            $testPermissions | Export-Excel @PermissionsParams
+
+            .$testScript @testParams
+
+            @{
+                Type        = 'Warning'
+                Name        = 'Matrix disabled'
+                Description = 'Every Excel file needs at least one enabled matrix.'
+                Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
+            }.GetEnumerator().ForEach( {
+                    $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value
+                })
+        }
+    }
+}
 Describe 'on a successful run' {
     BeforeAll {
         #region Set permissions script

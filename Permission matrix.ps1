@@ -508,7 +508,7 @@ Process {
                     }
                     else {
                         $Obj.File.Check += [PSCustomObject]@{
-                            Type        = 'FatalError'
+                            Type        = 'Warning'
                             Name        = 'Matrix disabled'
                             Description = 'Every Excel file needs at least one enabled matrix.'
                             Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
@@ -624,8 +624,11 @@ Process {
             #region Build the matrix and check for incorrect input
             Write-EventLog @EventVerboseParams -Message 'Build the matrix and check for incorrect input'
 
-            foreach ($I in ($ImportedMatrix.Where( { 
-                            $_.File.Check.Type -notContains 'FatalError' }))
+            foreach ($I in ($ImportedMatrix.Where( 
+                        { 
+                            ($_.File.Check.Type -notContains 'FatalError' ) -and
+                            ($_.Settings)
+                        }))
             ) {
                 Try {
                     $I.Permissions.Check += Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
@@ -1576,7 +1579,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                     To        = $ScriptAdmin
                     Priority  = 'High'
                     Subject   = "FAILURE - $($error.count) non terminating errors"
-                    Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message  | ConvertTo-HtmlListHC -Spacing Wide )"
+                    Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message  | ConvertTo-HTMLlistHC -Spacing Wide )"
                     Save      = "$matrixLogFile - Mail - $($error.count) non terminating errors.html"
                     Header    = $ScriptName
                     LogFolder = $LogFolder
