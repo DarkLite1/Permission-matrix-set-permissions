@@ -1152,7 +1152,11 @@ End {
                 #region HTML Mail overview Settings table $ Settings detail file
                 $MailSettingsTable = $null
 
-                if (($I.File.Check.Type -notContains 'FatalError') -and ($I.Permissions.Check.Type -notContains 'FatalError')) {
+                if (
+                    ($I.Settings) -and
+                    ($I.File.Check.Type -notContains 'FatalError') -and 
+                    ($I.Permissions.Check.Type -notContains 'FatalError')
+                ) {
                     $HtmlSettingsHeader = @"
                     <th id="matrixHeader" colspan="8">Settings</th>
                     <tr>
