@@ -506,6 +506,7 @@ Process {
                     $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName)
                 }
                 Catch {
+                    $Error.RemoveAt(0)
                     Return [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Parent folder exists already'
