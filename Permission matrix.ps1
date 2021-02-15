@@ -483,7 +483,7 @@ Process {
                         #region Import sheet FormData
                         if ($CherwellFolder) {
                             try {
-                                $formData = Import-Excel @ImportParams -Sheet 'FormData'
+                                $formData = Import-Excel @ImportParams -Sheet 'FormData' -ErrorVariable importFail
                                     
                                 Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'FormData' imported" 
 
@@ -500,8 +500,10 @@ Process {
                                     Description = "When the argument 'CherwellFolder' is used the Excel file needs to have a worksheet 'FormData'."
                                     Value       = @($_)
                                 }
-        
-                                $Error.RemoveAt(0)
+                                # remove multiple errors from Import-Excel
+                                $importFail | ForEach-Object { 
+                                    $Error.Remove($_) 
+                                }
                             }
                         }
                         #endregion

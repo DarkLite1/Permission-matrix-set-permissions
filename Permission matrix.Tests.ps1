@@ -1218,7 +1218,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Message -notLike '*Check the*overview*for details*')
             }
         }
-    }
+    } -tag test
     Context 'but the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC
