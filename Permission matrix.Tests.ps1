@@ -2,28 +2,21 @@
 #Requires -Modules Assert, Pester, ImportExcel
 
 BeforeAll {
-    $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
+    $testComputerNames = @($env:COMPUTERNAME, 'DEUSFFRAN0031')
 
     $TestInvokeCommand = Get-Command -Name Invoke-Command
 
-    $ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
-
-    $MailAdminParams = {
-        ($To -eq $ScriptAdmin) -and 
-        ($Priority -eq 'High') -and 
-        ($Subject -eq 'FAILURE')
-    }
-
     $testParams = @{
         ScriptName              = 'Test (Brecht)'
-        ImportDir               = New-Item "TestDrive:/TestMatrixFolder" -ItemType Directory
-        LogFolder               = New-Item "TestDrive:/TestLogFolder" -ItemType Directory
-        ScriptSetPermissionFile = New-Item "TestDrive:/TestSetPermissions.ps1" -ItemType File
-        ScriptTestRequirements  = New-Item "TestDrive:/TestScriptTestRequirements.ps1" -ItemType File
-        DefaultsFile            = New-Item "TestDrive:/Default.xlsx" -ItemType File
+        ImportDir               = New-Item 'TestDrive:/Matrix' -ItemType Directory
+        LogFolder               = New-Item 'TestDrive:/log' -ItemType Directory
+        ScriptSetPermissionFile = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
+        ScriptTestRequirements  = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
+        DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
     }
+    $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
-    $testCherwellFolder = New-Item "TestDrive:/TestCherwellFolder" -ItemType Directory
+    $testCherwellFolder = New-Item 'TestDrive:/Cherwell' -ItemType Directory
 
     #region Valid Excel files
     $testMatrix = @(
@@ -48,13 +41,10 @@ BeforeAll {
     $testDefaultSettings | 
     Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
 
-    $testComputerName = $env:COMPUTERNAME
-    $testComputerName2 = 'DEUSFFRAN0031'
-
     if (
-        -not (Test-Connection -ComputerName $testComputerName2 -Count 1 -Quiet)
+        -not (Test-Connection -ComputerName $testComputerNames[1] -Quiet)
     ) {
-        throw "Test computer '$testComputerName2' is not online"
+        throw "Test computer '$($testComputerNames[1])' is not online"
     }
 
     $SettingsParams = @{
@@ -94,14 +84,22 @@ BeforeAll {
     Mock Get-AdUserPrincipalNameHC
 }
 Describe 'the mandatory parameters are' {
-    It "<Name>" -TestCases @(
-        @{Name = 'ScriptName' }
-        @{Name = 'ImportDir' }
+    It '<_>' -ForEach @(
+        'ScriptName', 
+        'ImportDir' 
     ) {
-        (Get-Command $testScript).Parameters[$Name].Attributes.Mandatory | Should -Be $true
+        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | 
+        Should -BeTrue
     }
 }
 Describe 'stop the script and send an e-mail to the admin when' {
+    BeforeAll {
+        $MailAdminParams = {
+            ($To -eq $ScriptAdmin) -and 
+            ($Priority -eq 'High') -and 
+            ($Subject -eq 'FAILURE')
+        }
+    }
     Context 'a file or folder is not found' {
         It 'ScriptSetPermissionFile' {
             $testParams = $testParams.Clone()
@@ -110,10 +108,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*NonExisting.ps1*not found*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*NonExisting.ps1*not found*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
         It 'ScriptTestRequirements' {
             $testParams = $testParams.Clone()
@@ -122,10 +119,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*ShareConfigNotExisting.ps1*not found*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*ShareConfigNotExisting.ps1*not found*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
         It 'LogFolder' {
             $testParams = $testParams.Clone()
@@ -134,10 +130,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*NonExistingLog*not found*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*NonExistingLog*not found*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
         It 'CherwellFolder' {
             $testParams = $testParams.Clone()
@@ -146,10 +141,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*NonExistingFolder*not found*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*NonExistingFolder*not found*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
     }
     Context 'the default settings file' {
@@ -160,10 +154,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*$($clonedParams.DefaultsFile)*Cannot find*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*$($clonedParams.DefaultsFile)*Cannot find*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
         It "does not have the worksheet 'Settings'" {
             $clonedParams = $testParams.Clone()
@@ -174,10 +167,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*'$($clonedParams.DefaultsFile)'* worksheet 'Settings' not found*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*'$($clonedParams.DefaultsFile)'* worksheet 'Settings' not found*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
 
         $TestCases = @(
@@ -215,7 +207,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         )
 
-        It "is missing <Name>" -TestCases $TestCases {
+        It "is missing <Name>" -ForEach $TestCases {
             $clonedParams = $testParams.Clone()
             $clonedParams.DefaultsFile = New-Item "TestDrive:/Folder/Default.xlsx" -ItemType File -Force
 
@@ -224,10 +216,9 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and ($Message -like "*$($clonedParams.DefaultsFile)*$errorMessage*")
+                (&$MailAdminParams) -and 
+                ($Message -like "*$($clonedParams.DefaultsFile)*$errorMessage*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
     }
     Context 'the argument CherwellFolder is used but' {
@@ -239,7 +230,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
                 CherwellExcelOverviewFileName = 'Overview.xlsx'
             }
         }
-        It '<Name> is missing' -TestCases @(
+        It '<Name> is missing' -ForEach @(
             @{ Name = 'CherwellAdObjectsFileName' }
             @{ Name = 'CherwellFormDataFileName' }
             @{ Name = 'CherwellExcelOverviewFileName' }
@@ -253,8 +244,6 @@ Describe 'stop the script and send an e-mail to the admin when' {
                 (&$MailAdminParams) -and 
                 ($Message -like "*Parameter '$Name' is mandatory when the parameter CherwellFolder is used*")
             }
-
-            Should -Invoke Write-EventLog -Exactly 1 -ParameterFilter { $EntryType -eq 'Error' }
         }
     }
 }
@@ -663,38 +652,38 @@ Describe 'on a successful run' {
             & $TestInvokeCommand -Scriptblock { 1 } -ComputerName localhost -AsJob -JobName 'SetPermissions_1'
         } -ParameterFilter {
             ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerName) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
             ($JobName -eq 'SetPermissions_1')
         }
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 2 } -ComputerName localhost -AsJob -JobName 'SetPermissions_2'
         } -ParameterFilter {
             ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerName) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
             ($JobName -eq 'SetPermissions_2')
         }
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 3 } -ComputerName localhost -AsJob -JobName 'SetPermissions_3'
         } -ParameterFilter {
             ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerName2) -and
+            ($ComputerName -eq $testComputerNames[1]) -and
             ($JobName -eq 'SetPermissions_3')
         }
         #endregion
 
         #region Test requirements script
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerName -AsJob -JobName 'TestRequirements'
+            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
         } -ParameterFilter {
             ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerName) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
             ($JobName -eq 'TestRequirements') 
         }
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerName2 -AsJob -JobName 'TestRequirements'
+            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
         } -ParameterFilter {
             ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerName2) -and
+            ($ComputerName -eq $testComputerNames[1]) -and
             ($JobName -eq 'TestRequirements')
         }
         #endregion
@@ -832,17 +821,17 @@ Describe 'on a successful run' {
 
         @(
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerName; 
+                Status = 'Enabled'; ComputerName = $testComputerNames[0]; 
                 Path = 'E:\Department'; Action = 'Check' 
                 GroupName = 'A'; SiteCode = 'B'
             }
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerName; 
+                Status = 'Enabled'; ComputerName = $testComputerNames[0]; 
                 Path = 'E:\Reports'; Action = 'Check' 
                 GroupName = 'C'; SiteCode = 'D'
             }
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerName2; 
+                Status = 'Enabled'; ComputerName = $testComputerNames[1]; 
                 Path = 'E:\Finance'; Action = 'Check' 
                 GroupName = 'E'; SiteCode = 'F'
             }
@@ -888,12 +877,12 @@ Describe 'on a successful run' {
         }
         It 'saves the job result in Settings for each matrix' {
             @($ImportedMatrix.Settings.Where( {
-                        ($_.Import.ComputerName -eq $testComputerName) -and 
+                        ($_.Import.ComputerName -eq $testComputerNames[0]) -and 
                         ($_.Check -eq 'A') })).Count |
             Should -BeExactly 2
     
             @($ImportedMatrix.Settings.Where( {
-                        ($_.Import.ComputerName -eq $testComputerName2) -and 
+                        ($_.Import.ComputerName -eq $testComputerNames[1]) -and 
                         ($_.Check -eq 'B') })).Count |
             Should -BeExactly 1
         }
@@ -929,9 +918,9 @@ Describe 'on a successful run' {
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like "*1*$testComputerName*E:\Department*Check*") -and
-            ($Message -like "*2*$testComputerName*E:\Reports*Check*") -and
-            ($Message -like "*3*$testComputerName2*E:\Finance*Check*") -and
+            ($Message -like "*1*$($testComputerNames[0])*E:\Department*Check*") -and
+            ($Message -like "*2*$($testComputerNames[0])*E:\Reports*Check*") -and
+            ($Message -like "*3*$($testComputerNames[1])*E:\Finance*Check*") -and
             ($Message -like '*Error*Warning*Information*')
         }
     }
@@ -945,23 +934,23 @@ Describe 'when a job fails' {
     Context 'the test requirements script' {
         BeforeAll {
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerName -AsJob -JobName 'TestRequirements'
+                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
-                ($ComputerName -eq $testComputerName) -and
+                ($ComputerName -eq $testComputerNames[0]) -and
                 ($JobName -eq 'TestRequirements') 
             }
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerName2 -AsJob -JobName 'TestRequirements'
+                & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
-                ($ComputerName -eq $testComputerName2) -and
+                ($ComputerName -eq $testComputerNames[1]) -and
                 ($JobName -eq 'TestRequirements')
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Department'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName2; Path = 'E:\Reports'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[1]; Path = 'E:\Reports'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -981,21 +970,21 @@ Describe 'when a job fails' {
     Context 'the set permissions script' {
         BeforeAll {
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 1 } -ComputerName $testComputerName -AsJob -JobName 'SetPermissions_1'
+                & $TestInvokeCommand -Scriptblock { 1 } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_1'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
                 ($JobName -eq 'SetPermissions_1')
             }
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerName -AsJob -JobName 'SetPermissions_2'
+                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_2'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
                 ($JobName -eq 'SetPermissions_2')
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Department'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Reports'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Reports'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1193,7 +1182,7 @@ Describe 'when the argument CherwellFolder is used' {
     Context 'but the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1233,7 +1222,7 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             @(
@@ -1278,7 +1267,7 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerName; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             @(
@@ -1433,7 +1422,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -TestCases @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFormStatus'; Value = 'Enabled' }
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 # @{ Name = 'MatrixFilePath'; Value = $SettingsParams.Path }
@@ -1489,7 +1478,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -TestCases @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'SamAccountName'; Value = 'BEGIN Manager' }
                 @{ Name = 'GroupName'; Value = 'BEGIN' }
