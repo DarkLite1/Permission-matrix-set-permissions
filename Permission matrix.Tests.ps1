@@ -2,8 +2,6 @@
 #Requires -Modules Assert, Pester, ImportExcel
 
 BeforeAll {
-    # Import-Module 'T:\Test\Brecht\PowerShell\Toolbox.PermissionMatrix\Toolbox.PermissionMatrix.psm1' -Verbose
-
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
     $TestInvokeCommand = Get-Command -Name Invoke-Command
@@ -47,12 +45,15 @@ BeforeAll {
     )
     #endregion
 
-    $testDefaultSettings | Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
+    $testDefaultSettings | 
+    Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
 
     $testComputerName = $env:COMPUTERNAME
     $testComputerName2 = 'DEUSFFRAN0031'
 
-    if (-not (Test-Connection -ComputerName $testComputerName2 -Count 1 -Quiet)) {
+    if (
+        -not (Test-Connection -ComputerName $testComputerName2 -Count 1 -Quiet)
+    ) {
         throw "Test computer '$testComputerName2' is not online"
     }
 
@@ -84,7 +85,6 @@ BeforeAll {
         } }
     Mock Invoke-Command
     Mock New-PSSession
-    Mock Optimize-ExecutionOrderHC { $Name }
     Mock Send-MailHC
     Mock Test-MatrixPermissionsHC
     Mock Test-MatrixSettingHC
@@ -1218,7 +1218,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Message -notLike '*Check the*overview*for details*')
             }
         }
-    } -tag test
+    } -Tag test
     Context 'but the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC

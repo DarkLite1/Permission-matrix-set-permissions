@@ -169,16 +169,21 @@ Begin {
     Function Start-TestRequirements {
         Try {
             #region Test PS version, .NET version, set share config, ABE, ...
-            $Jobs = ($ExecutableMatrix | Group-Object -Property { $_.Import.ComputerName }).Foreach( {
-                    $InvokeParams = @{
-                        FilePath     = $ScriptTestRequirementsItem
-                        ArgumentList = $_.Group.Import.Path, $true
-                        ComputerName = $_.Name
-                        JobName      = 'TestRequirements'
-                        AsJob        = $true
-                    }
-                    Invoke-Command @InvokeParams
-                })
+            $Jobs = foreach (
+                $E in  
+                ($ExecutableMatrix | 
+                    Group-Object -Property { $_.Import.ComputerName })
+            ) {
+                $InvokeParams = @{
+                    FilePath      = $ScriptTestRequirementsItem
+                    ArgumentList  = $E.Group.Import.Path, $true
+                    ComputerName  = $E.Name
+                    JobName       = 'TestRequirements'
+                    ThrottleLimit = 10
+                    AsJob         = $true
+                }
+                Invoke-Command @InvokeParams
+            }
 
             if ($Jobs) {
                 $null = Wait-Job -Job $Jobs
@@ -187,14 +192,16 @@ Begin {
                     $JobError = Get-JobErrorHC -Job $Job
 
                     #region Retrieve job results and add errors
-                    $ExecutableMatrix.Where( { 
-                            $_.Import.ComputerName -eq $Job.Location
-                        }).Foreach( {
+                    $ExecutableMatrix.Where( 
+                        { $_.Import.ComputerName -eq $Job.Location }
+                    ).Foreach( 
+                        {
                             if ($JobError) {
                                 $_.Check += [PSCustomObject]$JobError
                             }
                             $_.Check += Receive-Job -Job $Job -Keep -ErrorAction Ignore
-                        })
+                        }
+                    )
                     #endregion
                 }
 
@@ -210,28 +217,24 @@ Begin {
     Function Start-SetPermissionsScriptHC {
         Try {
             #region Set NTFS permissions on folders
-            $Queue = @(Optimize-ExecutionOrderHC -Name ($ExecutableMatrix |
-                    Select-Object ID, Matrix,
-                    @{Name = 'Path'; Expression = { $_.Import.Path } },
-                    @{Name = 'Action'; Expression = { $_.Import.Action } },
-                    @{Name = 'ComputerName'; Expression = { $_.Import.ComputerName } }))
-
-            $Jobs = @()
+            $Queue = $ExecutableMatrix | Select-Object ID, Matrix,
+            @{Name = 'Path'; Expression = { $_.Import.Path } },
+            @{Name = 'Action'; Expression = { $_.Import.Action } },
+            @{Name = 'ComputerName'; Expression = { $_.Import.ComputerName } }
 
             $JobName = 'SetPermissions_{0}'
 
-            $Queue.ForEach( {
-                    $InvokeParams = @{
-                        FilePath     = $ScriptSetPermissionItem
-                        ArgumentList = $_.Path, $_.Action, $_.Matrix, $DetailedLog
-                        ComputerName = $_.ComputerName
-                        JobName      = $JobName -f $_.ID
-                        AsJob        = $true
-                    }
-                    $Jobs += Invoke-Command @InvokeParams
-
-                    Wait-MaxRunningJobsHC -Name $Jobs -MaxThreads 6
-                })
+            $Jobs = foreach ($q in  $Queue) {
+                $InvokeParams = @{
+                    FilePath      = $ScriptSetPermissionItem
+                    ArgumentList  = $q.Path, $q.Action, $q.Matrix, $DetailedLog
+                    ComputerName  = $q.ComputerName
+                    JobName       = $JobName -f $q.ID
+                    ThrottleLimit = 10
+                    AsJob         = $true
+                }
+                Invoke-Command @InvokeParams
+            }
 
             if ($Jobs) {
                 $null = Wait-Job -Job $Jobs
@@ -1585,7 +1588,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                     To        = $ScriptAdmin
                     Priority  = 'High'
                     Subject   = "FAILURE - $($error.count) non terminating errors"
-                    Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message  | ConvertTo-HTMLlistHC -Spacing Wide )"
+                    Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message  | ConvertTo-HtmlListHC -Spacing Wide )"
                     Save      = "$matrixLogFile - Mail - $($error.count) non terminating errors.html"
                     Header    = $ScriptName
                     LogFolder = $LogFolder
