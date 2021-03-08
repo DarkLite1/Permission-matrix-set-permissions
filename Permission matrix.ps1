@@ -1,5 +1,6 @@
 #Requires -Version 5.1
-#Requires -Modules ImportExcel, Toolbox.PermissionMatrix
+#Requires -Modules ImportExcel
+#Requires -Modules Toolbox.PermissionMatrix, Toolbox.ActiveDirectory
 
 <#
     .SYNOPSIS
