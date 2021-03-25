@@ -903,8 +903,8 @@ End {
                 Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
                 #endregion
 
-                #region Create flat AD objects to export to Excel
-                $AccessListWorksheet = foreach ($s in $matrixSamAccountNames) {
+                #region Create content for worksheet 'AccessList'
+                $accessListWorksheet = foreach ($s in $matrixSamAccountNames) {
                     $adData = $allAdObjects | Where-Object {
                         $s -EQ $_.samAccountName }
                 
@@ -931,8 +931,8 @@ End {
                 }
                 #endregion
 
-                #region Export AD objects to Excel file
-                if ($AccessListWorksheet) {
+                #region Export to worksheet 'AccessList'
+                if ($accessListWorksheet) {
                     $excelParams = @{
                         Path               = $I.File.SaveFullName
                         AutoSize           = $true
@@ -943,10 +943,10 @@ End {
                         ClearSheet         = $true
                     }
                 
-                    $M = "Export $($AccessListWorksheet.Count) AD object rows to Excel file '$($excelParams.Path)'"
+                    $M = "Export $($accessListWorksheet.Count) rows to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
                     Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-                    $AccessListWorksheet | Export-Excel @excelParams
+                    $accessListWorksheet | Export-Excel @excelParams
                 }
                 #endregion
             }
