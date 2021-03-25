@@ -924,11 +924,43 @@ Describe 'on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-    It "the worksheet 'AccessList' is added to the matrix log file" {
-        $testFiles = Get-ChildItem $testParams.logFolder -Filter '*.xlsx' -Recurse -File
-        Import-Excel -Path $testFiles.FullName -WorksheetName 'AccessList' |
-        Should -Not -BeNullOrEmpty
-    }
+    Context "the worksheet 'AccessList'" {
+        BeforeAll {
+            $testMatrixFile = Get-ChildItem $testParams.logFolder -Filter '*Matrix.xlsx' -Recurse -File
+            $testAccessList = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'AccessList'
+        }
+        It 'is added to the matrix log file' {
+            $testAccessList | Should -Not -BeNullOrEmpty
+            $testAccessList | Should -HaveCount 3
+        }
+        Context 'contains the property' {
+            It 'SamAccountName' {
+                $testAccessList[0].SamAccountName | Should -Be 'A B bob'
+                $testAccessList[1].SamAccountName | Should -Be 'C D bob'
+                $testAccessList[2].SamAccountName | Should -Be 'E F bob'
+            }
+            It 'Name' {
+                $testAccessList[0].Name | Should -Be 'A B bob'
+                $testAccessList[1].Name | Should -Be 'C D bob'
+                $testAccessList[2].Name | Should -Be 'E F bob'
+            }
+            It 'Type' {
+                $testAccessList[0].Type | Should -Be 'user'
+                $testAccessList[1].Type | Should -Be 'user'
+                $testAccessList[2].Type | Should -Be 'user'
+            }
+            It 'MemberName' {
+                $testAccessList[0].MemberName | Should -Be 'user'
+                $testAccessList[1].MemberName | Should -Be 'user'
+                $testAccessList[2].MemberName | Should -Be 'user'
+            } -skip
+            It 'MemberSamAccountName' {
+                $testAccessList[0].MemberSamAccountName | Should -Be 'user'
+                $testAccessList[1].MemberSamAccountName | Should -Be 'user'
+                $testAccessList[2].MemberSamAccountName | Should -Be 'user'
+            } -skip
+        }
+    } -Tag test
 } 
 Describe 'when a job fails' {
     Context 'the test requirements script' {
@@ -1207,7 +1239,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Message -notLike '*Check the*overview*for details*')
             }
         }
-    } -Tag test
+    }
     Context 'but the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC
