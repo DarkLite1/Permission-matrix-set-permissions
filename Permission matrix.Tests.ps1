@@ -924,9 +924,9 @@ Describe 'on a successful run' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-    It "the worksheet 'adObjects' is added to the matrix log file" {
+    It "the worksheet 'AccessList' is added to the matrix log file" {
         $testFiles = Get-ChildItem $testParams.logFolder -Filter '*.xlsx' -Recurse -File
-        Import-Excel -Path $testFiles.FullName -WorksheetName 'adObjects' |
+        Import-Excel -Path $testFiles.FullName -WorksheetName 'AccessList' |
         Should -Not -BeNullOrEmpty
     }
 } 

@@ -889,7 +889,7 @@ End {
             }
             #endregion
 
-            #region Add worksheet 'adObject' to matrix Excel log file
+            #region Add worksheet 'AccessList' to matrix Excel log file
             foreach ($I in $ImportedMatrix) {
                 #region Get unique SamAccountNames for all matrix in Settings
                 $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName | 
@@ -904,7 +904,7 @@ End {
                 #endregion
 
                 #region Create flat AD objects to export to Excel
-                $adObjectsToExport = foreach ($s in $matrixSamAccountNames) {
+                $AccessListWorksheet = foreach ($s in $matrixSamAccountNames) {
                     $adData = $allAdObjects | Where-Object {
                         $s -EQ $_.samAccountName }
                 
@@ -932,21 +932,21 @@ End {
                 #endregion
 
                 #region Export AD objects to Excel file
-                if ($adObjectsToExport) {
+                if ($AccessListWorksheet) {
                     $excelParams = @{
                         Path               = $I.File.SaveFullName
                         AutoSize           = $true
-                        WorksheetName      = 'adObjects'
-                        TableName          = 'adObjects'
+                        WorksheetName      = 'AccessList'
+                        TableName          = 'AccessList'
                         FreezeTopRow       = $true
                         NoNumberConversion = '*'
                         ClearSheet         = $true
                     }
                 
-                    $M = "Export $($adObjectsToExport.Count) AD object rows to Excel file '$($excelParams.Path)'"
+                    $M = "Export $($AccessListWorksheet.Count) AD object rows to Excel file '$($excelParams.Path)'"
                     Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
 
-                    $adObjectsToExport | Export-Excel @excelParams
+                    $AccessListWorksheet | Export-Excel @excelParams
                 }
                 #endregion
             }
