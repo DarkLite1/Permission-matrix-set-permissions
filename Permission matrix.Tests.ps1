@@ -20,7 +20,10 @@ BeforeAll {
 
     #region Valid Excel files
     $testMatrix = @(
-        [PSCustomObject]@{Path = 'Path'; ACL = @{'Bob' = 'L' }; Parent = $true; Ignore = $false }
+        [PSCustomObject]@{
+            Path = 'Path'; ACL = @{'Bob' = 'L' }; 
+            Parent = $true; Ignore = $false 
+        }
     )
     $testPermissions = @(
         [PSCustomObject]@{P1 = $null      ; P2 = 'bob' }
@@ -30,7 +33,12 @@ BeforeAll {
         [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
     )
     $testSettings = @(
-        [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
+        [PSCustomObject]@{
+            Status       = 'Enabled'
+            ComputerName = 'S1'
+            Path         = 'E:\Department'
+            Action       = 'Check' 
+        }
     )
     $testDefaultSettings = @(
         [PSCustomObject]@{ADObjectName = 'Bob' ; Permission = 'L'; MailTo = 'Bob@contoso.com' }
@@ -54,25 +62,9 @@ BeforeAll {
     $PermissionsParams = @{
         Path          = $SettingsParams.Path
         WorkSheetName = 'Permissions'
+        NoHeader      = $true
     }
 
-    # Mock ConvertTo-MatrixAclHC
-    Mock ConvertTo-MatrixAclHC { $true }
-    Mock ConvertTo-MatrixADNamesHC { @{
-            'P2' = @{
-                SamAccountName = 'bob'
-                Original       = @{
-                    Begin  = ''
-                    Middle = ''
-                    End    = 'bob'
-                }
-                Converted      = @{
-                    Begin  = ''
-                    Middle = ''
-                    End    = 'bob'
-                }
-            }
-        } }
     Mock Invoke-Command
     Mock New-PSSession
     Mock Send-MailHC
@@ -341,7 +333,7 @@ Describe "when the 'Archive' switch is used then" {
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel -Path $FileName -WorksheetName Permissions
+            ) | Export-Excel -Path $FileName -WorksheetName Permissions -NoHeader
         }
 
         .$testScript @testParams -Archive
@@ -376,7 +368,7 @@ Describe "do not invoke the script to set permissions when" {
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel -Path "$Folder/Matrix.xlsx" -WorksheetName Permissions
+        ) | Export-Excel -Path "$Folder/Matrix.xlsx" -WorksheetName Permissions -NoHeader
 
         .$testScript @testParams
 
@@ -548,31 +540,60 @@ Describe 'a FatalError object is registered' {
                     Type        = 'FatalError'
                     Name        = 'Duplicate ComputerName/Path combination'
                     Description = "Every 'ComputerName' combined with a 'Path' needs to be unique over all the 'Settings' worksheets found in all the active matrix files."
-                    Value       = @{('S1.' + $env:USERDNSDOMAIN) = 'E:\DUPLICATE' }
+                    Value       = @{
+                        ('S1.' + $env:USERDNSDOMAIN) = 'E:\DUPLICATE' 
+                    }
                 }
             )
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $($testProblem.Value.Keys); Path = 'E:\Reports'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $($testProblem.Value.Keys); Path = $($testProblem.Value.Values); Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $($testProblem.Value.Keys); Path = $($testProblem.Value.Values); Action = 'Fix' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S3'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = $($testProblem.Value.Keys)
+                    Path         = 'E:\Reports'
+                    Action       = 'Check' 
+                }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = $($testProblem.Value.Keys)
+                    Path         = $($testProblem.Value.Values)
+                    Action       = 'Check' 
+                }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = $($testProblem.Value.Keys)
+                    Path         = $($testProblem.Value.Values)
+                    Action       = 'Fix' 
+                }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'S3'
+                    Path         = 'E:\Department'
+                    Action       = 'Check' 
+                }
             ) | Export-Excel @SettingsParams
+
             $testPermissions | Export-Excel @PermissionsParams
 
             .$testScript @testParams
 
-            $toTest = @($ImportedMatrix.Settings.Where( { $_.Import.Path -eq $testProblem.Value.Values }))
+            $toTest = @($ImportedMatrix.Settings.Where( 
+                    { $_.Import.Path -eq $testProblem.Value.Values }
+                ))
+
             $toTest.Count | Should -BeExactly 2
 
-            $toTest.ForEach( {
-                    # Assert-Equivalent $_.Check $testProblem
-                    $_.Check.Type | Should -Be  $testProblem.Type
-                    $_.Check.Name | Should -Be  $testProblem.Name
-                    $_.Check.Description | Should -Be  $testProblem.Description
-                    $_.Check.Value.Name | Should -Be  $testProblem.Value.Name
-                    $_.Check.Value.Value | Should -Be  $testProblem.Value.Value
-                })
+            foreach ($testMatrix in $toTest) {
+                $testCheck = $testMatrix.Check | Where-Object {
+                    $_.Name -eq $testProblem.Name
+                }
+                $testCheck.Type | Should -Be  $testProblem.Type
+                $testCheck.Name | Should -Be  $testProblem.Name
+                $testCheck.Description | Should -Be  $testProblem.Description
+                $testCheck.Value.Name | Should -Be  $testProblem.Value.Name
+                $testCheck.Value.Value | Should -Be  $testProblem.Value.Value  
+            }
+
         }
         It "'Test-MatrixSettingHC' detects an input problem" {
             $testProblem = @{
@@ -645,9 +666,208 @@ Describe 'a Warning object is registered' {
         }
     }
 }
-Describe 'on a successful run' {
+Describe "each row in the worksheet 'settings'" {
     BeforeAll {
-        #region Set permissions script
+        Mock ConvertTo-MatrixADNamesHC { @{} }
+        Mock ConvertTo-MatrixAclHC
+        Mock Test-AdObjectsHC 
+        Mock Test-MatrixSettingHC
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'pc1'
+                Path         = 'E:\Department'
+                Action       = 'Check' 
+                GroupName    = 'A'
+                SiteCode     = 'B'
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'pc2'
+                Path         = 'E:\Reports'
+                Action       = 'Check' 
+                GroupName    = 'C'
+                SiteCode     = 'D'
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'pc3'
+                Path         = 'E:\Finance'
+                Action       = 'Check' 
+                GroupName    = 'E'
+                SiteCode     = 'F'
+            }
+        ) | Export-Excel @SettingsParams
+
+        @(
+            [PSCustomObject]@{P1 = $null      ; P2 = 'bob' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
+        ) | Export-Excel @PermissionsParams
+
+        .$testScript @testParams -EA ignore
+    }
+    It 'is tested for incorrect input' {
+        Should -Invoke Test-MatrixSettingHC -Exactly 3 -Scope Describe
+        @('pc1', 'pc2', 'pc3') | ForEach-Object {
+            Should -Invoke Test-MatrixSettingHC -Exactly 1 -Scope Describe -ParameterFilter {
+                $Setting.ComputerName -eq $_
+            }
+        }
+    }
+    Context 'creates a unique matrix with' {
+        It 'complete SamAccountNames constructed from the header rows' {
+            Function testColumnHeaders {
+                ($null -eq $ColumnHeaders[0].P1) -and
+                ($ColumnHeaders[0].P2 -eq 'bob') -and
+                ($ColumnHeaders[1].P1 -eq 'SiteCode') -and
+                ($ColumnHeaders[1].P2 -eq 'SiteCode') -and
+                ($ColumnHeaders[2].P1 -eq 'GroupName') -and
+                ($ColumnHeaders[2].P2 -eq 'GroupName')
+            }
+
+            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 3 -Scope Describe
+            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
+                ($Begin -eq 'A') -and ($Middle -eq 'B') -and 
+                (testColumnHeaders)
+            }
+            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
+                ($Begin -eq 'C') -and ($Middle -eq 'D') -and
+                (testColumnHeaders)
+            }
+            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
+                ($Begin -eq 'E') -and ($Middle -eq 'F') -and
+                (testColumnHeaders)
+            }
+        } 
+        It 'path and Acl' {
+            Should -Invoke ConvertTo-MatrixAclHC -Exactly 3 -Scope Describe
+        }
+    }
+}
+Context "the worksheet 'Permissions' is" {
+    BeforeAll {
+        Mock Test-MatrixPermissionsHC
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]
+                Path         = 'E:\Department'
+                Action       = 'Check' 
+                GroupName    = 'A'
+                SiteCode     = 'B'
+            }
+        ) | Export-Excel @SettingsParams
+
+        @(
+            [PSCustomObject]@{P1 = $null      ; P2 = 'bob' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
+        ) | Export-Excel @PermissionsParams
+
+        .$testScript @testParams
+    }
+    It 'tested for incorrect input' {
+        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Context
+        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Context -ParameterFilter {
+            ($null -eq $Permissions[0].P1) -and
+            ($Permissions[0].P2 -eq 'bob') -and
+            ($Permissions[1].P1 -eq 'SiteCode') -and
+            ($Permissions[1].P2 -eq 'SiteCode') -and
+            ($Permissions[2].P1 -eq 'GroupName') -and
+            ($Permissions[2].P2 -eq 'GroupName') -and
+            ($Permissions[3].P1 -eq 'Path') -and
+            ($Permissions[3].P2 -eq 'L') -and
+            ($Permissions[4].P1 -eq 'Folder') -and
+            ($Permissions[4].P2 -eq 'W')
+        }
+    }   
+}
+Context 'the script that tests the remote computers for compliance' {
+    BeforeAll {
+        Mock Test-ExpandedMatrixHC
+        Mock Invoke-Command {
+            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
+        } -ParameterFilter {
+            ($ComputerName -eq $testComputerNames[0]) -and ($AsJob -eq $true) -and
+            ($JobName -eq 'TestRequirements') 
+        }
+        Mock Invoke-Command {
+            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
+        } -ParameterFilter {
+            ($ComputerName -eq $testComputerNames[1]) -and ($AsJob -eq $true) -and
+            ($JobName -eq 'TestRequirements')
+        }
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]
+                Path         = 'E:\Department'
+                Action       = 'Check' 
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]
+                Path         = 'E:\Reports'
+                Action       = 'Check' 
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[1]
+                Path         = 'E:\Finance'
+                Action       = 'Check' 
+            }
+            [PSCustomObject]@{
+                Status       = $null
+                ComputerName = 'ignoredPc'
+                Path         = 'E:\Finance'
+                Action       = 'Check' 
+            }
+        ) | Export-Excel @SettingsParams
+
+        $testPermissions | Export-Excel @PermissionsParams
+
+        .$testScript @testParams
+    }
+    It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
+        Should -Not -Invoke Invoke-Command -Scope Context -ParameterFilter {
+            ($JobName -eq 'TestRequirements') -and
+            ($ComputerName -eq 'ignoredPc')
+        }
+    }
+    It "is only called for unique ComputerNames in the 'Settings' worksheets" {
+        Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Context -ParameterFilter {
+            $JobName -eq 'TestRequirements' 
+        }
+        @($testComputerNames[0], $testComputerNames[1]) | ForEach-Object {
+            Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+                ($JobName -eq 'TestRequirements') -and
+                ($ComputerName -eq $_)
+            }
+        }
+    }
+    It 'saves the job result in Settings for each matrix' {
+        @($ImportedMatrix.Settings.Where( {
+                    ($_.Import.ComputerName -eq $testComputerNames[0]) -and 
+                    ($_.Check -eq 'A') })).Count |
+        Should -BeExactly 2
+
+        @($ImportedMatrix.Settings.Where( {
+                    ($_.Import.ComputerName -eq $testComputerNames[1]) -and 
+                    ($_.Check -eq 'B') })).Count |
+        Should -BeExactly 1
+    }
+}
+Context 'the script that sets the permissions on the remote computers' {
+    BeforeAll {
+        Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 1 } -ComputerName localhost -AsJob -JobName 'SetPermissions_1'
         } -ParameterFilter {
@@ -669,171 +889,31 @@ Describe 'on a successful run' {
             ($ComputerName -eq $testComputerNames[1]) -and
             ($JobName -eq 'SetPermissions_3')
         }
-        #endregion
-
-        #region Test requirements script
-        Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
-        } -ParameterFilter {
-            ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerNames[0]) -and
-            ($JobName -eq 'TestRequirements') 
-        }
-        Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
-        } -ParameterFilter {
-            ($AsJob -eq $true) -and
-            ($ComputerName -eq $testComputerNames[1]) -and
-            ($JobName -eq 'TestRequirements')
-        }
-        #endregion
-
-        Mock Get-ADObjectDetailHC {
-            [PSCustomObject]@{
-                samAccountName = 'A B bob'
-                adObject       = @{ 
-                    ObjectClass    = 'user'
-                    Name           = 'A B Bob'
-                    SamAccountName = 'A B bob'
-                }
-                adGroupMember  = $null
-            }
-            [PSCustomObject]@{
-                samAccountName = 'C D bob'
-                adObject       = @{ 
-                    ObjectClass    = 'user'
-                    Name           = 'C D Bob'
-                    SamAccountName = 'C D bob'
-                }
-                adGroupMember  = $null
-            }
-            [PSCustomObject]@{
-                samAccountName = 'E F bob'
-                adObject       = @{ 
-                    ObjectClass    = 'user'
-                    Name           = 'E F Bob'
-                    SamAccountName = 'E F bob'
-                }
-                adGroupMember  = $null
-            }
-        }
-
-        Mock ConvertTo-MatrixAclHC { 
-            @(
-                [PSCustomObject]@{
-                    Path   = 'E:\Department'
-                    Parent = $true
-                    ACL    = @{'A B bob' = 'L' }
-                    Ignore = $false
-                }
-                [PSCustomObject]@{
-                    Path   = 'folder'
-                    Parent = $false
-                    ACL    = @{'A B bob' = 'W' }
-                    Ignore = $false
-                }
-            )
-        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'A B bob' }
-        Mock ConvertTo-MatrixAclHC { 
-            @(
-                [PSCustomObject]@{
-                    Path   = 'E:\Reports'
-                    Parent = $true
-                    ACL    = @{'C D bob' = 'L' }
-                    Ignore = $false
-                }
-                [PSCustomObject]@{
-                    Path   = 'folder'
-                    Parent = $false
-                    ACL    = @{'C D bob' = 'W' }
-                    Ignore = $false
-                }
-            )
-        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'C D bob' }
-        Mock ConvertTo-MatrixAclHC { 
-            @(
-                [PSCustomObject]@{
-                    Path   = 'E:\Finance'
-                    Parent = $true
-                    ACL    = @{'E F bob' = 'L' }
-                    Ignore = $false
-                }
-                [PSCustomObject]@{
-                    Path   = 'folder'
-                    Parent = $false
-                    ACL    = @{'E F bob' = 'W' }
-                    Ignore = $false
-                }
-            )
-        } -ParameterFilter { $adObjects.Values.SamAccountName -eq 'E F bob' }
-
-        Mock ConvertTo-MatrixADNamesHC {  
-            @{
-                'P2' = @{
-                    SamAccountName = 'A B bob'
-                    Original       = @{
-                        Begin  = 'GroupName'
-                        Middle = 'SiteCode'
-                        End    = 'bob'
-                    }
-                    Converted      = @{
-                        Begin  = 'A'
-                        Middle = 'B'
-                        End    = 'bob'
-                    }
-                }
-            } 
-        } -ParameterFilter { $Begin -eq 'A' }
-        Mock ConvertTo-MatrixADNamesHC {  
-            @{
-                'P2' = @{
-                    SamAccountName = 'C D bob'
-                    Original       = @{
-                        Begin  = 'GroupName'
-                        Middle = 'SiteCode'
-                        End    = 'bob'
-                    }
-                    Converted      = @{
-                        Begin  = 'C'
-                        Middle = 'D'
-                        End    = 'bob'
-                    }
-                }
-            } 
-        } -ParameterFilter { $Begin -eq 'C' }
-        Mock ConvertTo-MatrixADNamesHC {  
-            @{
-                'P2' = @{
-                    SamAccountName = 'E F bob'
-                    Original       = @{
-                        Begin  = 'GroupName'
-                        Middle = 'SiteCode'
-                        End    = 'bob'
-                    }
-                    Converted      = @{
-                        Begin  = 'E'
-                        Middle = 'F'
-                        End    = 'bob'
-                    }
-                }
-            } 
-        } -ParameterFilter { $Begin -eq 'E' }
-
+        
         @(
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerNames[0]; 
-                Path = 'E:\Department'; Action = 'Check' 
-                GroupName = 'A'; SiteCode = 'B'
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]
+                Path         = 'E:\Department'
+                Action       = 'New' 
             }
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerNames[0]; 
-                Path = 'E:\Reports'; Action = 'Check' 
-                GroupName = 'C'; SiteCode = 'D'
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]
+                Path         = 'E:\Reports'
+                Action       = 'Fix' 
             }
             [PSCustomObject]@{
-                Status = 'Enabled'; ComputerName = $testComputerNames[1]; 
-                Path = 'E:\Finance'; Action = 'Check' 
-                GroupName = 'E'; SiteCode = 'F'
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[1]
+                Path         = 'E:\Finance'
+                Action       = 'Check' 
+            }
+            [PSCustomObject]@{
+                Status       = $null
+                ComputerName = 'ignoredPc'
+                Path         = 'E:\Finance'
+                Action       = 'Check' 
             }
         ) | Export-Excel @SettingsParams
 
@@ -841,74 +921,88 @@ Describe 'on a successful run' {
 
         .$testScript @testParams
     }
-    Context 'the worksheet Permission is' {
-        It 'tested for incorrect input' {
-            Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Describe
+    It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
+        Should -Not -Invoke Invoke-Command -Scope Context -ParameterFilter {
+            ($ComputerName -eq 'ignoredPc')
         }
     }
-    Context 'each row in the worksheet Settings' {
-        It 'is tested for incorrect input' {
-            Should -Invoke Test-MatrixSettingHC -Exactly 3 -Scope Describe
+    It "is called for each row in the 'Settings' worksheets with Status Enabled" {
+        Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Context -ParameterFilter {
+            ($JobName -like 'SetPermissions*' ) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName)
         }
-        It 'creates AD object names' {
-            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 3 -Scope Describe
-            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
-                ($Begin -eq 'A') -and ($Middle -eq 'B') -and 
-                ($ColumnHeaders -ne $null)
-            }
-            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
-                ($Begin -eq 'C') -and ($Middle -eq 'D') -and
-                ($ColumnHeaders -ne $null)
-            }
-            Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
-                ($Begin -eq 'E') -and ($Middle -eq 'F') -and
-                ($ColumnHeaders -ne $null)
-            }
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+            ($AsJob -eq $true) -and
+            ($JobName -eq 'SetPermissions_1' ) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
+            ($ArgumentList[0] -eq 'E:\Department') -and
+            ($ArgumentList[1] -eq 'New') -and
+            ($ArgumentList[2] -ne $null) -and
+            ($ArgumentList[3] -ne $null) 
         }
-        It 'creates a matrix with path and Acl' {
-            Should -Invoke ConvertTo-MatrixAclHC -Exactly 3 -Scope Describe
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+            ($AsJob -eq $true) -and
+            ($JobName -eq 'SetPermissions_2' ) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
+            ($ArgumentList[0] -eq 'E:\Reports') -and
+            ($ArgumentList[1] -eq 'Fix') -and
+            ($ArgumentList[2] -ne $null) -and
+            ($ArgumentList[3] -ne $null) 
         }
-    }
-    Context 'the test requirements script' {
-        It 'is called once for each unique ComputerName' {
-            Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
-                $JobName -eq 'TestRequirements' 
-            }
-        }
-        It 'saves the job result in Settings for each matrix' {
-            @($ImportedMatrix.Settings.Where( {
-                        ($_.Import.ComputerName -eq $testComputerNames[0]) -and 
-                        ($_.Check -eq 'A') })).Count |
-            Should -BeExactly 2
-    
-            @($ImportedMatrix.Settings.Where( {
-                        ($_.Import.ComputerName -eq $testComputerNames[1]) -and 
-                        ($_.Check -eq 'B') })).Count |
-            Should -BeExactly 1
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+            ($AsJob -eq $true) -and
+            ($JobName -eq 'SetPermissions_3' ) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($ComputerName -eq $testComputerNames[1]) -and
+            ($ArgumentList[0] -eq 'E:\Finance') -and
+            ($ArgumentList[1] -eq 'Check') -and
+            ($ArgumentList[2] -ne $null) -and
+            ($ArgumentList[3] -ne $null) 
         }
     }
-    Context 'the set permissions script' {
-        It 'is called for each Enabled row in Settings' {
-            Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Describe -ParameterFilter {
-                $JobName -like 'SetPermissions*' 
-            }
-        }
-        It 'saves the start/end/duration times for each job in the settings' {
-            $ImportedMatrix.Settings.JobTime.Start | Should -HaveCount 3
-            $ImportedMatrix.Settings.JobTime.End | Should -HaveCount 3
-            $ImportedMatrix.Settings.JobTime.Duration | Should -HaveCount 3
-        }
-        It 'saves the job result in Settings for each matrix' {
-            ($ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })).Check |
-            Should -Contain 1
-            ($ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })).Check |
-            Should -Contain 2
-            ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
-            Should -Contain 3
-        }
+    It 'saves the start/end/duration times for each job in the settings' {
+        $ImportedMatrix.Settings.JobTime.Start | Should -HaveCount 3
+        $ImportedMatrix.Settings.JobTime.End | Should -HaveCount 3
+        $ImportedMatrix.Settings.JobTime.Duration | Should -HaveCount 3
     }
-    It 'an email is sent to the user in the default settings file' {
-        Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
+    It 'saves the job result in Settings for each matrix' {
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })).Check |
+        Should -Contain 1
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })).Check |
+        Should -Contain 2
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
+        Should -Contain 3
+    }
+} 
+Context 'an email is sent to the user in the default settings file' {
+    BeforeAll {
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]; 
+                Path         = 'E:\Reports'
+                Action       = 'Check' 
+                GroupName    = 'C'
+                SiteCode     = 'D'
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[1]
+                Path         = 'E:\Finance'
+                Action       = 'New' 
+                GroupName    = 'x'
+                SiteCode     = 'x'
+            }
+        ) | Export-Excel @SettingsParams
+
+        $testPermissions | Export-Excel @PermissionsParams
+
+        .$testScript @testParams
+    }
+    It 'containing a summary per Settings row for executed matrixes' {
+        Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
             ($Subject -eq '1 matrix file') -and
             ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
@@ -918,53 +1012,211 @@ Describe 'on a successful run' {
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like "*1*$($testComputerNames[0])*E:\Department*Check*") -and
-            ($Message -like "*2*$($testComputerNames[0])*E:\Reports*Check*") -and
-            ($Message -like "*3*$($testComputerNames[1])*E:\Finance*Check*") -and
+            ($Message -like "*1*$($testComputerNames[0])*E:\Reports*Check*") -and
+            ($Message -like "*2*$($testComputerNames[1])*E:\Finance*New*") -and
             ($Message -like '*Error*Warning*Information*')
         }
+    } 
+} 
+Context "the Excel file with" {
+    BeforeAll {
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                samAccountName = 'A B bob'
+                adObject       = @{ 
+                    ObjectClass    = 'user'
+                    Name           = 'A B Bob'
+                    SamAccountName = 'A B bob'
+                    ManagedBy      = $null
+                }
+                adGroupMember  = $null
+            }
+            [PSCustomObject]@{
+                samAccountName = 'movieStars'
+                adObject       = @{ 
+                    ObjectClass    = 'group'
+                    Name           = 'Movie Stars'
+                    SamAccountName = 'movieStars'
+                    ManagedBy      = $null
+                }
+                adGroupMember  = $null
+            }
+            [PSCustomObject]@{
+                samAccountName = 'starTrekCaptains'
+                adObject       = @{ 
+                    ObjectClass    = 'group'
+                    SamAccountName = 'starTrekCaptains'
+                    Name           = 'Star Trek Captains' 
+                    ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
+                }
+                adGroupMember  = @(
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Jean Luc Picard'
+                        SamAccountName = 'picard' 
+                    }
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Ignored account'
+                        SamAccountName = 'ignoreMe' 
+                    }
+                )
+            }
+            [PSCustomObject]@{
+                samAccountName = 'singers'
+                adObject       = @{ 
+                    ObjectClass    = 'group'
+                    SamAccountName = 'singers'
+                    Name           = 'Singers' 
+                    ManagedBy      = 'CN=SingerManagers,DC=contoso,DC=net'
+                }
+                adGroupMember  = @(
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Beyonce'
+                        SamAccountName = 'queenb' 
+                    }
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Ignored account'
+                        SamAccountName = 'ignoreMe' 
+                    }
+                )
+            }
+        } -ParameterFilter { $SamAccountName }
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
+                adObject          = @{ 
+                    ObjectClass = 'group'
+                    Name        = 'Captain Managers' 
+                }
+                adGroupMember     = @(
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Admiral Pike'
+                        SamAccountName = 'pike' 
+                    }
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Excluded user'
+                        SamAccountName = 'ignoreMe' 
+                    }
+                )
+            }
+            [PSCustomObject]@{
+                DistinguishedName = 'CN=SingerManagers,DC=contoso,DC=net'
+                adObject          = @{ 
+                    ObjectClass = 'group'
+                    Name        = 'Singer Managers' 
+                }
+                adGroupMember     = $null
+            }
+        } -ParameterFilter { $DistinguishedName }
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = $testComputerNames[0]; 
+                Path         = 'E:\Reports'
+                Action       = 'Check' 
+                GroupName    = 'A'
+                SiteCode     = 'B'
+            }
+        ) | Export-Excel @SettingsParams
+
+        @(
+            [PSCustomObject]@{P1 = $null      ; P2 = 'bob'       ; P3 = 'movieStars'; P4 = '' ; P5 = '' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode'  ; P3 = ''; P4 = 'starTrekCaptains' ; P5 = '' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' ; P3 = ''; P4 = '' ; P5 = 'Singers' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L'         ; P3 = ''; P4 = '' ; P5 = '' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W'         ; P3 = ''; P4 = '' ; P5 = '' }
+        ) | Export-Excel @PermissionsParams
+
+        .$testScript @testParams -ExcludedSamAccountName 'IgnoreMe'
+
+        $testMatrixFile = Get-ChildItem $testParams.logFolder -Filter '*Matrix.xlsx' -Recurse -File
     }
     Context "the worksheet 'AccessList'" {
         BeforeAll {
-            $testMatrixFile = Get-ChildItem $testParams.logFolder -Filter '*Matrix.xlsx' -Recurse -File
             $testAccessList = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'AccessList'
         }
         It 'is added to the matrix log file' {
             $testAccessList | Should -Not -BeNullOrEmpty
-            $testAccessList | Should -HaveCount 3
+            $testAccessList | Should -HaveCount 4
         }
-        Context 'contains the property' {
+        Describe 'contains the property' {
             It 'SamAccountName' {
-                $testAccessList[0].SamAccountName | Should -Be 'A B bob'
-                $testAccessList[1].SamAccountName | Should -Be 'C D bob'
-                $testAccessList[2].SamAccountName | Should -Be 'E F bob'
+                $testAccessList[0].SamAccountName | 
+                Should -Be 'starTrekCaptains'
+                $testAccessList[1].SamAccountName | Should -Be 'A B bob'
+                $testAccessList[2].SamAccountName | Should -Be 'Singers'
+                $testAccessList[3].SamAccountName | Should -Be 'movieStars'
             }
             It 'Name' {
-                $testAccessList[0].Name | Should -Be 'A B bob'
-                $testAccessList[1].Name | Should -Be 'C D bob'
-                $testAccessList[2].Name | Should -Be 'E F bob'
+                $testAccessList[0].Name | Should -Be 'Star Trek Captains'
+                $testAccessList[1].Name | Should -Be 'A B Bob'
+                $testAccessList[2].Name | Should -Be 'Singers'
+                $testAccessList[3].Name | Should -Be 'Movie Stars'
             }
             It 'Type' {
-                $testAccessList[0].Type | Should -Be 'user'
+                $testAccessList[0].Type | Should -Be 'group'
                 $testAccessList[1].Type | Should -Be 'user'
-                $testAccessList[2].Type | Should -Be 'user'
+                $testAccessList[2].Type | Should -Be 'group'
+                $testAccessList[3].Type | Should -Be 'group'
             }
             It 'MemberName' {
-                $testAccessList[0].MemberName | Should -Be 'user'
-                $testAccessList[1].MemberName | Should -Be 'user'
-                $testAccessList[2].MemberName | Should -Be 'user'
-            } -skip
+                $testAccessList[0].MemberName | Should -Be 'Jean Luc Picard'
+                $testAccessList[1].MemberName | Should -BeNullOrEmpty
+                $testAccessList[2].MemberName | Should -Be 'Beyonce'
+                $testAccessList[3].MemberName | Should -BeNullOrEmpty
+            }
             It 'MemberSamAccountName' {
-                $testAccessList[0].MemberSamAccountName | Should -Be 'user'
-                $testAccessList[1].MemberSamAccountName | Should -Be 'user'
-                $testAccessList[2].MemberSamAccountName | Should -Be 'user'
-            } -skip
+                $testAccessList[0].MemberSamAccountName | Should -Be 'picard'
+                $testAccessList[1].MemberSamAccountName | Should -BeNullOrEmpty
+                $testAccessList[2].MemberSamAccountName | Should -Be 'queenb'
+                $testAccessList[3].MemberSamAccountName | Should -BeNullOrEmpty
+            }
         }
-    } -Tag test
-} 
+    }
+    Context "the worksheet 'GroupManagers'" {
+        BeforeAll {
+            $testGroupManagers = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'GroupManagers'
+        }
+        It 'is added to the matrix log file' {
+            $testGroupManagers | Should -Not -BeNullOrEmpty
+            $testGroupManagers | Should -HaveCount 3
+        }
+        Describe 'contains the property' {
+            It 'GroupName' {
+                $testGroupManagers[0].GroupName | 
+                Should -Be 'Star Trek Captains'
+                $testGroupManagers[1].GroupName | Should -Be 'Singers'
+                $testGroupManagers[2].GroupName | Should -Be 'Movie Stars'
+            }
+            It 'ManagerName' {
+                $testGroupManagers[0].ManagerName | 
+                Should -Be 'Captain Managers'
+                $testGroupManagers[1].ManagerName | Should -Be 'Singer Managers'
+                $testGroupManagers[2].ManagerName | Should -BeNullOrEmpty
+            }
+            It 'ManagerType' {
+                $testGroupManagers[0].ManagerType | Should -Be 'group'
+                $testGroupManagers[1].ManagerType | Should -Be 'group'
+                $testGroupManagers[2].ManagerType | Should -BeNullOrEmpty
+            }
+            It 'ManagerMemberName' {
+                $testGroupManagers[0].ManagerMemberName | Should -Be 'Admiral Pike'
+                $testGroupManagers[1].ManagerMemberName | Should -BeNullOrEmpty
+                $testGroupManagers[2].ManagerMemberName | Should -BeNullOrEmpty
+            }
+        }
+    }
+}
 Describe 'when a job fails' {
     Context 'the test requirements script' {
         BeforeAll {
+            Mock Test-ExpandedMatrixHC
             Mock Invoke-Command {
                 & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
             } -ParameterFilter {
@@ -1001,6 +1253,7 @@ Describe 'when a job fails' {
     }
     Context 'the set permissions script' {
         BeforeAll {
+            Mock Test-ExpandedMatrixHC
             Mock Invoke-Command {
                 & $TestInvokeCommand -Scriptblock { 1 } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_1'
             } -ParameterFilter {
@@ -1033,7 +1286,7 @@ Describe 'when a job fails' {
             $actual.Check.Value | Should -Be 'failure'
         }
     }
-}
+} 
 Describe 'internal functions' {
     Context 'default permissions vs matrix permissions' {
         It 'add default permissions to the matrix' {
@@ -1246,6 +1499,7 @@ Describe 'when the argument CherwellFolder is used' {
             Mock Get-AdUserPrincipalNameHC
         }
         BeforeAll {
+            Mock Test-ExpandedMatrixHC
             Mock Test-FormDataHC { 
                 @{
                     Type = 'FatalError'
@@ -1290,6 +1544,7 @@ Describe 'when the argument CherwellFolder is used' {
     }
     Context 'but the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
+            Mock Test-ExpandedMatrixHC
             Mock Test-FormDataHC
             Mock Get-AdUserPrincipalNameHC { 
                 @{
@@ -1338,6 +1593,7 @@ Describe 'when the argument CherwellFolder is used' {
 }
 Describe 'when the argument CherwellFolder is used on a successful run' {
     BeforeAll {
+        Mock Test-ExpandedMatrixHC
         Mock Get-AdUserPrincipalNameHC { 
             @{
                 UserPrincipalName = @('bob@contoso.com', 'mike@contoso.com')
@@ -1347,7 +1603,22 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Mock Test-FormDataHC
 
         @(
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'SERVER1'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{P1 = $null      ; P2 = 'C' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
+        ) | Export-Excel @PermissionsParams
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'SERVER1'
+                GroupName    = 'A'
+                SiteCode     = 'B'
+                Path         = 'E:\Department'
+                Action       = 'Check' 
+            }
         ) | Export-Excel @SettingsParams
 
         @(
@@ -1361,26 +1632,6 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             }
         ) |
         Export-Excel -Path $SettingsParams.Path -WorksheetName 'FormData'
-
-        Mock ConvertTo-MatrixADNamesHC {
-            @{
-                'P2' = @{
-                    SamAccountName = 'BEGIN Manager'
-                    Original       = @{
-                        Begin  = 'A'
-                        Middle = ''
-                        End    = 'Manager'
-                    }
-                    Converted      = @{
-                        Begin  = 'BEGIN'
-                        Middle = ''
-                        End    = 'Manager'
-                    }
-                } 
-            }
-        }
-
-        $testPermissions | Export-Excel @PermissionsParams
 
         $testCherwellParams = @{
             CherwellFolder                = $testCherwellFolder.FullName
@@ -1412,7 +1663,6 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             AdObjectsCsvFile = $testCherwellExport | 
             Where-Object Name -EQ 'AD object names.csv'
         }
-
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -1512,17 +1762,17 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             }
             It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                @{ Name = 'SamAccountName'; Value = 'BEGIN Manager' }
-                @{ Name = 'GroupName'; Value = 'BEGIN' }
-                @{ Name = 'SiteCode'; Value = '' }
-                @{ Name = 'Name'; Value = 'Manager' }
+                @{ Name = 'SamAccountName'; Value = 'A B C' }
+                @{ Name = 'GroupName'; Value = 'A' }
+                @{ Name = 'SiteCode'; Value = 'B' }
+                @{ Name = 'Name'; Value = 'C' }
             ) {
                 $actual.cherwellFolder.AdObjectNames.$Name | Should -Be $Value
                 $actual.cherwellFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.AdObjectNames.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
-        }
+        } 
     }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
