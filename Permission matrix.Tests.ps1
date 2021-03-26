@@ -978,6 +978,7 @@ Context 'the script that sets the permissions on the remote computers' {
 } 
 Context 'an email is sent to the user in the default settings file' {
     BeforeAll {
+        Mock Test-ExpandedMatrixHC
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
