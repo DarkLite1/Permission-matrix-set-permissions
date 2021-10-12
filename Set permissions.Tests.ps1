@@ -410,7 +410,7 @@ $testCases = @(
         }
     }
     @{
-        name       = 'Sub folders of ignored folders are not checked (3)'
+        name       = 'Sub folders of ignored folders are not checked'
         state      = @{
             before = @{
                 folders = @(
