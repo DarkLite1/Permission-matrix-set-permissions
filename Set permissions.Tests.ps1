@@ -285,20 +285,20 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                "\\?\{0}",
-                "\\?\{0}\FolderB",
-                "\\?\{0}\FolderC"
+                '\\?\{0}',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\FolderC'
             )
             inheritanceTested    = @(
-                "\\?\{0}\file",
-                "\\?\{0}\FolderA",
-                "\\?\{0}\FolderA\file",
-                "\\?\{0}\FolderB\file",
-                "\\?\{0}\FolderC\file",
-                "\\?\{0}\FolderC\Level1",
-                "\\?\{0}\FolderC\Level1\file",
-                "\\?\{0}\FolderC\Level1\Level2",
-                "\\?\{0}\FolderC\Level1\Level2\file"
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB\file',
+                '\\?\{0}\FolderC\file',
+                '\\?\{0}\FolderC\Level1',
+                '\\?\{0}\FolderC\Level1\file',
+                '\\?\{0}\FolderC\Level1\Level2',
+                '\\?\{0}\FolderC\Level1\Level2\file'
             )
         }
     }
@@ -321,14 +321,14 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                "\\?\{0}",
-                "\\?\{0}\FolderB"
+                '\\?\{0}',
+                '\\?\{0}\FolderB'
             )
             inheritanceTested    = @(
-                "\\?\{0}\file",
-                "\\?\{0}\FolderA",
-                "\\?\{0}\FolderA\file",
-                "\\?\{0}\FolderB\file"
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB\file'
             )
         }
     }
@@ -352,16 +352,16 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                "\\?\{0}",
-                "\\?\{0}\FolderB\SubFolder\Reports"
+                '\\?\{0}',
+                '\\?\{0}\FolderB\SubFolder\Reports'
             )
             inheritanceTested    = @(
-                "\\?\{0}\file",
-                "\\?\{0}\FolderA",
-                "\\?\{0}\FolderA\file",
-                "\\?\{0}\FolderB",
-                "\\?\{0}\FolderB\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\File"
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\FolderB\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\File'
             )
         }
     }
@@ -390,22 +390,22 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                "\\?\{0}",
-                "\\?\{0}\FolderB\SubFolder\Reports",
-                "\\?\{0}\FolderC"
+                '\\?\{0}',
+                '\\?\{0}\FolderB\SubFolder\Reports',
+                '\\?\{0}\FolderC'
             )
             inheritanceTested    = @(
-                "\\?\{0}\file",
-                "\\?\{0}\FolderA",
-                "\\?\{0}\FolderA\file",
-                "\\?\{0}\FolderB",
-                "\\?\{0}\FolderB\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File",
-                "\\?\{0}\FolderC\File"
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\FolderB\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '\\?\{0}\FolderC\File'
             )
         }
     }
@@ -454,24 +454,54 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                "\\?\{0}",
-                "\\?\{0}\FolderB\SubFolder\Reports",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR",
-                "\\?\{0}\FolderC"
+                '\\?\{0}',
+                '\\?\{0}\FolderB\SubFolder\Reports',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
+                '\\?\{0}\FolderC'
             )
             inheritanceTested    = @(
-                "\\?\{0}\file",
-                "\\?\{0}\FolderA",
-                "\\?\{0}\FolderA\file",
-                "\\?\{0}\FolderB",
-                "\\?\{0}\FolderB\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File",
-                "\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File",
-                "\\?\{0}\FolderC\File"
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\FolderB\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File',
+                '\\?\{0}\FolderC\File'
+            )
+        }
+    }
+    @{
+        name       = 'And only Path is given all child folders and files need to be inherited'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path'; 
+                ACL    = @{$env:USERNAME = 'R' }; 
+                Parent = $true 
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '\\?\{0}'
+            )
+            inheritanceTested    = @(
+                '\\?\{0}\FolderA',
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\FolderB\File'
             )
         }
     }
