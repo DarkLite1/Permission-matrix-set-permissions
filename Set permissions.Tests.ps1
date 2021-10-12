@@ -505,6 +505,37 @@ $testCases = @(
             )
         }
     }
+    @{
+        name       = 'when Path is ignored and a child folder has permissions, only the child folder is checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path'
+                ACL    = @{}
+                Parent = $true 
+                Ignore = $true
+            }
+            [PSCustomObject]@{
+                Path = 'FolderA'
+                ACL  = @{$env:USERNAME = 'R' }
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '\\?\{0}\FolderA'
+            )
+            inheritanceTested    = @(
+                '\\?\{0}\FolderA\file'
+            )
+        }
+    }
 )
 Describe 'when the script runs for a matrix' {
     Context '<name>' -ForEach $testCases {
@@ -561,7 +592,8 @@ Describe 'when the script runs for a matrix' {
                         ($_.Name -eq 'Ignored folder') }
 
                 $testIgnoredFolders = $testIgnoredFolders | ForEach-Object {
-                    Join-Path $testParentFolder $_.Path
+                    if ($_.Parent) { $testParentFolder }
+                    else { Join-Path $testParentFolder $_.Path }
                 }
 
                 $actual.Value | Should -Be $testIgnoredFolders    
