@@ -505,23 +505,21 @@ Describe 'when the script runs for a matrix' {
             $testedInheritedFilesAndFolders.Count | 
             Should -BeExactly $expected.inheritanceTested.Count
         }
-        Context 'output is generated for' {
-            It 'ignored folders in an information object' {
-                if ($testIgnoredFolders = $testMatrix | Where-Object ignore) {
-                    $actual = $testResult | Where-Object { 
+        It 'output is generated for ignored folders in an information object' {
+            if ($testIgnoredFolders = $testMatrix | Where-Object ignore) {
+                $actual = $testResult | Where-Object { 
                         ($_.Type -eq 'Information') -and
                         ($_.Name -eq 'Ignored folder') }
 
-                    $testIgnoredFolders = $testIgnoredFolders | ForEach-Object {
-                        Join-Path $testParentFolder $_.Path
-                    }
-
-                    $actual.Value | Should -Be $testIgnoredFolders    
+                $testIgnoredFolders = $testIgnoredFolders | ForEach-Object {
+                    Join-Path $testParentFolder $_.Path
                 }
+
+                $actual.Value | Should -Be $testIgnoredFolders    
             }
         }
     } 
-} 
+} -Tag test
 Describe 'Permissions' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force
@@ -2446,7 +2444,7 @@ Describe 'when Action is' {
                     $Actual = .$testScript @testParams |
                     Where-Object Name -EQ $Expected.Name
 
-                    $testFile.FullName | should -be $actual.Value
+                    $testFile.FullName | Should -Be $actual.Value
                 }
                 It 'DetailedLog is True the file name and the the old ACL are saved' {
                     $testParams = @{
