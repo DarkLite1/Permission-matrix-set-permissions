@@ -23,6 +23,7 @@ BeforeAll {
     Mock Get-ItemPropertyValue -MockWith { 461808 }
     Mock Test-IsAdminHC { $true }
     Mock Test-IsRequiredPowerShellVersionHC { $true }
+    Mock Write-Warning
 }
 AfterAll {
     Remove-SmbShare -Name $testSmbShareName -Force -EA Ignore
