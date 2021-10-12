@@ -536,9 +536,34 @@ $testCases = @(
             )
         }
     }
+    @{
+        name       = 'when only Path is in the matrix and is ignored no files or folders are checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path'
+                ACL    = @{}
+                Parent = $true 
+                Ignore = $true
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+            )
+            inheritanceTested    = @(
+            )
+        }
+    }
 )
 Describe 'when the script runs for a matrix' {
-    Context '<name>' -ForEach $testCases {
+    Context '<name>' -Foreach $testCases {
         BeforeAll {
             Remove-Item $testParentFolder -Recurse -Force
        
@@ -564,8 +589,6 @@ Describe 'when the script runs for a matrix' {
             $testResult = .$testScript @testParams
         }
         It 'all non inherited folders are checked' {
-            $testedNonInheritedFolders | Should -Not -BeNullOrEmpty -Because 'it is a production script variable'
-                 
             $expected.nonInheritanceTested | ForEach-Object {
                 $testedNonInheritedFolders.Keys | 
                 Should -Contain ($_ -f $testParams.Path) 
@@ -575,8 +598,6 @@ Describe 'when the script runs for a matrix' {
             Should -BeExactly $expected.nonInheritanceTested.Count
         }
         It 'all files and folders that should be inherited are checked' {
-            $testedInheritedFilesAndFolders | Should -Not -BeNullOrEmpty -Because 'it is a production script variable'
-    
             $expected.inheritanceTested | ForEach-Object {
                 $testedInheritedFilesAndFolders.Keys | 
                 Should -Contain ($_ -f $testParams.Path)
