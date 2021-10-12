@@ -424,12 +424,33 @@ $testCases = @(
             }
         }
         testMatrix = @(
-            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
-            [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports\Year\2020\CEM'; ACL = @{ }; Ignore = $true } 
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR'; ACL = @{ $env:USERNAME = 'R' } } 
-            [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{
+                Path   = 'Path'; 
+                ACL    = @{$env:USERNAME = 'R' }; 
+                Parent = $true 
+            }
+            [PSCustomObject]@{
+                Path   = 'FolderB\SubFolder'; 
+                ACL    = @{$env:USERNAME = 'R' }; 
+                Ignore = $true 
+            }
+            [PSCustomObject]@{
+                Path = 'FolderB\SubFolder\Reports'; 
+                ACL  = @{$env:USERNAME = 'R' } 
+            }
+            [PSCustomObject]@{
+                Path   = 'FolderB\SubFolder\Reports\Year\2020\CEM';
+                ACL    = @{ };
+                Ignore = $true 
+            } 
+            [PSCustomObject]@{
+                Path = 'FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR';
+                ACL  = @{ $env:USERNAME = 'R' } 
+            } 
+            [PSCustomObject]@{
+                Path = 'FolderC';
+                ACL  = @{$env:USERNAME = 'R' } 
+            }
         )
         expected   = @{
             nonInheritanceTested = @(
@@ -456,14 +477,13 @@ $testCases = @(
     }
 )
 Describe 'when the script runs for a matrix' {
-    Context '<name>' -Foreach $testCases {
+    Context '<name>' -ForEach $testCases {
         BeforeAll {
             Remove-Item $testParentFolder -Recurse -Force
        
             if ($state.before.folders) {
                 $state.before.folders | ForEach-Object {
                     $tmpTestFolder = ($_ -f $testParentFolder)
-                    Write-Verbose "Create test folder '$tmpTestFolder'"
                     New-Item -Path $tmpTestFolder -ItemType Directory -Force
                 }
                 
@@ -471,7 +491,6 @@ Describe 'when the script runs for a matrix' {
                     (Get-ChildItem $testParentFolder -Recurse -Directory).FullName + $testParentFolder
                 ) | ForEach-Object {
                     $tmpTestFile = Join-Path $_ 'file'
-                    Write-Verbose "Create test file '$tmpTestFile'"
                     New-Item -Path $tmpTestFile -ItemType File
                 }
             }
