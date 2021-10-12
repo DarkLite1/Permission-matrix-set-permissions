@@ -476,7 +476,7 @@ $testCases = @(
         }
     }
     @{
-        name       = 'and only Path is given all child folders and files need to be inherited'
+        name       = 'when only Path is in the matrix and has permissions all files and folders need to be inherited'
         state      = @{
             before = @{
                 folders = @(
