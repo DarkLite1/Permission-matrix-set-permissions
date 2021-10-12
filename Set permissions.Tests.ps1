@@ -410,7 +410,7 @@ $testCases = @(
         }
     }
     @{
-        name       = 'Sub folders of ignored folders are not checked'
+        name       = 'sub folders of ignored folders are not checked'
         state      = @{
             before = @{
                 folders = @(
@@ -476,7 +476,7 @@ $testCases = @(
         }
     }
     @{
-        name       = 'And only Path is given all child folders and files need to be inherited'
+        name       = 'and only Path is given all child folders and files need to be inherited'
         state      = @{
             before = @{
                 folders = @(
