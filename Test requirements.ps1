@@ -564,7 +564,7 @@ Process {
         }
     }
     Catch {
-        throw "Failed loading type defintion 'NetApi32': $_"
+        throw "Failed loading type definition 'NetApi32': $_"
     }
     #endregion
 
