@@ -1926,5 +1926,5 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like "*1*SERVER1*E:\Department*Check*") -and
             ($Message -like '*Error*Warning*Information*')
         }
-    } -Tag test
+    }
 }
