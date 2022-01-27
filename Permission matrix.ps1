@@ -1127,8 +1127,6 @@ End {
                 }
             }
             #endregion
-
-
             
             #region HTML <style> for Mail and Settings
             Write-EventLog @EventVerboseParams -Message "Format HTML"
