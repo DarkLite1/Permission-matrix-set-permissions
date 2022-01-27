@@ -1861,6 +1861,49 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         } 
+    }
+    Context 'the AccessList are exported' {
+        It 'to a CSV file in the Cherwell folder' {
+            $testCherwellFolder.AccessListCsvFile.FullName | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to a CSV file in the log folder' {
+            $testLogFolder.AccessListCsvFile.FullName | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the Cherwell folder' {
+            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
+            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        Context 'with the property' {
+            BeforeAll {
+                $actual = @{
+                    logFolder      = @{
+                        Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
+                        AccessList = Import-Csv -Path $testLogFolder.AccessListCsvFile.FullName
+                    }
+                    cherwellFolder = @{
+                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AccessList'
+                        AccessList = Import-Csv -Path $testCherwellFolder.AccessListCsvFile.FullName
+                    }
+                }
+            }
+            It '<Name>' -Foreach @(
+                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
+                @{ Name = 'SamAccountName'; Value = 'A B C' }
+                @{ Name = 'Name'; Value = 'A B C' }
+                @{ Name = 'Type'; Value = 'group' }
+                @{ Name = 'MemberName'; Value = 'Jean Luc Picard' }
+                @{ Name = 'MemberSamAccountName'; Value = 'picard' }
+            ) {
+                $actual.cherwellFolder.AccessList.$Name | Should -Be $Value
+                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
+                $actual.logFolder.AccessList.$Name | Should -Be $Value
+                $actual.logFolder.Excel.$Name | Should -Be $Value
+            }
+        } 
     } -Tag test
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
