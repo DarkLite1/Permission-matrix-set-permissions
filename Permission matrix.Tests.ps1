@@ -1603,6 +1603,40 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             }
         }
         Mock Test-FormDataHC
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                samAccountName = 'A B C'
+                adObject       = @{ 
+                    ObjectClass    = 'group'
+                    Name           = 'A B C'
+                    SamAccountName = 'A B c'
+                    ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
+                }
+                adGroupMember  = @(
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Jean Luc Picard'
+                        SamAccountName = 'picard' 
+                    }
+                )
+            }
+        } -ParameterFilter { $SamAccountName }
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
+                adObject          = @{ 
+                    ObjectClass = 'group'
+                    Name        = 'Captain Managers' 
+                }
+                adGroupMember     = @(
+                    @{ 
+                        ObjectClass    = 'user'
+                        Name           = 'Admiral Pike'
+                        SamAccountName = 'pike' 
+                    }
+                )
+            }
+        } -ParameterFilter { $DistinguishedName }
 
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'C' }
@@ -1651,21 +1685,29 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Where-Object Extension -Match '.xlsx$|.csv$'
 
         $testLogFolder = @{
-            ExcelFile        = $testLogFolderExport | 
+            ExcelFile            = $testLogFolderExport | 
             Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile  = $testLogFolderExport | 
+            FormDataCsvFile      = $testLogFolderExport | 
             Where-Object Name -Like '*Form data.csv'
-            AdObjectsCsvFile = $testLogFolderExport | 
+            AdObjectsCsvFile     = $testLogFolderExport | 
             Where-Object Name -Like '*AD object names.csv'
+            GroupManagersCsvFile = $testLogFolderExport | 
+            Where-Object Name -Like '*GroupManagers.csv'
+            AccessListCsvFile    = $testLogFolderExport | 
+            Where-Object Name -Like '*AccessList.csv'
         }
 
         $testCherwellFolder = @{
-            ExcelFile        = $testCherwellExport | 
+            ExcelFile            = $testCherwellExport | 
             Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile  = $testCherwellExport | 
+            FormDataCsvFile      = $testCherwellExport | 
             Where-Object Name -EQ 'Form data.csv'
-            AdObjectsCsvFile = $testCherwellExport | 
+            AdObjectsCsvFile     = $testCherwellExport | 
             Where-Object Name -EQ 'AD object names.csv'
+            GroupManagersCsvFile = $testCherwellExport | 
+            Where-Object Name -Like '*GroupManagers.csv'
+            AccessListCsvFile    = $testCherwellExport | 
+            Where-Object Name -Like '*AccessList.csv'
         }
     }
     Context 'the data in worksheet FormData' {
@@ -1708,7 +1750,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -ForEach @(
+            It '<Name>' -Foreach @(
                 @{ Name = 'MatrixFormStatus'; Value = 'Enabled' }
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 # @{ Name = 'MatrixFilePath'; Value = $SettingsParams.Path }
@@ -1764,7 +1806,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -ForEach @(
+            It '<Name>' -Foreach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'SamAccountName'; Value = 'A B C' }
                 @{ Name = 'GroupName'; Value = 'A' }
@@ -1778,6 +1820,48 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             }
         } 
     }
+    Context 'the GroupManagers are exported' {
+        It 'to a CSV file in the Cherwell folder' {
+            $testCherwellFolder.GroupManagersCsvFile.FullName | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to a CSV file in the log folder' {
+            $testLogFolder.GroupManagersCsvFile.FullName | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the Cherwell folder' {
+            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
+            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+        }
+        Context 'with the property' {
+            BeforeAll {
+                $actual = @{
+                    logFolder      = @{
+                        Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
+                        GroupManagers = Import-Csv -Path $testLogFolder.GroupManagersCsvFile.FullName
+                    }
+                    cherwellFolder = @{
+                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
+                        GroupManagers = Import-Csv -Path $testCherwellFolder.GroupManagersCsvFile.FullName
+                    }
+                }
+            }
+            It '<Name>' -Foreach @(
+                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
+                @{ Name = 'GroupName'; Value = 'A B C' }
+                @{ Name = 'ManagerName'; Value = 'A' }
+                @{ Name = 'ManagerType'; Value = 'B' }
+                @{ Name = 'ManagerMemberName'; Value = 'C' }
+            ) {
+                $actual.cherwellFolder.GroupManagers.$Name | Should -Be $Value
+                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
+                $actual.logFolder.GroupManagers.$Name | Should -Be $Value
+                $actual.logFolder.Excel.$Name | Should -Be $Value
+            }
+        } 
+    } -Skip #-Tag test
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
