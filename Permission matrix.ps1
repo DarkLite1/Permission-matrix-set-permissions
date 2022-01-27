@@ -62,10 +62,18 @@
         the combination of GroupName and SiteCode in the settings rows,
         combined with the headers in the permissions worksheet.
 
-    .PARAMETER CherwellFormDataFileName
-        The name of the csv file containing the data coming from the worksheet
-        FormData within a Matrix Excel file.
- #>
+    .PARAMETER CherwellGroupManagersFileName
+        The name of the csv file containing the group managers for all matrix
+        files.
+
+    .PARAMETER CherwellAccessListFileName
+        The name of the csv file containing the access list for all matrix
+        files.
+
+    .PARAMETER CherwellExcelOverviewFileName
+        The log name of the Excel file containing the same data as the csv files
+        exported to the Cherwell folder.
+#>
 
 [CmdLetBinding()]
 Param (
