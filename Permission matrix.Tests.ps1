@@ -1851,9 +1851,9 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             It '<Name>' -Foreach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'GroupName'; Value = 'A B C' }
-                @{ Name = 'ManagerName'; Value = 'A' }
-                @{ Name = 'ManagerType'; Value = 'B' }
-                @{ Name = 'ManagerMemberName'; Value = 'C' }
+                @{ Name = 'ManagerName'; Value = 'Captain Managers' }
+                @{ Name = 'ManagerType'; Value = 'group' }
+                @{ Name = 'ManagerMemberName'; Value = 'Admiral Pike' }
             ) {
                 $actual.cherwellFolder.GroupManagers.$Name | Should -Be $Value
                 $actual.cherwellFolder.Excel.$Name | Should -Be $Value
