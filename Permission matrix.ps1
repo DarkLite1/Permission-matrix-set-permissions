@@ -919,7 +919,7 @@ End {
                         $accessListSheet += $accessListToExport |
                         Select-Object *, @{
                             Name       = 'MatrixFileName'; 
-                            Expression = { $I.File.Item.Name }
+                            Expression = { $I.File.Item.BaseName }
                         }
                     }
                     #endregion
@@ -939,7 +939,7 @@ End {
                             $groupManagersSheet += $groupManagersToExport |
                             Select-Object *, @{
                                 Name       = 'MatrixFileName'; 
-                                Expression = { $I.File.Item.Name }
+                                Expression = { $I.File.Item.BaseName }
                             }
                         }
                         #endregion
