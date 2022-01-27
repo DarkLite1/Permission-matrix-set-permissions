@@ -1681,7 +1681,7 @@ End {
                         (Test-Path -LiteralPath $exportCsvGroupManagersParams.literalPath)
                     ) {
 @"
-                        <a href="$($exportCsvAexportCsvGroupManagersParamsdParams.literalPath)">Group managers</a>
+                        <a href="$($exportCsvGroupManagersParams.literalPath)">Group managers</a>
 "@
                     }
                     else {'Group managers'}
