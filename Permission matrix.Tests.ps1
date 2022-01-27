@@ -1639,6 +1639,8 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             CherwellFolder                = $testCherwellFolder.FullName
             CherwellAdObjectsFileName     = 'AD object names.csv'
             CherwellFormDataFileName      = 'Form data.csv'
+            CherwellGroupManagersFileName = 'GroupManagers.csv'
+            CherwellAccessListFileName    = 'AccessList.csv'
             CherwellExcelOverviewFileName = 'Overview.xlsx'
         }
         .$testScript @testParams @testCherwellParams

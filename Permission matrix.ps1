@@ -82,6 +82,8 @@ Param (
     [String]$CherwellFolder,
     [String]$CherwellAdObjectsFileName = 'AD object names.csv',
     [String]$CherwellFormDataFileName = 'Form data.csv',
+    [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
+    [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
