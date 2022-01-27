@@ -1644,6 +1644,22 @@ End {
             <tr>
                 <th>
                 $(
+                    if ($accessListSheet.count -and 
+                        $exportCsvAccessListParams.literalPath -and
+                        (Test-Path -LiteralPath $exportCsvAccessListParams.literalPath)
+                    ) {
+@"
+                        <a href="$($exportCsvAccessListParams.literalPath)">Access list</a>
+"@
+                    }
+                    else {'Access list'}
+                )
+                </th>
+                <td>$($accessListSheet.count)</td>
+            </tr>
+            <tr>
+                <th>
+                $(
                     if ($adObjectNamesSheet.count -and 
                         $exportCsvAdParams.literalPath -and
                         (Test-Path -LiteralPath $exportCsvAdParams.literalPath)
@@ -1656,6 +1672,22 @@ End {
                 )
                 </th>
                 <td>$($adObjectNamesSheet.count)</td>
+            </tr>
+            <tr>
+                <th>
+                $(
+                    if ($groupManagersSheet.count -and 
+                        $exportCsvGroupManagersParams.literalPath -and
+                        (Test-Path -LiteralPath $exportCsvGroupManagersParams.literalPath)
+                    ) {
+@"
+                        <a href="$($exportCsvAexportCsvGroupManagersParamsdParams.literalPath)">Group managers</a>
+"@
+                    }
+                    else {'Group managers'}
+                )
+                </th>
+                <td>$($groupManagersSheet.count)</td>
             </tr>
             <tr>
                 <th>

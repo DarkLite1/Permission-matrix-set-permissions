@@ -1915,7 +1915,9 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Priority -eq 'Normal') -and
             ($Message -like '*Export to*Cherwell*') -and
             ($Message -like '*Check the*overview*for details*') -and
+            ($Message -like '*Access list*1*') -and
             ($Message -like '*AD objects*2*') -and
+            ($Message -like '*Group managers*1*') -and
             ($Message -like '*Form data*1*') -and
             ($Message -like '*Matrix results per file*') -and
             ($Message -like '*Matrix.xlsx*') -and
@@ -1924,5 +1926,5 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like "*1*SERVER1*E:\Department*Check*") -and
             ($Message -like '*Error*Warning*Information*')
         }
-    }
+    } -Tag test
 }
