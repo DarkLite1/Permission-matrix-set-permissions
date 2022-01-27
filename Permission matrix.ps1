@@ -806,11 +806,11 @@ End {
             $StartDate.Year, $StartDate.Month, $StartDate.Day, 
             $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek
         )
-            
-        $groupManagersSheet = @()
-        $accessListSheet = @()
-
+        
         if ($ImportedMatrix) {
+            $groupManagersSheet = @()
+            $accessListSheet = @()
+
             #region Export to matrix Excel log file
             foreach ($I in $ImportedMatrix) {
                 #region Get unique SamAccountNames for all matrix in Settings
@@ -948,8 +948,6 @@ End {
             }
             #endregion
 
-
-
             #region Export Cherwell FormData and AD Objects
             $formDataSheet = @()
             $adObjectNamesSheet = @()
@@ -1006,6 +1004,21 @@ End {
                     NoTypeInformation = $true
                 }
                 $exportCsvFormParams.literalPath | Remove-Item -EA Ignore
+
+                $exportCsvGroupManagersParams = @{
+                    literalPath       = Join-Path $CherwellFolder $CherwellGroupManagersFileName
+                    Encoding          = 'utf8'
+                    NoTypeInformation = $true
+                }
+                $exportCsvGroupManagersParams.literalPath | 
+                Remove-Item -EA Ignore
+
+                $exportCsvAccessListParams = @{
+                    literalPath       = Join-Path $CherwellFolder $CherwellAccessListFileName
+                    Encoding          = 'utf8'
+                    NoTypeInformation = $true
+                }
+                $exportCsvAccessListParams.literalPath | Remove-Item -EA Ignore
                 #endregion
 
                 if ($AdObjectNamesSheet) {
@@ -1026,6 +1039,54 @@ End {
                     $copyParams = @{
                         LiteralPath = $exportCsvAdParams.literalPath
                         Destination = "$matrixLogFile - Cherwell - $CherwellAdObjectsFileName"
+                    }
+                    Copy-Item @copyParams
+                    #endregion
+                }
+
+                if ($groupManagersSheet) {
+                    #region Export group managers to an Excel file
+                    Write-EventLog @EventOutParams -Message "Export $($groupManagersSheet.Count) group managers to '$($ExportParams.Path)'"
+    
+                    $groupManagersSheet | 
+                    Export-Excel @ExportParams -WorksheetName 'GroupManagers' -TableName 'GroupManagers'
+                    #endregion
+
+                    #region Export group managers to a csv file
+                    Write-EventLog @EventOutParams -Message "Export group managers to '$($exportCsvGroupManagersParams.literalPath)'"
+
+                    $groupManagersSheet | 
+                    Export-Csv @exportCsvGroupManagersParams
+                    #endregion
+
+                    #region Copy csv file to log folder
+                    $copyParams = @{
+                        LiteralPath = $exportCsvGroupManagersParams.literalPath
+                        Destination = "$matrixLogFile - Cherwell - $CherwellGroupManagersFileName"
+                    }
+                    Copy-Item @copyParams
+                    #endregion
+                }
+
+                if ($accessListSheet) {
+                    #region Export access list to an Excel file
+                    Write-EventLog @EventOutParams -Message "Export $($accessListSheet.Count) access list to '$($ExportParams.Path)'"
+    
+                    $accessListSheet | 
+                    Export-Excel @ExportParams -WorksheetName 'AccessList' -TableName 'AccessList'
+                    #endregion
+
+                    #region Export access list to a csv file
+                    Write-EventLog @EventOutParams -Message "Export access list to '$($exportCsvAccessListParams.literalPath)'"
+
+                    $accessListSheet | 
+                    Export-Csv @exportCsvAccessListParams
+                    #endregion
+
+                    #region Copy csv file to log folder
+                    $copyParams = @{
+                        LiteralPath = $exportCsvAccessListParams.literalPath
+                        Destination = "$matrixLogFile - Cherwell - $CherwellAccessListFileName"
                     }
                     Copy-Item @copyParams
                     #endregion
@@ -1054,7 +1115,8 @@ End {
                     #endregion
                 }
 
-                if ($adObjectNamesSheet -or $formDataSheet) {
+                if ($adObjectNamesSheet -or $formDataSheet -or 
+                    $accessListSheet -or $groupManagersSheet) {
                     #region Copy Excel file from log folder to Cherwell folder
                     $copyParams = @{
                         LiteralPath = $ExportParams.Path
