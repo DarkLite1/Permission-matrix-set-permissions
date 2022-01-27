@@ -927,10 +927,10 @@ End {
                     #region Create 'AccessList' to export for Cherwell
                     if ($CherwellFolder) {
                         $accessListSheet += $accessListToExport |
-                        Select-Object *, @{
+                        Select-Object @{
                             Name       = 'MatrixFileName'; 
                             Expression = { $I.File.Item.BaseName }
-                        }
+                        }, *
                     }
                     #endregion
             
@@ -947,10 +947,10 @@ End {
                         #region Create 'GroupManagers' to export for Cherwell
                         if ($CherwellFolder) {
                             $groupManagersSheet += $groupManagersToExport |
-                            Select-Object *, @{
+                            Select-Object @{
                                 Name       = 'MatrixFileName'; 
                                 Expression = { $I.File.Item.BaseName }
-                            }
+                            }, *
                         }
                         #endregion
                     }
