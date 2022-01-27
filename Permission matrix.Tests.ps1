@@ -226,6 +226,8 @@ Describe 'stop the script and send an e-mail to the admin when' {
         It '<Name> is missing' -ForEach @(
             @{ Name = 'CherwellAdObjectsFileName' }
             @{ Name = 'CherwellFormDataFileName' }
+            @{ Name = 'CherwellGroupManagersFileName' }
+            @{ Name = 'CherwellAccessListFileName' }
             @{ Name = 'CherwellExcelOverviewFileName' }
         ) {
             $clonedCherwellParams = $testCherwellParams.Clone()

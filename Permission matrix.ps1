@@ -299,6 +299,8 @@ Begin {
             @(
                 'CherwellAdObjectsFileName',
                 'CherwellFormDataFileName',
+                'CherwellAccessListFileName',
+                'CherwellGroupManagersFileName',
                 'CherwellExcelOverviewFileName'
             ).Where( {
                     -not (Get-Variable -Name $_).Value
