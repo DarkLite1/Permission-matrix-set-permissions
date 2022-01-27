@@ -1904,7 +1904,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         } 
-    } -Tag test
+    }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
