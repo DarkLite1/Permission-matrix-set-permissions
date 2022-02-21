@@ -162,7 +162,15 @@ Begin {
     Function Get-PathItemHC {
         <#
         .SYNOPSIS
-            Get the path item form a relative or absolute path
+            Get the path item from a relative or absolute path
+
+        .DESCRIPTION
+            Perform Get-Item on a file located in a relative or absolute path
+
+        .EXAMPLE
+            Get-PathItemHC -Parent $PSScriptRoot -Leaf 'copy.ps1'
+
+            Perform Get-Item on the script 'copy.ps1' in the current directory
         #>
         Param (
             [Parameter(Mandatory)]
