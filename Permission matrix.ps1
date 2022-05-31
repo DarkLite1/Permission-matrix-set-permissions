@@ -374,7 +374,7 @@ Begin {
             $DefaultsItem = Get-PathItemHC -Leaf $DefaultsFile -Parent $ImportDir
 
             try {
-                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet Settings -DataOnly
+                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly
             }
             catch {
                 throw "worksheet 'Settings' not found*"
