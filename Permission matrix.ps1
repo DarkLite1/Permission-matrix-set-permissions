@@ -485,9 +485,14 @@ Process {
                         ErrorAction = 'Stop'
                     }
                     #region Import sheet Settings
-                    $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
+                    try {
+                        $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
 
-                    Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
+                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
+                    }
+                    catch {
+                        throw "worksheet 'Settings' not found*"
+                    }
                     #endregion
 
                     if ($Settings) {
