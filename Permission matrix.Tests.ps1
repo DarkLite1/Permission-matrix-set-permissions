@@ -470,11 +470,12 @@ Describe 'a FatalError object is registered' {
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                Value       = "Worksheet 'Settings' is empty"
+                Value       = "Failed importing the Excel workbook '$($SettingsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
-                    $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value
+                    $ImportedMatrix.File.Check.($_.Key) | 
+                    Should -BeLike $_.Value
                 })
-        }
+        } -tag test
         It "the worksheet Permissions is not found when the 'Settings' sheet has 'Status' set to 'Enabled'" {
             $testSettings | Export-Excel @SettingsParams
 

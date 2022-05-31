@@ -485,15 +485,11 @@ Process {
                         ErrorAction = 'Stop'
                     }
                     #region Import sheet Settings
-                    try {
-                        $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
+                    $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
 
-                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
-                    }
-                    catch {
-                        throw "worksheet 'Settings' not found*"
-                    }
+                    Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
                     #endregion
+
 
                     if ($Settings) {
                         foreach ($S in $Settings) {
@@ -555,7 +551,7 @@ Process {
                     }
                 }
                 Catch {
-                    $errorMessage = Switch -Wildcard ($_) {
+                    <# $errorMessage = Switch -Wildcard ($_) {
                         "*Worksheet 'Settings' not found*" {
                             "Worksheet 'Settings' not found"; Break
                         }
@@ -571,12 +567,12 @@ Process {
                         Default {
                             throw "Failed importing the Excel file '$($Obj.File.FullName)': $_"
                         }
-                    }
+                    } #>
                     $Obj.File.Check += [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Excel file incorrect'
                         Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                        Value       = $errorMessage
+                        Value       = $_
                     }
 
                     Try { $Error.RemoveRange(0, 2) }
