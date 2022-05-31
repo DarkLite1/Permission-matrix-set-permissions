@@ -373,11 +373,18 @@ Begin {
             #region Get the defaults
             $DefaultsItem = Get-PathItemHC -Leaf $DefaultsFile -Parent $ImportDir
 
-            $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet Settings -DataOnly
+            try {
+                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet Settings -DataOnly
+            }
+            catch {
+                throw "worksheet 'Settings' not found*"
+            }
             #endregion
 
             #region Verify mandatory column headers
-            $propDefault = $DefaultsImport.ForEach( { $_.PSObject.Properties.Name })
+            $propDefault = $DefaultsImport.ForEach( { 
+                    $_.PSObject.Properties.Name
+                })
 
             @('MailTo', 'ADObjectName', 'Permission').Where( { $propDefault -notContains $_ }).ForEach( {
                     throw "Column header '$_' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
