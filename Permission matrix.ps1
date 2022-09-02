@@ -94,7 +94,7 @@ Param (
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
-    [String]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
+    [String[]]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
 )
 
 Begin {
@@ -551,7 +551,7 @@ Process {
                     }
                 }
                 Catch {
-                    <# $errorMessage = Switch -Wildcard ($_) {
+                    $errorMessage = Switch -Wildcard ($_) {
                         "*Worksheet 'Settings' not found*" {
                             "Worksheet 'Settings' not found"; Break
                         }
@@ -567,12 +567,12 @@ Process {
                         Default {
                             throw "Failed importing the Excel file '$($Obj.File.FullName)': $_"
                         }
-                    } #>
+                    }
                     $Obj.File.Check += [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Excel file incorrect'
                         Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                        Value       = $_
+                        Value       = $errorMessage
                     }
 
                     Try { $Error.RemoveRange(0, 2) }

@@ -443,11 +443,12 @@ Describe 'a FatalError object is registered' {
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                Value       = "Worksheet 'Settings' not found"
+                Value       = "Failed importing the Excel workbook '$($PermissionsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
-                    $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value
+                    $ImportedMatrix.File.Check.($_.Key) | 
+                    Should -BeLike $_.Value
                 })
-        }
+        } -tag test
         It 'the worksheet Settings is empty' {
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
