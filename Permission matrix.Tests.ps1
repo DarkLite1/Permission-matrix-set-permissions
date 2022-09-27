@@ -448,7 +448,7 @@ Describe 'a FatalError object is registered' {
                     $ImportedMatrix.File.Check.($_.Key) | 
                     Should -BeLike $_.Value
                 })
-        } -tag test
+        } -Skip
         It 'the worksheet Settings is empty' {
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -476,7 +476,7 @@ Describe 'a FatalError object is registered' {
                     $ImportedMatrix.File.Check.($_.Key) | 
                     Should -BeLike $_.Value
                 })
-        } -tag test
+        } -Skip
         It "the worksheet Permissions is not found when the 'Settings' sheet has 'Status' set to 'Enabled'" {
             $testSettings | Export-Excel @SettingsParams
 
@@ -490,7 +490,7 @@ Describe 'a FatalError object is registered' {
             }.GetEnumerator().ForEach( {
                     $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value
                 })
-        }
+        } -Skip
         It "the worksheet Permissions is empty when the 'Settings' sheet has 'Status' set to 'Enabled'" {
             $testSettings | Export-Excel @SettingsParams
 
