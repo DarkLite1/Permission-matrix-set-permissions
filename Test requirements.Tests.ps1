@@ -1,5 +1,5 @@
 ﻿#Requires -Version 5.1
-#Requires -Modules Pester, SmbShare, Assert
+#Requires -Modules Pester, SmbShare
 
 BeforeAll {
     $testSmbShareName = 'TestFolder'
@@ -53,7 +53,8 @@ Context 'when the script' {
 
             $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true
 
-            Assert-Equivalent -Actual $Actual -Expected $Expected
+            $actual | ConvertTo-Json | 
+            Should -BeExactly ($expected | ConvertTo-Json)
         }
     }
     Context 'cannot find PowerShell 5.1 or later' {
@@ -72,7 +73,8 @@ Context 'when the script' {
             
             $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true | Where-Object { $_.Name -eq $Expected.Name }
             
-            Assert-Equivalent -Actual $Actual -Expected $Expected
+            $actual | ConvertTo-Json | 
+            Should -BeExactly ($expected | ConvertTo-Json)
         }
     }
     Context 'cannot find .NET 4.6.2 or later' {
@@ -94,7 +96,8 @@ Context 'when the script' {
             $Actual = .$testScript -Path 'NotExisting' -Flag $true | 
             Where-Object { $_.Name -eq $Expected.Name }
 
-            Assert-Equivalent -Actual $Actual -Expected $Expected
+            $actual | ConvertTo-Json | 
+            Should -BeExactly ($expected | ConvertTo-Json)
         }
     } 
 } 
@@ -155,7 +158,11 @@ Context 'set the Access Based Enumeration flag' {
                 
         $Actual = .$testScript -Path $testDirItem, $testDirItem2, $testDirItem -Flag $true
 
-        Assert-Equivalent -Actual ($Actual | Where-Object Name -EQ 'Access Based Enumeration') -Expected $Expected
+        (
+            $Actual | Where-Object Name -EQ 'Access Based Enumeration' | 
+            ConvertTo-Json
+        ) | 
+        Should -BeExactly ($expected | ConvertTo-Json)
     } 
 }
 Context "Set share permissions to 'FullControl for Administrators' and 'Read & Executed for Authenticated users'" {
@@ -192,7 +199,10 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
             }
         }
                 
-        Assert-Equivalent -Actual ($Result | Where-Object Name -EQ $Expected.Name) -Expected $Expected
+        (
+            $Result | Where-Object Name -EQ $Expected.Name | ConvertTo-Json
+        ) | 
+        Should -BeExactly ($expected | ConvertTo-Json)
         #endregion
     } 
     It "but don't change anything when they are already correct" {

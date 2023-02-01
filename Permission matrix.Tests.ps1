@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-#Requires -Modules Assert, Pester, ImportExcel
+#Requires -Modules Pester, ImportExcel
 
 BeforeAll {
     $testComputerNames = @($env:COMPUTERNAME, 'DEUSFFRAN0031')
@@ -1326,7 +1326,9 @@ Describe 'internal functions' {
                 'Bob'  = 'R'
                 'Mike' = 'L'
             }
-            Assert-Equivalent -Actual $Actual -Expected $Expected
+
+            $actual | ConvertTo-Json | 
+            Should -BeExactly ($expected | ConvertTo-Json)
         }
         It 'do not add default permissions to the matrix ACL when the folder has no ACL' {
             Mock Test-ExpandedMatrixHC
@@ -1362,8 +1364,8 @@ Describe 'internal functions' {
             $Actual = ($ImportedMatrix.Settings.Matrix.Where( { 
                         $_.Path -eq 'Path' })).ACL
 
-            Assert-Equivalent -Actual $Actual -Expected @{}
-        } 
+            $Actual | Should -BeNullOrEmpty
+        }
         It 'do not overwrite permissions to the matrix ACL when they are also in the default ACL' {
             Mock Test-ExpandedMatrixHC
             Mock ConvertTo-MatrixAclHC {
@@ -1395,7 +1397,8 @@ Describe 'internal functions' {
                 'Bob'  = 'L'
                 'Mike' = 'L'
             }
-            Assert-Equivalent -Actual $Actual -Expected $Expected
+            $actual | ConvertTo-Json | 
+            Should -BeExactly ($expected | ConvertTo-Json)
         }
     }
 }
@@ -1754,7 +1757,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -Foreach @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFormStatus'; Value = 'Enabled' }
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 # @{ Name = 'MatrixFilePath'; Value = $SettingsParams.Path }
@@ -1810,7 +1813,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -Foreach @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'SamAccountName'; Value = 'A B C' }
                 @{ Name = 'GroupName'; Value = 'A' }
@@ -1852,7 +1855,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 }
             }
-            It '<Name>' -Foreach @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'GroupName'; Value = 'A B C' }
                 @{ Name = 'ManagerName'; Value = 'Captain Managers' }
@@ -1885,16 +1888,16 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             BeforeAll {
                 $actual = @{
                     logFolder      = @{
-                        Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
+                        Excel      = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
                         AccessList = Import-Csv -Path $testLogFolder.AccessListCsvFile.FullName
                     }
                     cherwellFolder = @{
-                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AccessList'
+                        Excel      = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AccessList'
                         AccessList = Import-Csv -Path $testCherwellFolder.AccessListCsvFile.FullName
                     }
                 }
             }
-            It '<Name>' -Foreach @(
+            It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
                 @{ Name = 'SamAccountName'; Value = 'A B C' }
                 @{ Name = 'Name'; Value = 'A B C' }

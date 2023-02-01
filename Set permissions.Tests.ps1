@@ -1,4 +1,4 @@
-#Requires -Modules Pester, Assert
+#Requires -Modules Pester
 #Requires -Version 5.1
 
 BeforeAll {
@@ -563,7 +563,7 @@ $testCases = @(
     }
 )
 Describe 'when the script runs for a matrix' {
-    Context '<name>' -Foreach $testCases {
+    Context '<name>' -ForEach $testCases {
         BeforeAll {
             Remove-Item $testParentFolder -Recurse -Force
        
@@ -621,7 +621,7 @@ Describe 'when the script runs for a matrix' {
             }
         }
     } 
-} -Tag test
+}
 Describe 'Permissions' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force
@@ -2239,23 +2239,21 @@ Describe 'when Action is' {
                     )
 
                     for ($i = 0; $i -lt $Expected.Count; $i++) {
-                        $AssertParams = @{
-                            Actual   = $Actual[$i].Access | 
-                            Sort-Object IdentityReference
-                            Expected = $Expected[$i].Access | 
-                            Sort-Object IdentityReference
-                        }
-                        Assert-Equivalent @AssertParams
+                        $Actual = $Actual[$i].Access | 
+                        Sort-Object IdentityReference | ConvertTo-Json
+                        $Expected = $Expected[$i].Access | 
+                        Sort-Object IdentityReference | ConvertTo-Json
+                        
+                        $Actual | Should -BeExactly $Expected
 
-                        $AssertParams = @{
-                            Actual   = $Actual[$i].Owner | 
-                            Sort-Object IdentityReference
-                            Expected = $Expected[$i].Owner | 
-                            Sort-Object IdentityReference
-                        }
-                        Assert-Equivalent @AssertParams
+                        $Actual = $Actual[$i].Owner | 
+                        Sort-Object IdentityReference
+                        $Expected = $Expected[$i].Owner | 
+                        Sort-Object IdentityReference
+                        
+                        $Actual | Should -BeExactly $Expected
                     }
-                } 
+                }
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
@@ -2351,17 +2349,19 @@ Describe 'when Action is' {
                     )
 
                     for ($i = 0; $i -lt $Expected.Count; $i++) {
-                        $AssertParams = @{
-                            Actual   = $Actual[$i].Access | Sort-Object IdentityReference
-                            Expected = $Expected[$i].Access | Sort-Object IdentityReference
-                        }
-                        Assert-Equivalent @AssertParams
+                        $Actual = $Actual[$i].Access | 
+                        Sort-Object IdentityReference | ConvertTo-Json
+                        $Expected = $Expected[$i].Access | 
+                        Sort-Object IdentityReference | ConvertTo-Json
+                        
+                        $Actual | Should -BeExactly $Expected
 
-                        $AssertParams = @{
-                            Actual   = $Actual[$i].Owner | Sort-Object IdentityReference
-                            Expected = $Expected[$i].Owner | Sort-Object IdentityReference
-                        }
-                        Assert-Equivalent @AssertParams
+                        $Actual = $Actual[$i].Owner | 
+                        Sort-Object IdentityReference
+                        $Expected = $Expected[$i].Owner | 
+                        Sort-Object IdentityReference
+                        
+                        $Actual | Should -BeExactly $Expected
                     }
                 } 
                 Context 'are registered in a Warning object when' {
@@ -2500,19 +2500,19 @@ Describe 'when Action is' {
                 )
 
                 for ($i = 0; $i -lt $Expected.Count; $i++) {
-                    $AssertParams = @{
-                        Actual   = $Actual[$i].Access | Sort-Object IdentityReference
-                        Expected = $Expected[$i].Access | Sort-Object IdentityReference
-                    }
-                    Assert-Equivalent @AssertParams
+                    $a = $Actual[$i].Owner | 
+                    Sort-Object IdentityReference | ConvertTo-Json
+                    $b = $Expected[$i].Owner | 
+                    Sort-Object IdentityReference | ConvertTo-Json
+                    $a | Should -BeExactly $b
 
-                    $AssertParams = @{
-                        Actual   = $Actual[$i].Owner | Sort-Object IdentityReference
-                        Expected = $Expected[$i].Owner | Sort-Object IdentityReference
-                    }
-                    Assert-Equivalent @AssertParams
+                    $a = $Actual[$i].Access | 
+                    Sort-Object IdentityReference | ConvertTo-Json
+                    $b = $Expected[$i].Access |
+                    Sort-Object IdentityReference | ConvertTo-Json
+                    $a | Should -BeExactly $b
                 }
-            } 
+            }
             Context 'are registered in a Warning object when' {
                 BeforeAll {
                     $Expected = [PSCustomObject]@{
