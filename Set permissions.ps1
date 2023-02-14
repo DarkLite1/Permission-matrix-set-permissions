@@ -418,7 +418,7 @@ Begin {
         #endregion
     }
 
-    $AdjustTokenPrivileges = @"
+    $adjustTokenPrivileges = @"
 using System;
 using System.Runtime.InteropServices;
 
@@ -515,7 +515,7 @@ Process {
         #region Get super powers
         Try {
             Write-Verbose 'Get super powers'
-            Add-Type $AdjustTokenPrivileges
+            Add-Type $adjustTokenPrivileges
             [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
             [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
             [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
