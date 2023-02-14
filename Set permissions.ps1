@@ -237,53 +237,6 @@ Begin {
         }
 
         foreach ($M in $Members) {
-            <#            `
-            Try {
-                $Acl = $M.GetAccessControl()
-
-                $param = @{ 
-                    DifferenceAce = $Acl.Access
-                }
-            }
-            Catch {
-                throw "Failed retrieving the ACL of '$($M.FullName)': $_"
-            }
-
-            if (-not $M.PSIsContainer) {
-                if (
-                    -not (Test-AclEqualHC @param -ReferenceAce $FileAcl.Access)
-                ) {
-                    & $IncorrectAclInheritedOnly
-                }
-                Continue
-            }
-            
-            if (
-                ($FoldersWithAcl.Path -notContains $M.FullName) -and
-                (-not (Test-AclEqualHC @param -ReferenceAce $FolderAcl.Access))
-            ) {
-                & $IncorrectAclInheritedOnly
-            }
-
-            $getParams = @{
-                Path      = $M.FullName 
-                FolderAcl = $FolderAcl
-                FileAcl   = $FileAcl
-            }
-
-            if (
-                $newAcl = $FoldersWithAcl.Where(
-                    { $_.Path -eq $M.FullName }, 'First'
-                )
-            ) {
-                $getParams.FolderAcl = $newAcl.InheritedFolderAcl
-                $getParams.FileAcl = $newAcl.inheritedFileAcl
-            }
-
-            Get-FolderContentHC @getParams
-            #>
-
-            # <#      
             Try {
                 $Acl = $M.GetAccessControl()
 
@@ -336,7 +289,6 @@ Begin {
             }
 
             Get-FolderContentHC @getParams
-            #>
         }
 
         <# Fix when $Acl = $M.GetAccessControl() fails:
