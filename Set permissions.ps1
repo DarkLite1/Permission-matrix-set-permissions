@@ -496,7 +496,7 @@ Process {
     Try {
         #region Variables
         Write-Verbose 'Set variables'
-        $builtinAdmin = [System.Security.Principal.NTAccount]'Builtin\Administrators'
+        $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
         $missingFolders = [System.Collections.Generic.List[String]]::New()
         $inaccessibleData = [System.Collections.Generic.List[String]]::New()
 
@@ -601,14 +601,14 @@ Process {
             Write-Verbose "Create ACE 'BUILTIN\Administrators' : 'FullControl'"
             $adminFullControlAce = @{
                 Folder = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                    [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                    $builtinAdmin,
                     [System.Security.AccessControl.FileSystemRights]::FullControl,
                     [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
                     [System.Security.AccessControl.PropagationFlags]::None,
                     [System.Security.AccessControl.AccessControlType]::Allow
                 )
                 File   = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                    [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                    $builtinAdmin,
                     [System.Security.AccessControl.FileSystemRights]::FullControl,
                     [System.Security.AccessControl.AccessControlType]::Allow
                 )
