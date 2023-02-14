@@ -228,7 +228,7 @@ Begin {
         $scannedInheritedFolders[$Path] = $true
 
         Try {
-            $Members = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
+            $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
                 { -not ($ignoredFolders.Contains($_.FullName)) }
             )
         }
@@ -236,22 +236,22 @@ Begin {
             throw "Failed retrieving the folder content of '$Path': $_"
         }
 
-        foreach ($M in $Members) {
+        foreach ($child in $childItems) {
             Try {
-                $acl = $M.GetAccessControl()
+                $acl = $child.GetAccessControl()
 
                 $diff = @{ 
                     DifferenceAce = $acl.Access
                 }
             }
             Catch {
-                throw "Failed retrieving the ACL of '$($M.FullName)': $_"
+                throw "Failed retrieving the ACL of '$($child.FullName)': $_"
             }
 
-            if (-not $M.PSIsContainer) {
-                # Write-Verbose "Test file inheritance '$($M.FullName)'"
+            if (-not $child.PSIsContainer) {
+                # Write-Verbose "Test file inheritance '$($child.FullName)'"
                 # Only for Pester testing:
-                $testedInheritedFilesAndFolders[$M.FullName] = $true
+                $testedInheritedFilesAndFolders[$child.FullName] = $true
 
                 if (
                     -not (Test-AclEqualHC @diff -ReferenceAce $FileAcl.Access)
@@ -261,10 +261,10 @@ Begin {
                 Continue
             }
 
-            if ($foldersWithAcl.Path -notContains $M.FullName) {
-                # Write-Verbose "Test folder inheritance '$($M.FullName)'"
+            if ($foldersWithAcl.Path -notContains $child.FullName) {
+                # Write-Verbose "Test folder inheritance '$($child.FullName)'"
                 # Only for Pester testing:
-                $testedInheritedFilesAndFolders[$M.FullName] = $true
+                $testedInheritedFilesAndFolders[$child.FullName] = $true
 
                 if (
                     -not (Test-AclEqualHC @diff -ReferenceAce $FolderAcl.Access)
@@ -274,14 +274,14 @@ Begin {
             }
 
             $getParams = @{
-                Path      = $M.FullName 
+                Path      = $child.FullName 
                 FolderAcl = $FolderAcl
                 FileAcl   = $FileAcl
             }
 
             if (
                 $newAcl = $foldersWithAcl.Where(
-                    { $_.Path -eq $M.FullName }, 'First'
+                    { $_.Path -eq $child.FullName }, 'First'
                 )
             ) {
                 $getParams.FolderAcl = $newAcl.InheritedFolderAcl
@@ -291,7 +291,7 @@ Begin {
             Get-FolderContentHC @getParams
         }
 
-        <# Fix when $acl = $M.GetAccessControl() fails:
+        <# Fix when $acl = $child.GetAccessControl() fails:
         
         $error.Clear()
 
@@ -378,41 +378,41 @@ Begin {
     }
 
     $incorrectAclInheritedOnly = {
-        Write-Warning "Incorrect ACL '$($M.FullName)'"
+        Write-Warning "Incorrect ACL '$($child.FullName)'"
         #region Log
         if ($DetailedLog) {
-            $incorrectAclInheritedFolders.($M.FullName.TrimStart('\\?\')) = $acl.AccessToString
+            $incorrectAclInheritedFolders.($child.FullName.TrimStart('\\?\')) = $acl.AccessToString
         }
         else {
-            $incorrectAclInheritedFolders.Add($M.FullName.TrimStart('\\?\'))
+            $incorrectAclInheritedFolders.Add($child.FullName.TrimStart('\\?\'))
         }
         #endregion
 
         #region Set permissions
         if ($Action -eq 'Fix') {
-            Write-Verbose "Set ACL to inherited only '$($M.FullName)'"
+            Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
-            if ($M.PSIsContainer) {
+            if ($child.PSIsContainer) {
                 # This is a workaround for non inherited permissions
                 # that do not get properly removed
                 $acl.Access | ForEach-Object {
                     $acl.RemoveAccessRuleSpecific($_)
                 }
-                $M.SetAccessControl($acl)
+                $child.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
-                # $M.SetAccessControl($inheritedDirAcl)
-                Set-Acl -Path $M.FullName -AclObject $inheritedDirAcl
+                # $child.SetAccessControl($inheritedDirAcl)
+                Set-Acl -Path $child.FullName -AclObject $inheritedDirAcl
             }
             else {
                 $acl.Access | ForEach-Object {
                     $acl.RemoveAccessRuleSpecific($_)
                 }
-                $M.SetAccessControl($acl)
+                $child.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
-                # $M.SetAccessControl($inheritedFileAcl)
-                Set-Acl -Path $M.FullName -AclObject $inheritedFileAcl
+                # $child.SetAccessControl($inheritedFileAcl)
+                Set-Acl -Path $child.FullName -AclObject $inheritedFileAcl
             }
         }
         #endregion
