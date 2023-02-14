@@ -401,8 +401,8 @@ Begin {
                 $M.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
-                # $M.SetAccessControl($InheritedDirAcl)
-                Set-Acl -Path $M.FullName -AclObject $InheritedDirAcl
+                # $M.SetAccessControl($inheritedDirAcl)
+                Set-Acl -Path $M.FullName -AclObject $inheritedDirAcl
             }
             else {
                 $acl.Access | ForEach-Object {
@@ -411,7 +411,7 @@ Begin {
                 $M.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
-                # $M.SetAccessControl($InheritedFileAcl)
+                # $M.SetAccessControl($inheritedFileAcl)
                 Set-Acl -Path $M.FullName -AclObject $inheritedFileAcl
             }
         }
@@ -827,13 +827,13 @@ Process {
         Try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
-                $InheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
-                $InheritedDirAcl.SetOwner($builtinAdmin)
-                $InheritedDirAcl.SetAccessRuleProtection($false, $false)
+                $inheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
+                $inheritedDirAcl.SetOwner($builtinAdmin)
+                $inheritedDirAcl.SetAccessRuleProtection($false, $false)
 
-                $InheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
-                $InheritedFileAcl.SetOwner($builtinAdmin)
-                $InheritedFileAcl.SetAccessRuleProtection($false, $false)
+                $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
+                $inheritedFileAcl.SetOwner($builtinAdmin)
+                $inheritedFileAcl.SetAccessRuleProtection($false, $false)
 
                 $foldersWithAcl.ForEach( 
                     {
