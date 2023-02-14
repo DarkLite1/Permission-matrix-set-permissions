@@ -240,7 +240,7 @@ Begin {
             Try {
                 $Acl = $M.GetAccessControl()
 
-                $param = @{ 
+                $diff = @{ 
                     DifferenceAce = $Acl.Access
                 }
             }
@@ -249,11 +249,12 @@ Begin {
             }
 
             if (-not $M.PSIsContainer) {
+                # Write-Verbose "Test file inheritance '$($M.FullName)'"
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
 
                 if (
-                    -not (Test-AclEqualHC @param -ReferenceAce $FileAcl.Access)
+                    -not (Test-AclEqualHC @diff -ReferenceAce $FileAcl.Access)
                 ) {
                     & $IncorrectAclInheritedOnly
                 }
@@ -261,13 +262,12 @@ Begin {
             }
 
             if ($FoldersWithAcl.Path -notContains $M.FullName) {
+                # Write-Verbose "Test folder inheritance '$($M.FullName)'"
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
 
-                Write-Verbose "Test inheritance only '$($M.FullName)'"
-                
                 if (
-                    -not (Test-AclEqualHC @param -ReferenceAce $FolderAcl.Access)
+                    -not (Test-AclEqualHC @diff -ReferenceAce $FolderAcl.Access)
                 ) {
                     & $IncorrectAclInheritedOnly
                 }
