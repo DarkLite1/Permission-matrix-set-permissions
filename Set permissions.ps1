@@ -646,15 +646,20 @@ Process {
                             $ID = "$($_.Key)@$($_.Value)"
 
                             if (-not $aceCache.ContainsKey($ID)) {
+                                $param = @{
+                                    Access = $_.Value
+                                    Name   = $_.Key
+                                }
+
                                 $aceCache[$ID] = @{
                                     Folder          = @(
-                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'Folder'
+                                        New-AceHC @param -Type 'Folder'
                                     )
                                     InheritedFolder = @(
-                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFolder'
+                                        New-AceHC @param -Type 'InheritedFolder'
                                     )
                                     InheritedFile   = @(
-                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFile'
+                                        New-AceHC @param -Type 'InheritedFile'
                                     )
                                 }
                             }
