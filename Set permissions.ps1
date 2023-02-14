@@ -381,10 +381,10 @@ Begin {
         Write-Warning "Incorrect ACL '$($M.FullName)'"
         #region Log
         if ($DetailedLog) {
-            $IncorrectAclInheritedFolders.($M.FullName.TrimStart('\\?\')) = $acl.AccessToString
+            $incorrectAclInheritedFolders.($M.FullName.TrimStart('\\?\')) = $acl.AccessToString
         }
         else {
-            $IncorrectAclInheritedFolders.Add($M.FullName.TrimStart('\\?\'))
+            $incorrectAclInheritedFolders.Add($M.FullName.TrimStart('\\?\'))
         }
         #endregion
 
