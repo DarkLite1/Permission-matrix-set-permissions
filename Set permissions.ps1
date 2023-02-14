@@ -883,10 +883,7 @@ Process {
                 $InheritedFileAcl.SetAccessRuleProtection($false, $false)
 
                 $FoldersWithAcl.ForEach( 
-                    # $FoldersWithAcl.Where({ $_.Parent }, 'First').ForEach( 
                     {
-                        Write-Verbose "Parent folder '$($_.Path)' with ACL"
-
                         $getParams = @{
                             Path      = $_.Path
                             FolderAcl = $_.InheritedFolderAcl
