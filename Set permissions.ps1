@@ -761,12 +761,12 @@ Process {
 
             foreach ($folder in $foldersWithAcl) {
                 Write-Verbose "Folder '$($folder.Path)'"
-                $FolderItem = Get-Item -Path $folder.Path -EA Stop
+                $folderItem = Get-Item -Path $folder.Path -EA Stop
 
                 # Only for Pester testing:
                 $testedNonInheritedFolders[$folder.Path] = $true
 
-                $Acl = $FolderItem.GetAccessControl()
+                $Acl = $folderItem.GetAccessControl()
 
                 $testEqualParams = @{
                     ReferenceAce  = ($folder.FolderAcl).Access
@@ -801,8 +801,8 @@ Process {
                         $Acl.Access | ForEach-Object {
                             $Acl.RemoveAccessRuleSpecific($_)
                         }
-                        $FolderItem.SetAccessControl($Acl)
-                        $FolderItem.SetAccessControl($folder.FolderAcl)
+                        $folderItem.SetAccessControl($Acl)
+                        $folderItem.SetAccessControl($folder.FolderAcl)
 
                         Write-Verbose 'ACL corrected'
                     }
