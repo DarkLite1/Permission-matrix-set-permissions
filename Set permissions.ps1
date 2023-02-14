@@ -70,7 +70,7 @@ Begin {
 
         .PARAMETER Name
             Name of the AD object, used to identify the user or group within AD.
-#>
+        #>
 
         [CmdLetBinding()]
         Param (
