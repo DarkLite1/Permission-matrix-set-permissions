@@ -291,25 +291,14 @@ Begin {
             Get-FolderContentHC @getParams
         }
 
-        <# Fix when $acl = $child.GetAccessControl() fails:
+        <# 
+        Fix when GetAccessControl() fails:
         
-        $error.Clear()
-
-        #$File = 'C:\Users\SrvBatch\Downloads\Text.xml'
-        #$Script = 'C:\Users\SrvBatch\Downloads\Permission matrix\Set permissions.ps1'
-        #$Params = Import-CliXml -Path $File
-        #& $Script -Path 'E:\DEPARTMENTS\RMC\IB\04-SITE\01-North\Genk' -Action 'Fix' -Matrix $Params.ArgumentList[2] -DetailedLog $true
-
-
-        # Error file where 'GetAccessControl' does not work
-        $File = '\\?\E:\DEPARTMENTS\RMC\IB\04-SITE\01-North\Genk\08-Technology\S-Genk-T-04-Grondst-MatPrem\03-Zevingen-Granulo\3738CC08.tmp'
-
-        $FileItem = Get-Item -LiteralPath $File
-        $FileItem.GetAccessControl()
+        # Problem
+        (Get-Item -LiteralPath $File).GetAccessControl()
 
         # Take ownership
-        $user = $env:username
-        $Account = New-Object System.Security.Principal.NTAccount($user)
+        $Account = New-Object System.Security.Principal.NTAccount($env:username)
         $FileSecurity = new-object System.Security.AccessControl.FileSecurity
         $FileSecurity.SetOwner($Account)
         [System.IO.File]::SetAccessControl($file, $FileSecurity)
@@ -317,7 +306,7 @@ Begin {
         # Problem fixed
         $FileItem = Get-Item -LiteralPath $File
         $FileItem.GetAccessControl()
-                #>
+        #>
     }
 
     Function Test-AclEqualHC {
