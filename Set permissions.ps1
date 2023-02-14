@@ -494,8 +494,6 @@ throw ex;
 
 Process {
     Try {
-        # $WarningPreference = 'Continue'
-
         #region Variables
         Write-Verbose 'Set variables'
         $builtinAdmin = [System.Security.Principal.NTAccount]'Builtin\Administrators'
