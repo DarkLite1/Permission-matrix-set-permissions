@@ -256,7 +256,7 @@ Begin {
                 if (
                     -not (Test-AclEqualHC @diff -ReferenceAce $FileAcl.Access)
                 ) {
-                    & $IncorrectAclInheritedOnly
+                    & $incorrectAclInheritedOnly
                 }
                 Continue
             }
@@ -269,7 +269,7 @@ Begin {
                 if (
                     -not (Test-AclEqualHC @diff -ReferenceAce $FolderAcl.Access)
                 ) {
-                    & $IncorrectAclInheritedOnly
+                    & $incorrectAclInheritedOnly
                 }
             }
 
@@ -377,7 +377,7 @@ Begin {
         }
     }
 
-    $IncorrectAclInheritedOnly = {
+    $incorrectAclInheritedOnly = {
         Write-Warning "Incorrect ACL '$($M.FullName)'"
         #region Log
         if ($DetailedLog) {
