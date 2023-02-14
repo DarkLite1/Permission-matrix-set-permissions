@@ -259,7 +259,7 @@ Begin {
             }
             
             if (
-                ($NonInheritedFolders -notContains $M.FullName) -and
+                ($FoldersWithAcl.Path -notContains $M.FullName) -and
                 (-not (Test-AclEqualHC @param -ReferenceAce $FolderAcl.Access))
             ) {
                 & $IncorrectAclInheritedOnly
@@ -284,7 +284,7 @@ Begin {
             #>
 
             # <#      
-            if ($NonInheritedFolders -notContains $M.FullName) {
+            if ($FoldersWithAcl.Path -notContains $M.FullName) {
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
 
@@ -800,9 +800,9 @@ Process {
         Try {
             Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
-            $FoldersWithAcl = $Matrix.Where( 
+            [array]$FoldersWithAcl = $Matrix.Where( 
                 { ($_.FolderAcl) -and (-not $_.ignore) }
-            )
+            ) | Sort-Object -Property 'Path'
 
             foreach ($F in $FoldersWithAcl) {
                 Write-Verbose "Folder '$($F.Path)'"
@@ -881,8 +881,6 @@ Process {
                 $InheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
                 $InheritedFileAcl.SetOwner($BuiltinAdmin)
                 $InheritedFileAcl.SetAccessRuleProtection($false, $false)
-
-                $NonInheritedFolders = @($FoldersWithAcl.Path | Sort-Object)
 
                 $FoldersWithAcl.ForEach( 
                     # $FoldersWithAcl.Where({ $_.Parent }, 'First').ForEach( 
