@@ -219,7 +219,7 @@ Begin {
             $FileAcl
         )
 
-        Write-Verbose "Get folder content '$Path'"
+        # Write-Verbose "Get folder content '$Path'"
 
         if ($scannedInheritedFolders.ContainsKey($Path)) { 
             Write-Verbose 'Folder already scanned'
