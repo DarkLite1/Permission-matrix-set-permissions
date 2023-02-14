@@ -630,17 +630,20 @@ Process {
             foreach ($M in $Matrix.Where( { $_.ACL })) {
                 Write-Verbose "Create ACL for path '$($M.Path)'"
                 
-                $folderAcl = New-Object System.Security.AccessControl.DirectorySecurity
-                $folderAcl.SetAccessRuleProtection($true, $false)
-                $folderAcl.SetOwner($builtinAdmin)
+                $acl = @{
+                    Folder          = New-Object System.Security.AccessControl.DirectorySecurity
+                    InheritedFolder = New-Object System.Security.AccessControl.DirectorySecurity
+                    InheritedFile   = New-Object System.Security.AccessControl.FileSecurity
+                }
 
-                $inheritedFolderAcl = New-Object System.Security.AccessControl.DirectorySecurity
-                $inheritedFolderAcl.SetAccessRuleProtection($false, $false)
-                $inheritedFolderAcl.SetOwner($builtinAdmin)
+                $acl.Folder.SetAccessRuleProtection($true, $false)
+                $acl.Folder.SetOwner($builtinAdmin)
 
-                $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
-                $inheritedFileAcl.SetAccessRuleProtection($false, $false)
-                $inheritedFileAcl.SetOwner($builtinAdmin)
+                $acl.InheritedFolder.SetAccessRuleProtection($false, $false)
+                $acl.InheritedFolder.SetOwner($builtinAdmin)
+
+                $acl.InheritedFile.SetAccessRuleProtection($false, $false)
+                $acl.InheritedFile.SetOwner($builtinAdmin)
 
                 $M.ACL.GetEnumerator().Foreach( 
                     {
@@ -667,13 +670,13 @@ Process {
                             }
 
                             $aceCache[$ID]['Folder'].ForEach( 
-                                { $folderAcl.AddAccessRule($_) }
+                                { $acl.Folder.AddAccessRule($_) }
                             )
                             $aceCache[$ID]['InheritedFolder'].ForEach( 
-                                { $inheritedFolderAcl.AddAccessRule($_) }
+                                { $acl.InheritedFolder.AddAccessRule($_) }
                             )
                             $aceCache[$ID]['InheritedFile'].ForEach( 
-                                { $inheritedFileAcl.AddAccessRule($_) }
+                                { $acl.InheritedFile.AddAccessRule($_) }
                             )
                         }
                         Catch {
@@ -682,13 +685,13 @@ Process {
                     }
                 )
 
-                $folderAcl.AddAccessRule($adminFullControlAce.Folder)
-                $inheritedFolderAcl.AddAccessRule($adminFullControlAce.Folder)
-                $inheritedFileAcl.AddAccessRule($adminFullControlAce.File)
+                $acl.Folder.AddAccessRule($adminFullControlAce.Folder)
+                $acl.InheritedFolder.AddAccessRule($adminFullControlAce.Folder)
+                $acl.InheritedFile.AddAccessRule($adminFullControlAce.File)
 
-                $M.FolderAcl = $folderAcl
-                $M.inheritedFolderAcl = $inheritedFolderAcl
-                $M.inheritedFileAcl = $inheritedFileAcl
+                $M.FolderAcl = $acl.Folder
+                $M.inheritedFolderAcl = $acl.InheritedFolder
+                $M.inheritedFileAcl = $acl.InheritedFile
             }
             #endregion
         }
