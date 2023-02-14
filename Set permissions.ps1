@@ -498,9 +498,9 @@ Process {
 
         #region Variables
         Write-Verbose 'Set variables'
-        $BuiltinAdmin = [System.Security.Principal.NTAccount]'Builtin\Administrators'
-        $MissingFolders = [System.Collections.Generic.List[String]]::New()
-        $InaccessibleData = [System.Collections.Generic.List[String]]::New()
+        $builtinAdmin = [System.Security.Principal.NTAccount]'Builtin\Administrators'
+        $missingFolders = [System.Collections.Generic.List[String]]::New()
+        $inaccessibleData = [System.Collections.Generic.List[String]]::New()
 
         if ($DetailedLog) {
             $incorrectAclNonInheritedFolders = @{ }
@@ -632,15 +632,15 @@ Process {
                 
                 $folderAcl = New-Object System.Security.AccessControl.DirectorySecurity
                 $folderAcl.SetAccessRuleProtection($true, $false)
-                $folderAcl.SetOwner($BuiltinAdmin)
+                $folderAcl.SetOwner($builtinAdmin)
 
                 $inheritedFolderAcl = New-Object System.Security.AccessControl.DirectorySecurity
                 $inheritedFolderAcl.SetAccessRuleProtection($false, $false)
-                $inheritedFolderAcl.SetOwner($BuiltinAdmin)
+                $inheritedFolderAcl.SetOwner($builtinAdmin)
 
                 $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
                 $inheritedFileAcl.SetAccessRuleProtection($false, $false)
-                $inheritedFileAcl.SetOwner($BuiltinAdmin)
+                $inheritedFileAcl.SetOwner($builtinAdmin)
 
                 $M.ACL.GetEnumerator().Foreach( 
                     {
@@ -830,11 +830,11 @@ Process {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
                 $InheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
-                $InheritedDirAcl.SetOwner($BuiltinAdmin)
+                $InheritedDirAcl.SetOwner($builtinAdmin)
                 $InheritedDirAcl.SetAccessRuleProtection($false, $false)
 
                 $InheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
-                $InheritedFileAcl.SetOwner($BuiltinAdmin)
+                $InheritedFileAcl.SetOwner($builtinAdmin)
                 $InheritedFileAcl.SetAccessRuleProtection($false, $false)
 
                 $foldersWithAcl.ForEach( 
@@ -858,12 +858,12 @@ Process {
                     }
                 }
 
-                if ($InaccessibleData.Count -ne 0) {
+                if ($inaccessibleData.Count -ne 0) {
                     [PSCustomObject]@{
                         Type        = 'Warning'
                         Name        = 'Inaccessible data'
                         Description = "Files and folders that are found in folders where only list permissions are granted. When no one has read or write permissions, the files/folders become inaccessible."
-                        Value       = $InaccessibleData.ToArray().TrimStart('\\?\')
+                        Value       = $inaccessibleData.ToArray().TrimStart('\\?\')
                     }
                 }
             }
