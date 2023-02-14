@@ -2,23 +2,25 @@
 #Requires -Version 5.1
 
 <# 
-.SYNOPSIS   
-    Set Access Based Enumeration and permissions on a shared folder.
+    .SYNOPSIS   
+        Set Access Based Enumeration and permissions on a shared folder.
 
-.DESCRIPTION
-    Correct the following settings on shared folder:
-    - Access Based Enumeration: Enabled/Disabled based on the Flag parameter
-    - Share permission 'Everyone' set to 'FullControl' and all others are removed
+    .DESCRIPTION
+        Set the Access Based Enumeration (ABE) and correct the share permissions
+        to 'Everyone : FullControl' and remove all other share permissions.
 
-    Most of these functions are available in the module 'SmbShare'. However, this module
-    is only available from Windows Server 2012+. The current environment still has older
-    servers that need to be supported too. That's why this script is built.
+    .PARAMETER Path
+        Shared folder paths.
 
-.PARAMETER Path
-    Shared folder paths.
+    .PARAMETER Flag
+        Valid values:
+        - True  : ABE will be enabled
+        - False : ABE will be disabled
 
-.PARAMETER Flag
-    If set to TRUE, ABE will be enabled. Otherwise it will be disabled.
+    .NOTES
+        Most of these functions are available in the module 'SmbShare'. Servers 
+        older than Windows Server 2012 don't have this module. That's why this 
+        script is built.
 #>
 
 [OutputType([PSCustomObject])]
@@ -33,38 +35,18 @@ Param (
 Begin {
     Function Get-SharePermissionHC {
         <#
-        .SYNOPSIS   
-            Retrieve all shares on the local machine with their permissions.
+            .SYNOPSIS   
+                Retrieve all shares on the local machine with their permissions.
 
-        .DESCRIPTION
-            Retrieve all shares and their share permissions (not NTFS permissions) of folders
-            on the local machine.
+            .DESCRIPTION
+                Retrieve all shares and their share permissions (not NTFS 
+                permissions) of folders on the local machine.
 
-        .EXAMPLE
-            Retrieve all shares and their permissions
+            .EXAMPLE
+                Retrieve all shares and their permissions
 
-            $Shares = Get-SharePermissionHC
-
-            $Shares
-            Name    Path             Acl                                                     
-            ----    ----             ---                                                     
-            Log     L:\              {Everyone}                                              
-            Scripts T:\Input\Scripts {contoso\Domain Users, Everyone, BUILTIN\Administrators}
-
-            $Shares[0].Acl
-            Name  : Everyone
-            Value : FullControl
-
-            $Shares[0].Acl
-            Name  : contoso\Domain Users
-            Value : FullControl
-
-            Name  : Everyone
-            Value : FullControl
-
-            Name  : BUILTIN\Administrators
-            Value : FullControl
-#>
+                Get-SharePermissionHC
+        #>
         
         [CmdletBinding()]
         Param ()
@@ -279,7 +261,7 @@ Begin {
         .PARAMETER ComputerName
             Specifies the target computer.
 
-        PARAMETER Name
+        .PARAMETER Name
             Name of the share.
 
         .EXAMPLE
