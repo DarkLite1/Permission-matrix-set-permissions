@@ -284,56 +284,59 @@ Begin {
             #>
 
             # <#      
+            Try {
+                $Acl = $M.GetAccessControl()
+
+                $param = @{ 
+                    DifferenceAce = $Acl.Access
+                }
+            }
+            Catch {
+                throw "Failed retrieving the ACL of '$($M.FullName)': $_"
+            }
+
+            if (-not $M.PSIsContainer) {
+                # Only for Pester testing:
+                $testedInheritedFilesAndFolders[$M.FullName] = $true
+
+                if (
+                    -not (Test-AclEqualHC @param -ReferenceAce $FileAcl.Access)
+                ) {
+                    & $IncorrectAclInheritedOnly
+                }
+                Continue
+            }
+
             if ($FoldersWithAcl.Path -notContains $M.FullName) {
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
 
                 Write-Verbose "Test inheritance only '$($M.FullName)'"
-
-                Try {
-                    $Acl = $M.GetAccessControl()
-                }
-                Catch {
-                    throw "Failed retrieving the ACL of '$($M.FullName)': $_"
-                }
-
-                if ($Acl.AreAccessRulesProtected) {
+                
+                if (
+                    -not (Test-AclEqualHC @param -ReferenceAce $FolderAcl.Access)
+                ) {
                     & $IncorrectAclInheritedOnly
-                }
-                else {
-                    $testEqualParams = @{
-                        DifferenceAce = $Acl.Access
-                        ReferenceAce  = if ($M.PSIsContainer) { 
-                            $FolderAcl.Access
-                        }
-                        else { 
-                            $FileAcl.Access 
-                        }
-                    }
-                    if (-not (Test-AclEqualHC @testEqualParams)) {
-                        & $IncorrectAclInheritedOnly
-                    }
                 }
             }
 
-            if ($M.PSIsContainer) {
-                $getParams = @{
-                    Path      = $M.FullName 
-                    FolderAcl = $FolderAcl
-                    FileAcl   = $FileAcl
-                }
+            $getParams = @{
+                Path      = $M.FullName 
+                FolderAcl = $FolderAcl
+                FileAcl   = $FileAcl
+            }
 
-                if (
-                    $newAcl = $FoldersWithAcl.Where(
-                        { $_.Path -eq $M.FullName }, 'First'
-                    )
-                ) {
-                    $getParams.FolderAcl = $newAcl.InheritedFolderAcl
-                    $getParams.FileAcl = $newAcl.inheritedFileAcl
-                }
+            if (
+                $newAcl = $FoldersWithAcl.Where(
+                    { $_.Path -eq $M.FullName }, 'First'
+                )
+            ) {
+                $getParams.FolderAcl = $newAcl.InheritedFolderAcl
+                $getParams.FileAcl = $newAcl.inheritedFileAcl
+            }
 
-                Get-FolderContentHC @getParams
-            } #>
+            Get-FolderContentHC @getParams
+            #>
         }
 
         <# Fix when $Acl = $M.GetAccessControl() fails:
