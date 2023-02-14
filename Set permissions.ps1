@@ -599,18 +599,20 @@ Process {
         #region Create file and folder ACL for each path in the matrix
         Try {
             Write-Verbose "Create ACE 'BUILTIN\Administrators' : 'FullControl'"
-            $AdminFullControlFolderAce = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
-                [System.Security.AccessControl.FileSystemRights]::FullControl,
-                [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
-                [System.Security.AccessControl.PropagationFlags]::None,
-                [System.Security.AccessControl.AccessControlType]::Allow
-            )
-            $AdminFullControlIFileAce = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
-                [System.Security.AccessControl.FileSystemRights]::FullControl,
-                [System.Security.AccessControl.AccessControlType]::Allow
-            )
+            $adminFullControlAce = @{
+                Folder = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                    [System.Security.AccessControl.FileSystemRights]::FullControl,
+                    [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+                    [System.Security.AccessControl.PropagationFlags]::None,
+                    [System.Security.AccessControl.AccessControlType]::Allow
+                )
+                File   = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                    [System.Security.AccessControl.FileSystemRights]::FullControl,
+                    [System.Security.AccessControl.AccessControlType]::Allow
+                )
+            }
 
             foreach ($M in $Matrix) { 
                 $M | Add-Member -NotePropertyMembers @{
@@ -680,9 +682,9 @@ Process {
                     }
                 )
 
-                $folderAcl.AddAccessRule($AdminFullControlFolderAce)
-                $inheritedFolderAcl.AddAccessRule($AdminFullControlFolderAce)
-                $inheritedFileAcl.AddAccessRule($AdminFullControlIFileAce)
+                $folderAcl.AddAccessRule($adminFullControlAce.Folder)
+                $inheritedFolderAcl.AddAccessRule($adminFullControlAce.Folder)
+                $inheritedFileAcl.AddAccessRule($adminFullControlAce.File)
 
                 $M.FolderAcl = $folderAcl
                 $M.inheritedFolderAcl = $inheritedFolderAcl
