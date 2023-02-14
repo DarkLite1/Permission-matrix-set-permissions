@@ -238,10 +238,10 @@ Begin {
 
         foreach ($M in $Members) {
             Try {
-                $Acl = $M.GetAccessControl()
+                $acl = $M.GetAccessControl()
 
                 $diff = @{ 
-                    DifferenceAce = $Acl.Access
+                    DifferenceAce = $acl.Access
                 }
             }
             Catch {
@@ -291,7 +291,7 @@ Begin {
             Get-FolderContentHC @getParams
         }
 
-        <# Fix when $Acl = $M.GetAccessControl() fails:
+        <# Fix when $acl = $M.GetAccessControl() fails:
         
         $error.Clear()
 
@@ -381,7 +381,7 @@ Begin {
         Write-Warning "Incorrect ACL '$($M.FullName)'"
         #region Log
         if ($DetailedLog) {
-            $IncorrectAclInheritedFolders.($M.FullName.TrimStart('\\?\')) = $Acl.AccessToString
+            $IncorrectAclInheritedFolders.($M.FullName.TrimStart('\\?\')) = $acl.AccessToString
         }
         else {
             $IncorrectAclInheritedFolders.Add($M.FullName.TrimStart('\\?\'))
@@ -395,20 +395,20 @@ Begin {
             if ($M.PSIsContainer) {
                 # This is a workaround for non inherited permissions
                 # that do not get properly removed
-                $Acl.Access | ForEach-Object {
-                    $Acl.RemoveAccessRuleSpecific($_)
+                $acl.Access | ForEach-Object {
+                    $acl.RemoveAccessRuleSpecific($_)
                 }
-                $M.SetAccessControl($Acl)
+                $M.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
                 # $M.SetAccessControl($InheritedDirAcl)
                 Set-Acl -Path $M.FullName -AclObject $InheritedDirAcl
             }
             else {
-                $Acl.Access | ForEach-Object {
-                    $Acl.RemoveAccessRuleSpecific($_)
+                $acl.Access | ForEach-Object {
+                    $acl.RemoveAccessRuleSpecific($_)
                 }
-                $M.SetAccessControl($Acl)
+                $M.SetAccessControl($acl)
                 # for one reason or another the below does not work repetitively
                 # so we use Set-Acl instead
                 # $M.SetAccessControl($InheritedFileAcl)
@@ -766,15 +766,15 @@ Process {
                 # Only for Pester testing:
                 $testedNonInheritedFolders[$folder.Path] = $true
 
-                $Acl = $folderItem.GetAccessControl()
+                $acl = $folderItem.GetAccessControl()
 
                 $testEqualParams = @{
                     ReferenceAce  = ($folder.FolderAcl).Access
-                    DifferenceAce = ($Acl).Access
+                    DifferenceAce = ($acl).Access
                 }
 
                 if (
-                    (-not $Acl.AreAccessRulesProtected) -or
+                    (-not $acl.AreAccessRulesProtected) -or
                     (-not (Test-AclEqualHC @testEqualParams))
                 ) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
@@ -782,7 +782,7 @@ Process {
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             $incorrectAclNonInheritedFolders.($folder.Path.TrimStart('\\?\')) = @{
-                                'Old' = $Acl.AccessToString
+                                'Old' = $acl.AccessToString
                                 'New' = ($folder.FolderAcl).AccessToString
                             }
                         }
@@ -798,10 +798,10 @@ Process {
                         
                         # workaround for non inherited permissions
                         # that do not get properly removed
-                        $Acl.Access | ForEach-Object {
-                            $Acl.RemoveAccessRuleSpecific($_)
+                        $acl.Access | ForEach-Object {
+                            $acl.RemoveAccessRuleSpecific($_)
                         }
-                        $folderItem.SetAccessControl($Acl)
+                        $folderItem.SetAccessControl($acl)
                         $folderItem.SetAccessControl($folder.FolderAcl)
 
                         Write-Verbose 'ACL corrected'
