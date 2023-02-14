@@ -261,7 +261,7 @@ Begin {
                 Continue
             }
 
-            if ($FoldersWithAcl.Path -notContains $M.FullName) {
+            if ($foldersWithAcl.Path -notContains $M.FullName) {
                 # Write-Verbose "Test folder inheritance '$($M.FullName)'"
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
@@ -280,7 +280,7 @@ Begin {
             }
 
             if (
-                $newAcl = $FoldersWithAcl.Where(
+                $newAcl = $foldersWithAcl.Where(
                     { $_.Path -eq $M.FullName }, 'First'
                 )
             ) {
@@ -755,21 +755,21 @@ Process {
         Try {
             Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
-            [array]$FoldersWithAcl = $Matrix.Where( 
+            [array]$foldersWithAcl = $Matrix.Where( 
                 { ($_.FolderAcl) -and (-not $_.ignore) }
             ) | Sort-Object -Property 'Path'
 
-            foreach ($F in $FoldersWithAcl) {
-                Write-Verbose "Folder '$($F.Path)'"
-                $FolderItem = Get-Item -Path $F.Path -EA Stop
+            foreach ($folder in $foldersWithAcl) {
+                Write-Verbose "Folder '$($folder.Path)'"
+                $FolderItem = Get-Item -Path $folder.Path -EA Stop
 
                 # Only for Pester testing:
-                $testedNonInheritedFolders[$F.Path] = $true
+                $testedNonInheritedFolders[$folder.Path] = $true
 
                 $Acl = $FolderItem.GetAccessControl()
 
                 $testEqualParams = @{
-                    ReferenceAce  = ($F.FolderAcl).Access
+                    ReferenceAce  = ($folder.FolderAcl).Access
                     DifferenceAce = ($Acl).Access
                 }
 
@@ -777,17 +777,17 @@ Process {
                     (-not $Acl.AreAccessRulesProtected) -or
                     (-not (Test-AclEqualHC @testEqualParams))
                 ) {
-                    Write-Warning "Incorrect folder ACL '$($F.Path)'"
+                    Write-Warning "Incorrect folder ACL '$($folder.Path)'"
                     #region Log
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
-                            $incorrectAclNonInheritedFolders.($F.Path.TrimStart('\\?\')) = @{
+                            $incorrectAclNonInheritedFolders.($folder.Path.TrimStart('\\?\')) = @{
                                 'Old' = $Acl.AccessToString
-                                'New' = ($F.FolderAcl).AccessToString
+                                'New' = ($folder.FolderAcl).AccessToString
                             }
                         }
                         else {
-                            $incorrectAclNonInheritedFolders.Add($F.Path.TrimStart('\\?\'))
+                            $incorrectAclNonInheritedFolders.Add($folder.Path.TrimStart('\\?\'))
                         }
                     }
                     #endregion
@@ -802,7 +802,7 @@ Process {
                             $Acl.RemoveAccessRuleSpecific($_)
                         }
                         $FolderItem.SetAccessControl($Acl)
-                        $FolderItem.SetAccessControl($F.FolderAcl)
+                        $FolderItem.SetAccessControl($folder.FolderAcl)
 
                         Write-Verbose 'ACL corrected'
                     }
@@ -837,7 +837,7 @@ Process {
                 $InheritedFileAcl.SetOwner($BuiltinAdmin)
                 $InheritedFileAcl.SetAccessRuleProtection($false, $false)
 
-                $FoldersWithAcl.ForEach( 
+                $foldersWithAcl.ForEach( 
                     {
                         $getParams = @{
                             Path      = $_.Path
