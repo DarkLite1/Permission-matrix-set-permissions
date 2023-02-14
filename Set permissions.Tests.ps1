@@ -1405,7 +1405,7 @@ Describe 'Permissions' {
                 $Actual | Where-Object Name -EQ 'Inherited permissions incorrect'
                     
                 $Actual.Value | Should -Be "$($testParams.Path)\FolderB"
-            } 
+            }
             It 'not defined in the matrix has explicit permissions' {
                 $testParams = @{
                     Path   = $testParentFolder
@@ -2044,7 +2044,7 @@ Describe 'when Action is' {
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
                     Should -Contain "$env:USERDOMAIN\$testUser"
-                } 
+                } -Tag test
             }
         }
         Context 'when the script is run again after Action Fix/New' {

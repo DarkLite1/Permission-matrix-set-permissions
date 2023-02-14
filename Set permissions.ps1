@@ -219,26 +219,76 @@ Begin {
             $FileAcl
         )
 
-        # write-Verbose "Get folder content '$Path'"
+        Write-Verbose "Get folder content '$Path'"
 
-        if ($scannedInheritedFolders.ContainsKey($Path)) { Return }
+        if ($scannedInheritedFolders.ContainsKey($Path)) { 
+            Write-Verbose 'Folder already scanned'
+            Return 
+        }
         $scannedInheritedFolders[$Path] = $true
 
         Try {
-            $Members = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( {
-                    -not ($ignoredFolders.Contains($_.FullName))
-                })
+            $Members = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
+                { -not ($ignoredFolders.Contains($_.FullName)) }
+            )
         }
         Catch {
             throw "Failed retrieving the folder content of '$Path': $_"
         }
 
         foreach ($M in $Members) {
+            <#            `
+            Try {
+                $Acl = $M.GetAccessControl()
+
+                $param = @{ 
+                    DifferenceAce = $Acl.Access
+                }
+            }
+            Catch {
+                throw "Failed retrieving the ACL of '$($M.FullName)': $_"
+            }
+
+            if (-not $M.PSIsContainer) {
+                if (
+                    -not (Test-AclEqualHC @param -ReferenceAce $FileAcl.Access)
+                ) {
+                    & $IncorrectAclInheritedOnly
+                }
+                Continue
+            }
+            
+            if (
+                ($NonInheritedFolders -notContains $M.FullName) -and
+                (-not (Test-AclEqualHC @param -ReferenceAce $FolderAcl.Access))
+            ) {
+                & $IncorrectAclInheritedOnly
+            }
+
+            $getParams = @{
+                Path      = $M.FullName 
+                FolderAcl = $FolderAcl
+                FileAcl   = $FileAcl
+            }
+
+            if (
+                $newAcl = $FoldersWithAcl.Where(
+                    { $_.Path -eq $M.FullName }, 'First'
+                )
+            ) {
+                $getParams.FolderAcl = $newAcl.InheritedFolderAcl
+                $getParams.FileAcl = $newAcl.inheritedFileAcl
+            }
+
+            Get-FolderContentHC @getParams
+            #>
+
+            # <#      
             if ($NonInheritedFolders -notContains $M.FullName) {
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$M.FullName] = $true
 
-                # Write-Verbose "Test inheritance only '$($M.FullName)'"
+                Write-Verbose "Test inheritance only '$($M.FullName)'"
 
                 Try {
                     $Acl = $M.GetAccessControl()
@@ -250,19 +300,40 @@ Begin {
                 if ($Acl.AreAccessRulesProtected) {
                     & $IncorrectAclInheritedOnly
                 }
-                elseif (
-                    (-not ($M.PSIsContainer)) -and 
-                    (-not (Test-AclEqualHC -ReferenceAce $Acl -DifferenceAce $FileAcl))) {
+                else {
+                    $testEqualParams = @{
+                        DifferenceAce = $Acl.Access
+                        ReferenceAce  = if ($M.PSIsContainer) { 
+                            $FolderAcl.Access
+                        }
+                        else { 
+                            $FileAcl.Access 
+                        }
+                    }
+                    if (-not (Test-AclEqualHC @testEqualParams)) {
                         & $IncorrectAclInheritedOnly
-                }
-                elseif (-not (Test-AclEqualHC -ReferenceAce $Acl -DifferenceAce $FolderAcl)) {
-                    & $IncorrectAclInheritedOnly
+                    }
                 }
             }
 
             if ($M.PSIsContainer) {
-                Get-FolderContentHC -Path $M.FullName -FolderAcl $FolderAcl -FileAcl $FileAcl
-            }
+                $getParams = @{
+                    Path      = $M.FullName 
+                    FolderAcl = $FolderAcl
+                    FileAcl   = $FileAcl
+                }
+
+                if (
+                    $newAcl = $FoldersWithAcl.Where(
+                        { $_.Path -eq $M.FullName }, 'First'
+                    )
+                ) {
+                    $getParams.FolderAcl = $newAcl.InheritedFolderAcl
+                    $getParams.FileAcl = $newAcl.inheritedFileAcl
+                }
+
+                Get-FolderContentHC @getParams
+            } #>
         }
 
         <# Fix when $Acl = $M.GetAccessControl() fails:
@@ -325,8 +396,8 @@ Begin {
                         ($D.FileSystemRights -eq $_.FileSystemRights) -and
                         ($D.AccessControlType -eq $_.AccessControlType) -and
                         ($D.IdentityReference -eq $_.IdentityReference) -and
-                        ($D.InheritanceFlags -eq $_.InheritanceFlags) -and
-                        ($D.PropagationFlags -eq $_.PropagationFlags)
+                        ($D.InheritanceFlags -eq $_.InheritanceFlags) #-and
+                        # ($D.PropagationFlags -eq $_.PropagationFlags) # <<<< issue
                     })
 
                 if ($Match) {
@@ -364,7 +435,7 @@ Begin {
 
         #region Set permissions
         if ($Action -eq 'Fix') {
-            Write-Verbose 'Set ACL to inherited only'
+            Write-Verbose "Set ACL to inherited only '$($M.FullName)'"
 
             if ($M.PSIsContainer) {
                 # This is a workaround for non inherited permissions
@@ -616,26 +687,40 @@ Process {
                 $inheritedFileAcl.SetAccessRuleProtection($false, $false)
                 $inheritedFileAcl.SetOwner($BuiltinAdmin)
 
-                $M.ACL.GetEnumerator().Foreach( {
+                $M.ACL.GetEnumerator().Foreach( 
+                    {
                         Try {
                             $ID = "$($_.Key)@$($_.Value)"
 
                             if (-not $aceCache.ContainsKey($ID)) {
                                 $aceCache[$ID] = @{
-                                    Folder          = @(New-AceHC -Access $_.Value -Name $_.Key -Type 'Folder')
-                                    InheritedFolder = @(New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFolder')
-                                    InheritedFile   = @(New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFile')
+                                    Folder          = @(
+                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'Folder'
+                                    )
+                                    InheritedFolder = @(
+                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFolder'
+                                    )
+                                    InheritedFile   = @(
+                                        New-AceHC -Access $_.Value -Name $_.Key -Type 'InheritedFile'
+                                    )
                                 }
                             }
 
-                            $aceCache[$ID]['Folder'].ForEach( { $folderAcl.AddAccessRule($_) })
-                            $aceCache[$ID]['InheritedFolder'].ForEach( { $inheritedFolderAcl.AddAccessRule($_) })
-                            $aceCache[$ID]['InheritedFile'].ForEach( { $inheritedFileAcl.AddAccessRule($_) })
+                            $aceCache[$ID]['Folder'].ForEach( 
+                                { $folderAcl.AddAccessRule($_) }
+                            )
+                            $aceCache[$ID]['InheritedFolder'].ForEach( 
+                                { $inheritedFolderAcl.AddAccessRule($_) }
+                            )
+                            $aceCache[$ID]['InheritedFile'].ForEach( 
+                                { $inheritedFileAcl.AddAccessRule($_) }
+                            )
                         }
                         Catch {
                             throw "AD object '$($ID.split('@')[0])' with permission character '$($ID.split('@')[1])' probably doesn't exist in AD: $_"
                         }
-                    })
+                    }
+                )
 
                 $folderAcl.AddAccessRule($AdminFullControlFolderAce)
                 $inheritedFolderAcl.AddAccessRule($AdminFullControlFolderAce)
@@ -715,9 +800,11 @@ Process {
         Try {
             Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
-            $FoldersWithAcl = $Matrix.Where( { ($_.FolderAcl) -and (-not $_.ignore) })
+            $FoldersWithAcl = $Matrix.Where( 
+                { ($_.FolderAcl) -and (-not $_.ignore) }
+            )
 
-            foreach ( $F in $FoldersWithAcl) {
+            foreach ($F in $FoldersWithAcl) {
                 Write-Verbose "Folder '$($F.Path)'"
                 $FolderItem = Get-Item -Path $F.Path -EA Stop
 
@@ -726,11 +813,15 @@ Process {
 
                 $Acl = $FolderItem.GetAccessControl()
 
-                $ReferenceAce = ($F.FolderAcl).Access
-                $DifferenceAce = ($Acl).Access
+                $testEqualParams = @{
+                    ReferenceAce  = ($F.FolderAcl).Access
+                    DifferenceAce = ($Acl).Access
+                }
 
-                if ((-not $Acl.AreAccessRulesProtected) -or
-                    (-not (Test-AclEqualHC -ReferenceAce $ReferenceAce -DifferenceAce $DifferenceAce))) {
+                if (
+                    (-not $Acl.AreAccessRulesProtected) -or
+                    (-not (Test-AclEqualHC @testEqualParams))
+                ) {
                     Write-Warning "Incorrect folder ACL '$($F.Path)'"
                     #region Log
                     if ($Action -ne 'New') {
@@ -750,7 +841,7 @@ Process {
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
                         
-                        # This is a workaround for non inherited permissions
+                        # workaround for non inherited permissions
                         # that do not get properly removed
                         $Acl.Access | ForEach-Object {
                             $Acl.RemoveAccessRuleSpecific($_)
@@ -763,33 +854,6 @@ Process {
                     #endregion
                 }
             }
-
-            <#     
-            $NewAcl = New-Object System.Security.AccessControl.DirectorySecurity
-            $NewAcl.SetOwner($BuiltinAdmin)
-            $NewAcl.SetAccessRuleProtection($true,$false)
-            $ReferenceAce.ForEach({$NewAcl.AddAccessRule($_)})
-            $FolderItem.SetAccessControl($NewAcl)
-            
-            Write-Verbose 'Set SetAccessRuleProtection'
-            $Acl.SetAccessRuleProtection($True, $False)
-            $FolderItem.SetAccessControl($Acl)
-            
-            Write-Verbose 'Set owner'
-            $Acl = $FolderItem.GetAccessControl()
-            $Acl.SetOwner($BuiltinAdmin)
-            $FolderItem.SetAccessControl($Acl)
-            
-            Write-Verbose 'Remove ACEs from ACL'
-            $Acl = $FolderItem.GetAccessControl()
-            $Acl.Access.ForEach({$null = $Acl.RemoveAccessRule($_)})
-            
-            Write-Verbose 'Add new ACL'
-            $ReferenceAce.ForEach({$Acl.AddAccessRule($_)})
-            
-            Write-Verbose 'Set correct ACL'
-            $FolderItem.SetAccessControl($Acl)
-            #>
 
             if ($incorrectAclNonInheritedFolders.Count -ne 0) {
                 [PSCustomObject]@{
@@ -820,9 +884,19 @@ Process {
 
                 $NonInheritedFolders = @($FoldersWithAcl.Path | Sort-Object)
 
-                $FoldersWithAcl.ForEach( {
-                        Get-FolderContentHC -Path $_.Path -FolderAcl $_.InheritedFolderAcl -FileAcl $_.InheritedFileAcl
-                    })
+                $FoldersWithAcl.ForEach( 
+                    # $FoldersWithAcl.Where({ $_.Parent }, 'First').ForEach( 
+                    {
+                        Write-Verbose "Parent folder '$($_.Path)' with ACL"
+
+                        $getParams = @{
+                            Path      = $_.Path
+                            FolderAcl = $_.InheritedFolderAcl
+                            FileAcl   = $_.InheritedFileAcl
+                        }
+                        Get-FolderContentHC @getParams
+                    }
+                )
 
                 if ($incorrectAclInheritedFolders.Count -ne 0) {
                     [PSCustomObject]@{
