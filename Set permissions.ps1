@@ -3,41 +3,30 @@
 
 <#
     .SYNOPSIS
-        Create, check or fix a folder structure based on folder names and
-        folder permission characters in an Excel file.
+        Scan an NTFS folder structure and create, check or fix the permissions.
 
     .DESCRIPTION
-        Check/Fix:
-        We create a new folder structure in the temporary cache. After the folders have been created we
-        will apply the default permissions first and then the permissions defined in the matrix. So the
-        permissions defined in the matrix will always win over the default permissions.
-        Then we will compare the permissions on the destination with the ones we applied in the temporary
-        cache. All permission issues and other problems will be reported by returning objects. In case of 'Fix'
-        we also fix these problems.
-
-        New:
-        The new folder structure is immediately created on the destination.
+        All files and folders are checked with the permissions defined in the 
+        matrix.
 
     .PARAMETER Path
         The parent folder on the localhost where the folder tree starts.
 
     .PARAMETER Action
-        Accepted values are:
-        'New'    > Creates a new folder structure on the destination with the correct permissions.
-        'Check'  > Checks if an existing folder structure has the correct permissions.
-        'Fix'    > Checks and fixes an existing folder structure with the correct permissions.
+        Valid values:
+        - New   : Creates a new folder structure with the correct permissions
+        - Check : Only check if the permissions are correct
+        - Fix   : Check and fix incorrect permissions
 
     .PARAMETER Matrix
         The array containing the correct folder names and their permissions.
 
     .PARAMETER DetailedLog
-        When set to true, the script will be able to log more details for better troubleshooting.
-        In case of ACL's that are incorrect, in normal circumstances only the FullName of the path
-        is reported. When DetailedLog is enabled, the ACL's that are on the folder and the expected
-        ACL are also reported.
+        When incorrect permissions are found only the FullName of the path is 
+        reported. However, when DetailedLog is enabled the current and desired
+        permissions are reported.
 
-        Keep in mind that when enabling DetailedLog, the script execution performance will drop. For
-        this reason it is only advised to use this feature only in case of troubleshooting.
+        For performance reason, only enable this for troubleshooting.
 #>
 
 [OutputType([PSCustomObject[]])]
