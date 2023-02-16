@@ -228,10 +228,6 @@ Begin {
         foreach ($child in $childItems) {
             Try {
                 $acl = $child.GetAccessControl()
-
-                $diff = @{ 
-                    DifferenceAce = $acl.Access
-                }
             }
             Catch {
                 throw "Failed retrieving the ACL of '$($child.FullName)': $_"
@@ -243,41 +239,31 @@ Begin {
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
 
                 if (
-                    -not (Test-AclEqualHC @diff -ReferenceAce $FileAcl.Access)
+                    -not (Test-AclEqualHC -DifferenceAce $acl.Access -ReferenceAce $FileAcl.Access)
                 ) {
                     & $incorrectAclInheritedOnly
                 }
                 Continue
             }
 
-            if ($foldersWithAcl.Path -notContains $child.FullName) {
+            if (
+                $newAcl = $testedNonInheritedFolders[$child.FullName]
+            ) {
+                Get-FolderContentHC -Path $child.FullName -FolderAcl $newAcl.InheritedFolderAcl -FileAcl $newAcl.inheritedFileAcl
+            }
+            else {
                 # Write-Verbose "Test folder inheritance '$($child.FullName)'"
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
 
                 if (
-                    -not (Test-AclEqualHC @diff -ReferenceAce $FolderAcl.Access)
+                    -not (Test-AclEqualHC -DifferenceAce $acl.Access -ReferenceAce $FolderAcl.Access)
                 ) {
                     & $incorrectAclInheritedOnly
                 }
-            }
 
-            $getParams = @{
-                Path      = $child.FullName 
-                FolderAcl = $FolderAcl
-                FileAcl   = $FileAcl
+                Get-FolderContentHC -Path $child.FullName -FolderAcl $FolderAcl -FileAcl $FileAcl
             }
-
-            if (
-                $newAcl = $foldersWithAcl.Where(
-                    { $_.Path -eq $child.FullName }, 'First'
-                )
-            ) {
-                $getParams.FolderAcl = $newAcl.InheritedFolderAcl
-                $getParams.FileAcl = $newAcl.inheritedFileAcl
-            }
-
-            Get-FolderContentHC @getParams
         }
 
         <# 
@@ -325,7 +311,7 @@ Begin {
             $Matches = @()
 
             foreach ($D in $DifferenceAce) {
-                $Match = @($ReferenceAce).Where( {
+                $Match = $ReferenceAce.Where( {
                         ($D.FileSystemRights -eq $_.FileSystemRights) -and
                         ($D.AccessControlType -eq $_.AccessControlType) -and
                         ($D.IdentityReference -eq $_.IdentityReference) -and
@@ -736,7 +722,7 @@ Process {
         #endregion
 
         #region Non inherited folder permissions
-        $testedNonInheritedFolders = @{ }
+        $testedNonInheritedFolders = @{}
 
         Try {
             Write-Verbose 'Folders with ACL in the matrix that are not ignored'
@@ -745,12 +731,13 @@ Process {
                 { ($_.FolderAcl) -and (-not $_.ignore) }
             ) | Sort-Object -Property 'Path'
 
+
             foreach ($folder in $foldersWithAcl) {
                 Write-Verbose "Folder '$($folder.Path)'"
                 $folderItem = Get-Item -Path $folder.Path -EA Stop
 
                 # Only for Pester testing:
-                $testedNonInheritedFolders[$folder.Path] = $true
+                $testedNonInheritedFolders[$folder.Path] = $folder
 
                 $acl = $folderItem.GetAccessControl()
 
