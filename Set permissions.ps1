@@ -218,7 +218,7 @@ Begin {
 
         Try {
             $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
-                { -not ($ignoredFolders.Contains($_.FullName)) }
+                { -not ($ignoredFolderPaths.ContainsKey($_.FullName)) }
             )
         }
         Catch {
@@ -228,42 +228,96 @@ Begin {
         foreach ($child in $childItems) {
             Try {
                 $acl = $child.GetAccessControl()
+                $aclMatchCount = 0
+                $isAclIncorrect = $false
             }
             Catch {
                 throw "Failed retrieving the ACL of '$($child.FullName)': $_"
             }
 
+            #region File inheritance       
             if (-not $child.PSIsContainer) {
                 # Write-Verbose "Test file inheritance '$($child.FullName)'"
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
 
+                #region Test ACL equal        
+                foreach ($a in $acl.Access) {
+                    $aclMatch = $FileAcl.Access.Where(
+                        {
+                            ($a.FileSystemRights -eq $_.FileSystemRights) -and
+                            ($a.AccessControlType -eq $_.AccessControlType) -and
+                            ($a.IdentityReference -eq $_.IdentityReference) -and
+                            ($a.InheritanceFlags -eq $_.InheritanceFlags)
+                        }, 'First'
+                    )
+        
+                    if ($aclMatch) {
+                        $aclMatchCount++
+                    }
+                    else {
+                        $isAclIncorrect = $true
+                        break
+                    }
+                }
+        
                 if (
-                    -not (Test-AclEqualHC -DifferenceAce $acl.Access -ReferenceAce $FileAcl.Access)
+                    ($isAclIncorrect) -or 
+                    ($aclMatchCount -ne $FileAcl.Access.Count)
                 ) {
                     & $incorrectAclInheritedOnly
                 }
+                #endregion
+
                 Continue
             }
+            #endregion
 
+            #region Folder with ACL            
             if (
                 $newAcl = $testedNonInheritedFolders[$child.FullName]
             ) {
                 Get-FolderContentHC -Path $child.FullName -FolderAcl $newAcl.InheritedFolderAcl -FileAcl $newAcl.inheritedFileAcl
-            }
-            else {
-                # Write-Verbose "Test folder inheritance '$($child.FullName)'"
-                # Only for Pester testing:
-                $testedInheritedFilesAndFolders[$child.FullName] = $true
 
-                if (
-                    -not (Test-AclEqualHC -DifferenceAce $acl.Access -ReferenceAce $FolderAcl.Access)
-                ) {
-                    & $incorrectAclInheritedOnly
+                Continue
+            }
+            #endregion
+            
+            #region Folder inheritance            
+            # Write-Verbose "Test folder inheritance '$($child.FullName)'"
+            # Only for Pester testing:
+            $testedInheritedFilesAndFolders[$child.FullName] = $true
+
+            #region Test ACL equal
+            foreach ($a in $acl.Access) {
+                $aclMatch = $FolderAcl.Access.Where(
+                    {
+                        ($a.FileSystemRights -eq $_.FileSystemRights) -and
+                        ($a.AccessControlType -eq $_.AccessControlType) -and
+                        ($a.IdentityReference -eq $_.IdentityReference) -and
+                        ($a.InheritanceFlags -eq $_.InheritanceFlags)
+                    }, 'First'
+                )
+                        
+                if ($aclMatch) {
+                    $aclMatchCount++
                 }
-
-                Get-FolderContentHC -Path $child.FullName -FolderAcl $FolderAcl -FileAcl $FileAcl
+                else {
+                    $isAclIncorrect = $true
+                    break
+                }
             }
+                        
+            if (
+                ($isAclIncorrect) -or 
+                ($aclMatchCount -ne $FolderAcl.Access.Count)
+            ) {
+                & $incorrectAclInheritedOnly
+            }
+            #endregion
+
+            Get-FolderContentHC -Path $child.FullName -FolderAcl $FolderAcl -FileAcl $FileAcl
+            #endregion
         }
 
         <# 
@@ -308,19 +362,21 @@ Begin {
         )
 
         Try {
-            $Matches = @()
+            $aclMatchCount = 0
 
             foreach ($D in $DifferenceAce) {
-                $Match = $ReferenceAce.Where( {
+                $aclMatch = $ReferenceAce.Where( 
+                    {
                         ($D.FileSystemRights -eq $_.FileSystemRights) -and
                         ($D.AccessControlType -eq $_.AccessControlType) -and
                         ($D.IdentityReference -eq $_.IdentityReference) -and
                         ($D.InheritanceFlags -eq $_.InheritanceFlags) #-and
                         # ($D.PropagationFlags -eq $_.PropagationFlags) # <<<< issue
-                    })
+                    }, 'First'
+                )
 
-                if ($Match) {
-                    $Matches += $Match
+                if ($aclMatch) {
+                    $aclMatchCount++
                 }
                 else {
                     # Write-Verbose "ACL equal 'false'"
@@ -328,7 +384,7 @@ Begin {
                 }
             }
 
-            if ($Matches.Count -ne $ReferenceAce.Count) {
+            if ($aclMatchCount -ne $ReferenceAce.Count) {
                 # Write-Verbose "ACL equal 'false'"
                 Return $False
             }
@@ -531,17 +587,22 @@ Process {
         #endregion
 
         #region Remove ignored folders from the matrix
-        $IgnoredFolders, $Matrix = $Matrix.Where( { $_.Ignore }, 'Split')
+        $ignoredFolders, $Matrix = $Matrix.Where( { $_.Ignore }, 'Split')
+        $ignoredFolderPaths = @{}
 
-        if ($IgnoredFolders) {
-            $IgnoredFolders = @($IgnoredFolders.Path)
-            $IgnoredFolders.ForEach( { Write-Verbose "Ignored folder '$_'" })
+        if ($ignoredFolders) {
+            $IgnoredFolders.Path.ForEach( 
+                { 
+                    Write-Verbose "Ignored folder '$_'" 
+                    $ignoredFolderPaths[$_] = $true
+                }
+            )
             
             [PSCustomObject]@{
                 Type        = 'Information'
                 Name        = 'Ignored folder'
                 Description = "All rows in the worksheet 'Permissions' that have the character 'i' defined are ignored. These folders are not checked for incorrect permissions."
-                Value       = $IgnoredFolders.TrimStart('\\?\')
+                Value       = $IgnoredFolders.Path.TrimStart('\\?\')
             }
         }
         #endregion
