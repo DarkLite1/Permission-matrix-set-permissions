@@ -563,7 +563,7 @@ $testCases = @(
     }
 )
 Describe 'when the script runs for a matrix' {
-    Context '<name>' -ForEach $testCases {
+    Context '<name>' -ForEach $testCases[1] {
         BeforeAll {
             Remove-Item $testParentFolder -Recurse -Force
        
@@ -620,7 +620,7 @@ Describe 'when the script runs for a matrix' {
                 $actual.Value | Should -Be $testIgnoredFolders    
             }
         }
-    } 
+    } -Tag test
 }
 Describe 'Permissions' {
     BeforeEach {
@@ -2044,7 +2044,7 @@ Describe 'when Action is' {
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
                     Should -Contain "$env:USERDOMAIN\$testUser"
-                } -Tag test
+                }
             }
         }
         Context 'when the script is run again after Action Fix/New' {

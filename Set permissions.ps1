@@ -43,7 +43,6 @@ Param (
 )
 
 Begin {
-    $scannedInheritedFolders = @{ }
     $testedInheritedFilesAndFolders = @{ }
 
     Function New-AceHC {
@@ -210,15 +209,15 @@ Begin {
 
         # Write-Verbose "Get folder content '$Path'"
 
-        if ($scannedInheritedFolders.ContainsKey($Path)) { 
-            Write-Verbose 'Folder already scanned'
-            Return 
-        }
-        $scannedInheritedFolders[$Path] = $true
-
         Try {
             $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
-                { -not ($ignoredFolderPaths.ContainsKey($_.FullName)) }
+                {
+                    (-not $_.PSIsContainer) -or
+                    (-not (
+                        $ignoredFolderPaths.ContainsKey($_.FullName) -or
+                        $testedNonInheritedFolders.ContainsKey($_.FullName)
+                    ))
+                }
             )
         }
         Catch {
@@ -794,7 +793,7 @@ Process {
 
 
             foreach ($folder in $foldersWithAcl) {
-                Write-Verbose "Folder '$($folder.Path)'"
+                Write-Verbose "Matrix ACL folder '$($folder.Path)'"
                 $folderItem = Get-Item -Path $folder.Path -EA Stop
 
                 # Only for Pester testing:
