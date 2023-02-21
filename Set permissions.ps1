@@ -322,23 +322,6 @@ Begin {
             Get-FolderContentHC -Path $child.FullName -FolderAcl $FolderAcl -FileAcl $FileAcl
             #endregion
         }
-
-        <# 
-        Fix when GetAccessControl() fails:
-        
-        # Problem
-        (Get-Item -LiteralPath $File).GetAccessControl()
-
-        # Take ownership
-        $Account = New-Object System.Security.Principal.NTAccount($env:username)
-        $FileSecurity = new-object System.Security.AccessControl.FileSecurity
-        $FileSecurity.SetOwner($Account)
-        [System.IO.File]::SetAccessControl($file, $FileSecurity)
-
-        # Problem fixed
-        $FileItem = Get-Item -LiteralPath $File
-        $FileItem.GetAccessControl()
-        #>
     }
 
     Function Test-AclEqualHC {
