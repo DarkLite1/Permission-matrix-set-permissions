@@ -212,7 +212,6 @@ Begin {
         Try {
             $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where( 
                 {
-                    (-not $_.PSIsContainer) -or
                     (-not (
                         $ignoredFolderPaths.ContainsKey($_.FullName) -or
                         $testedNonInheritedFolders.ContainsKey($_.FullName)
