@@ -231,6 +231,11 @@ Begin {
                 $isAclIncorrect = $false
             }
             Catch {
+                if (-not (Test-Path -LiteralPath $child.FullName)) {
+                    Write-Verbose "Item '$($child.FullName)' removed"
+                    $Error.RemoveAt(0)
+                    Continue
+                }
                 throw "Failed retrieving the ACL of '$($child.FullName)': $_"
             }
 
