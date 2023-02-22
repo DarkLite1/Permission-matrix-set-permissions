@@ -73,6 +73,11 @@
     .PARAMETER CherwellExcelOverviewFileName
         The log name of the Excel file containing the same data as the csv files
         exported to the Cherwell folder.
+
+    .PARAMETER JobsAtOnceDefault
+        Amount of jobs allowed to run at the same time on the remote computers.
+        Only used when no value is set in 'JobsAtOnce' within the Excel sheet
+        'Settings'.
 #>
 
 [CmdLetBinding()]
@@ -93,6 +98,7 @@ Param (
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
+    [Int]$JobsAtOnceDefault = 3,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
 )
@@ -246,7 +252,7 @@ Begin {
                         $_.Import.JobsAtOnce
                     }
                     else {
-                        3
+                        $JobsAtOnceDefault
                     }
                 }
             },
