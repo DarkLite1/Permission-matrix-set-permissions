@@ -239,6 +239,17 @@ Begin {
             $Queue = $ExecutableMatrix | Select-Object ID, Matrix,
             @{Name = 'Path'; Expression = { $_.Import.Path } },
             @{Name = 'Action'; Expression = { $_.Import.Action } },
+            @{
+                Name       = 'JobThrottleLimit'
+                Expression = { 
+                    if ($_.Import.JobsAtOnce) {
+                        $_.Import.JobsAtOnce
+                    }
+                    else {
+                        3
+                    }
+                }
+            },
             @{Name = 'ComputerName'; Expression = { $_.Import.ComputerName } }
 
             $JobName = 'SetPermissions_{0}'
@@ -246,7 +257,7 @@ Begin {
             $Jobs = foreach ($q in  $Queue) {
                 $InvokeParams = @{
                     FilePath      = $ScriptSetPermissionItem
-                    ArgumentList  = $q.Path, $q.Action, $q.Matrix, $DetailedLog
+                    ArgumentList  = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
                     ComputerName  = $q.ComputerName
                     JobName       = $JobName -f $q.ID
                     ThrottleLimit = 10
