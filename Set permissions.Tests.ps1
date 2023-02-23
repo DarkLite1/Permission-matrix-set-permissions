@@ -561,9 +561,91 @@ $testCases = @(
             )
         }
     }
+    @{
+        name       = 'that is complex'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB',
+                    '{0}\HR',
+                    '{0}\HR\Report',
+                    '{0}\HR\Report\Team',
+                    '{0}\HR\Report\Team\a',
+                    '{0}\HR\Report\Team\b',
+                    '{0}\HR\Report\Team\c',
+                    '{0}\HR\Report\Projects',
+                    '{0}\HR\Report\Projects\a',
+                    '{0}\HR\Report\Projects\b',
+                    '{0}\HR\Report\Projects\c',
+                    '{0}\HR\Benefits',
+                    '{0}\HR\Benefits\Projects',
+                    '{0}\HR\Benefits\Expenses',
+                    '{0}\HR\Charlie\a',
+                    '{0}\HR\Charlie\b'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
+            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{Path = 'HR'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Report'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Report\Team'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Report\Projects'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Benefits'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Benefits\Projects'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Benefits\Expenses'; ACL = @{$env:USERNAME = 'W' } }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '\\?\{0}',
+                '\\?\{0}\FolderB',
+                '\\?\{0}\HR',
+                '\\?\{0}\HR\Report',
+                '\\?\{0}\HR\Report\Team',
+                '\\?\{0}\HR\Report\Projects',
+                '\\?\{0}\HR\Benefits',
+                '\\?\{0}\HR\Benefits\Projects',
+                '\\?\{0}\HR\Benefits\Expenses'
+            )
+            inheritanceTested    = @(
+                '\\?\{0}\file',
+                '\\?\{0}\FolderA',
+                '\\?\{0}\FolderA\file',
+                '\\?\{0}\FolderB\file',
+                '\\?\{0}\HR\file',
+                '\\?\{0}\HR\Report\file',
+                '\\?\{0}\HR\Report\Team\file',
+                '\\?\{0}\HR\Report\Team\a',
+                '\\?\{0}\HR\Report\Team\a\file',
+                '\\?\{0}\HR\Report\Team\b',
+                '\\?\{0}\HR\Report\Team\b\file',
+                '\\?\{0}\HR\Report\Team\c',
+                '\\?\{0}\HR\Report\Team\c\file',
+                '\\?\{0}\HR\Report\Projects\file',
+                '\\?\{0}\HR\Report\Projects\a',
+                '\\?\{0}\HR\Report\Projects\a\file',
+                '\\?\{0}\HR\Report\Projects\b',
+                '\\?\{0}\HR\Report\Projects\b\file',
+                '\\?\{0}\HR\Report\Projects\c',
+                '\\?\{0}\HR\Report\Projects\c\file',
+                '\\?\{0}\HR\Benefits\file',
+                '\\?\{0}\HR\Benefits\Projects\file',
+                '\\?\{0}\HR\Benefits\Expenses\file',
+                '\\?\{0}\HR\Charlie',
+                '\\?\{0}\HR\Charlie\file',
+                '\\?\{0}\HR\Charlie\a',
+                '\\?\{0}\HR\Charlie\a\file',
+                '\\?\{0}\HR\Charlie\b',
+                '\\?\{0}\HR\Charlie\b\file'
+            )
+        }
+    }
 )
 Describe 'when the script runs for a matrix' {
-    Context '<name>' -ForEach $testCases[1] {
+    Context '<name>' -ForEach $testCases {
         BeforeAll {
             Remove-Item $testParentFolder -Recurse -Force
        
@@ -622,7 +704,7 @@ Describe 'when the script runs for a matrix' {
             }
         }
     }
-}
+} -Tag test
 Describe 'Permissions' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force
