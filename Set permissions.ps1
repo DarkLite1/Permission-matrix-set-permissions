@@ -302,12 +302,14 @@ Begin {
             [System.Management.Automation.Job[]]$Name,
             [Parameter(Mandatory)]
             [Int]$MaxThreads,
-            [Int]$FreeMemory = 500MB
+            [Int]$MaxAllowedCpuLoadPercentage = 80
         )
     
         Begin {
-            Function Get-FreeMemoryHC {
-                (Get-WmiObject win32_OperatingSystem).FreePhysicalMemory * 1KB
+            Function Get-CPUloadHC {
+                (
+                    Get-Counter '\Processor(_Total)\% Processor Time'
+                ).CounterSamples.CookedValue
             }
             Function Get-RunningJobsHC {
                 @($Name).Where( { $_.State -eq 'Running' })
@@ -315,10 +317,11 @@ Begin {
         }
     
         Process {
-            while (
-                ((Get-FreeMemoryHC) -lt $FreeMemory) -or
-                ((Get-RunningJobsHC).Count -ge $MaxThreads) 
-            ) {
+            while ((Get-CPUloadHC) -gt $MaxAllowedCpuLoadPercentage) {
+                Start-Sleep -Milliseconds 500
+            }
+    
+            while ((Get-RunningJobsHC).Count -ge $MaxThreads) {
                 $null = Wait-Job -Job $Name -Any
             }
         }
