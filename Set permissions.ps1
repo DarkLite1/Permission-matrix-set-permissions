@@ -1010,20 +1010,18 @@ Process {
                 #region Combine results of jobs into one object                
                 foreach ($jobResult in $jobResults) {
                     foreach ($j in $jobResult.testedInheritedFilesAndFolders) {
-                        $j.GetEnumerator() | ForEach-Object {
-                            $testedInheritedFilesAndFolders[$_.Key] = $_.Value
+                        foreach ($i in $j.GetEnumerator()) {
+                            $testedInheritedFilesAndFolders[$i.Key] = $i.Value
                         }
                     }
                     foreach ($j in $jobResult.IncorrectInheritedAcl) {
                         if ($DetailedLog) {
-                            $j.GetEnumerator() | ForEach-Object {
-                                $IncorrectInheritedAcl[$_.Key] = $_.Value
+                            foreach ($i in $j.GetEnumerator()) {
+                                $IncorrectInheritedAcl[$i.Key] = $i.Value
                             }
                         }
-                        else { 
-                            $j | ForEach-Object {
-                                $IncorrectInheritedAcl.Add($j)
-                            }
+                        else {
+                            $IncorrectInheritedAcl.Add($j)
                         }
                     }
                 }
