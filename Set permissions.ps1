@@ -274,9 +274,9 @@ Begin {
         .PARAMETER MaxThreads
             The number of jobs that are allowed to run at the same time.
     
-        .PARAMETER FreeMemory
-            The amount of memory in GB that needs to be free before a new job
-            is allowed to start.
+        .PARAMETER MaxAllowedCpuLoadPercentage
+            The CPU load must be below this percentage before we exit the 
+            function to start a new job.
     
         .EXAMPLE
             $jobs = @()
