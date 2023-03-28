@@ -632,7 +632,8 @@ Process {
 
                     #region Convert MatrixResponsible to UserPrincipalName
                     $params = @{
-                        Name = $I.FormData.Import.MatrixResponsible.Split(',').Trim()
+                        Name                  = $I.FormData.Import.MatrixResponsible.Split(',').Trim()
+                        ExcludeSamAccountName = $ExcludedSamAccountName
                     }
                     $result = Get-AdUserPrincipalNameHC @params
     
