@@ -391,7 +391,7 @@ Begin {
             $DefaultsItem = Get-PathItemHC -Leaf $DefaultsFile -Parent $ImportDir
 
             try {
-                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly
+                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'
             }
             catch {
                 throw "worksheet 'Settings' not found*"
@@ -443,9 +443,17 @@ Process {
     Try {
         $ID = 0
 
+        $getParams = @{
+            Path        = 'ImportDir:\*'
+            Include     = '*.xlsx'
+            File        = $true
+            ErrorAction = 'Stop'
+        }
+
         [Array]$ImportedMatrix = foreach (
             $matrixFile in 
-            @(Get-ChildItem -Path ImportDir:\* -Include *.xlsx -File).Where( { $_.FullName -ne $DefaultsItem.FullName })
+            @(Get-ChildItem @getParams).Where( 
+                { $_.FullName -ne $DefaultsItem.FullName })
         ) {
             Try {
                 $Obj = [PSCustomObject]@{
@@ -485,7 +493,7 @@ Process {
                 #endregion
 
                 #region Get Excel file details
-                $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile
+                $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile.FullName -ErrorAction 'Stop'
 
                 Write-EventLog @EventVerboseParams -Message ($BeginEvent +
                     "- Name:`t`t`t" + $matrixFile.Name + "`n" +
@@ -497,7 +505,7 @@ Process {
                 #region Import sheets Settings, Permissions, FormData
                 Try {
                     $ImportParams = @{
-                        Path        = $matrixFile
+                        Path        = $matrixFile.FullName
                         DataOnly    = $true
                         ErrorAction = 'Stop'
                     }
@@ -582,7 +590,7 @@ Process {
                             "Worksheet 'Permissions' is empty"; Break
                         }
                         Default {
-                            throw "Failed importing the Excel file '$($Obj.File.FullName)': $_"
+                            throw "Failed importing the Excel file '$($matrixFile.FullName)': $_"
                         }
                     }
                     $Obj.File.Check += [PSCustomObject]@{
