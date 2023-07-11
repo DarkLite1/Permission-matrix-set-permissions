@@ -13,6 +13,7 @@ BeforeAll {
         ScriptSetPermissionFile = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
         ScriptTestRequirements  = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
         DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+        ScriptAdmin             = 'admin@contoso.com'
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -88,7 +89,7 @@ Describe 'the mandatory parameters are' {
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
-            ($To -eq $ScriptAdmin) -and 
+            ($To -eq $testParams.ScriptAdmin) -and 
             ($Priority -eq 'High') -and 
             ($Subject -eq 'FAILURE')
         }

@@ -100,7 +100,10 @@ Param (
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [Int]$JobsAtOnceDefault = 3,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
-    [String[]]$ScriptAdmin = $env:POWERSHELL_SCRIPT_ADMIN
+    [String[]]$ScriptAdmin = @(
+        $env:POWERSHELL_SCRIPT_ADMIN,
+        $env:POWERSHELL_SCRIPT_ADMIN_BACKUP
+    )
 )
 
 Begin {
