@@ -347,6 +347,8 @@ Begin {
             [Boolean]$DetailedLog
         )
 
+        $ErrorActionPreference = 'Stop'
+
         Function Test-AclEqualHC {
             <#
             .SYNOPSIS
@@ -430,9 +432,12 @@ Begin {
                         $Error.RemoveAt(0)
                     }
                     else {
+                        $ErrorActionPreference = 'Continue'
+
                         Write-Error "Failed retrieving the ACL of '$($child.FullName)': $_"
                         
                         $Error.RemoveAt(1)
+                        $ErrorActionPreference = 'Stop'
                     }
                     Continue
                 }
@@ -552,7 +557,7 @@ Begin {
             #endregion
         }
         Catch {
-            throw "Failed setting the permissions: $_"
+            throw "Failed setting permissions for '$Path': $_"
         }
         Finally {
             [PSCustomObject]@{
@@ -638,6 +643,8 @@ throw ex;
 
 Process {
     Try {
+        $ErrorActionPreference = 'Stop'
+
         #region Logging
         $testedInheritedFilesAndFolders = @{ }
 
@@ -910,15 +917,15 @@ Process {
         #region Non inherited folder permissions
         $testedNonInheritedFolders = @{}
 
-        Try {
-            Write-Verbose 'Folders with ACL in the matrix that are not ignored'
+        Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
-            [array]$foldersWithAcl = $Matrix.Where( 
-                { ($_.FolderAcl) -and (-not $_.ignore) }
-            ) | Sort-Object -Property 'Path'
+        [array]$foldersWithAcl = $Matrix.Where( 
+            { ($_.FolderAcl) -and (-not $_.ignore) }
+        ) | Sort-Object -Property 'Path'
 
 
-            foreach ($folder in $foldersWithAcl) {
+        foreach ($folder in $foldersWithAcl) {
+            try {
                 $ignoredFolderPaths[$folder.Path] = $true
 
                 Write-Verbose "Matrix ACL folder '$($folder.Path)'"
@@ -970,19 +977,19 @@ Process {
                     #endregion
                 }
             }
-
-            if ($incorrectAclNonInheritedFolders.Count -ne 0) {
-                [PSCustomObject]@{
-                    Type        = 'Warning'
-                    Name        = 'Non inherited folder incorrect permissions'
-                    Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
-                    Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders }
-                    else { $incorrectAclNonInheritedFolders.ToArray() }
-                }
+            catch {
+                throw "Failed checking/setting the permissions on non inherited folder '$($folder.Path)': $_"
             }
         }
-        Catch {
-            throw "Failed checking/setting the permissions on non inherited folders: $_"
+
+        if ($incorrectAclNonInheritedFolders.Count -ne 0) {
+            [PSCustomObject]@{
+                Type        = 'Warning'
+                Name        = 'Non inherited folder incorrect permissions'
+                Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
+                Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders }
+                else { $incorrectAclNonInheritedFolders.ToArray() }
+            }
         }
         #endregion
 

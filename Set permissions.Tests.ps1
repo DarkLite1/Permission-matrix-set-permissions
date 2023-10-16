@@ -704,7 +704,7 @@ Describe 'when the script runs for a matrix' {
             }
         }
     }
-} -Tag test
+}
 Describe 'Permissions' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force
@@ -1059,7 +1059,7 @@ Describe 'Permissions' {
 
             $Actual | Should -BeNullOrEmpty
         } 
-    }
+    } -Tag test
     Context 'are corrected when they are incorrect when' {
         Context 'a folder that should have explicit permissions has' {
             It 'incorrect explicit permissions' {
@@ -1316,7 +1316,7 @@ Describe 'Permissions' {
                     
                 $Actual.Value | Should -Be $testParams.Path
             } 
-        }
+        } -Tag test
         Context 'a file has' {
             It 'explicit permissions' {
                 $testParams = @{
