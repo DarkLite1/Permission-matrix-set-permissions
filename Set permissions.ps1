@@ -1015,6 +1015,8 @@ Process {
                     #endregion
                 }
 
+                $ErrorActionPreference = 'Continue'
+
                 $jobResults = $jobs | Wait-Job | Receive-Job
 
                 #region Combine results of jobs into one object                
