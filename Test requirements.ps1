@@ -300,6 +300,18 @@ Begin {
         }
     }
 
+    Function Test-DotNetVersionHC {
+        $dotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -ErrorAction 'Ignore' |
+        Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
+
+        if ($dotNet) {
+            $true
+        }
+        else {
+            $false
+        }
+    }
+
     Function Test-IsAdminHC {
         <#
             .SYNOPSIS
@@ -384,10 +396,7 @@ Process {
     #endregion
 
     #region Require at least .NET 4.6.2
-    $DotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' |
-    Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
-
-    if (-not $DotNet) {
+    if (-not (Test-DotNetVersionHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = '.NET Framework version'
