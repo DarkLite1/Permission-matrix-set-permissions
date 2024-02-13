@@ -300,7 +300,7 @@ Begin {
         }
     }
 
-    Function Test-DotNetVersionHC {
+    Function Test-IsRequiredDotNetVersionHC {
         $dotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -ErrorAction 'Ignore' |
         Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
 
@@ -396,7 +396,7 @@ Process {
     #endregion
 
     #region Require at least .NET 4.6.2
-    if (-not (Test-DotNetVersionHC)) {
+    if (-not (Test-IsRequiredDotNetVersionHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = '.NET Framework version'
