@@ -90,17 +90,18 @@ Describe 'return a FatalError object when' {
         $actual | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-}
+} -Tag test
 Context 'set the Access Based Enumeration flag' {
     It "to enabled when the 'Flag' parameter is set to TRUE" {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode Unrestricted -Force
+        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode 'Unrestricted' -Force
 
         .$testScript -Path $testSmbShare[0].Path -Flag $true
 
         (Get-SmbShare -Name $testSmbShare[0].Name).FolderEnumerationMode |
         Should -BeExactly 'AccessBased'
+
         Test-AccessBasedEnumerationHC -Name $testSmbShare[0].Name | Should -BeTrue
-    } #-Tag test
+    }
     It "to disabled when the 'Flag' parameter is set to FALSE" {
         Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode AccessBased -Force
 
@@ -154,29 +155,55 @@ Context 'set the Access Based Enumeration flag' {
         ) |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-}
-Context "Set share permissions to 'FullControl for Administrators' and 'Read & Executed for Authenticated users'" {
-    It 'when they are incorrect' {
-        Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName Administrators -AccessRight Full –Force
-        Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName Everyone -AccessRight Read –Force
-        Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName 'Authenticated users' -AccessRight Read –Force
+} -Skip
+Context "when share permissions are incorrect" {
+    BeforeAll {
+        @(
+            @{
+                AccountName = 'Administrators'
+                AccessRight = 'Full'
+            }
+            @{
+                AccountName = 'Everyone'
+                AccessRight = 'Read'
+            }
+            @{
+                AccountName = 'Authenticated users'
+                AccessRight = 'Read'
+            }
+        ).ForEach(
+            {
+                $testGrantParams = $_
+                Grant-SmbShareAccess -Name $testSmbShare[0].Name @testGrantParams -Force
+            }
+        )
 
         $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
 
         $actual = Get-SmbShareAccess -Name $testSmbShare[0].Name
+    }
+    Context 'set the share permissions to' {
+        It 'BUILTIN\Administrators: FullControl' {
+            $a = $actual.Where(
+                { $_.AccountName -eq 'BUILTIN\Administrators' }
+            )
 
-        #region Verify share permissions
-        $actual.Count | Should -BeExactly 2
+            $a.AccessRight | Should -BeExactly 'Full'
+            $a.AccessControlType | Should -BeExactly 'Allow'
+        } -Tag test
+        It 'NT AUTHORITY\Authenticated Users: Change' {
+            $a = $actual.Where(
+                { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
+            )
 
-        $actual.ForEach( {
-                $_.Name | Should -Be $testSmbShare[0].Name
-                $_.AccessControlType | Should -Be 'Allow'
-            })
-        ($actual | Where-Object AccountName -EQ 'NT AUTHORITY\Authenticated Users').AccessRight | Should -Be 'Change'
-        ($actual | Where-Object AccountName -EQ 'BUILTIN\Administrators').AccessRight | Should -Be 'Full'
-        #endregion
-
-        #verify Script output
+            $a.AccessRight | Should -BeExactly 'Change'
+            $a.AccessControlType | Should -BeExactly 'Allow'
+        }
+    }
+    It 'remove other permissions' {
+        $actual | Should -HaveCount 2
+    }
+    It 'return a Warning object' {
         $expected = [PSCustomObject]@{
             Type        = 'Warning'
             Name        = 'Share permissions'
@@ -193,9 +220,10 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
             $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
         ) |
         Should -BeExactly ($expected | ConvertTo-Json)
-        #endregion
     }
-    It "but don't change anything when they are already correct" {
+}
+Describe 'when the share permissions are already correct' {
+    It "don't change anything" {
         Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
         New-SmbShare -Name $testSmbShare[0].Name -Path $testSmbShare[0].Path
         Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName Administrators -AccessRight Full -Force
@@ -212,7 +240,6 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
         $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
 
         ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
-        #endregion
     }
 }
 

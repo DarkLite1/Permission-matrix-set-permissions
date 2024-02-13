@@ -1,8 +1,8 @@
 ﻿#Requires -RunAsAdministrator
 #Requires -Version 5.1
 
-<# 
-    .SYNOPSIS   
+<#
+    .SYNOPSIS
         Set Access Based Enumeration and permissions on a shared folder.
 
     .DESCRIPTION
@@ -18,8 +18,8 @@
         - False : ABE will be disabled
 
     .NOTES
-        Most of these functions are available in the module 'SmbShare'. Servers 
-        older than Windows Server 2012 don't have this module. That's why this 
+        Most of these functions are available in the module 'SmbShare'. Servers
+        older than Windows Server 2012 don't have this module. That's why this
         script is built.
 #>
 
@@ -35,11 +35,11 @@ Param (
 Begin {
     Function Get-SharePermissionHC {
         <#
-            .SYNOPSIS   
+            .SYNOPSIS
                 Retrieve all shares on the local machine with their permissions.
 
             .DESCRIPTION
-                Retrieve all shares and their share permissions (not NTFS 
+                Retrieve all shares and their share permissions (not NTFS
                 permissions) of folders on the local machine.
 
             .EXAMPLE
@@ -47,7 +47,7 @@ Begin {
 
                 Get-SharePermissionHC
         #>
-        
+
         [CmdletBinding()]
         Param ()
 
@@ -60,7 +60,7 @@ Begin {
 
                 $sh = $Shares | Where-Object { $_.Name -eq $S.Name }
                 $sd = (Invoke-CimMethod -InputObject $s -MethodName GetSecurityDescriptor -Verbose:$false).Descriptor
-        
+
                 $Obj = [PSCustomObject]@{
                     Name = $S.Name
                     Path = $sh.Path
@@ -82,7 +82,7 @@ Begin {
                         $Permission = $permission
 
                         $Obj.Acl.Add($user, $permission)
-                    
+
                     })
 
                 $Obj
@@ -94,12 +94,12 @@ Begin {
     }
 
     Function Set-AccessBasedEnumerationHC {
-        <# 
-        .SYNOPSIS   
+        <#
+        .SYNOPSIS
             Set Access Based Enumeration on a shared folder.
 
         .DESCRIPTION
-            Set Access Based Enumeration enabled status to 'true' or 'false' on a 
+            Set Access Based Enumeration enabled status to 'true' or 'false' on a
             shared folder.
 
         .PARAMETER ComputerName
@@ -113,7 +113,7 @@ Begin {
 
         .EXAMPLE
             Enabled ABE on share 'Log' of the localhost
-            
+
             Set-AccessBasedEnumerationHC -Name log -Flag $true -Verbose
 
             VERBOSE: Access Based Enumeration enabled on share 'log' for 'ServerName'
@@ -145,7 +145,7 @@ Begin {
                                 throw "Couldn't verify the Access Based Enumeration permissions"
                             }
                         }
-                        else {    
+                        else {
                             $ShareInfo.Shi1005_flags = 0
 
                             if (([NetApi32]::NetShareSetInfo_1005($ComputerName, $_, $ShareInfo)) -eq 0) {
@@ -164,10 +164,10 @@ Begin {
     }
 
     Function Set-SharePermissionsHC {
-        <# 
+        <#
     .SYNOPSIS
         Correct the permissions on a share.
-    
+
     .DESCRIPTION
         To make sure that permissions are only managed on NTFS level, the share permissions
         on a shared folder need to be set as following:
@@ -193,7 +193,7 @@ Begin {
 
         - Authenticated users: change + read
         - Administrators: full control
-    
+
     .PARAMETER Name
         Name of the shared folder.
    #>
@@ -241,7 +241,7 @@ Begin {
 
             $lss = Get-WmiObject -ClassName Win32_LogicalShareSecuritySetting -Filter "Name='$Name'"
             $null = $lss.SetSecurityDescriptor($sd)
-            
+
             Write-Verbose "Share permissions set to 'FullControl' for 'Everyone' on '$Name'"
         }
         Catch {
@@ -250,8 +250,8 @@ Begin {
     }
 
     Function Test-AccessBasedEnumerationHC {
-        <# 
-        .SYNOPSIS   
+        <#
+        .SYNOPSIS
             Check if a shared folder has ABE enabled.
 
         .DESCRIPTION
@@ -266,21 +266,21 @@ Begin {
 
         .EXAMPLE
             Retrieve the Access Based Enumeration status for the shared folder 'Log'.
-                        
+
             Test-AccessBasedEnumerationHC -Name Log
 
             The boolean 'True' is returned because the share has ABE set to enabled.
 #>
 
         [CmdLetbinding()]
-        [OutputType([Boolean])] 
+        [OutputType([Boolean])]
         Param (
             [Parameter(Mandatory, ValueFromPipeline)]
             [String[]]$Name,
             [ValidateNotNullOrEmpty()]
             [String]$ComputerName = $env:COMPUTERNAME
         )
-      
+
         Process {
             $Name.ForEach( {
                     Try {
@@ -344,20 +344,23 @@ Begin {
         [CmdLetBinding()]
         [OutputType([Boolean])]
         Param (
-            [Int]$Major,
-            [Int]$Minor
+            [Int]$Major = 5,
+            [Int]$Minor = 1
         )
 
-        (($Major -gt 5) -or (($Major -eq 5) -and ($Minor -ge 1)))
+        (
+            ($PSVersionTable.PSVersion.Major -ge $Major) -and
+            ($PSVersionTable.PSVersion.Minor -ge $Minor)
+        )
     }
 }
 
 Process {
-    <# 
+    <#
         the require parameter at the top is not supported with `Invoke-Command -FilePath`
         https://stackoverflow.com/questions/51185882/invoke-command-ignores-requires-in-the-script-file
     #>
-    
+
     #region Require administrator privileges
     if (-not (Test-IsAdminHC)) {
         Return [PSCustomObject]@{
@@ -370,7 +373,7 @@ Process {
     #endregion
 
     #region Require at least PowerShell 5.1
-    if (-not (Test-IsRequiredPowerShellVersionHC -Major $PSVersionTable.PSVersion.Major -Minor $PSVersionTable.PSVersion.Minor)) {
+    if (-not (Test-IsRequiredPowerShellVersionHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'PowerShell version'
@@ -381,9 +384,9 @@ Process {
     #endregion
 
     #region Require at least .NET 4.6.2
-    $DotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' | 
+    $DotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' |
     Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
- 
+
     if (-not $DotNet) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
@@ -402,8 +405,8 @@ Process {
                     using System.Collections.Generic;
                     using System.Runtime.InteropServices;
                     using System.Text;
- 
- 
+
+
                     public enum Share_Type : uint
                     {
                         STYPE_DISKTREE = 0x00000000,   // Disk Drive
@@ -411,9 +414,9 @@ Process {
                         STYPE_DEVICE = 0x00000002,   // Communications Device
                         STYPE_IPC = 0x00000003,   // InterProcess Communications
                         STYPE_SPECIAL = 0x80000000,   // Special share types (C$, ADMIN$, IPC$, etc)
-                        STYPE_TEMPORARY = 0x40000000   // Temporary share 
+                        STYPE_TEMPORARY = 0x40000000   // Temporary share
                     }
- 
+
                     public enum Share_ReturnValue : int
                     {
                         NERR_Success = 0,
@@ -425,7 +428,7 @@ Process {
                         NERR_BufTooSmall = 2123, // The API return buffer is too small.
                         NERR_NetNameNotFound = 2310 // This shared resource does not exist.
                     }
- 
+
                     [System.Flags]
                     public enum Shi1005_flags
                     {
@@ -439,12 +442,12 @@ Process {
                         SHI1005_FLAGS_ENABLE_HASH = 0x2000,  // Used for server side support for peer caching
                         SHI1005_FLAGS_ENABLE_CA = 0X4000   // Used for Clustered shares
                     }
- 
+
                     public static class NetApi32
                     {
- 
+
                         // ********** Structures **********
- 
+
                         // SHARE_INFO_502
                         [StructLayout(LayoutKind.Sequential)]
                         public struct SHARE_INFO_502
@@ -463,19 +466,19 @@ Process {
                             public Int32 shi502_reserved;
                             public IntPtr shi502_security_descriptor;
                         }
- 
+
                         // SHARE_INFO_1005
                         [StructLayout(LayoutKind.Sequential)]
                         public struct SHARE_INFO_1005
                         {
                             public Int32 Shi1005_flags;
                         }
- 
-       
- 
+
+
+
                         private class unmanaged
                         {
- 
+
                             //NetShareGetInfo
                             [DllImport("Netapi32.dll", SetLastError = true)]
                             internal static extern int NetShareGetInfo(
@@ -484,15 +487,15 @@ Process {
                                 Int32 level,
                                 ref IntPtr bufPtr
                             );
- 
+
                             [DllImport("Netapi32.dll", SetLastError = true)]
                             public extern static Int32 NetShareSetInfo(
                                 [MarshalAs(UnmanagedType.LPWStr)] string servername,
                                 [MarshalAs(UnmanagedType.LPWStr)] string netname, Int32 level,IntPtr bufptr, out Int32 parm_err);
- 
- 
+
+
                         }
- 
+
                         // ***** Functions *****
                         public static SHARE_INFO_502 NetShareGetInfo_502(string ServerName, string ShareName)
                         {
@@ -510,7 +513,7 @@ Process {
                             }
                             return shi502_Info;
                         }
- 
+
                         public static SHARE_INFO_1005 NetShareGetInfo_1005(string ServerName, string ShareName)
                         {
                             Int32 level = 1005;
@@ -527,20 +530,20 @@ Process {
                             }
                             return shi1005_Info;
                         }
- 
+
                         public static int NetShareSetInfo_1005(string ServerName, string ShareName, SHARE_INFO_1005 shi1005_Info) //  Int32 Shi1005_flags
                         {
                             Int32 level = 1005;
                             Int32 err;
-             
+
                             IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(shi1005_Info));
                             Marshal.StructureToPtr(shi1005_Info, ptr, false);
- 
+
                             var result = unmanaged.NetShareSetInfo(ServerName, ShareName, level, ptr, out err);
- 
+
                             return result;
                         }
- 
+
                     }
 "@
         }
@@ -561,9 +564,9 @@ Process {
         $AbeCorrected = @{}
         foreach ($P in $Path) {
             ($Shares).Where( { (
-                        (($_.Path -like "$P\*") -or ($_.Path -eq $P)) -and 
+                        (($_.Path -like "$P\*") -or ($_.Path -eq $P)) -and
                         (Test-AccessBasedEnumerationHC -Name $_.Name) -ne $Flag) }).ForEach( {
-                        
+
                     Set-AccessBasedEnumerationHC -Name $_.Name -Flag $Flag
                     $AbeCorrected.Add($_.Name, $_.Path)
                 })
@@ -582,7 +585,7 @@ Process {
         throw "Failed setting Access Based Enumeration to '$Flag' for path '$Path' on '$env:COMPUTERNAME': $_"
     }
     #endregion
-    
+
     #region Set share permissions to to 'FullControl for Administrators' and 'Read & Executed for Authenticated users'
     Try {
         $SharePermCorrected = @{}
@@ -591,7 +594,7 @@ Process {
                     (($_.Path -like "$P\*") -or ($_.Path -eq $P)) -and
                     (
                         ($_.Acl.Count -ne 2) -or
-                        ($_.Acl.'BUILTIN\Administrators' -ne 'FullControl') -or 
+                        ($_.Acl.'BUILTIN\Administrators' -ne 'FullControl') -or
                         ($_.Acl.'NT AUTHORITY\Authenticated users' -ne 'Change')
                     )
                 }).ForEach( {
