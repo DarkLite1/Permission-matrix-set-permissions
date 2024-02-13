@@ -22,8 +22,8 @@ BeforeAll {
     #region Valid Excel files
     $testMatrix = @(
         [PSCustomObject]@{
-            Path = 'Path'; ACL = @{'Bob' = 'L' }; 
-            Parent = $true; Ignore = $false 
+            Path = 'Path'; ACL = @{'Bob' = 'L' };
+            Parent = $true; Ignore = $false
         }
     )
     $testPermissions = @(
@@ -38,7 +38,7 @@ BeforeAll {
             Status       = 'Enabled'
             ComputerName = 'S1'
             Path         = 'E:\Department'
-            Action       = 'Check' 
+            Action       = 'Check'
         }
     )
     $testDefaultSettings = @(
@@ -47,7 +47,7 @@ BeforeAll {
     )
     #endregion
 
-    $testDefaultSettings | 
+    $testDefaultSettings |
     Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
 
     if (
@@ -79,18 +79,18 @@ BeforeAll {
 }
 Describe 'the mandatory parameters are' {
     It '<_>' -ForEach @(
-        'ScriptName', 
-        'ImportDir' 
+        'ScriptName',
+        'ImportDir'
     ) {
-        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | 
+        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
         Should -BeTrue
     }
 }
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
-            ($To -eq $testParams.ScriptAdmin) -and 
-            ($Priority -eq 'High') -and 
+            ($To -eq $testParams.ScriptAdmin) -and
+            ($Priority -eq 'High') -and
             ($Subject -eq 'FAILURE')
         }
     }
@@ -102,7 +102,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*NonExisting.ps1*not found*")
             }
         }
@@ -113,7 +113,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*ShareConfigNotExisting.ps1*not found*")
             }
         }
@@ -124,7 +124,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*NonExistingLog*not found*")
             }
         }
@@ -135,7 +135,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*NonExistingFolder*not found*")
             }
         }
@@ -148,7 +148,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*$($clonedParams.DefaultsFile)*Cannot find*")
             }
         }
@@ -161,7 +161,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*'$($clonedParams.DefaultsFile)'* worksheet 'Settings' not found*")
             }
         }
@@ -210,7 +210,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @clonedParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*$($clonedParams.DefaultsFile)*$errorMessage*")
             }
         }
@@ -237,7 +237,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             .$testScript @testParams @clonedCherwellParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and 
+                (&$MailAdminParams) -and
                 ($Message -like "*Parameter '$Name' is mandatory when the parameter CherwellFolder is used*")
             }
         }
@@ -298,7 +298,7 @@ Describe "when the 'Archive' switch is used then" {
 
         @(
             [PSCustomObject]@{
-                ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' 
+                ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check'
             }
         ) | Export-Excel -Path $testFile -WorksheetName $SettingsParams.WorkSheetName
 
@@ -306,7 +306,7 @@ Describe "when the 'Archive' switch is used then" {
 
         @(
             [PSCustomObject]@{
-                ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check' 
+                ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check'
             }
         ) | Export-Excel @SettingsParams
         @(
@@ -343,7 +343,7 @@ Describe "when the 'Archive' switch is used then" {
         .$testScript @testParams -Archive
 
         (Get-ChildItem "$($testParams.ImportDir)\Matrix*" -File).Count | Should -BeExactly 0
-        (Get-ChildItem "$($testParams.ImportDir)\Archive" -File).Count | 
+        (Get-ChildItem "$($testParams.ImportDir)\Archive" -File).Count |
         Should -BeExactly 5
     }
 }
@@ -446,7 +446,7 @@ Describe 'a FatalError object is registered' {
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
                 Value       = "Failed importing the Excel workbook '$($PermissionsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
-                    $ImportedMatrix.File.Check.($_.Key) | 
+                    $ImportedMatrix.File.Check.($_.Key) |
                     Should -BeLike $_.Value
                 })
         } -Skip
@@ -474,7 +474,7 @@ Describe 'a FatalError object is registered' {
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
                 Value       = "Failed importing the Excel workbook '$($SettingsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
-                    $ImportedMatrix.File.Check.($_.Key) | 
+                    $ImportedMatrix.File.Check.($_.Key) |
                     Should -BeLike $_.Value
                 })
         } -Skip
@@ -522,7 +522,7 @@ Describe 'a FatalError object is registered' {
             Mock Test-MatrixPermissionsHC {
                 @{
                     Type = 'Warning'
-                    Name = 'Matrix permission incorrect' 
+                    Name = 'Matrix permission incorrect'
                 }
             }
 
@@ -531,7 +531,7 @@ Describe 'a FatalError object is registered' {
 
             .$testScript @testParams
 
-            $ImportedMatrix.Permissions.Check.Name | 
+            $ImportedMatrix.Permissions.Check.Name |
             Should -Contain 'Matrix permission incorrect'
         }
     }
@@ -547,7 +547,7 @@ Describe 'a FatalError object is registered' {
                     Name        = 'Duplicate ComputerName/Path combination'
                     Description = "Every 'ComputerName' combined with a 'Path' needs to be unique over all the 'Settings' worksheets found in all the active matrix files."
                     Value       = @{
-                        ('S1.' + $env:USERDNSDOMAIN) = 'E:\DUPLICATE' 
+                        ('S1.' + $env:USERDNSDOMAIN) = 'E:\DUPLICATE'
                     }
                 }
             )
@@ -557,25 +557,25 @@ Describe 'a FatalError object is registered' {
                     Status       = 'Enabled'
                     ComputerName = $($testProblem.Value.Keys)
                     Path         = 'E:\Reports'
-                    Action       = 'Check' 
+                    Action       = 'Check'
                 }
                 [PSCustomObject]@{
                     Status       = 'Enabled'
                     ComputerName = $($testProblem.Value.Keys)
                     Path         = $($testProblem.Value.Values)
-                    Action       = 'Check' 
+                    Action       = 'Check'
                 }
                 [PSCustomObject]@{
                     Status       = 'Enabled'
                     ComputerName = $($testProblem.Value.Keys)
                     Path         = $($testProblem.Value.Values)
-                    Action       = 'Fix' 
+                    Action       = 'Fix'
                 }
                 [PSCustomObject]@{
                     Status       = 'Enabled'
                     ComputerName = 'S3'
                     Path         = 'E:\Department'
-                    Action       = 'Check' 
+                    Action       = 'Check'
                 }
             ) | Export-Excel @SettingsParams
 
@@ -583,7 +583,7 @@ Describe 'a FatalError object is registered' {
 
             .$testScript @testParams
 
-            $toTest = @($ImportedMatrix.Settings.Where( 
+            $toTest = @($ImportedMatrix.Settings.Where(
                     { $_.Import.Path -eq $testProblem.Value.Values }
                 ))
 
@@ -597,7 +597,7 @@ Describe 'a FatalError object is registered' {
                 $testCheck.Name | Should -Be  $testProblem.Name
                 $testCheck.Description | Should -Be  $testProblem.Description
                 $testCheck.Value.Name | Should -Be  $testProblem.Value.Name
-                $testCheck.Value.Value | Should -Be  $testProblem.Value.Value  
+                $testCheck.Value.Value | Should -Be  $testProblem.Value.Value
             }
 
         }
@@ -654,7 +654,7 @@ Describe 'a Warning object is registered' {
                     Status       = $null
                     ComputerName = 'A'
                     Path         = 'E:\Reports'
-                    Action       = 'Check' 
+                    Action       = 'Check'
                 }
             ) | Export-Excel @SettingsParams
             $testPermissions | Export-Excel @PermissionsParams
@@ -676,7 +676,7 @@ Describe "each row in the worksheet 'settings'" {
     BeforeAll {
         Mock ConvertTo-MatrixADNamesHC { @{} }
         Mock ConvertTo-MatrixAclHC
-        Mock Test-AdObjectsHC 
+        Mock Test-AdObjectsHC
         Mock Test-MatrixSettingHC
 
         @(
@@ -684,7 +684,7 @@ Describe "each row in the worksheet 'settings'" {
                 Status       = 'Enabled'
                 ComputerName = 'pc1'
                 Path         = 'E:\Department'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'A'
                 SiteCode     = 'B'
             }
@@ -692,7 +692,7 @@ Describe "each row in the worksheet 'settings'" {
                 Status       = 'Enabled'
                 ComputerName = 'pc2'
                 Path         = 'E:\Reports'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'C'
                 SiteCode     = 'D'
             }
@@ -700,7 +700,7 @@ Describe "each row in the worksheet 'settings'" {
                 Status       = 'Enabled'
                 ComputerName = 'pc3'
                 Path         = 'E:\Finance'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'E'
                 SiteCode     = 'F'
             }
@@ -737,7 +737,7 @@ Describe "each row in the worksheet 'settings'" {
 
             Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 3 -Scope Describe
             Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
-                ($Begin -eq 'A') -and ($Middle -eq 'B') -and 
+                ($Begin -eq 'A') -and ($Middle -eq 'B') -and
                 (testColumnHeaders)
             }
             Should -Invoke ConvertTo-MatrixADNamesHC -Exactly 1 -Scope Describe -ParameterFilter {
@@ -748,7 +748,7 @@ Describe "each row in the worksheet 'settings'" {
                 ($Begin -eq 'E') -and ($Middle -eq 'F') -and
                 (testColumnHeaders)
             }
-        } 
+        }
         It 'path and Acl' {
             Should -Invoke ConvertTo-MatrixAclHC -Exactly 3 -Scope Describe
         }
@@ -763,7 +763,7 @@ Context "the worksheet 'Permissions' is" {
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[0]
                 Path         = 'E:\Department'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'A'
                 SiteCode     = 'B'
             }
@@ -793,7 +793,7 @@ Context "the worksheet 'Permissions' is" {
             ($Permissions[4].P1 -eq 'Folder') -and
             ($Permissions[4].P2 -eq 'W')
         }
-    }   
+    }
 }
 Context 'the script that tests the remote computers for compliance' {
     BeforeAll {
@@ -802,7 +802,7 @@ Context 'the script that tests the remote computers for compliance' {
             & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
         } -ParameterFilter {
             ($ComputerName -eq $testComputerNames[0]) -and ($AsJob -eq $true) -and
-            ($JobName -eq 'TestRequirements') 
+            ($JobName -eq 'TestRequirements')
         }
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
@@ -816,25 +816,25 @@ Context 'the script that tests the remote computers for compliance' {
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[0]
                 Path         = 'E:\Department'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[0]
                 Path         = 'E:\Reports'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[1]
                 Path         = 'E:\Finance'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = $null
                 ComputerName = 'ignoredPc'
                 Path         = 'E:\Finance'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
         ) | Export-Excel @SettingsParams
 
@@ -850,7 +850,7 @@ Context 'the script that tests the remote computers for compliance' {
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
         Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Context -ParameterFilter {
-            $JobName -eq 'TestRequirements' 
+            $JobName -eq 'TestRequirements'
         }
         @($testComputerNames[0], $testComputerNames[1]) | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
@@ -858,15 +858,15 @@ Context 'the script that tests the remote computers for compliance' {
                 ($ComputerName -eq $_)
             }
         }
-    }
+    } -Tag test
     It 'saves the job result in Settings for each matrix' {
         @($ImportedMatrix.Settings.Where( {
-                    ($_.Import.ComputerName -eq $testComputerNames[0]) -and 
+                    ($_.Import.ComputerName -eq $testComputerNames[0]) -and
                     ($_.Check -eq 'A') })).Count |
         Should -BeExactly 2
 
         @($ImportedMatrix.Settings.Where( {
-                    ($_.Import.ComputerName -eq $testComputerNames[1]) -and 
+                    ($_.Import.ComputerName -eq $testComputerNames[1]) -and
                     ($_.Check -eq 'B') })).Count |
         Should -BeExactly 1
     }
@@ -895,31 +895,31 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ComputerName -eq $testComputerNames[1]) -and
             ($JobName -eq 'SetPermissions_3')
         }
-        
+
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[0]
                 Path         = 'E:\Department'
-                Action       = 'New' 
+                Action       = 'New'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[0]
                 Path         = 'E:\Reports'
-                Action       = 'Fix' 
+                Action       = 'Fix'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[1]
                 Path         = 'E:\Finance'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = $null
                 ComputerName = 'ignoredPc'
                 Path         = 'E:\Finance'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
         ) | Export-Excel @SettingsParams
 
@@ -945,7 +945,7 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2] -ne $null) -and
-            ($ArgumentList[3] -ne $null) 
+            ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
             ($AsJob -eq $true) -and
@@ -955,7 +955,7 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2] -ne $null) -and
-            ($ArgumentList[3] -ne $null) 
+            ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
             ($AsJob -eq $true) -and
@@ -965,7 +965,7 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2] -ne $null) -and
-            ($ArgumentList[3] -ne $null) 
+            ($ArgumentList[3] -ne $null)
         }
     }
     It 'saves the start/end/duration times for each job in the settings' {
@@ -981,16 +981,16 @@ Context 'the script that sets the permissions on the remote computers' {
         ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
         Should -Contain 3
     }
-} 
+}
 Context 'an email is sent to the user in the default settings file' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]; 
+                ComputerName = $testComputerNames[0];
                 Path         = 'E:\Reports'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'C'
                 SiteCode     = 'D'
             }
@@ -998,7 +998,7 @@ Context 'an email is sent to the user in the default settings file' {
                 Status       = 'Enabled'
                 ComputerName = $testComputerNames[1]
                 Path         = 'E:\Finance'
-                Action       = 'New' 
+                Action       = 'New'
                 GroupName    = 'x'
                 SiteCode     = 'x'
             }
@@ -1023,14 +1023,14 @@ Context 'an email is sent to the user in the default settings file' {
             ($Message -like "*2*$($testComputerNames[1])*E:\Finance*New*") -and
             ($Message -like '*Error*Warning*Information*')
         }
-    } 
-} 
+    }
+}
 Context "the Excel file with" {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 samAccountName = 'A B bob'
-                adObject       = @{ 
+                adObject       = @{
                     ObjectClass    = 'user'
                     Name           = 'A B Bob'
                     SamAccountName = 'A B bob'
@@ -1040,7 +1040,7 @@ Context "the Excel file with" {
             }
             [PSCustomObject]@{
                 samAccountName = 'movieStars'
-                adObject       = @{ 
+                adObject       = @{
                     ObjectClass    = 'group'
                     Name           = 'Movie Stars'
                     SamAccountName = 'movieStars'
@@ -1050,43 +1050,43 @@ Context "the Excel file with" {
             }
             [PSCustomObject]@{
                 samAccountName = 'starTrekCaptains'
-                adObject       = @{ 
+                adObject       = @{
                     ObjectClass    = 'group'
                     SamAccountName = 'starTrekCaptains'
-                    Name           = 'Star Trek Captains' 
+                    Name           = 'Star Trek Captains'
                     ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
                 }
                 adGroupMember  = @(
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Jean Luc Picard'
-                        SamAccountName = 'picard' 
+                        SamAccountName = 'picard'
                     }
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Ignored account'
-                        SamAccountName = 'ignoreMe' 
+                        SamAccountName = 'ignoreMe'
                     }
                 )
             }
             [PSCustomObject]@{
                 samAccountName = 'singers'
-                adObject       = @{ 
+                adObject       = @{
                     ObjectClass    = 'group'
                     SamAccountName = 'singers'
-                    Name           = 'Singers' 
+                    Name           = 'Singers'
                     ManagedBy      = 'CN=SingerManagers,DC=contoso,DC=net'
                 }
                 adGroupMember  = @(
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Beyonce'
-                        SamAccountName = 'queenb' 
+                        SamAccountName = 'queenb'
                     }
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Ignored account'
-                        SamAccountName = 'ignoreMe' 
+                        SamAccountName = 'ignoreMe'
                     }
                 )
             }
@@ -1094,28 +1094,28 @@ Context "the Excel file with" {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
-                adObject          = @{ 
+                adObject          = @{
                     ObjectClass = 'group'
-                    Name        = 'Captain Managers' 
+                    Name        = 'Captain Managers'
                 }
                 adGroupMember     = @(
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Admiral Pike'
-                        SamAccountName = 'pike' 
+                        SamAccountName = 'pike'
                     }
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Excluded user'
-                        SamAccountName = 'ignoreMe' 
+                        SamAccountName = 'ignoreMe'
                     }
                 )
             }
             [PSCustomObject]@{
                 DistinguishedName = 'CN=SingerManagers,DC=contoso,DC=net'
-                adObject          = @{ 
+                adObject          = @{
                     ObjectClass = 'group'
-                    Name        = 'Singer Managers' 
+                    Name        = 'Singer Managers'
                 }
                 adGroupMember     = $null
             }
@@ -1124,9 +1124,9 @@ Context "the Excel file with" {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]; 
+                ComputerName = $testComputerNames[0];
                 Path         = 'E:\Reports'
-                Action       = 'Check' 
+                Action       = 'Check'
                 GroupName    = 'A'
                 SiteCode     = 'B'
             }
@@ -1154,7 +1154,7 @@ Context "the Excel file with" {
         }
         Describe 'contains the property' {
             It 'SamAccountName' {
-                $testAccessList[0].SamAccountName | 
+                $testAccessList[0].SamAccountName |
                 Should -Be 'starTrekCaptains'
                 $testAccessList[1].SamAccountName | Should -Be 'A B bob'
                 $testAccessList[2].SamAccountName | Should -Be 'Singers'
@@ -1196,13 +1196,13 @@ Context "the Excel file with" {
         }
         Describe 'contains the property' {
             It 'GroupName' {
-                $testGroupManagers[0].GroupName | 
+                $testGroupManagers[0].GroupName |
                 Should -Be 'Star Trek Captains'
                 $testGroupManagers[1].GroupName | Should -Be 'Singers'
                 $testGroupManagers[2].GroupName | Should -Be 'Movie Stars'
             }
             It 'ManagerName' {
-                $testGroupManagers[0].ManagerName | 
+                $testGroupManagers[0].ManagerName |
                 Should -Be 'Captain Managers'
                 $testGroupManagers[1].ManagerName | Should -Be 'Singer Managers'
                 $testGroupManagers[2].ManagerName | Should -BeNullOrEmpty
@@ -1229,7 +1229,7 @@ Describe 'when a job fails' {
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
                 ($ComputerName -eq $testComputerNames[0]) -and
-                ($JobName -eq 'TestRequirements') 
+                ($JobName -eq 'TestRequirements')
             }
             Mock Invoke-Command {
                 & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
@@ -1293,7 +1293,7 @@ Describe 'when a job fails' {
             $actual.Check.Value | Should -Be 'failure'
         }
     }
-} 
+}
 Describe 'internal functions' {
     Context 'default permissions vs matrix permissions' {
         It 'add default permissions to the matrix' {
@@ -1328,7 +1328,7 @@ Describe 'internal functions' {
                 'Mike' = 'L'
             }
 
-            $actual | ConvertTo-Json | 
+            $actual | ConvertTo-Json |
             Should -BeExactly ($expected | ConvertTo-Json)
         }
         It 'do not add default permissions to the matrix ACL when the folder has no ACL' {
@@ -1336,10 +1336,10 @@ Describe 'internal functions' {
             Mock ConvertTo-MatrixAclHC {
                 @(
                     [PSCustomObject]@{
-                        Path   = 'Path'; 
-                        ACL    = @{}; 
-                        Parent = $true; 
-                        Ignore = $false 
+                        Path   = 'Path';
+                        ACL    = @{};
+                        Parent = $true;
+                        Ignore = $false
                     }
                 )
             }
@@ -1362,7 +1362,7 @@ Describe 'internal functions' {
 
             .$testScript @testParams
 
-            $Actual = ($ImportedMatrix.Settings.Matrix.Where( { 
+            $Actual = ($ImportedMatrix.Settings.Matrix.Where( {
                         $_.Path -eq 'Path' })).ACL
 
             $Actual | Should -BeNullOrEmpty
@@ -1398,7 +1398,7 @@ Describe 'internal functions' {
                 'Bob'  = 'L'
                 'Mike' = 'L'
             }
-            $actual | ConvertTo-Json | 
+            $actual | ConvertTo-Json |
             Should -BeExactly ($expected | ConvertTo-Json)
         }
     }
@@ -1510,11 +1510,11 @@ Describe 'when the argument CherwellFolder is used' {
         }
         BeforeAll {
             Mock Test-ExpandedMatrixHC
-            Mock Test-FormDataHC { 
+            Mock Test-FormDataHC {
                 @{
                     Type = 'FatalError'
                     Name = 'incorrect data'
-                } 
+                }
             }
 
             @(
@@ -1556,7 +1556,7 @@ Describe 'when the argument CherwellFolder is used' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
             Mock Test-FormDataHC
-            Mock Get-AdUserPrincipalNameHC { 
+            Mock Get-AdUserPrincipalNameHC {
                 @{
                     UserPrincipalName = 'mike@contoso.com'
                     notFound          = 'bob@contoso.com'
@@ -1604,7 +1604,7 @@ Describe 'when the argument CherwellFolder is used' {
 Describe 'when the argument CherwellFolder is used on a successful run' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
-        Mock Get-AdUserPrincipalNameHC { 
+        Mock Get-AdUserPrincipalNameHC {
             @{
                 UserPrincipalName = @('bob@contoso.com', 'mike@contoso.com')
                 notFound          = $null
@@ -1614,17 +1614,17 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 samAccountName = 'A B C'
-                adObject       = @{ 
+                adObject       = @{
                     ObjectClass    = 'group'
                     Name           = 'A B C'
                     SamAccountName = 'A B c'
                     ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
                 }
                 adGroupMember  = @(
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Jean Luc Picard'
-                        SamAccountName = 'picard' 
+                        SamAccountName = 'picard'
                     }
                 )
             }
@@ -1632,15 +1632,15 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
-                adObject          = @{ 
+                adObject          = @{
                     ObjectClass = 'group'
-                    Name        = 'Captain Managers' 
+                    Name        = 'Captain Managers'
                 }
                 adGroupMember     = @(
-                    @{ 
+                    @{
                         ObjectClass    = 'user'
                         Name           = 'Admiral Pike'
-                        SamAccountName = 'pike' 
+                        SamAccountName = 'pike'
                     }
                 )
             }
@@ -1661,7 +1661,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 GroupName    = 'A'
                 SiteCode     = 'B'
                 Path         = 'E:\Department'
-                Action       = 'Check' 
+                Action       = 'Check'
             }
         ) | Export-Excel @SettingsParams
 
@@ -1693,28 +1693,28 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Where-Object Extension -Match '.xlsx$|.csv$'
 
         $testLogFolder = @{
-            ExcelFile            = $testLogFolderExport | 
+            ExcelFile            = $testLogFolderExport |
             Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile      = $testLogFolderExport | 
+            FormDataCsvFile      = $testLogFolderExport |
             Where-Object Name -Like '*Form data.csv'
-            AdObjectsCsvFile     = $testLogFolderExport | 
+            AdObjectsCsvFile     = $testLogFolderExport |
             Where-Object Name -Like '*AD object names.csv'
-            GroupManagersCsvFile = $testLogFolderExport | 
+            GroupManagersCsvFile = $testLogFolderExport |
             Where-Object Name -Like '*GroupManagers.csv'
-            AccessListCsvFile    = $testLogFolderExport | 
+            AccessListCsvFile    = $testLogFolderExport |
             Where-Object Name -Like '*AccessList.csv'
         }
 
         $testCherwellFolder = @{
-            ExcelFile            = $testCherwellExport | 
+            ExcelFile            = $testCherwellExport |
             Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile      = $testCherwellExport | 
+            FormDataCsvFile      = $testCherwellExport |
             Where-Object Name -EQ 'Form data.csv'
-            AdObjectsCsvFile     = $testCherwellExport | 
+            AdObjectsCsvFile     = $testCherwellExport |
             Where-Object Name -EQ 'AD object names.csv'
-            GroupManagersCsvFile = $testCherwellExport | 
+            GroupManagersCsvFile = $testCherwellExport |
             Where-Object Name -Like '*GroupManagers.csv'
-            AccessListCsvFile    = $testCherwellExport | 
+            AccessListCsvFile    = $testCherwellExport |
             Where-Object Name -Like '*AccessList.csv'
         }
     }
@@ -1732,11 +1732,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
     }
     Context 'the FormData is exported' {
         It 'to a CSV file in the Cherwell folder' {
-            $testCherwellFolder.FormDataCsvFile.FullName | 
+            $testCherwellFolder.FormDataCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to a CSV file in the log folder' {
-            $testLogFolder.FormDataCsvFile.FullName | 
+            $testLogFolder.FormDataCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Cherwell folder' {
@@ -1775,24 +1775,24 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             }
             It 'MatrixFilePath' {
                 # scoping issue in Pester
-                $actual.cherwellFolder.FormData.MatrixFilePath | 
+                $actual.cherwellFolder.FormData.MatrixFilePath |
                 Should -Be $SettingsParams.Path
-                $actual.cherwellFolder.Excel.MatrixFilePath | 
+                $actual.cherwellFolder.Excel.MatrixFilePath |
                 Should -Be $SettingsParams.Path
-                $actual.logFolder.FormData.MatrixFilePath | 
+                $actual.logFolder.FormData.MatrixFilePath |
                 Should -Be $SettingsParams.Path
-                $actual.logFolder.Excel.MatrixFilePath | 
+                $actual.logFolder.Excel.MatrixFilePath |
                 Should -Be $SettingsParams.Path
             }
         }
     }
     Context 'the AD object names are exported' {
         It 'to a CSV file in the Cherwell folder' {
-            $testCherwellFolder.AdObjectsCsvFile.FullName | 
+            $testCherwellFolder.AdObjectsCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to a CSV file in the log folder' {
-            $testLogFolder.AdObjectsCsvFile.FullName | 
+            $testLogFolder.AdObjectsCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Cherwell folder' {
@@ -1826,15 +1826,15 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.AdObjectNames.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
-        } 
+        }
     }
     Context 'the GroupManagers are exported' {
         It 'to a CSV file in the Cherwell folder' {
-            $testCherwellFolder.GroupManagersCsvFile.FullName | 
+            $testCherwellFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to a CSV file in the log folder' {
-            $testLogFolder.GroupManagersCsvFile.FullName | 
+            $testLogFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Cherwell folder' {
@@ -1868,15 +1868,15 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.GroupManagers.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
-        } 
+        }
     }
     Context 'the AccessList are exported' {
         It 'to a CSV file in the Cherwell folder' {
-            $testCherwellFolder.AccessListCsvFile.FullName | 
+            $testCherwellFolder.AccessListCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to a CSV file in the log folder' {
-            $testLogFolder.AccessListCsvFile.FullName | 
+            $testLogFolder.AccessListCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Cherwell folder' {
@@ -1911,7 +1911,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 $actual.logFolder.AccessList.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
-        } 
+        }
     }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {

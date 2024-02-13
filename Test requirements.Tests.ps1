@@ -19,7 +19,7 @@ BeforeAll {
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
     Function Test-IsRequiredPowerShellVersionHC {}
-    
+
     Mock Get-ItemPropertyValue -MockWith { 461808 }
     Mock Test-IsAdminHC { $true }
     Mock Test-IsRequiredPowerShellVersionHC { $true }
@@ -32,116 +32,100 @@ AfterAll {
 
 Describe 'the mandatory parameters are' {
     It "<_>" -TestCases @('Path', 'Flag') {
-        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | 
+        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
         Should -BeTrue
-    } 
+    }
 }
-Context 'when the script' {
-    Context 'is not started with administrator privileges' {
-        AfterAll {
-            Mock Test-IsAdminHC { $true }
+Describe 'return a FatalError object when' {
+    It 'the script is not started with administrator privileges' {
+        Mock Test-IsAdminHC { $false }
+
+        $Expected = [PSCustomObject]@{
+            Type        = 'FatalError'
+            Name        = 'Administrator privileges'
+            Description = "Administrator privileges are required to be able to apply permissions."
+            Value       = "SamAccountName '$env:USERNAME'"
         }
-        It 'return a FatalError object' {
-            Mock Test-IsAdminHC { $false }
 
-            $Expected = [PSCustomObject]@{
-                Type        = 'FatalError'
-                Name        = 'Administrator privileges'
-                Description = "Administrator privileges are required to be able to apply permissions."
-                Value       = "SamAccountName '$env:USERNAME'"
-            }
+        $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true
 
-            $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true
-
-            $actual | ConvertTo-Json | 
-            Should -BeExactly ($expected | ConvertTo-Json)
-        }
+        $actual | ConvertTo-Json |
+        Should -BeExactly ($expected | ConvertTo-Json)
     }
-    Context 'cannot find PowerShell 5.1 or later' {
-        AfterAll {
-            # Function Test-IsRequiredPowerShellVersionHC {}
-            Mock Test-IsRequiredPowerShellVersionHC { $true }
+    It 'PowerShell 5.1 or later is not installed' {
+        Mock Test-IsRequiredPowerShellVersionHC { $false }
+        $Expected = [PSCustomObject]@{
+            Type        = 'FatalError'
+            Name        = 'PowerShell version'
+            Description = "PowerShell version 5.1 or higher is required to be able to use advanced methods."
+            Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
         }
-        It 'return a FatalError object' {
-            Mock Test-IsRequiredPowerShellVersionHC { $false }
-            $Expected = [PSCustomObject]@{
-                Type        = 'FatalError'
-                Name        = 'PowerShell version'
-                Description = "PowerShell version 5.1 or higher is required to be able to use advanced methods."
-                Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
-            }
-            
-            $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true | Where-Object { $_.Name -eq $Expected.Name }
-            
-            $actual | ConvertTo-Json | 
-            Should -BeExactly ($expected | ConvertTo-Json)
-        }
+
+        $Actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true | Where-Object { $_.Name -eq $Expected.Name }
+
+        $actual | ConvertTo-Json |
+        Should -BeExactly ($expected | ConvertTo-Json)
     }
-    Context 'cannot find .NET 4.6.2 or later' {
-        AfterAll {
-            Mock -CommandName Get-ItemPropertyValue -MockWith { 461808 }
+    It '.NET 4.6.2 or later is not installed' {
+        Mock -CommandName Get-ItemPropertyValue -MockWith {
+            379893
+        } -ParameterFilter { $Name -eq 'Release' }
+
+        $Expected = [PSCustomObject]@{
+            Type        = 'FatalError'
+            Name        = '.NET Framework version'
+            Description = "Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods."
+            Value       = $null
         }
-        It 'return a FatalError object' {
-            Mock -CommandName Get-ItemPropertyValue -MockWith {
-                379893
-            } -ParameterFilter { $Name -eq 'Release' }
 
-            $Expected = [PSCustomObject]@{
-                Type        = 'FatalError'
-                Name        = '.NET Framework version'
-                Description = "Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods."
-                Value       = $null
-            }
+        $Actual = .$testScript -Path 'NotExisting' -Flag $true |
+        Where-Object { $_.Name -eq $Expected.Name }
 
-            $Actual = .$testScript -Path 'NotExisting' -Flag $true | 
-            Where-Object { $_.Name -eq $Expected.Name }
-
-            $actual | ConvertTo-Json | 
-            Should -BeExactly ($expected | ConvertTo-Json)
-        }
-    } 
-} 
+        $actual | ConvertTo-Json |
+        Should -BeExactly ($expected | ConvertTo-Json)
+    }
+}
 Context 'set the Access Based Enumeration flag' {
     It "to enabled when the 'Flag' parameter is set to TRUE" {
         Set-SmbShare -Name $testSmbShareName -FolderEnumerationMode Unrestricted -Force
 
         .$testScript -Path $testDirItem -Flag $true
 
-        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode |
         Should -BeExactly 'AccessBased'
         Test-AccessBasedEnumerationHC -Name $testSmbShareName | Should -BeTrue
-    } 
+    } -Tag test
     It "to disabled when the 'Flag' parameter is set to FALSE" {
         Set-SmbShare -Name $testSmbShareName -FolderEnumerationMode AccessBased -Force
 
         .$testScript -Path $testDirItem -Flag $false
 
-        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode |
         Should -BeExactly 'Unrestricted'
         Test-AccessBasedEnumerationHC -Name $testSmbShareName | Should -BeFalse
-    } 
+    }
     It 'only on the requested folder, not on other folders' {
         Set-SmbShare -Name $testSmbShareName -FolderEnumerationMode Unrestricted -Force
         Set-SmbShare -Name $testSmbShareName2 -FolderEnumerationMode Unrestricted -Force
 
         .$testScript -Path $testDirItem -Flag $true
 
-        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode |
         Should -BeExactly 'AccessBased' -Because 'we enabled ABE on this folder'
-        (Get-SmbShare -Name $testSmbShareName2).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName2).FolderEnumerationMode |
         Should -BeExactly 'Unrestricted' -Because "we didn't enable ABE on this folder"
-    } 
+    }
     It 'on multiple folders and ignore duplicates' {
         Set-SmbShare -Name $testSmbShareName -FolderEnumerationMode Unrestricted -Force
         Set-SmbShare -Name $testSmbShareName2 -FolderEnumerationMode Unrestricted -Force
 
         .$testScript -Path $testDirItem, $testDirItem2, $testDirItem -Flag $true
 
-        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName).FolderEnumerationMode |
         Should -BeExactly 'AccessBased'
-        (Get-SmbShare -Name $testSmbShareName2).FolderEnumerationMode | 
+        (Get-SmbShare -Name $testSmbShareName2).FolderEnumerationMode |
         Should -BeExactly 'AccessBased'
-    } 
+    }
     It 'on multiple folders and return the results' {
         Set-SmbShare -Name $testSmbShareName -FolderEnumerationMode Unrestricted -Force
         Set-SmbShare -Name $testSmbShareName2 -FolderEnumerationMode Unrestricted -Force
@@ -155,15 +139,15 @@ Context 'set the Access Based Enumeration flag' {
                 $testSmbShareName2 = $testDirItem2.FullName
             }
         }
-                
+
         $Actual = .$testScript -Path $testDirItem, $testDirItem2, $testDirItem -Flag $true
 
         (
-            $Actual | Where-Object Name -EQ 'Access Based Enumeration' | 
+            $Actual | Where-Object Name -EQ 'Access Based Enumeration' |
             ConvertTo-Json
-        ) | 
+        ) |
         Should -BeExactly ($expected | ConvertTo-Json)
-    } 
+    }
 }
 Context "Set share permissions to 'FullControl for Administrators' and 'Read & Executed for Authenticated users'" {
     It 'when they are incorrect' {
@@ -198,13 +182,13 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
                 }
             }
         }
-                
+
         (
             $Result | Where-Object Name -EQ $Expected.Name | ConvertTo-Json
-        ) | 
+        ) |
         Should -BeExactly ($expected | ConvertTo-Json)
         #endregion
-    } 
+    }
     It "but don't change anything when they are already correct" {
         Remove-SmbShare -Name $testSmbShareName -Force -EA Ignore
         New-SmbShare -Name $testSmbShareName -Path $testDirItem
@@ -215,7 +199,7 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
         $Result = .$testScript -Path $testDirItem -Flag $true
 
         $Actual = Get-SmbShareAccess -Name $testSmbShareName | Where-Object Name -EQ 'Share permissions' | Should -BeNullOrEmpty
-    } 
+    }
     It "except when there's no shared folder, do nothing" {
         Remove-SmbShare -Name $testSmbShareName -Force -EA Ignore
 
@@ -223,7 +207,7 @@ Context "Set share permissions to 'FullControl for Administrators' and 'Read & E
 
         ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
         #endregion
-    } 
+    }
 }
-        
+
 
