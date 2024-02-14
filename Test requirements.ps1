@@ -174,8 +174,10 @@ Process {
             Write-Verbose "Smb share '$($share.Name)' path '$($share.Path)'"
 
             #region Set Access based enumeration
-            if (($share.FolderEnumerationMode -eq 'AccessBased') -ne $Flag) {
-                Try {
+            Try {
+                if (
+                    ($share.FolderEnumerationMode -eq 'AccessBased') -ne $Flag
+                ) {
                     $params = @{
                         Name                  = $share.Name
                         FolderEnumerationMode = if ($Flag) {
@@ -193,9 +195,9 @@ Process {
 
                     $abeCorrected.Add($share.Name, $share.Path)
                 }
-                Catch {
-                    throw "Failed setting FolderEnumerationMode to '$($params.FolderEnumerationMode)' for path '$p' on '$env:COMPUTERNAME': $_"
-                }
+            }
+            Catch {
+                throw "Failed setting FolderEnumerationMode to '$($params.FolderEnumerationMode)' for path '$p' on '$env:COMPUTERNAME': $_"
             }
             #endregion
 
