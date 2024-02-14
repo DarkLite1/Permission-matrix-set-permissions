@@ -248,7 +248,7 @@ Process {
                     #endregion
                 }
                 Catch {
-                    throw "Failed setting share permissions on path '$Path' on '$env:COMPUTERNAME': $_"
+                    throw "Failed setting share permissions on path '$p' on '$env:COMPUTERNAME': $_"
                 }
             }
             #endregion
