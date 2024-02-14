@@ -19,6 +19,18 @@
         - True  : ABE will be enabled
         - False : ABE will be disabled
 
+    .PARAMETER RequiredSharePermissions
+        The smb share permissions that are required on the share. If the
+        current smb share permissions are not matching, they will be replaced
+        with the correct ones.
+
+        If a folder in Path is not configured as an smb share, it will be
+        ignored.
+
+    .PARAMETER MinimumPowerShellVersion
+        The minimal required PowerShell version to run the Permission Matrix
+        script.
+
     .NOTES
         Computers with an OS older than Windows Server 2012 are not supported
         as the module 'SmbShare' would not be available.
@@ -31,7 +43,7 @@ Param (
     [String[]]$Path,
     [Parameter(Mandatory)]
     [Boolean]$Flag,
-    [hashtable[]]$requiredSharePermissions = @(
+    [HashTable[]]$RequiredSharePermissions = @(
         @{
             AccountName = 'BUILTIN\Administrators'
             AccessRight = 'Full'
@@ -40,22 +52,14 @@ Param (
             AccountName = 'NT AUTHORITY\Authenticated Users'
             AccessRight = 'Change'
         }
-    )
+    ),
+    [HashTable]$MinimumPowerShellVersion = @{
+        Major = 5
+        Minor = 1
+    }
 )
 
 Begin {
-    Function Test-IsRequiredDotNetVersionHC {
-        $dotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -ErrorAction 'Ignore' |
-        Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
-
-        if ($dotNet) {
-            $true
-        }
-        else {
-            $false
-        }
-    }
-
     Function Test-IsAdminHC {
         <#
             .SYNOPSIS
@@ -96,12 +100,24 @@ Begin {
         }
     }
 
+    Function Test-IsRequiredDotNetVersionHC {
+        $dotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -ErrorAction 'Ignore' |
+        Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
+
+        if ($dotNet) {
+            $true
+        }
+        else {
+            $false
+        }
+    }
+
     Function Test-IsRequiredPowerShellVersionHC {
         [CmdLetBinding()]
         [OutputType([Boolean])]
         Param (
-            [Int]$Major = 5,
-            [Int]$Minor = 1
+            [Int]$Major = $MinimumPowerShellVersion.Major,
+            [Int]$Minor = $MinimumPowerShellVersion.Minor
         )
 
         (
@@ -112,7 +128,7 @@ Begin {
 }
 
 Process {
-    #region Require administrator privileges
+    #region Test administrator privileges
     if (-not (Test-IsAdminHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
@@ -123,18 +139,18 @@ Process {
     }
     #endregion
 
-    #region Require at least PowerShell 5.1
+    #region Test minimal PowerShell version
     if (-not (Test-IsRequiredPowerShellVersionHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'PowerShell version'
-            Description = "PowerShell version 5.1 or higher is required to be able to use advanced methods."
+            Description = "PowerShell version $($MinimumPowerShellVersion.Major).$($MinimumPowerShellVersion.Minor) or higher is required."
             Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
         }
     }
     #endregion
 
-    #region Require at least .NET 4.6.2
+    #region Test minimal .NET 4.6.2
     if (-not (Test-IsRequiredDotNetVersionHC)) {
         Return [PSCustomObject]@{
             Type        = 'FatalError'
@@ -192,7 +208,7 @@ Process {
 
             $correctPermissions = 0
 
-            foreach ($permission in $requiredSharePermissions) {
+            foreach ($permission in $RequiredSharePermissions) {
                 $smbShareAccess | Where-Object {
                     ($_.AccountName -eq $permission.AccountName) -and
                     ($_.AccessRight -eq $permission.AccessRight)
@@ -202,8 +218,8 @@ Process {
             }
 
             if (
-                ($requiredSharePermissions.Count -ne $smbShareAccess.Count) -or
-                ($requiredSharePermissions.Count -ne $correctPermissions)
+                ($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or
+                ($RequiredSharePermissions.Count -ne $correctPermissions)
             ) {
                 try {
                     #region Remove incorrect smb share permissions
@@ -225,7 +241,7 @@ Process {
                     #endregion
 
                     #region Add correct smb share permissions
-                    $requiredSharePermissions.ForEach(
+                    $RequiredSharePermissions.ForEach(
                         {
                             Write-Verbose "Add correct smb share permission '$($_.AccountName):$($_.AccessRight)'"
 

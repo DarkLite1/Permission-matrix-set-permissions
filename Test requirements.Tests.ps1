@@ -19,11 +19,8 @@ BeforeAll {
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
-    Function Test-IsRequiredPowerShellVersionHC {}
-
     Mock Get-ItemPropertyValue -MockWith { 461808 }
     Mock Test-IsAdminHC { $true }
-    Mock Test-IsRequiredPowerShellVersionHC { $true }
     Mock Write-Warning
 }
 AfterAll {
@@ -54,18 +51,20 @@ Describe 'return a FatalError object when' {
         $actual | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-    It 'PowerShell 5.1 or later is not installed' {
-        Mock Test-IsRequiredPowerShellVersionHC { $false }
+    It 'the minimal version fo PowerShell is not installed' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'PowerShell version'
-            Description = "PowerShell version 5.1 or higher is required to be able to use advanced methods."
+            Description = "PowerShell version 999.33 or higher is required."
             Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
         }
 
-        $actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true | Where-Object { $_.Name -eq $expected.Name }
+        $actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true -MinimumPowerShellVersion @{
+            Major = 999
+            Minor = 33
+        }
 
-        $actual | ConvertTo-Json |
+        $actual | Where-Object { $_.Name -eq $expected.Name } | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
     It '.NET 4.6.2 or later is not installed' {
