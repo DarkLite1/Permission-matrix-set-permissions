@@ -210,6 +210,7 @@ Process {
                 ($requiredSharePermissions.Count -ne $correctPermissions)
             ) {
                 try {
+                    #region Remove incorrect smb share permissions
                     $incorrectPermissions = @{}
 
                     $smbShareAccess.ForEach(
@@ -225,7 +226,9 @@ Process {
                     $permissionsCorrected.Add(
                         $share.Name, $incorrectPermissions
                     )
+                    #endregion
 
+                    #region Add correct smb share permissions
                     $requiredSharePermissions.ForEach(
                         {
                             Write-Verbose "Add correct smb share permission '$($_.AccountName):$($_.AccessRight)'"
@@ -234,6 +237,7 @@ Process {
                             Grant-SmbShareAccess -Name $share.Name @params -Force
                         }
                     )
+                    #endregion
                 }
                 Catch {
                     throw "Failed setting share permissions on path '$Path' on '$env:COMPUTERNAME': $_"
