@@ -206,7 +206,7 @@ Describe 'create a Matrix object' {
     }
     It 'one Matrix object for each folder' {
         $Matrix | Should -HaveCount 2
-    }
+    } -Tag test
     Context 'the property FolderAcl' {
         It 'is added for each folder' {
             $Matrix.FolderAcl | Should -HaveCount 2
@@ -239,8 +239,8 @@ Describe 'create a Matrix object' {
     }
     Context 'the property Path' {
         It 'is converted to the folder FullName' {
-            $Matrix[0].Path | Should -Be "\\?\$($testParent.FullName)"
-            $Matrix[1].Path | Should -Be "\\?\$($testFolder.FullName)"
+            $Matrix[0].Path | Should -Be $testParent.FullName
+            $Matrix[1].Path | Should -Be $testFolder.FullName
         }
     }
     Context 'the property Parent' {
@@ -285,20 +285,20 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\FolderC'
+                '{0}',
+                '{0}\FolderB',
+                '{0}\FolderC'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB\file',
-                '\\?\{0}\FolderC\file',
-                '\\?\{0}\FolderC\Level1',
-                '\\?\{0}\FolderC\Level1\file',
-                '\\?\{0}\FolderC\Level1\Level2',
-                '\\?\{0}\FolderC\Level1\Level2\file'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB\file',
+                '{0}\FolderC\file',
+                '{0}\FolderC\Level1',
+                '{0}\FolderC\Level1\file',
+                '{0}\FolderC\Level1\Level2',
+                '{0}\FolderC\Level1\Level2\file'
             )
         }
     }
@@ -321,14 +321,14 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB'
+                '{0}',
+                '{0}\FolderB'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB\file'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB\file'
             )
         }
     }
@@ -352,16 +352,16 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB\SubFolder\Reports'
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\FolderB\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\File'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File'
             )
         }
     }
@@ -390,22 +390,22 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB\SubFolder\Reports',
-                '\\?\{0}\FolderC'
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports',
+                '{0}\FolderC'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\FolderB\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File',
-                '\\?\{0}\FolderC\File'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File',
+                '{0}\FolderB\SubFolder\Reports\Year',
+                '{0}\FolderB\SubFolder\Reports\Year\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '{0}\FolderC\File'
             )
         }
     }
@@ -454,24 +454,24 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB\SubFolder\Reports',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
-                '\\?\{0}\FolderC'
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
+                '{0}\FolderC'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\FolderB\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\File',
-                '\\?\{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File',
-                '\\?\{0}\FolderC\File'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File',
+                '{0}\FolderB\SubFolder\Reports\Year',
+                '{0}\FolderB\SubFolder\Reports\Year\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File',
+                '{0}\FolderC\File'
             )
         }
     }
@@ -494,14 +494,14 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}'
+                '{0}'
             )
             inheritanceTested    = @(
-                '\\?\{0}\FolderA',
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\FolderB\File'
+                '{0}\FolderA',
+                '{0}\file',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File'
             )
         }
     }
@@ -529,10 +529,10 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}\FolderA'
+                '{0}\FolderA'
             )
             inheritanceTested    = @(
-                '\\?\{0}\FolderA\file'
+                '{0}\FolderA\file'
             )
         }
     }
@@ -600,46 +600,46 @@ $testCases = @(
         )
         expected   = @{
             nonInheritanceTested = @(
-                '\\?\{0}',
-                '\\?\{0}\FolderB',
-                '\\?\{0}\HR',
-                '\\?\{0}\HR\Report',
-                '\\?\{0}\HR\Report\Team',
-                '\\?\{0}\HR\Report\Projects',
-                '\\?\{0}\HR\Benefits',
-                '\\?\{0}\HR\Benefits\Projects',
-                '\\?\{0}\HR\Benefits\Expenses'
+                '{0}',
+                '{0}\FolderB',
+                '{0}\HR',
+                '{0}\HR\Report',
+                '{0}\HR\Report\Team',
+                '{0}\HR\Report\Projects',
+                '{0}\HR\Benefits',
+                '{0}\HR\Benefits\Projects',
+                '{0}\HR\Benefits\Expenses'
             )
             inheritanceTested    = @(
-                '\\?\{0}\file',
-                '\\?\{0}\FolderA',
-                '\\?\{0}\FolderA\file',
-                '\\?\{0}\FolderB\file',
-                '\\?\{0}\HR\file',
-                '\\?\{0}\HR\Report\file',
-                '\\?\{0}\HR\Report\Team\file',
-                '\\?\{0}\HR\Report\Team\a',
-                '\\?\{0}\HR\Report\Team\a\file',
-                '\\?\{0}\HR\Report\Team\b',
-                '\\?\{0}\HR\Report\Team\b\file',
-                '\\?\{0}\HR\Report\Team\c',
-                '\\?\{0}\HR\Report\Team\c\file',
-                '\\?\{0}\HR\Report\Projects\file',
-                '\\?\{0}\HR\Report\Projects\a',
-                '\\?\{0}\HR\Report\Projects\a\file',
-                '\\?\{0}\HR\Report\Projects\b',
-                '\\?\{0}\HR\Report\Projects\b\file',
-                '\\?\{0}\HR\Report\Projects\c',
-                '\\?\{0}\HR\Report\Projects\c\file',
-                '\\?\{0}\HR\Benefits\file',
-                '\\?\{0}\HR\Benefits\Projects\file',
-                '\\?\{0}\HR\Benefits\Expenses\file',
-                '\\?\{0}\HR\Charlie',
-                '\\?\{0}\HR\Charlie\file',
-                '\\?\{0}\HR\Charlie\a',
-                '\\?\{0}\HR\Charlie\a\file',
-                '\\?\{0}\HR\Charlie\b',
-                '\\?\{0}\HR\Charlie\b\file'
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB\file',
+                '{0}\HR\file',
+                '{0}\HR\Report\file',
+                '{0}\HR\Report\Team\file',
+                '{0}\HR\Report\Team\a',
+                '{0}\HR\Report\Team\a\file',
+                '{0}\HR\Report\Team\b',
+                '{0}\HR\Report\Team\b\file',
+                '{0}\HR\Report\Team\c',
+                '{0}\HR\Report\Team\c\file',
+                '{0}\HR\Report\Projects\file',
+                '{0}\HR\Report\Projects\a',
+                '{0}\HR\Report\Projects\a\file',
+                '{0}\HR\Report\Projects\b',
+                '{0}\HR\Report\Projects\b\file',
+                '{0}\HR\Report\Projects\c',
+                '{0}\HR\Report\Projects\c\file',
+                '{0}\HR\Benefits\file',
+                '{0}\HR\Benefits\Projects\file',
+                '{0}\HR\Benefits\Expenses\file',
+                '{0}\HR\Charlie',
+                '{0}\HR\Charlie\file',
+                '{0}\HR\Charlie\a',
+                '{0}\HR\Charlie\a\file',
+                '{0}\HR\Charlie\b',
+                '{0}\HR\Charlie\b\file'
             )
         }
     }
@@ -1059,7 +1059,7 @@ Describe 'Permissions' {
 
             $Actual | Should -BeNullOrEmpty
         }
-    } -Tag test
+    }
     Context 'are corrected when they are incorrect when' {
         Context 'a folder that should have explicit permissions has' {
             It 'incorrect explicit permissions' {
@@ -1316,7 +1316,7 @@ Describe 'Permissions' {
 
                 $Actual.Value | Should -Be $testParams.Path
             }
-        } -Tag test
+        }
         Context 'a file has' {
             It 'explicit permissions' {
                 $testParams = @{

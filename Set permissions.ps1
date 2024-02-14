@@ -424,7 +424,9 @@ Begin {
 
             foreach ($child in $childItems) {
                 Try {
-                    $acl = $child.GetAccessControl()
+                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
+                        [System.IO.DirectoryInfo]::new($child)
+                    )
                 }
                 Catch {
                     if (-not (Test-Path -LiteralPath $child.FullName)) {
@@ -471,10 +473,10 @@ Begin {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
             #region Log
             if ($DetailedLog) {
-                $incorrectInheritedAcl.($child.FullName.TrimStart('\\?\')) = $acl.AccessToString
+                $incorrectInheritedAcl.($child.FullName) = $acl.AccessToString
             }
             else {
-                $incorrectInheritedAcl.Add($child.FullName.TrimStart('\\?\'))
+                $incorrectInheritedAcl.Add($child.FullName)
             }
             #endregion
 
@@ -712,7 +714,7 @@ Process {
             $tmpPath = if ($M.Parent) { $Path }
             else { Join-Path -Path $Path -ChildPath $M.Path }
 
-            $M.Path = "\\?\$tmpPath"
+            $M.Path = $tmpPath
         }
         #endregion
 
@@ -732,22 +734,25 @@ Process {
                 Type        = 'Information'
                 Name        = 'Ignored folder'
                 Description = "All rows in the worksheet 'Permissions' that have the character 'i' defined are ignored. These folders are not checked for incorrect permissions."
-                Value       = $IgnoredFolders.Path.TrimStart('\\?\')
+                Value       = $IgnoredFolders.Path
             }
         }
         #endregion
 
         #region Inaccessible files
-        $FoldersListOnlyAclRegex = $Matrix.Where( {
-                (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and ($_.ACL.Count -ne 0)
-            }).ForEach( {
-                [Regex]::Escape("\\?\$_")
+        $FoldersListOnlyAclRegex = $Matrix.Where(
+            {
+                (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and
+                ($_.ACL.Count -ne 0)
+            }
+        ).ForEach( {
+                [Regex]::Escape("$_")
             }) -join '|'
 
         $FoldersWithPermissionsRegex = $Matrix.Where( {
                 ($_.Acl.Values.Where( { $_ -ne 'L' }))
             }).ForEach( {
-                [Regex]::Escape("\\?\$_")
+                [Regex]::Escape("$_")
             }) -join '|'
         #endregion
 
@@ -879,7 +884,7 @@ Process {
                     Type        = 'Warning'
                     Name        = $null
                     Description = $null
-                    Value       = $missingFolders.ToArray().TrimStart('\\?\')
+                    Value       = $missingFolders.ToArray()
                 }
 
                 Switch ($Action) {
@@ -934,7 +939,9 @@ Process {
                 # Only for Pester testing:
                 $testedNonInheritedFolders[$folder.Path] = $folder
 
-                $acl = $folderItem.GetAccessControl()
+                $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
+                    [System.IO.DirectoryInfo]::new($folderItem)
+                )
 
                 $testEqualParams = @{
                     ReferenceAce  = ($folder.FolderAcl).Access
@@ -949,13 +956,13 @@ Process {
                     #region Log
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
-                            $incorrectAclNonInheritedFolders.($folder.Path.TrimStart('\\?\')) = @{
+                            $incorrectAclNonInheritedFolders.($folder.Path) = @{
                                 'Old' = $acl.AccessToString
                                 'New' = ($folder.FolderAcl).AccessToString
                             }
                         }
                         else {
-                            $incorrectAclNonInheritedFolders.Add($folder.Path.TrimStart('\\?\'))
+                            $incorrectAclNonInheritedFolders.Add($folder.Path)
                         }
                     }
                     #endregion
