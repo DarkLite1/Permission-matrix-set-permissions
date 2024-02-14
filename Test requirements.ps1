@@ -10,10 +10,6 @@
         PowerShell version, ...
 
         Also correct the smb share permissions when they are incorrect.
-        Required smb share permissions:
-        - Enabled Access Based Enumeration (ABE)
-        - Administrator: FullControl
-        - Everyone: Modify
 
     .PARAMETER Path
         Shared folder paths.
