@@ -30,10 +30,6 @@
     .PARAMETER MinimumPowerShellVersion
         The minimal required PowerShell version to run the Permission Matrix
         script.
-
-    .NOTES
-        Computers with an OS older than Windows Server 2012 are not supported
-        as the module 'SmbShare' would not be available.
 #>
 
 [OutputType([PSCustomObject])]
@@ -125,9 +121,7 @@ Begin {
             ($PSVersionTable.PSVersion.Minor -ge $Minor)
         )
     }
-}
 
-Process {
     #region Test administrator privileges
     if (-not (Test-IsAdminHC)) {
         Return [PSCustomObject]@{
@@ -160,7 +154,9 @@ Process {
         }
     }
     #endregion
+}
 
+Process {
     $smbShares = Get-SmbShare
 
     $Path = $Path | Sort-Object -Unique
