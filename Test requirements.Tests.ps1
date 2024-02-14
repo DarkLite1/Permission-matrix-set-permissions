@@ -200,14 +200,14 @@ Describe 'when the smb share permissions are' {
         }
     }
     Context 'not set, because there is no smb share for the folder' {
-        It "except when there's no shared folder, do nothing" {
-            Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
+        It 'do nothing' {
+            $testFolder = New-Item -Path 'TestDrive:\s3' -ItemType Directory
 
-            $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
+            $actual = .$testScript -Path $testFolder.FullName -Flag $true
 
-            ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
+            $actual | Should -BeNullOrEmpty
         }
-    } -Skip
+    }
 }
 Describe 'set Access Based Enumeration' {
     Context 'when Flag is TRUE' {
