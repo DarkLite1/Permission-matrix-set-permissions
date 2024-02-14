@@ -1,5 +1,5 @@
 ﻿#Requires -RunAsAdministrator
-#Requires -Version 5.1
+#Requires -Version 7
 
 <#
     .SYNOPSIS
@@ -50,7 +50,7 @@ Param (
         }
     ),
     [HashTable]$MinimumPowerShellVersion = @{
-        Major = 5
+        Major = 7
         Minor = 1
     }
 )
