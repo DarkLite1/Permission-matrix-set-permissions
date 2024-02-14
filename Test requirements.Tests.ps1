@@ -14,11 +14,7 @@ BeforeAll {
     )
 
     $testSmbShare.ForEach(
-        {
-            Remove-SmbShare -Name $_.Name -Force -EA Ignore
-            New-SmbShare -Name $_.Name -Path $_.Path
-            Grant-SmbShareAccess -Name $_.Name -AccountName 'Everyone' -AccessRight 'Full' -Force
-        }
+        { New-SmbShare -Name $_.Name -Path $_.Path }
     )
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
@@ -156,92 +152,126 @@ Context 'set the Access Based Enumeration flag' {
         Should -BeExactly ($expected | ConvertTo-Json)
     }
 } -Skip
-Describe "when share permissions are incorrect" {
-    BeforeAll {
-        @(
-            @{
-                AccountName = 'Administrators'
-                AccessRight = 'Full'
-            }
-            @{
-                AccountName = 'Everyone'
-                AccessRight = 'Read'
-            }
-            @{
-                AccountName = 'Authenticated users'
-                AccessRight = 'Read'
-            }
-        ).ForEach(
-            {
-                $testGrantParams = $_
-                Grant-SmbShareAccess -Name $testSmbShare[0].Name @testGrantParams -Force
-            }
-        )
-
-        $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
-
-        $actual = Get-SmbShareAccess -Name $testSmbShare[0].Name
-    }
-    Context 'set the smb share permissions to' {
-        It 'BUILTIN\Administrators: FullControl' {
-            $a = $actual.Where(
-                { $_.AccountName -eq 'BUILTIN\Administrators' }
+Describe 'when the smb share permissions are' {
+    Context 'incorrect' {
+        BeforeAll {
+            @(
+                @{
+                    AccountName = 'Administrators'
+                    AccessRight = 'Full'
+                }
+                @{
+                    AccountName = 'Everyone'
+                    AccessRight = 'Read'
+                }
+                @{
+                    AccountName = 'Authenticated users'
+                    AccessRight = 'Read'
+                }
+            ).ForEach(
+                {
+                    $testGrantParams = $_
+                    Grant-SmbShareAccess -Name $testSmbShare[0].Name @testGrantParams -Force
+                }
             )
 
-            $a.AccessRight | Should -BeExactly 'Full'
-            $a.AccessControlType | Should -BeExactly 'Allow'
-        }
-        It 'NT AUTHORITY\Authenticated Users: Change' {
-            $a = $actual.Where(
-                { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
-            )
+            $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
 
-            $a.AccessRight | Should -BeExactly 'Change'
-            $a.AccessControlType | Should -BeExactly 'Allow'
+            $actual = Get-SmbShareAccess -Name $testSmbShare[0].Name
         }
-        It 'with no other permissions' {
-            $actual | Should -HaveCount 2
+        Context 'set the smb share permissions to' {
+            It 'BUILTIN\Administrators: FullControl' {
+                $a = $actual.Where(
+                    { $_.AccountName -eq 'BUILTIN\Administrators' }
+                )
+
+                $a.AccessRight | Should -BeExactly 'Full'
+                $a.AccessControlType | Should -BeExactly 'Allow'
+            }
+            It 'NT AUTHORITY\Authenticated Users: Change' {
+                $a = $actual.Where(
+                    { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
+                )
+
+                $a.AccessRight | Should -BeExactly 'Change'
+                $a.AccessControlType | Should -BeExactly 'Allow'
+            }
+            It 'with no other permissions' {
+                $actual | Should -HaveCount 2
+            }
         }
-    }
-    Context 'return an object of type' {
-        It 'Warning' {
-            $expected = [PSCustomObject]@{
-                Type        = 'Warning'
-                Name        = 'Share permissions'
-                Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
-                Value       = @{$testSmbShare[0].Name = @{
-                        'BUILTIN\Administrators'           = 'Full'
-                        'Everyone'                         = 'Read'
-                        'NT AUTHORITY\Authenticated Users' = 'Read'
+        Context 'return an object of type' {
+            It 'Warning' {
+                $expected = [PSCustomObject]@{
+                    Type        = 'Warning'
+                    Name        = 'Share permissions'
+                    Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
+                    Value       = @{$testSmbShare[0].Name = @{
+                            'BUILTIN\Administrators'           = 'Full'
+                            'Everyone'                         = 'Read'
+                            'NT AUTHORITY\Authenticated Users' = 'Read'
+                        }
                     }
                 }
+
+                (
+                    $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
+                ) |
+                Should -BeExactly ($expected | ConvertTo-Json)
             }
-
-            (
-                $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
-            ) |
-            Should -BeExactly ($expected | ConvertTo-Json)
         }
-    }
-} -Tag test
-Describe 'when the share permissions are already correct' {
-    It "don't change anything" {
-        Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
-        New-SmbShare -Name $testSmbShare[0].Name -Path $testSmbShare[0].Path
-        Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName Administrators -AccessRight Full -Force
-        Grant-SmbShareAccess -Name $testSmbShare[0].Name -AccountName 'Authenticated Users' -AccessRight Change -Force
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode AccessBased -Force
+    } -Tag test
+    Context 'correct' {
+        BeforeAll {
+            $testSmbShareAccess = Get-SmbShareAccess -Name $testSmbShare[1].Name
+            $testSmbShareAccess.ForEach(
+                {
+                    $testRevokeParams = @{
+                        Name        = $testSmbShare[1].Name
+                        AccountName = $_.AccountName
+                        Force       = $true
+                    }
+                    Revoke-SmbShareAccess @testRevokeParams
+                }
+            )
 
-        $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
+            @(
+                @{
+                    AccountName = 'Administrators'
+                    AccessRight = 'Full'
+                }
+                @{
+                    AccountName = 'Authenticated users'
+                    AccessRight = 'Change'
+                }
+            ).ForEach(
+                {
+                    $testGrantParams = $_
+                    Grant-SmbShareAccess -Name $testSmbShare[1].Name @testGrantParams -Force
+                }
+            )
 
-        $actual = Get-SmbShareAccess -Name $testSmbShare[0].Name | Where-Object Name -EQ 'Share permissions' | Should -BeNullOrEmpty
-    }
-    It "except when there's no shared folder, do nothing" {
-        Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
+            Mock Revoke-SmbShareAccess
+            Mock Grant-SmbShareAccess
 
-        $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
+            $actual = .$testScript -Path $testSmbShare[1].Path -Flag $false
+        }
+        It 'do nothing' {
+            Should -Not -Invoke Revoke-SmbShareAccess -Scope Context
+            Should -Not -Invoke Grant-SmbShareAccess -Scope Context
+        }
+        It 'return no object' {
+            $actual | Should -BeNullOrEmpty
+        }
+    }  -Tag test
+    Context 'not set, because there is no smb share for the folder' {
+        It "except when there's no shared folder, do nothing" {
+            Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
 
-        ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
+            $Result = .$testScript -Path $testSmbShare[0].Path -Flag $true
+
+            ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
+        }
     }
 }
 

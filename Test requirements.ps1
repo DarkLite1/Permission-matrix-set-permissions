@@ -116,11 +116,6 @@ Begin {
 }
 
 Process {
-    <#
-        the require parameter at the top is not supported with `Invoke-Command -FilePath`
-        https://stackoverflow.com/questions/51185882/invoke-command-ignores-requires-in-the-script-file
-    #>
-
     #region Require administrator privileges
     if (-not (Test-IsAdminHC)) {
         Return [PSCustomObject]@{
@@ -219,6 +214,8 @@ Process {
 
                     $smbShareAccess.ForEach(
                         {
+                            Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
+
                             $incorrectPermissions[$_.AccountName] = $_.AccessRight.ToString()
 
                             Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -Force
@@ -231,6 +228,8 @@ Process {
 
                     $requiredSharePermissions.ForEach(
                         {
+                            Write-Verbose "Add correct smb share permission '$($_.AccountName):$($_.AccessRight)'"
+
                             $params = $_
                             Grant-SmbShareAccess -Name $share.Name @params -Force
                         }
@@ -245,7 +244,7 @@ Process {
     }
 
     #region Return result objects
-    if ($abeCorrected) {
+    if ($abeCorrected.Count -ne 0) {
         [PSCustomObject]@{
             Type        = 'Warning'
             Name        = 'Access Based Enumeration'
@@ -254,7 +253,7 @@ Process {
         }
     }
 
-    if ($permissionsCorrected) {
+    if ($permissionsCorrected.Count -ne 0) {
         [PSCustomObject]@{
             Type        = 'Warning'
             Name        = 'Share permissions'
