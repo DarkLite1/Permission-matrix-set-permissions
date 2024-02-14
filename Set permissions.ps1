@@ -490,7 +490,12 @@ Begin {
                     $acl.Access | ForEach-Object {
                         $acl.RemoveAccessRuleSpecific($_)
                     }
-                    $child.SetAccessControl($acl)
+                    # $child.SetAccessControl($acl)
+                    [System.IO.Directory]::SetAccessControl(
+                        $child, $acl
+                    )
+
+
                     # for one reason or another the below does not work repetitively
                     # so we use Set-Acl instead
                     # $child.SetAccessControl($inheritedDirAcl)
@@ -500,7 +505,13 @@ Begin {
                     $acl.Access | ForEach-Object {
                         $acl.RemoveAccessRuleSpecific($_)
                     }
-                    $child.SetAccessControl($acl)
+
+                    # $child.SetAccessControl($acl)
+                    [System.IO.FileSystemAclExtensions]::SetAccessControl(
+                        $child, $aCL
+                    )
+
+
                     # for one reason or another the below does not work repetitively
                     # so we use Set-Acl instead
                     # $child.SetAccessControl($inheritedFileAcl)
@@ -976,8 +987,15 @@ Process {
                         $acl.Access | ForEach-Object {
                             $acl.RemoveAccessRuleSpecific($_)
                         }
-                        $folderItem.SetAccessControl($acl)
-                        $folderItem.SetAccessControl($folder.FolderAcl)
+                        [System.IO.Directory]::SetAccessControl(
+                            $folderItem, $acl
+                        )
+                        [System.IO.Directory]::SetAccessControl(
+                            $folderItem, $folder.FolderAcl
+                        )
+
+                        # $folderItem.SetAccessControl($acl)
+                        # $folderItem.SetAccessControl($folder.FolderAcl)
 
                         Write-Verbose 'ACL corrected'
                     }
