@@ -200,24 +200,24 @@ Process {
             #endregion
 
             #region Set smb share permissions
-            $smbShareAccess = Get-SmbShareAccess -InputObject $share
+            try {
+                $smbShareAccess = Get-SmbShareAccess -InputObject $share -ErrorAction 'Stop'
 
-            $correctPermissions = 0
+                $correctPermissions = 0
 
-            foreach ($permission in $RequiredSharePermissions) {
-                $smbShareAccess | Where-Object {
+                foreach ($permission in $RequiredSharePermissions) {
+                    $smbShareAccess | Where-Object {
                     ($_.AccountName -eq $permission.AccountName) -and
                     ($_.AccessRight -eq $permission.AccessRight)
-                } | ForEach-Object {
-                    $correctPermissions++
+                    } | ForEach-Object {
+                        $correctPermissions++
+                    }
                 }
-            }
 
-            if (
+                if (
                 ($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or
                 ($RequiredSharePermissions.Count -ne $correctPermissions)
-            ) {
-                try {
+                ) {
                     #region Remove incorrect smb share permissions
                     $incorrectPermissions = @{}
 
@@ -227,7 +227,7 @@ Process {
 
                             $incorrectPermissions[$_.AccountName] = $_.AccessRight.ToString()
 
-                            Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -Force
+                            Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction 'Stop' -Force
                         }
                     )
 
@@ -242,14 +242,15 @@ Process {
                             Write-Verbose "Add correct smb share permission '$($_.AccountName):$($_.AccessRight)'"
 
                             $params = $_
-                            Grant-SmbShareAccess -Name $share.Name @params -Force
+                            Grant-SmbShareAccess -Name $share.Name @params -ErrorAction 'Stop' -Force
                         }
                     )
                     #endregion
+
                 }
-                Catch {
-                    throw "Failed setting share permissions on path '$p' on '$env:COMPUTERNAME': $_"
-                }
+            }
+            Catch {
+                throw "Failed setting share permissions on path '$p' on '$env:COMPUTERNAME': $_"
             }
             #endregion
         }
