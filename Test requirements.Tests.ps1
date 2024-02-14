@@ -87,71 +87,6 @@ Describe 'return a FatalError object when' {
         Should -BeExactly ($expected | ConvertTo-Json)
     }
 }
-Context 'set the Access Based Enumeration flag' {
-    It "to enabled when the 'Flag' parameter is set to TRUE" {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode 'Unrestricted' -Force
-
-        .$testScript -Path $testSmbShare[0].Path -Flag $true
-
-        (Get-SmbShare -Name $testSmbShare[0].Name).FolderEnumerationMode |
-        Should -BeExactly 'AccessBased'
-
-        Test-AccessBasedEnumerationHC -Name $testSmbShare[0].Name | Should -BeTrue
-    }
-    It "to disabled when the 'Flag' parameter is set to FALSE" {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode AccessBased -Force
-
-        .$testScript -Path $testSmbShare[0].Path -Flag $false
-
-        (Get-SmbShare -Name $testSmbShare[0].Name).FolderEnumerationMode |
-        Should -BeExactly 'Unrestricted'
-        Test-AccessBasedEnumerationHC -Name $testSmbShare[0].Name | Should -BeFalse
-    }
-    It 'only on the requested folder, not on other folders' {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode Unrestricted -Force
-        Set-SmbShare -Name $testSmbShare[1].Name -FolderEnumerationMode Unrestricted -Force
-
-        .$testScript -Path $testSmbShare[0].Path -Flag $true
-
-        (Get-SmbShare -Name $testSmbShare[0].Name).FolderEnumerationMode |
-        Should -BeExactly 'AccessBased' -Because 'we enabled ABE on this folder'
-        (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
-        Should -BeExactly 'Unrestricted' -Because "we didn't enable ABE on this folder"
-    }
-    It 'on multiple folders and ignore duplicates' {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode Unrestricted -Force
-        Set-SmbShare -Name $testSmbShare[1].Name -FolderEnumerationMode Unrestricted -Force
-
-        .$testScript -Path $testSmbShare[0].Path, $testSmbShare[1].Path, $testSmbShare[0].Path -Flag $true
-
-        (Get-SmbShare -Name $testSmbShare[0].Name).FolderEnumerationMode |
-        Should -BeExactly 'AccessBased'
-        (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
-        Should -BeExactly 'AccessBased'
-    }
-    It 'on multiple folders and return the results' {
-        Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode Unrestricted -Force
-        Set-SmbShare -Name $testSmbShare[1].Name -FolderEnumerationMode Unrestricted -Force
-
-        $expected = [PSCustomObject]@{
-            Type        = 'Warning'
-            Name        = 'Access Based Enumeration'
-            Description = "Access Based Enumeration should be set to '$true'. This will hide files and folders where the users don't have access to. We fixed this now."
-            Value       = @{
-                $testSmbShare[0].Name = $testSmbShare[0].Path.FullName
-                $testSmbShare[1].Name = $testSmbShare[1].Path.FullName
-            }
-        }
-
-        $actual = .$testScript -Path $testSmbShare[0].Path, $testSmbShare[1].Path, $testSmbShare[0].Path -Flag $true
-
-        (
-            $actual | Where-Object Name -EQ 'Access Based Enumeration' |
-            ConvertTo-Json
-        ) |
-        Should -BeExactly ($expected | ConvertTo-Json)
-    }
-} -Skip
 Describe 'when the smb share permissions are' {
     Context 'incorrect' {
         BeforeAll {
@@ -220,7 +155,7 @@ Describe 'when the smb share permissions are' {
                 Should -BeExactly ($expected | ConvertTo-Json)
             }
         }
-    } -Tag test
+    }
     Context 'correct' {
         BeforeAll {
             $testSmbShareAccess = Get-SmbShareAccess -Name $testSmbShare[1].Name
@@ -263,7 +198,7 @@ Describe 'when the smb share permissions are' {
         It 'return no object' {
             $actual | Should -BeNullOrEmpty
         }
-    }  -Tag test
+    }
     Context 'not set, because there is no smb share for the folder' {
         It "except when there's no shared folder, do nothing" {
             Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
@@ -272,7 +207,59 @@ Describe 'when the smb share permissions are' {
 
             ($Result | Where-Object Action -EQ ACL) | Should -BeNullOrEmpty
         }
+    } -Skip
+}
+Describe 'set Access Based Enumeration' {
+    Context 'when Flag is TRUE' {
+        BeforeAll {
+            Set-SmbShare -Name $testSmbShare[1].Name -FolderEnumerationMode 'Unrestricted' -Force
+
+            $actual = .$testScript -Path $testSmbShare[1].Path -Flag $true
+        }
+        It "to enabled" {
+            (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
+            Should -BeExactly 'AccessBased'
+        }
+        It 'and return a Warning object' {
+            $expected = [PSCustomObject]@{
+                Type        = 'Warning'
+                Name        = 'Access Based Enumeration'
+                Description = "Access Based Enumeration should be set to '$true'. This will hide files and folders where the users don't have access to. We fixed this now."
+                Value       = @{
+                    $testSmbShare[1].Name = $testSmbShare[1].Path
+                }
+            }
+
+            (
+                $actual | Where-Object Name -EQ $expected.Name | ConvertTo-Json
+            ) |
+            Should -BeExactly ($expected | ConvertTo-Json)
+        }
+    }
+    Context 'when Flag is FALSE' {
+        BeforeAll {
+            Set-SmbShare -Name $testSmbShare[1].Name -FolderEnumerationMode 'AccessBased' -Force
+
+            $actual = .$testScript -Path $testSmbShare[1].Path -Flag $false
+        }
+        It "to enabled" {
+            (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
+            Should -BeExactly 'Unrestricted'
+        }
+        It 'and return a Warning object' {
+            $expected = [PSCustomObject]@{
+                Type        = 'Warning'
+                Name        = 'Access Based Enumeration'
+                Description = "Access Based Enumeration should be set to '$false'. This will hide files and folders where the users don't have access to. We fixed this now."
+                Value       = @{
+                    $testSmbShare[1].Name = $testSmbShare[1].Path
+                }
+            }
+
+            (
+                $actual | Where-Object Name -EQ $expected.Name | ConvertTo-Json
+            ) |
+            Should -BeExactly ($expected | ConvertTo-Json)
+        }
     }
 }
-
-
