@@ -156,7 +156,7 @@ Context 'set the Access Based Enumeration flag' {
         Should -BeExactly ($expected | ConvertTo-Json)
     }
 } -Skip
-Context "when share permissions are incorrect" {
+Describe "when share permissions are incorrect" {
     BeforeAll {
         @(
             @{
@@ -203,23 +203,25 @@ Context "when share permissions are incorrect" {
             $actual | Should -HaveCount 2
         }
     }
-    It 'return a Warning object' {
-        $expected = [PSCustomObject]@{
-            Type        = 'Warning'
-            Name        = 'Share permissions'
-            Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
-            Value       = @{$testSmbShare[0].Name = @{
-                    'BUILTIN\Administrators'           = 'Full'
-                    'Everyone'                         = 'Read'
-                    'NT AUTHORITY\Authenticated Users' = 'Read'
+    Context 'return an object of type' {
+        It 'Warning' {
+            $expected = [PSCustomObject]@{
+                Type        = 'Warning'
+                Name        = 'Share permissions'
+                Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
+                Value       = @{$testSmbShare[0].Name = @{
+                        'BUILTIN\Administrators'           = 'Full'
+                        'Everyone'                         = 'Read'
+                        'NT AUTHORITY\Authenticated Users' = 'Read'
+                    }
                 }
             }
-        }
 
-        (
-            $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
-        ) |
-        Should -BeExactly ($expected | ConvertTo-Json)
+            (
+                $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
+            ) |
+            Should -BeExactly ($expected | ConvertTo-Json)
+        }
     }
 } -Tag test
 Describe 'when the share permissions are already correct' {
