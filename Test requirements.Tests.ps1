@@ -90,7 +90,7 @@ Describe 'return a FatalError object when' {
         $actual | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-} -Tag test
+}
 Context 'set the Access Based Enumeration flag' {
     It "to enabled when the 'Flag' parameter is set to TRUE" {
         Set-SmbShare -Name $testSmbShare[0].Name -FolderEnumerationMode 'Unrestricted' -Force
@@ -182,7 +182,7 @@ Context "when share permissions are incorrect" {
 
         $actual = Get-SmbShareAccess -Name $testSmbShare[0].Name
     }
-    Context 'set the share permissions to' {
+    Context 'set the smb share permissions to' {
         It 'BUILTIN\Administrators: FullControl' {
             $a = $actual.Where(
                 { $_.AccountName -eq 'BUILTIN\Administrators' }
@@ -190,7 +190,7 @@ Context "when share permissions are incorrect" {
 
             $a.AccessRight | Should -BeExactly 'Full'
             $a.AccessControlType | Should -BeExactly 'Allow'
-        } -Tag test
+        }
         It 'NT AUTHORITY\Authenticated Users: Change' {
             $a = $actual.Where(
                 { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
@@ -199,9 +199,9 @@ Context "when share permissions are incorrect" {
             $a.AccessRight | Should -BeExactly 'Change'
             $a.AccessControlType | Should -BeExactly 'Allow'
         }
-    }
-    It 'remove other permissions' {
-        $actual | Should -HaveCount 2
+        It 'with no other permissions' {
+            $actual | Should -HaveCount 2
+        }
     }
     It 'return a Warning object' {
         $expected = [PSCustomObject]@{
@@ -209,9 +209,9 @@ Context "when share permissions are incorrect" {
             Name        = 'Share permissions'
             Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
             Value       = @{$testSmbShare[0].Name = @{
-                    'NT AUTHORITY\Authenticated Users' = 'Read'
+                    'BUILTIN\Administrators'           = 'Full'
                     'Everyone'                         = 'Read'
-                    'BUILTIN\Administrators'           = 'FullControl'
+                    'NT AUTHORITY\Authenticated Users' = 'Read'
                 }
             }
         }
@@ -221,7 +221,7 @@ Context "when share permissions are incorrect" {
         ) |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-}
+} -Tag test
 Describe 'when the share permissions are already correct' {
     It "don't change anything" {
         Remove-SmbShare -Name $testSmbShare[0].Name -Force -EA Ignore
