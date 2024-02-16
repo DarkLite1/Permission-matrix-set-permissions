@@ -1614,9 +1614,9 @@ Describe 'Permissions' {
                 Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
-                $Actual = .$testScript @testParams
-
-                $Actual | Where-Object Name -EQ 'Inherited permissions incorrect'
+                $Actual = .$testScript @testParams| Where-Object {
+                    $_.Name -EQ 'Inherited permissions incorrect'
+                }
 
                 $Actual.Value | Should -Be "$($testParams.Path)\FolderC"
             }
