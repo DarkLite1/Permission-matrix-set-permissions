@@ -858,7 +858,7 @@ Describe 'the script that tests the remote computers for compliance' {
                 ($ComputerName -eq $_)
             }
         }
-    } -Tag test
+    }
     It 'saves the job result in Settings for each matrix' {
         @($ImportedMatrix.Settings.Where( {
                     ($_.Import.ComputerName -eq $testComputerNames[0]) -and
@@ -1025,7 +1025,7 @@ Describe 'an email is sent to the user in the default settings file' {
         }
     }
 }
-Describe "the Excel file with" {
+Describe "export an Excel file with" {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
@@ -1146,79 +1146,99 @@ Describe "the Excel file with" {
     }
     Context "the worksheet 'AccessList'" {
         BeforeAll {
-            $testAccessList = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'AccessList'
+            $testExportedExcelRows = @(
+                @{
+                    SamAccountName       = 'starTrekCaptains'
+                    Name                 = 'Star Trek Captains'
+                    Type                 = 'group'
+                    MemberName           = 'Jean Luc Picard'
+                    MemberSamAccountName = 'picard'
+                }
+                @{
+                    SamAccountName       = 'A B bob'
+                    Name                 = 'A B Bob'
+                    Type                 = 'user'
+                    MemberName           = $null
+                    MemberSamAccountName = $null
+                }
+                @{
+                    SamAccountName       = 'Singers'
+                    Name                 = 'Singers'
+                    Type                 = 'group'
+                    MemberName           = 'Beyonce'
+                    MemberSamAccountName = 'queenb'
+                }
+                @{
+                    SamAccountName       = 'movieStars'
+                    Name                 = 'Movie Stars'
+                    Type                 = 'group'
+                    MemberName           = $null
+                    MemberSamAccountName = $null
+                }
+            )
+
+            $actual = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'AccessList'
         }
         It 'is added to the matrix log file' {
-            $testAccessList | Should -Not -BeNullOrEmpty
-            $testAccessList | Should -HaveCount 4
+            $actual | Should -Not -BeNullOrEmpty
         }
-        Describe 'contains the property' {
-            It 'SamAccountName' {
-                $testAccessList[0].SamAccountName |
-                Should -Be 'starTrekCaptains'
-                $testAccessList[1].SamAccountName | Should -Be 'A B bob'
-                $testAccessList[2].SamAccountName | Should -Be 'Singers'
-                $testAccessList[3].SamAccountName | Should -Be 'movieStars'
-            }
-            It 'Name' {
-                $testAccessList[0].Name | Should -Be 'Star Trek Captains'
-                $testAccessList[1].Name | Should -Be 'A B Bob'
-                $testAccessList[2].Name | Should -Be 'Singers'
-                $testAccessList[3].Name | Should -Be 'Movie Stars'
-            }
-            It 'Type' {
-                $testAccessList[0].Type | Should -Be 'group'
-                $testAccessList[1].Type | Should -Be 'user'
-                $testAccessList[2].Type | Should -Be 'group'
-                $testAccessList[3].Type | Should -Be 'group'
-            }
-            It 'MemberName' {
-                $testAccessList[0].MemberName | Should -Be 'Jean Luc Picard'
-                $testAccessList[1].MemberName | Should -BeNullOrEmpty
-                $testAccessList[2].MemberName | Should -Be 'Beyonce'
-                $testAccessList[3].MemberName | Should -BeNullOrEmpty
-            }
-            It 'MemberSamAccountName' {
-                $testAccessList[0].MemberSamAccountName | Should -Be 'picard'
-                $testAccessList[1].MemberSamAccountName | Should -BeNullOrEmpty
-                $testAccessList[2].MemberSamAccountName | Should -Be 'queenb'
-                $testAccessList[3].MemberSamAccountName | Should -BeNullOrEmpty
+        It 'with the correct total rows' {
+            $actual | Should -HaveCount $testExportedExcelRows.Count
+        }
+        It 'with the correct data in the rows' {
+            foreach ($testRow in $testExportedExcelRows) {
+                $actualRow = $actual | Where-Object {
+                    $_.SamAccountName -eq $testRow.SamAccountName
+                }
+                $actualRow.Name | Should -Be $testRow.Name
+                $actualRow.Type | Should -BeLike $testRow.Type
+                $actualRow.MemberName | Should -Be $testRow.MemberName
+                $actualRow.MemberSamAccountName | Should -BeLike $testRow.MemberSamAccountName
             }
         }
-    }
+    } -Tag test
     Context "the worksheet 'GroupManagers'" {
         BeforeAll {
-            $testGroupManagers = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'GroupManagers'
+            $testExportedExcelRows = @(
+                @{
+                    GroupName         = 'Star Trek Captains'
+                    ManagerName       = 'Captain Managers'
+                    ManagerType       = 'group'
+                    ManagerMemberName = 'Admiral Pike'
+                }
+                @{
+                    GroupName         = 'Singers'
+                    ManagerName       = 'Singer Managers'
+                    ManagerType       = 'group'
+                    ManagerMemberName = $null
+                }
+                @{
+                    GroupName         = 'Movie Stars'
+                    ManagerName       = $null
+                    ManagerType       = $null
+                    ManagerMemberName = $null
+                }
+            )
+
+            $actual = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'GroupManagers'
         }
         It 'is added to the matrix log file' {
-            $testGroupManagers | Should -Not -BeNullOrEmpty
-            $testGroupManagers | Should -HaveCount 3
+            $actual | Should -Not -BeNullOrEmpty
         }
-        Describe 'contains the property' {
-            It 'GroupName' {
-                $testGroupManagers[0].GroupName |
-                Should -Be 'Star Trek Captains'
-                $testGroupManagers[1].GroupName | Should -Be 'Singers'
-                $testGroupManagers[2].GroupName | Should -Be 'Movie Stars'
-            }
-            It 'ManagerName' {
-                $testGroupManagers[0].ManagerName |
-                Should -Be 'Captain Managers'
-                $testGroupManagers[1].ManagerName | Should -Be 'Singer Managers'
-                $testGroupManagers[2].ManagerName | Should -BeNullOrEmpty
-            }
-            It 'ManagerType' {
-                $testGroupManagers[0].ManagerType | Should -Be 'group'
-                $testGroupManagers[1].ManagerType | Should -Be 'group'
-                $testGroupManagers[2].ManagerType | Should -BeNullOrEmpty
-            }
-            It 'ManagerMemberName' {
-                $testGroupManagers[0].ManagerMemberName | Should -Be 'Admiral Pike'
-                $testGroupManagers[1].ManagerMemberName | Should -BeNullOrEmpty
-                $testGroupManagers[2].ManagerMemberName | Should -BeNullOrEmpty
+        It 'with the correct total rows' {
+            $actual | Should -HaveCount $testExportedExcelRows.Count
+        }
+        It 'with the correct data in the rows' {
+            foreach ($testRow in $testExportedExcelRows) {
+                $actualRow = $actual | Where-Object {
+                    $_.GroupName -eq $testRow.GroupName
+                }
+                $actualRow.ManagerName | Should -Be $testRow.ManagerName
+                $actualRow.ManagerType | Should -BeLike $testRow.ManagerType
+                $actualRow.ManagerMemberName | Should -Be $testRow.ManagerMemberName
             }
         }
-    }
+    } -Tag test
 }
 Describe 'when a job fails' {
     Context 'the test requirements script' {
