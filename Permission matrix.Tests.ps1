@@ -1179,7 +1179,7 @@ Describe "export an Excel file with" {
 
             $actual = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'AccessList'
         }
-        It 'is added to the matrix log file' {
+        It 'added to the matrix log file' {
             $actual | Should -Not -BeNullOrEmpty
         }
         It 'with the correct total rows' {
@@ -1196,7 +1196,7 @@ Describe "export an Excel file with" {
                 $actualRow.MemberSamAccountName | Should -BeLike $testRow.MemberSamAccountName
             }
         }
-    } -Tag test
+    }
     Context "the worksheet 'GroupManagers'" {
         BeforeAll {
             $testExportedExcelRows = @(
@@ -1222,7 +1222,7 @@ Describe "export an Excel file with" {
 
             $actual = Import-Excel -Path $testMatrixFile.FullName -WorksheetName 'GroupManagers'
         }
-        It 'is added to the matrix log file' {
+        It 'added to the matrix log file' {
             $actual | Should -Not -BeNullOrEmpty
         }
         It 'with the correct total rows' {
@@ -1238,7 +1238,7 @@ Describe "export an Excel file with" {
                 $actualRow.ManagerMemberName | Should -Be $testRow.ManagerMemberName
             }
         }
-    } -Tag test
+    }
 }
 Describe 'when a job fails' {
     Context 'the test requirements script' {
