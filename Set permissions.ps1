@@ -414,6 +414,8 @@ Begin {
             )
 
             Try {
+                Write-Verbose "Get content of folder '$Path'"
+
                 $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where(
                     { -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) }
                 )
@@ -424,6 +426,8 @@ Begin {
 
             foreach ($child in $childItems) {
                 Try {
+                    Write-Verbose "Get ACL of '$child'"
+
                     $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
                         [System.IO.DirectoryInfo]::new($child)
                     )
@@ -444,20 +448,10 @@ Begin {
                     Continue
                 }
 
-                if (-not $child.PSIsContainer) {
-                    # Only for Pester testing:
-                    $testedInheritedFilesAndFolders[$child.FullName] = $true
+                # Only for Pester testing:
+                $testedInheritedFilesAndFolders[$child.FullName] = $true
 
-                    if (
-                        -not (Test-AclEqualHC -ReferenceAce $FileAclAccessList -DifferenceAce $acl.Access)
-                    ) {
-                        & $incorrectAclInheritedOnly
-                    }
-                }
-                else {
-                    # Only for Pester testing:
-                    $testedInheritedFilesAndFolders[$child.FullName] = $true
-
+                if ($child.PSIsContainer) {
                     if (
                         -not (Test-AclEqualHC -ReferenceAce $FolderAclAccessList -DifferenceAce $acl.Access)
                     ) {
@@ -465,6 +459,13 @@ Begin {
                     }
 
                     Get-FolderContentHC -Path $child.FullName
+                }
+                else {
+                    if (
+                        -not (Test-AclEqualHC -ReferenceAce $FileAclAccessList -DifferenceAce $acl.Access)
+                    ) {
+                        & $incorrectAclInheritedOnly
+                    }
                 }
             }
         }
@@ -484,37 +485,15 @@ Begin {
             if ($Action -eq 'Fix') {
                 Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
+                # Workaround for non inherited permissions
+                # $acl.Access | ForEach-Object {
+                #     $acl.RemoveAccessRuleSpecific($_)
+                # }
+
                 if ($child.PSIsContainer) {
-                    # This is a workaround for non inherited permissions
-                    # that do not get properly removed
-                    $acl.Access | ForEach-Object {
-                        $acl.RemoveAccessRuleSpecific($_)
-                    }
-                    # $child.SetAccessControl($acl)
-                    [System.IO.Directory]::SetAccessControl(
-                        $child, $acl
-                    )
-
-
-                    # for one reason or another the below does not work repetitively
-                    # so we use Set-Acl instead
-                    # $child.SetAccessControl($inheritedDirAcl)
                     Set-Acl -Path $child.FullName -AclObject $inheritedDirAcl
                 }
                 else {
-                    $acl.Access | ForEach-Object {
-                        $acl.RemoveAccessRuleSpecific($_)
-                    }
-
-                    # $child.SetAccessControl($acl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl(
-                        $child, $aCL
-                    )
-
-
-                    # for one reason or another the below does not work repetitively
-                    # so we use Set-Acl instead
-                    # $child.SetAccessControl($inheritedFileAcl)
                     Set-Acl -Path $child.FullName -AclObject $inheritedFileAcl
                 }
             }
@@ -982,20 +961,12 @@ Process {
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
 
-                        # workaround for non inherited permissions
-                        # that do not get properly removed
-                        $acl.Access | ForEach-Object {
-                            $acl.RemoveAccessRuleSpecific($_)
-                        }
-                        [System.IO.Directory]::SetAccessControl(
-                            $folderItem, $acl
-                        )
-                        [System.IO.Directory]::SetAccessControl(
-                            $folderItem, $folder.FolderAcl
-                        )
+                        # Workaround for non inherited permissions
+                        # $acl.Access | ForEach-Object {
+                        #     $acl.RemoveAccessRuleSpecific($_)
+                        # }
 
-                        # $folderItem.SetAccessControl($acl)
-                        # $folderItem.SetAccessControl($folder.FolderAcl)
+                        Set-Acl -Path $folderItem.FullName -AclObject $folder.FolderAcl
 
                         Write-Verbose 'ACL corrected'
                     }
@@ -1029,6 +1000,10 @@ Process {
                         ScriptBlock  = $inheritedPermissionsScriptBlock
                         ArgumentList = $folder.Path, $Action, @($folder.InheritedFolderAcl.Access), @($folder.InheritedFileAcl.Access), $ignoredFolderPaths, $tokenPrivileges, $DetailedLog
                     }
+                    # $testArg = $InvokeParams.ArgumentList
+                    # & $InvokeParams.ScriptBlock @testArg -Verbose
+
+                    # <#
                     $jobs += Start-Job @InvokeParams
 
                     #region Wait for max running jobs
@@ -1037,7 +1012,7 @@ Process {
                         MaxThreads = $JobThrottleLimit
                     }
                     Wait-MaxRunningJobsHC @waitParams
-                    #endregion
+                    #endregion #>
                 }
 
                 $ErrorActionPreference = 'Continue'
