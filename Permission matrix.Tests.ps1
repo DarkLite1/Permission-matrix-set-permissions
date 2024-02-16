@@ -754,7 +754,7 @@ Describe "each row in the worksheet 'settings'" {
         }
     }
 }
-Context "the worksheet 'Permissions' is" {
+Describe "the worksheet 'Permissions' is" {
     BeforeAll {
         Mock Test-MatrixPermissionsHC
 
@@ -780,8 +780,8 @@ Context "the worksheet 'Permissions' is" {
         .$testScript @testParams
     }
     It 'tested for incorrect input' {
-        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Context
-        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Context -ParameterFilter {
+        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Describe
+        Should -Invoke Test-MatrixPermissionsHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($null -eq $Permissions[0].P1) -and
             ($Permissions[0].P2 -eq 'bob') -and
             ($Permissions[1].P1 -eq 'SiteCode') -and
@@ -795,7 +795,7 @@ Context "the worksheet 'Permissions' is" {
         }
     }
 }
-Context 'the script that tests the remote computers for compliance' {
+Describe 'the script that tests the remote computers for compliance' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
@@ -843,17 +843,17 @@ Context 'the script that tests the remote computers for compliance' {
         .$testScript @testParams
     }
     It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
-        Should -Not -Invoke Invoke-Command -Scope Context -ParameterFilter {
+        Should -Not -Invoke Invoke-Command -Scope Describe -ParameterFilter {
             ($JobName -eq 'TestRequirements') -and
             ($ComputerName -eq 'ignoredPc')
         }
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
-        Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Context -ParameterFilter {
+        Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
             $JobName -eq 'TestRequirements'
         }
         @($testComputerNames[0], $testComputerNames[1]) | ForEach-Object {
-            Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+            Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
                 ($JobName -eq 'TestRequirements') -and
                 ($ComputerName -eq $_)
             }
@@ -871,7 +871,7 @@ Context 'the script that tests the remote computers for compliance' {
         Should -BeExactly 1
     }
 }
-Context 'the script that sets the permissions on the remote computers' {
+Describe 'the script that sets the permissions on the remote computers' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
@@ -928,16 +928,16 @@ Context 'the script that sets the permissions on the remote computers' {
         .$testScript @testParams
     }
     It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
-        Should -Not -Invoke Invoke-Command -Scope Context -ParameterFilter {
+        Should -Not -Invoke Invoke-Command -Scope Describe -ParameterFilter {
             ($ComputerName -eq 'ignoredPc')
         }
     }
     It "is called for each row in the 'Settings' worksheets with Status Enabled" {
-        Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Context -ParameterFilter {
+        Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Describe -ParameterFilter {
             ($JobName -like 'SetPermissions*' ) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName)
         }
-        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($AsJob -eq $true) -and
             ($JobName -eq 'SetPermissions_1' ) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
@@ -947,7 +947,7 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2] -ne $null) -and
             ($ArgumentList[3] -ne $null)
         }
-        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($AsJob -eq $true) -and
             ($JobName -eq 'SetPermissions_2' ) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
@@ -957,7 +957,7 @@ Context 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2] -ne $null) -and
             ($ArgumentList[3] -ne $null)
         }
-        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Context -ParameterFilter {
+        Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($AsJob -eq $true) -and
             ($JobName -eq 'SetPermissions_3' ) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
@@ -982,7 +982,7 @@ Context 'the script that sets the permissions on the remote computers' {
         Should -Contain 3
     }
 }
-Context 'an email is sent to the user in the default settings file' {
+Describe 'an email is sent to the user in the default settings file' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         @(
@@ -1009,7 +1009,7 @@ Context 'an email is sent to the user in the default settings file' {
         .$testScript @testParams
     }
     It 'containing a summary per Settings row for executed matrixes' {
-        Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
+        Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
             ($Subject -eq '1 matrix file') -and
             ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
@@ -1025,7 +1025,7 @@ Context 'an email is sent to the user in the default settings file' {
         }
     }
 }
-Context "the Excel file with" {
+Describe "the Excel file with" {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{

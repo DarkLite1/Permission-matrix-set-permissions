@@ -754,7 +754,8 @@ Process {
             #endregion
 
             #region Check expanded matrix and get AD object details
-            Write-EventLog @EventVerboseParams -Message 'Check expanded matrix'
+            $M = 'Check expanded matrix'
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
             $AdObjects = $ImportedMatrix.Settings.Matrix.ACL.Keys
 
@@ -810,7 +811,8 @@ Process {
             #endregion
 
             #region Test minimal server requirements (PS version, ..)
-            Write-EventLog @EventVerboseParams -Message 'Check server requirements'
+            $M = 'Check server requirements'
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
             if ($ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)) {
                 Start-TestRequirements
