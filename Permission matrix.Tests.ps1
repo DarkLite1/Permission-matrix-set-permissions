@@ -66,6 +66,24 @@ BeforeAll {
         NoHeader      = $true
     }
 
+    Function Compare-HashTableHC {
+        param (
+            [Parameter(Mandatory)]
+            [hashtable]$ReferenceObject,
+            [Parameter(Mandatory)]
+            [hashtable]$DifferenceObject
+        )
+
+        (
+            $ReferenceObject.GetEnumerator() |
+            Sort-Object { $_.Key } | ConvertTo-Json
+        ) |
+        Should -BeExactly (
+            $DifferenceObject.GetEnumerator() |
+            Sort-Object { $_.Key } | ConvertTo-Json
+        )
+    }
+
     Mock Invoke-Command
     Mock New-PSSession
     Mock Send-MailHC
@@ -1341,16 +1359,17 @@ Describe 'internal functions' {
 
             .$testScript @testParams
 
-            $Actual = ($ImportedMatrix.Settings.Matrix.Where( { $_.Path -eq 'Path' })).ACL
+            $actual = ($ImportedMatrix.Settings.Matrix.Where(
+                    { $_.Path -eq 'Path' })
+            ).ACL
 
-            $Expected = @{
+            $expected = @{
                 'Bob'  = 'R'
                 'Mike' = 'L'
             }
 
-            $actual | ConvertTo-Json |
-            Should -BeExactly ($expected | ConvertTo-Json)
-        }
+            Compare-HashTableHC $actual $expected
+        } -Tag test
         It 'do not add default permissions to the matrix ACL when the folder has no ACL' {
             Mock Test-ExpandedMatrixHC
             Mock ConvertTo-MatrixAclHC {
@@ -1382,10 +1401,10 @@ Describe 'internal functions' {
 
             .$testScript @testParams
 
-            $Actual = ($ImportedMatrix.Settings.Matrix.Where( {
+            $actual = ($ImportedMatrix.Settings.Matrix.Where( {
                         $_.Path -eq 'Path' })).ACL
 
-            $Actual | Should -BeNullOrEmpty
+            $actual | Should -BeNullOrEmpty
         }
         It 'do not overwrite permissions to the matrix ACL when they are also in the default ACL' {
             Mock Test-ExpandedMatrixHC
@@ -1412,14 +1431,14 @@ Describe 'internal functions' {
 
             .$testScript @testParams
 
-            $Actual = ($ImportedMatrix.Settings.Matrix.Where( { $_.Path -eq 'Path' })).ACL
+            $actual = ($ImportedMatrix.Settings.Matrix.Where( { $_.Path -eq 'Path' })).ACL
 
-            $Expected = @{
+            $expected = @{
                 'Bob'  = 'L'
                 'Mike' = 'L'
             }
-            $actual | ConvertTo-Json |
-            Should -BeExactly ($expected | ConvertTo-Json)
+
+            Compare-HashTableHC $actual $expected
         }
     }
 }
