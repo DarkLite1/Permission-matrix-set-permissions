@@ -750,8 +750,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
@@ -797,8 +796,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
@@ -845,8 +843,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -860,8 +857,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
@@ -911,8 +907,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -926,8 +921,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -941,8 +935,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -956,8 +949,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
@@ -1007,8 +999,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -1022,8 +1013,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -1037,8 +1027,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Set correct permissions on a sub folder
@@ -1052,8 +1041,7 @@ Describe 'Permissions' {
             $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
             $aceList.foreach( { $acl.AddAccessRule($_) })
 
-            # $testItem.SetAccessControl($acl)
-            [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+            Set-Acl -Path $testItem -AclObject $acl
             #endregion
 
             #region Create extra folders not defined in the matrix
@@ -1113,8 +1101,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1128,8 +1115,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1143,8 +1129,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1158,8 +1143,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
@@ -1206,8 +1190,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1221,8 +1204,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1236,8 +1218,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1251,8 +1232,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
@@ -1301,8 +1281,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1316,8 +1295,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1331,8 +1309,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
@@ -1473,8 +1450,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1488,8 +1464,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1503,8 +1478,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1518,8 +1492,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set incorrect permissions on an inherited folder
@@ -1533,8 +1506,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 $Actual = .$testScript @testParams
@@ -1582,8 +1554,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1597,8 +1568,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1612,8 +1582,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set correct permissions on a sub folder
@@ -1627,8 +1596,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 #region Set incorrect permissions on an inherited folder not in the matrix file
@@ -1643,8 +1611,7 @@ Describe 'Permissions' {
                 $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
                 $aceList.foreach( { $acl.AddAccessRule($_) })
 
-                # $testItem.SetAccessControl($acl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testItem, $acl)
+                Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
                 $Actual = .$testScript @testParams
@@ -2127,13 +2094,9 @@ Describe 'when Action is' {
 
                     #region Add ourselves as owner
                     $testOwner = [System.Security.Principal.NTAccount]"$env:USERDOMAIN\$env:USERNAME"
-                    $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($testFolder)
-                    )
+                    $testAcl = Get-Acl -Path $testFolder
                     $testAcl.SetOwner($testOwner)
-
-                    # $testFolder.SetAccessControl($testAcl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl($testFolder, $testAcl)
+                    Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
                     (Get-Acl -Path $testFolderPath).Owner | Should -Be "$env:USERDOMAIN\$env:USERNAME"
@@ -2160,15 +2123,12 @@ Describe 'when Action is' {
 
                     #region Remove access
                     $testOwner = [System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser"
-                    $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($testFolder)
-                    )
+                    $testAcl = Get-Acl -Path $testFolder
                     $testAcl.SetAccessRuleProtection($True, $False)
                     $testAcl.SetOwner($testOwner)
                     $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
 
-                    # $testFolder.SetAccessControl($testAcl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl($testFolder, $testAcl)
+                    Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
                     (Get-Acl -Path $testFolderPath).Owner |
@@ -2201,15 +2161,11 @@ Describe 'when Action is' {
 
                     #region Remove access and set owner
                     $testOwner = [System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser"
-                    $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($testFolder)
-                    )
+                    $testAcl = Get-Acl -Path $testFolder
                     $testAcl.SetAccessRuleProtection($True, $False)
                     $testAcl.SetOwner($testOwner)
                     $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
-
-                    # $testFolder.SetAccessControl($testAcl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl($testFolder, $testAcl)
+                    Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
                     (Get-Acl -Path $testFolderPath).Owner | Should -Be "$env:USERDOMAIN\$testUser"
@@ -2682,15 +2638,11 @@ Describe 'when Action is' {
 
                 #region Remove access and set owner
                 $testOwner = [System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser"
-                $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                    [System.IO.DirectoryInfo]::new($testFileItem)
-                )
+                $testAcl = Get-Acl -Path $testFileItem
                 $testAcl.SetAccessRuleProtection($True, $False)
                 $testAcl.SetOwner($testOwner)
                 $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
-
-                # $testFileItem.SetAccessControl($testAcl)
-                [System.IO.FileSystemAclExtensions]::SetAccessControl($testFileItem, $testAcl)
+                Set-Acl -Path $testFileItem -AclObject $testAcl
                 #endregion
 
                 $Expected = @(
@@ -2741,15 +2693,11 @@ Describe 'when Action is' {
 
                     #region Remove access and set owner
                     $testOwner = [System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser"
-                    $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($testFileItem)
-                    )
+                    $testAcl = Get-Acl -Path $testFileItem
                     $testAcl.SetAccessRuleProtection($True, $False)
                     $testAcl.SetOwner($testOwner)
                     $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
-
-                    # $testFileItem.SetAccessControl($testAcl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl($testFileItem, $testAcl)
+                    Set-Acl -Path $testFileItem -AclObject $testAcl
                     #endregion
 
                     $Actual = .$testScript @testParams |
@@ -2774,9 +2722,7 @@ Describe 'when Action is' {
                     $testFileItem = Get-Item $testFile
 
                     #region Add explicit access
-                    $testAcl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($testFileItem)
-                    )
+                    $testAcl = Get-Acl -Path $testFileItem
                     $testAcl.SetAccessRuleProtection($True, $False)
                     $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
 
@@ -2789,8 +2735,7 @@ Describe 'when Action is' {
                     )
                     $testAcl.AddAccessRule($testAce)
 
-                    # $testFileItem.SetAccessControl($testAcl)
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl($testFileItem, $testAcl)
+                    Set-Acl -Path $testFileItem -AclObject $testAcl
                     #endregion
 
                     $Actual = .$testScript @testParams | Where-Object Name -EQ $Expected.Name

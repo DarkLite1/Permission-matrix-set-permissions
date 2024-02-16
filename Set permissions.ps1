@@ -347,6 +347,9 @@ Begin {
             [Boolean]$DetailedLog
         )
 
+        # required for using .NET call GetAccessControl
+        Import-Module Microsoft.PowerShell.Security
+
         $ErrorActionPreference = 'Stop'
 
         Function Test-AclEqualHC {
@@ -426,7 +429,9 @@ Begin {
 
             foreach ($child in $childItems) {
                 Try {
-                    Write-Verbose "Get ACL of '$child'"
+                    # Write-Verbose "Get ACL of '$child'"
+
+                    # below is faster than: $acl = Get-Acl -Path $child
 
                     $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
                         [System.IO.DirectoryInfo]::new($child)
