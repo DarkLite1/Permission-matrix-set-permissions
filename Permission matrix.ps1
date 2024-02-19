@@ -687,11 +687,14 @@ Process {
             #region Build the matrix and check for incorrect input
             Write-EventLog @EventVerboseParams -Message 'Build the matrix and check for incorrect input'
 
-            foreach ($I in ($ImportedMatrix.Where(
-                        {
-                            ($_.File.Check.Type -notContains 'FatalError' ) -and
-                            ($_.Settings)
-                        }))
+            foreach (
+                $I in
+                $ImportedMatrix.Where(
+                    {
+                        ($_.File.Check.Type -notContains 'FatalError' ) -and
+                        ($_.Settings)
+                    }
+                )
             ) {
                 Try {
                     $I.Permissions.Check += Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
@@ -742,15 +745,24 @@ Process {
             #region Duplicate ComputerName/Path combination
             Write-EventLog @EventVerboseParams -Message 'Check duplicate ComputerName/Path combination'
 
-            (@($ImportedMatrix.Settings | Group-Object @{Expression = { $_.Import.ComputerName + ' - ' + $_.Import.Path } }
-            ).Where( { $_.Count -ge 2 })).Group.Foreach( {
+            (
+                @($ImportedMatrix.Settings | Group-Object @{
+                        Expression = {
+                            $_.Import.ComputerName + ' - ' + $_.Import.Path }
+                    }
+                ).Where( { $_.Count -ge 2 })
+            ).Group.Foreach(
+                {
                     $_.Check += [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Duplicate ComputerName/Path combination'
                         Description = "Every 'ComputerName' combined with a 'Path' needs to be unique over all the 'Settings' worksheets found in all the active matrix files."
-                        Value       = @{$_.Import.ComputerName = $_.Import.Path }
+                        Value       = @{
+                            $_.Import.ComputerName = $_.Import.Path
+                        }
                     }
-                })
+                }
+            )
             #endregion
 
             #region Check expanded matrix and get AD object details
@@ -766,7 +778,8 @@ Process {
                 }
                 $ADObjectDetails = @(Get-ADObjectDetailHC @params)
 
-                @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach( {
+                @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach(
+                    {
                         $params = @{
                             Matrix                 = $_.Matrix
                             ADObject               = $ADObjectDetails
@@ -774,7 +787,8 @@ Process {
                             ExcludedSamAccountName = $ExcludedSamAccountName
                         }
                         $_.Check += Test-ExpandedMatrixHC @params
-                    })
+                    }
+                )
             }
             #endregion
 
