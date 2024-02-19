@@ -84,6 +84,14 @@ BeforeAll {
         )
     }
 
+    $testLatestPSSessionConfiguration = Get-PSSessionConfiguration |
+    Sort-Object -Property 'Name' -Descending |
+    Select-Object -ExpandProperty 'Name' -First 1
+
+    Mock Get-PowerShellConnectableEndpointNameHC {
+        $testLatestPSSessionConfiguration
+    }
+
     Mock Invoke-Command
     Mock New-PSSession
     Mock Send-MailHC

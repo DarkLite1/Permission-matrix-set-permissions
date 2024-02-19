@@ -202,13 +202,20 @@ Begin {
                 ($ExecutableMatrix |
                 Group-Object -Property { $_.Import.ComputerName })
             ) {
+                $getEndpointParams = @{
+                    ComputerName = $E.Name
+                    ScriptName   = $ScriptName
+                    ErrorAction  = 'Stop'
+                }
+
                 $InvokeParams = @{
-                    FilePath      = $ScriptTestRequirementsItem
-                    ArgumentList  = $E.Group.Import.Path, $true
-                    ComputerName  = $E.Name
-                    JobName       = 'TestRequirements'
-                    ThrottleLimit = 10
-                    AsJob         = $true
+                    FilePath          = $ScriptTestRequirementsItem
+                    ArgumentList      = $E.Group.Import.Path, $true
+                    ConfigurationName = Get-PowerShellConnectableEndpointNameHC @getEndpointParams
+                    ComputerName      = $E.Name
+                    JobName           = 'TestRequirements'
+                    ThrottleLimit     = 10
+                    AsJob             = $true
                 }
                 Invoke-Command @InvokeParams
             }
@@ -264,13 +271,20 @@ Begin {
             $JobName = 'SetPermissions_{0}'
 
             $Jobs = foreach ($q in  $Queue) {
+                $getEndpointParams = @{
+                    ComputerName = $q.ComputerName
+                    ScriptName   = $ScriptName
+                    ErrorAction  = 'Stop'
+                }
+
                 $InvokeParams = @{
-                    FilePath      = $ScriptSetPermissionItem
-                    ArgumentList  = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
-                    ComputerName  = $q.ComputerName
-                    JobName       = $JobName -f $q.ID
-                    ThrottleLimit = 10
-                    AsJob         = $true
+                    FilePath          = $ScriptSetPermissionItem
+                    ArgumentList      = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
+                    ConfigurationName = Get-PowerShellConnectableEndpointNameHC @getEndpointParams
+                    ComputerName      = $q.ComputerName
+                    JobName           = $JobName -f $q.ID
+                    ThrottleLimit     = 10
+                    AsJob             = $true
                 }
                 Invoke-Command @InvokeParams
             }
