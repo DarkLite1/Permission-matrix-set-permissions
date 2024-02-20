@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+#Requires -Version 7
 #Requires -Modules ImportExcel, Toolbox.Remoting
 #Requires -Modules Toolbox.PermissionMatrix, Toolbox.ActiveDirectory
 
