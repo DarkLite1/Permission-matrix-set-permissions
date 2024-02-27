@@ -83,12 +83,12 @@
 [CmdLetBinding()]
 Param (
     [Parameter(Mandatory)]
-    [String]$ScriptName = 'Permission matrix (BNL)',
+    [String]$ScriptName,
     [Parameter(Mandatory)]
     [String]$ImportDir,
-    [String]$DefaultsFile = 'Defaults.xlsx',
-    [String]$ScriptSetPermissionFile = 'Set permissions.ps1',
-    [String]$ScriptTestRequirements = 'Test requirements.ps1',
+    [String]$DefaultsFile = "$ImportDir\Defaults.xlsx",
+    [String]$ScriptSetPermissionFile = "$PSScriptRoot\Set permissions.ps1",
+    [String]$ScriptTestRequirements = "$PSScriptRoot\Test requirements.ps1",
     [String[]]$ExcludedSamAccountName = 'belsrvc',
     [Switch]$Archive,
     [Boolean]$DetailedLog = $true,
@@ -136,7 +136,6 @@ Begin {
 "@
         }
     }
-
     Function Get-HTNLidTagProbTypeHC {
         [OutputType([String[]])]
         Param (
@@ -167,33 +166,6 @@ Begin {
             throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
         }
     }
-
-    Function Get-PathItemHC {
-        <#
-        .SYNOPSIS
-            Get the path item from a relative or absolute path
-
-        .DESCRIPTION
-            Perform Get-Item on a file located in a relative or absolute path
-
-        .EXAMPLE
-            Get-PathItemHC -Parent $PSScriptRoot -Leaf 'copy.ps1'
-
-            Perform Get-Item on the script 'copy.ps1' in the current directory
-        #>
-        Param (
-            [Parameter(Mandatory)]
-            [string]$Leaf,
-            $Parent = $PSScriptRoot
-        )
-        if (Test-Path -LiteralPath (Join-Path -Path $Parent -ChildPath $Leaf) -PathType Leaf) {
-            Get-Item -LiteralPath (Join-Path -Path $Parent -ChildPath $Leaf) -EA Stop
-        }
-        else {
-            Get-Item -LiteralPath $Leaf -EA Stop
-        }
-    }
-
     Function Start-TestRequirements {
         Try {
             #region Test PS version, .NET version, set share config, ABE, ...
@@ -248,7 +220,6 @@ Begin {
             throw "Failed testing the requirements: $_"
         }
     }
-
     Function Start-SetPermissionsScriptHC {
         Try {
             #region Set NTFS permissions on folders
@@ -354,7 +325,7 @@ Begin {
 
         #region Set permissions file
         Try {
-            $ScriptSetPermissionItem = Get-PathItemHC -Leaf $ScriptSetPermissionFile
+            $ScriptSetPermissionItem = Get-Item -LiteralPath $ScriptSetPermissionFile -EA Stop
         }
         Catch {
             throw "Execution script file '$ScriptSetPermissionFile' not found"
@@ -363,7 +334,7 @@ Begin {
 
         #region Share config file
         Try {
-            $ScriptTestRequirementsItem = Get-PathItemHC -Leaf $ScriptTestRequirements
+            $ScriptTestRequirementsItem = Get-Item -LiteralPath $ScriptTestRequirements -EA Stop
         }
         Catch {
             throw "Share configuration script file '$ScriptTestRequirements' not found"
@@ -405,7 +376,7 @@ Begin {
         #region Default settings file
         Try {
             #region Get the defaults
-            $DefaultsItem = Get-PathItemHC -Leaf $DefaultsFile -Parent $ImportDir
+            $DefaultsItem = Get-Item -LiteralPath $DefaultsFile -EA Stop
 
             try {
                 $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'
