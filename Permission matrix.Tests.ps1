@@ -1377,7 +1377,7 @@ Describe 'internal functions' {
             }
 
             Compare-HashTableHC $actual $expected
-        } -Tag test
+        }
         It 'do not add default permissions to the matrix ACL when the folder has no ACL' {
             Mock Test-ExpandedMatrixHC
             Mock ConvertTo-MatrixAclHC {
@@ -1879,7 +1879,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         It 'to a CSV file in the Cherwell folder' {
             $testCherwellFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
-        } -Tag test
+        }
         It 'to a CSV file in the log folder' {
             $testLogFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
