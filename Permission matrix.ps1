@@ -473,6 +473,8 @@ Process {
                 { $_.FullName -ne $DefaultsItem.FullName })
         ) {
             Try {
+                Write-Verbose "Matrix file '$matrixFile'"
+
                 $Obj = [PSCustomObject]@{
                     File        = @{
                         Item         = $matrixFile
@@ -506,17 +508,22 @@ Process {
                     Destination = $Obj.File.LogFolder
                     PassThru    = $true
                 }
+
+                Write-Verbose "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
                 $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
                 #endregion
 
                 #region Get Excel file details
                 $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile.FullName -ErrorAction 'Stop'
 
-                Write-EventLog @EventVerboseParams -Message ($BeginEvent +
+                $M = ($BeginEvent +
                     "- Name:`t`t`t" + $matrixFile.Name + "`n" +
                     "- DirectoryName:`t`t" + $matrixFile.DirectoryName + "`n" +
                     "- LastModifiedBy:`t`t" + $Obj.File.ExcelInfo.LastModifiedBy + "`n" +
                     "- LastModifiedDate:`t" + $Obj.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))
+                Write-Verbose $M
+                Write-EventLog @EventVerboseParams -Message $M
                 #endregion
 
                 #region Import sheets Settings, Permissions, FormData
@@ -527,9 +534,14 @@ Process {
                         ErrorAction = 'Stop'
                     }
                     #region Import sheet Settings
-                    $Settings = @(Import-Excel @ImportParams -Sheet 'Settings').Where( { $_.Status -EQ 'Enabled' })
-
-                    Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
+                    $Settings = @(
+                        Import-Excel @ImportParams -Sheet 'Settings'
+                    ).Where(
+                        { $_.Status -EQ 'Enabled' }
+                    )
+                    $M = "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
+                    Write-EventLog @EventVerboseParams -Message $M
+                    Write-Verbose $M
                     #endregion
 
 
@@ -548,10 +560,14 @@ Process {
                         }
 
                         #region Import sheet Permissions
-                        $Obj.Permissions.Import = @(Import-Excel @ImportParams -Sheet 'Permissions' -NoHeader |
-                            Format-PermissionsStringsHC)
+                        $Obj.Permissions.Import = @(
+                            Import-Excel @ImportParams -Sheet 'Permissions' -NoHeader |
+                            Format-PermissionsStringsHC
+                        )
 
-                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'Permissions' imported"
+                        $M = "$BeginEvent - Worksheet 'Permissions' imported"
+                        Write-EventLog @EventVerboseParams -Message $M
+                        Write-Verbose $M
                         #endregion
 
                         #region Import sheet FormData
@@ -559,7 +575,9 @@ Process {
                             try {
                                 $formData = Import-Excel @ImportParams -Sheet 'FormData' -ErrorVariable importFail
 
-                                Write-EventLog @EventVerboseParams -Message "$BeginEvent - Worksheet 'FormData' imported"
+                                $M = "$BeginEvent - Worksheet 'FormData' imported"
+                                Write-EventLog @EventVerboseParams -Message $M
+                                Write-Verbose $M
 
                                 $Obj.FormData.Check += Test-FormDataHC $formData
 
@@ -625,7 +643,10 @@ Process {
                 if ($Archive) {
                     Try {
                         Move-Item -LiteralPath $matrixFile -Destination $ArchiveItem -Force -EA Stop
-                        Write-EventLog @EventVerboseParams -Message "$BeginEvent - Moved file to archive folder:`n$($ArchiveItem.FullName)"
+
+                        $M = "$BeginEvent - Moved file to archive folder:`n$($ArchiveItem.FullName)"
+                        Write-EventLog @EventVerboseParams -Message $M
+                        Write-Verbose $M
                     }
                     Catch {
                         $Obj.File.Check += [PSCustomObject]@{
@@ -699,7 +720,8 @@ Process {
             #endregion
 
             #region Build the matrix and check for incorrect input
-            Write-EventLog @EventVerboseParams -Message 'Build the matrix and check for incorrect input'
+            $M = 'Build the matrix and check for incorrect input'
+            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
             foreach (
                 $I in
@@ -711,6 +733,8 @@ Process {
                 )
             ) {
                 Try {
+                    Write-Verbose 'Test matrix permissions'
+
                     $I.Permissions.Check += Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
 
                     if ($I.Permissions.Check.Type -notContains 'FatalError') {
@@ -718,6 +742,8 @@ Process {
                             $S.Check += Test-MatrixSettingHC -Setting $S.Import
 
                             #region Create AD object names
+                            Write-Verbose 'Create AD object names'
+
                             $params = @{
                                 Begin         = $S.Import.GroupName
                                 Middle        = $S.Import.SiteCode
@@ -726,11 +752,15 @@ Process {
                             }
                             $adObjects = ConvertTo-MatrixADNamesHC @params
 
+                            Write-Verbose 'Test AD objects'
+
                             $S.Check += Test-AdObjectsHC $adObjects
                             #endregion
 
                             #region Create matrix for each settings line
                             if ($S.Check.Type -notContains 'FatalError') {
+                                Write-Verbose 'Create matrix for each settings line'
+
                                 $S.AdObjects = $adObjects
 
                                 $params = @{
@@ -786,14 +816,17 @@ Process {
             $AdObjects = $ImportedMatrix.Settings.Matrix.ACL.Keys
 
             if ($AdObjects.count -ne 0) {
+                Write-Verbose 'Get AD object details'
                 $params = @{
-                    SamAccountName   = $AdObjects | Sort-Object -Unique
-                    ADObjectProperty = 'ManagedBy'
+                    ADObjectName = $AdObjects | Sort-Object -Unique
+                    Type         = 'SamAccountName'
                 }
                 $ADObjectDetails = @(Get-ADObjectDetailHC @params)
 
                 @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach(
                     {
+                        Write-Verbose "Test expanded matrix for Settings row ComputerName '$($_.Import.ComputerName)' Path '$($_.Import.Path)' SiteName '$($_.Import.SiteName)' SiteCode '$($_.Import.SiteCode)' GroupName '$($_.Import.GroupName)'"
+
                         $params = @{
                             Matrix                 = $_.Matrix
                             ADObject               = $ADObjectDetails
@@ -815,7 +848,8 @@ Process {
                 Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
                 $params = @{
-                    DistinguishedName = $groupManagers
+                    ADObjectName = $groupManagers
+                    Type         = 'DistinguishedName'
                 }
                 $groupManagersAdDetails = Get-ADObjectDetailHC @params
             }

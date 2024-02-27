@@ -1116,7 +1116,7 @@ Describe "export an Excel file with" {
                     }
                 )
             }
-        } -ParameterFilter { $SamAccountName }
+        } -ParameterFilter { $Type -eq 'SamAccountName' }
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
@@ -1145,7 +1145,7 @@ Describe "export an Excel file with" {
                 }
                 adGroupMember     = $null
             }
-        } -ParameterFilter { $DistinguishedName }
+        } -ParameterFilter { $Type -eq 'DistinguishedName' }
 
         @(
             [PSCustomObject]@{
@@ -1675,7 +1675,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 )
             }
-        } -ParameterFilter { $SamAccountName }
+        } -ParameterFilter { $Type -eq 'SamAccountName' }
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
@@ -1691,7 +1691,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                     }
                 )
             }
-        } -ParameterFilter { $DistinguishedName }
+        } -ParameterFilter { $Type -eq 'DistinguishedName' }
 
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'C' }
@@ -1879,7 +1879,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         It 'to a CSV file in the Cherwell folder' {
             $testCherwellFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
-        }
+        } -Tag test
         It 'to a CSV file in the log folder' {
             $testLogFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
