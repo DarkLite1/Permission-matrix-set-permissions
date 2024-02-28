@@ -676,7 +676,7 @@ Process {
 
         #region Import library for .NET calls
         try {
-            Import-Module -Name 'Microsoft.PowerShell.Security'
+            Import-Module -Name 'Microsoft.PowerShell.Security' -Force
         }
         catch {
             throw "Failed loading .NET library: $_"

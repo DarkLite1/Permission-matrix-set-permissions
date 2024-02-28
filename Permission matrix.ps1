@@ -1903,8 +1903,8 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
         Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"; Exit 1
     }
     Finally {
-        Get-Job | Remove-Job -Force
-        Get-PSSession | Remove-PSSession
+        Get-Job | Remove-Job -Force -EA Ignore
+        Get-PSSession | Remove-PSSession -EA Ignore
         Remove-PSDrive ImportDir -EA Ignore
         Write-EventLog @EventEndParams
     }
