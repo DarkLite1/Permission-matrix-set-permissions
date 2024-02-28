@@ -347,10 +347,16 @@ Begin {
             [Boolean]$DetailedLog
         )
 
-        # required for using .NET call GetAccessControl
-        Import-Module Microsoft.PowerShell.Security
-
         $ErrorActionPreference = 'Stop'
+
+        #region Import library for .NET calls
+        try {
+            Import-Module -Name 'Microsoft.PowerShell.Security'
+        }
+        catch {
+            throw "Failed loading .NET library: $_"
+        }
+        #endregion
 
         Function Test-AclEqualHC {
             <#
@@ -665,6 +671,15 @@ Process {
         }
         Catch {
             throw "Failed getting super powers: $_"
+        }
+        #endregion
+
+        #region Import library for .NET calls
+        try {
+            Import-Module -Name 'Microsoft.PowerShell.Security'
+        }
+        catch {
+            throw "Failed loading .NET library: $_"
         }
         #endregion
 
