@@ -101,7 +101,7 @@ Param (
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
-    [Int]$JobsAtOnceDefault = 3,
+    [Int]$jobsAtOnceDefault = 3,
     [int]$MaxConcurrentJobs = 10,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
@@ -194,13 +194,13 @@ Begin {
                 Name       = 'JobThrottleLimit'
                 Expression = {
                     if ($_.Import.JobsAtOnce) { $_.Import.JobsAtOnce }
-                    else { $JobsAtOnceDefault }
+                    else { $jobsAtOnceDefault }
                 }
             }
 
             $jobName = 'SetPermissions_{0}'
 
-            $Jobs = foreach ($q in  $queue) {
+            $jobs = foreach ($q in  $queue) {
                 $InvokeParams = @{
                     FilePath          = $ScriptSetPermissionItem
                     ArgumentList      = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
@@ -213,32 +213,32 @@ Begin {
                 Invoke-Command @InvokeParams
             }
 
-            if ($Jobs) {
-                $null = Wait-Job -Job $Jobs
+            if ($jobs) {
+                $null = Wait-Job -Job $jobs
 
-                foreach ($Job in $Jobs) {
-                    $JobError = Get-JobErrorHC -Job $Job
+                foreach ($job in $jobs) {
+                    $jobError = Get-JobErrorHC -Job $job
 
                     #region Retrieve job results and add errors based on the job name and the matrix ID
                     $executableMatrix.Where( {
-                            $Job.Name -eq ($jobName -f $_.ID)
+                            $job.Name -eq ($jobName -f $_.ID)
                         }).Foreach( {
                             $_.JobTime = @{
-                                Start    = $Job.PSBeginTime
-                                End      = $Job.PSEndTime
-                                Duration = New-TimeSpan -Start $Job.PSBeginTime -End $Job.PSEndTime
+                                Start    = $job.PSBeginTime
+                                End      = $job.PSEndTime
+                                Duration = New-TimeSpan -Start $job.PSBeginTime -End $job.PSEndTime
                             }
 
-                            if ($JobError) {
-                                $_.Check += [PSCustomObject]$JobError
+                            if ($jobError) {
+                                $_.Check += [PSCustomObject]$jobError
                             }
 
-                            $_.Check += Receive-Job -Job $Job -Keep -ErrorAction Ignore
+                            $_.Check += Receive-Job -Job $job -Keep -ErrorAction Ignore
                         })
                     #endregion
                 }
 
-                $Jobs | Remove-Job -Force -EA Ignore
+                $jobs | Remove-Job -Force -EA Ignore
             }
             #endregion
         }
@@ -391,7 +391,7 @@ Process {
             ErrorAction = 'Stop'
         }
 
-        [Array]$ImportedMatrix = foreach (
+        [Array]$importedMatrix = foreach (
             $matrixFile in
             @(Get-ChildItem @getParams).Where(
                 { $_.FullName -ne $DefaultsItem.FullName })
@@ -593,9 +593,9 @@ Process {
             }
         }
 
-        if ($ImportedMatrix) {
+        if ($importedMatrix) {
             #region Build FormData for CherwellFolder
-            foreach ($I in ($ImportedMatrix.Where( { $_.FormData.Import }))) {
+            foreach ($I in ($importedMatrix.Where( { $_.FormData.Import }))) {
                 try {
                     $property = @{}
 
@@ -648,7 +648,7 @@ Process {
 
             foreach (
                 $I in
-                $ImportedMatrix.Where(
+                $importedMatrix.Where(
                     {
                         ($_.File.Check.Type -notContains 'FatalError' ) -and
                         ($_.Settings)
@@ -713,7 +713,7 @@ Process {
             Write-EventLog @EventVerboseParams -Message 'Check duplicate ComputerName/Path combination'
 
             (
-                @($ImportedMatrix.Settings | Group-Object @{
+                @($importedMatrix.Settings | Group-Object @{
                         Expression = {
                             $_.Import.ComputerName + ' - ' + $_.Import.Path }
                     }
@@ -736,7 +736,7 @@ Process {
             $M = 'Check expanded matrix'
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-            $AdObjects = $ImportedMatrix.Settings.Matrix.ACL.Keys
+            $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys
 
             if ($AdObjects.count -ne 0) {
                 Write-Verbose 'Get AD object details'
@@ -746,7 +746,7 @@ Process {
                 }
                 $ADObjectDetails = @(Get-ADObjectDetailHC @params)
 
-                @($ImportedMatrix.Settings).Where( { $_.Matrix }).Foreach(
+                @($importedMatrix.Settings).Where( { $_.Matrix }).Foreach(
                     {
                         Write-Verbose "Test expanded matrix for Settings row ComputerName '$($_.Import.ComputerName)' Path '$($_.Import.Path)' SiteName '$($_.Import.SiteName)' SiteCode '$($_.Import.SiteCode)' GroupName '$($_.Import.GroupName)'"
 
@@ -796,7 +796,7 @@ Process {
             #endregion
 
             #region Get latest PowerShell configuration name per computer
-            $executableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)
+            $executableMatrix = @(Get-ExecutableMatrixHC -From $importedMatrix)
 
             foreach (
                 $E in
@@ -835,7 +835,7 @@ Process {
             #region Test server requirements
             if (
                 $executableMatrix = @(
-                    Get-ExecutableMatrixHC -From $ImportedMatrix)
+                    Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
                 $M = 'Check server requirements'
                 Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
@@ -899,7 +899,7 @@ Process {
 
             if (
                 $executableMatrix = @(
-                    Get-ExecutableMatrixHC -From $ImportedMatrix)
+                    Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
                 #region Add default permissions
                 <#
@@ -940,12 +940,12 @@ End {
             $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek
         )
 
-        if ($ImportedMatrix) {
+        if ($importedMatrix) {
             $groupManagersSheet = @()
             $accessListSheet = @()
 
             #region Export to matrix Excel log file
-            foreach ($I in $ImportedMatrix) {
+            foreach ($I in $importedMatrix) {
                 #region Get unique SamAccountNames for all matrix in Settings
                 $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName |
                 Select-Object -Property @{
@@ -1087,10 +1087,10 @@ End {
 
             if (
                 $CherwellFolder -and
-                ($ImportedMatrix.FormData.Check.Type -notContains 'FatalError')
+                ($importedMatrix.FormData.Check.Type -notContains 'FatalError')
             ) {
                 #region Create AD Object names and FormData to export
-                foreach ($I in $ImportedMatrix) {
+                foreach ($I in $importedMatrix) {
                     $adObjects = foreach (
                         $S in
                         $I.Settings.Where( { $_.AdObjects.Count -ne 0 })
@@ -1374,7 +1374,7 @@ End {
             #endregion
 
             #region HTML Mail overview & Settings detail
-            $htmlMatrixTables = foreach ($I in $ImportedMatrix) {
+            $htmlMatrixTables = foreach ($I in $importedMatrix) {
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
                     @"
@@ -1718,41 +1718,41 @@ End {
             $count = @{
                 FormData    = @{
                     Error   = @(
-                        $ImportedMatrix.FormData.Check |
+                        $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'FatalError'
                     ).count
                     Warning = @(
-                        $ImportedMatrix.FormData.Check |
+                        $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'Warning'
                     ).count
                 }
                 Permissions = @{
                     Error   = @(
-                        $ImportedMatrix.Permissions.Check |
+                        $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'FatalError'
                     ).count
                     Warning = @(
-                        $ImportedMatrix.Permissions.Check |
+                        $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'Warning'
                     ).count
                 }
                 Settings    = @{
                     Error   = @(
-                        $ImportedMatrix.Settings.Check |
+                        $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'FatalError'
                     ).count
                     Warning = @(
-                        $ImportedMatrix.Settings.Check |
+                        $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'Warning'
                     ).count
                 }
                 File        = @{
                     Error   = @(
-                        $ImportedMatrix.File.Check |
+                        $importedMatrix.File.Check |
                         Where-Object Type -EQ 'FatalError'
                     ).count
                     Warning = @(
-                        $ImportedMatrix.File.Check |
+                        $importedMatrix.File.Check |
                         Where-Object Type -EQ 'Warning'
                     ).count
                 }
@@ -1890,8 +1890,8 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 $htmlLegend
 "@
 
-            $Subject = "$(@($ImportedMatrix).Count) matrix file{0}{1}{2}" -f $(
-                if (@($ImportedMatrix).Count -ne 1) { 's' }
+            $Subject = "$(@($importedMatrix).Count) matrix file{0}{1}{2}" -f $(
+                if (@($importedMatrix).Count -ne 1) { 's' }
             ),
             $(
                 if ($errorCount) {
