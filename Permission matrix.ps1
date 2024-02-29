@@ -174,16 +174,10 @@ Begin {
                 ($ExecutableMatrix |
                 Group-Object -Property { $_.Import.ComputerName })
             ) {
-                $getEndpointParams = @{
-                    ComputerName = $E.Name
-                    ScriptName   = $ScriptName
-                    ErrorAction  = 'Stop'
-                }
-
                 $InvokeParams = @{
                     FilePath          = $ScriptTestRequirementsItem
                     ArgumentList      = $E.Group.Import.Path, $true
-                    ConfigurationName = Get-PowerShellConnectableEndpointNameHC @getEndpointParams
+                    ConfigurationName = $E.Group[0].Import.ConfigurationName
                     ComputerName      = $E.Name
                     JobName           = 'TestRequirements'
                     ThrottleLimit     = 10
@@ -223,37 +217,40 @@ Begin {
     Function Start-SetPermissionsScriptHC {
         Try {
             #region Set NTFS permissions on folders
-            $Queue = $ExecutableMatrix | Select-Object ID, Matrix,
-            @{Name = 'Path'; Expression = { $_.Import.Path } },
-            @{Name = 'Action'; Expression = { $_.Import.Action } },
+            $queue = $ExecutableMatrix | Select-Object ID, Matrix,
+            @{
+                Name       = 'ComputerName'
+                Expression = { $_.Import.ComputerName }
+            },
+            @{
+                Name       = 'ConfigurationName'
+                Expression = { $_.Import.ConfigurationName }
+            },
+            @{
+                Name       = 'Action'
+                Expression = { $_.Import.Action }
+            },
+            @{
+                Name       = 'Path'
+                Expression = { $_.Import.Path }
+            },
             @{
                 Name       = 'JobThrottleLimit'
                 Expression = {
-                    if ($_.Import.JobsAtOnce) {
-                        $_.Import.JobsAtOnce
-                    }
-                    else {
-                        $JobsAtOnceDefault
-                    }
+                    if ($_.Import.JobsAtOnce) { $_.Import.JobsAtOnce }
+                    else { $JobsAtOnceDefault }
                 }
-            },
-            @{Name = 'ComputerName'; Expression = { $_.Import.ComputerName } }
+            }
 
-            $JobName = 'SetPermissions_{0}'
+            $jobName = 'SetPermissions_{0}'
 
-            $Jobs = foreach ($q in  $Queue) {
-                $getEndpointParams = @{
-                    ComputerName = $q.ComputerName
-                    ScriptName   = $ScriptName
-                    ErrorAction  = 'Stop'
-                }
-
+            $Jobs = foreach ($q in  $queue) {
                 $InvokeParams = @{
                     FilePath          = $ScriptSetPermissionItem
                     ArgumentList      = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
-                    ConfigurationName = Get-PowerShellConnectableEndpointNameHC @getEndpointParams
+                    ConfigurationName = $q.ConfigurationName
                     ComputerName      = $q.ComputerName
-                    JobName           = $JobName -f $q.ID
+                    JobName           = $jobName -f $q.ID
                     ThrottleLimit     = 10
                     AsJob             = $true
                 }
@@ -268,7 +265,7 @@ Begin {
 
                     #region Retrieve job results and add errors based on the job name and the matrix ID
                     $ExecutableMatrix.Where( {
-                            $Job.Name -eq ($JobName -f $_.ID)
+                            $Job.Name -eq ($jobName -f $_.ID)
                         }).Foreach( {
                             $_.JobTime = @{
                                 Start    = $Job.PSBeginTime
@@ -514,7 +511,6 @@ Process {
                     Write-EventLog @EventVerboseParams -Message $M
                     Write-Verbose $M
                     #endregion
-
 
                     if ($Settings) {
                         foreach ($S in $Settings) {
@@ -843,11 +839,53 @@ Process {
             }
             #endregion
 
+            #region Get latest PowerShell configuration name per computer
+            $ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)
+
+            foreach (
+                $E in
+                ($ExecutableMatrix |
+                Group-Object -Property { $_.Import.ComputerName })
+            ) {
+                try {
+                    $params = @{
+                        ComputerName = $E.Name
+                        ScriptName   = $ScriptName
+                        ErrorAction  = 'Stop'
+                    }
+                    $configurationName = Get-PowerShellConnectableEndpointNameHC @params
+
+                    $E.Group | ForEach-Object {
+                        $_.Import | Add-Member -NotePropertyMembers @{
+                            ConfigurationName = $configurationName
+                        }
+                    }
+                }
+                catch {
+                    $problem = [PSCustomObject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Connection error'
+                        Value       = $_
+                        Description = 'Connecting to the remote machine failed. Most likely the machine is offline or the computer name is incorrect.'
+                    }
+
+                    $Error.RemoveAt(0)
+
+                    $E.Group | ForEach-Object {
+                        $_.Check += $problem
+                    }
+                }
+            }
+            #endregion
+
             #region Test minimal server requirements (PS version, ..)
             $M = 'Check server requirements'
             Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
 
-            if ($ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)) {
+            if (
+                $ExecutableMatrix = @(
+                    Get-ExecutableMatrixHC -From $ImportedMatrix)
+            ) {
                 Start-TestRequirements
             }
             #endregion
@@ -855,7 +893,10 @@ Process {
             #region Set permissions
             Write-EventLog @EventVerboseParams -Message 'Set permissions'
 
-            if ($ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)) {
+            if (
+                $ExecutableMatrix = @(
+                    Get-ExecutableMatrixHC -From $ImportedMatrix)
+            ) {
                 #region Add default permissions
                 <#
                     In case of conflict, when the same AD object is used in the matrix ACL and in the default ACL,

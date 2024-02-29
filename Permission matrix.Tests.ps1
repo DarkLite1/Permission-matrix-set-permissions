@@ -827,7 +827,9 @@ Describe 'the script that tests the remote computers for compliance' {
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
         } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[0]) -and ($AsJob -eq $true) -and
+            ($ComputerName -eq $testComputerNames[0]) -and
+            ($AsJob -eq $true) -and
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($JobName -eq 'TestRequirements')
         }
         Mock Invoke-Command {
