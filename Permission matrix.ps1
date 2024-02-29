@@ -875,25 +875,25 @@ Process {
                         $matrix | ForEach-Object { $_.Check += $problem }
                     }
                 }
-            }
 
-            #region Run code serial or parallel
-            $foreachParams = if ($MaxConcurrentJobs -eq 1) {
-                @{
-                    Process = $scriptBlock
+                #region Run code serial or parallel
+                $foreachParams = if ($MaxConcurrentJobs -eq 1) {
+                    @{
+                        Process = $scriptBlock
+                    }
                 }
-            }
-            else {
-                @{
-                    Parallel      = $scriptBlock
-                    ThrottleLimit = $MaxConcurrentJobs
+                else {
+                    @{
+                        Parallel      = $scriptBlock
+                        ThrottleLimit = $MaxConcurrentJobs
+                    }
                 }
-            }
-            #endregion
+                #endregion
 
-            $ExecutableMatrix |
-            Group-Object -Property { $_.Import.ComputerName } |
-            ForEach-Object @foreachParams
+                $ExecutableMatrix |
+                Group-Object -Property { $_.Import.ComputerName } |
+                ForEach-Object @foreachParams
+            }
             #endregion
 
             #region Set permissions
