@@ -78,6 +78,9 @@
         Amount of jobs allowed to run at the same time on the remote computers.
         Only used when no value is set in 'JobsAtOnce' within the Excel sheet
         'Settings'.
+
+    .PARAMETER MaxConcurrentJobs
+        Jobs allowed to run at the same time on the local computer.
 #>
 
 [CmdLetBinding()]
@@ -99,6 +102,7 @@ Param (
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [Int]$JobsAtOnceDefault = 3,
+    [int]$MaxConcurrentJobs = 10,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
@@ -164,54 +168,6 @@ Begin {
         }
         catch {
             throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
-        }
-    }
-    Function Start-TestRequirements {
-        Try {
-            #region Test PS version, .NET version, set share config, ABE, ...
-            $Jobs = foreach (
-                $E in
-                ($ExecutableMatrix |
-                Group-Object -Property { $_.Import.ComputerName })
-            ) {
-                $InvokeParams = @{
-                    FilePath          = $ScriptTestRequirementsItem
-                    ArgumentList      = $E.Group.Import.Path, $true
-                    ConfigurationName = $E.Group[0].Import.ConfigurationName
-                    ComputerName      = $E.Name
-                    JobName           = 'TestRequirements'
-                    ThrottleLimit     = 10
-                    AsJob             = $true
-                }
-                Invoke-Command @InvokeParams
-            }
-
-            if ($Jobs) {
-                $null = Wait-Job -Job $Jobs
-
-                foreach ($Job in $Jobs) {
-                    $JobError = Get-JobErrorHC -Job $Job
-
-                    #region Retrieve job results and add errors
-                    $ExecutableMatrix.Where(
-                        { $_.Import.ComputerName -eq $Job.Location }
-                    ).Foreach(
-                        {
-                            if ($JobError) {
-                                $_.Check += [PSCustomObject]$JobError
-                            }
-                            $_.Check += Receive-Job -Job $Job -Keep -ErrorAction Ignore
-                        }
-                    )
-                    #endregion
-                }
-
-                $Jobs | Remove-Job -Force -EA Ignore
-            }
-            #endregion
-        }
-        Catch {
-            throw "Failed testing the requirements: $_"
         }
     }
     Function Start-SetPermissionsScriptHC {
@@ -878,16 +834,66 @@ Process {
             }
             #endregion
 
-            #region Test minimal server requirements (PS version, ..)
-            $M = 'Check server requirements'
-            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
-
+            #region Test server requirements
             if (
                 $ExecutableMatrix = @(
                     Get-ExecutableMatrixHC -From $ImportedMatrix)
             ) {
-                Start-TestRequirements
+                $M = 'Check server requirements'
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+
+                $scriptBlock = {
+                    try {
+                        #region Declare variables for code running in parallel
+                        if (-not $MaxConcurrentJobs) {
+                            $ScriptTestRequirementsItem = $using:ScriptTestRequirementsItem
+                        }
+                        #endregion
+
+                        $matrix = $_.Group
+                        $computerName = $_.Name
+
+                        $params = @{
+                            FilePath          = $ScriptTestRequirementsItem
+                            ArgumentList      = $matrix.Import.Path, $true
+                            ConfigurationName = $matrix[0].Import.ConfigurationName
+                            ComputerName      = $computerName
+                            ErrorAction       = 'Stop'
+                        }
+                        if ($result = Invoke-Command @params) {
+                            $matrix | ForEach-Object { $_.Check += $result }
+                        }
+                    }
+                    catch {
+                        $problem = [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Computer requirements'
+                            Value       = $_
+                            Description = 'Failed testing the computer for the minimal requirements to be able to run the script that sets the permissions.'
+                        }
+                        $Error.RemoveAt(0)
+                        $matrix | ForEach-Object { $_.Check += $problem }
+                    }
+                }
             }
+
+            #region Run code serial or parallel
+            $foreachParams = if ($MaxConcurrentJobs -eq 1) {
+                @{
+                    Process = $scriptBlock
+                }
+            }
+            else {
+                @{
+                    Parallel      = $scriptBlock
+                    ThrottleLimit = $MaxConcurrentJobs
+                }
+            }
+            #endregion
+
+            $ExecutableMatrix |
+            Group-Object -Property { $_.Import.ComputerName } |
+            ForEach-Object @foreachParams
             #endregion
 
             #region Set permissions

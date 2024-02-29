@@ -14,6 +14,7 @@ BeforeAll {
         ScriptTestRequirements  = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
         DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
         ScriptAdmin             = 'admin@contoso.com'
+        MaxConcurrentJobs       = 1
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -825,20 +826,18 @@ Describe 'the script that tests the remote computers for compliance' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
+            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0]
         } -ParameterFilter {
             ($ComputerName -eq $testComputerNames[0]) -and
-            ($AsJob -eq $true) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-            ($JobName -eq 'TestRequirements')
+            ($FilePath -eq $testParams.ScriptTestRequirements)
         }
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
+            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1]
         } -ParameterFilter {
             ($ComputerName -eq $testComputerNames[1]) -and
-            ($AsJob -eq $true) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-            ($JobName -eq 'TestRequirements')
+            ($FilePath -eq $testParams.ScriptTestRequirements)
         }
 
         @(
@@ -874,17 +873,19 @@ Describe 'the script that tests the remote computers for compliance' {
     }
     It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
         Should -Not -Invoke Invoke-Command -Scope Describe -ParameterFilter {
-            ($JobName -eq 'TestRequirements') -and
+            ($FilePath -eq $testParams.ScriptTestRequirements) -and
             ($ComputerName -eq 'ignoredPc')
         }
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
         Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
-            $JobName -eq 'TestRequirements'
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($FilePath -eq $testParams.ScriptTestRequirements)
         }
         @($testComputerNames[0], $testComputerNames[1]) | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-                ($JobName -eq 'TestRequirements') -and
+                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($FilePath -eq $testParams.ScriptTestRequirements) -and
                 ($ComputerName -eq $_)
             }
         }
@@ -1278,20 +1279,18 @@ Describe 'when a job fails' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'TestRequirements'
+                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0]
             } -ParameterFilter {
-                ($AsJob -eq $true) -and
                 ($ComputerName -eq $testComputerNames[0]) -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-                ($JobName -eq 'TestRequirements')
+                ($FilePath -eq $testParams.ScriptTestRequirements)
             }
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
+                & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1]
             } -ParameterFilter {
-                ($AsJob -eq $true) -and
                 ($ComputerName -eq $testComputerNames[1]) -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-                ($JobName -eq 'TestRequirements')
+                ($FilePath -eq $testParams.ScriptTestRequirements)
             }
 
             @(
