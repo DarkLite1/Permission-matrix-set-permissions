@@ -827,9 +827,7 @@ Process {
 
                     $Error.RemoveAt(0)
 
-                    $E.Group | ForEach-Object {
-                        $_.Check += $problem
-                    }
+                    $E.Group | ForEach-Object { $_.Check += $problem }
                 }
             }
             #endregion
