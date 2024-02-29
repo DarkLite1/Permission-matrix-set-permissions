@@ -173,7 +173,7 @@ Begin {
     Function Start-SetPermissionsScriptHC {
         Try {
             #region Set NTFS permissions on folders
-            $queue = $ExecutableMatrix | Select-Object ID, Matrix,
+            $queue = $executableMatrix | Select-Object ID, Matrix,
             @{
                 Name       = 'ComputerName'
                 Expression = { $_.Import.ComputerName }
@@ -220,7 +220,7 @@ Begin {
                     $JobError = Get-JobErrorHC -Job $Job
 
                     #region Retrieve job results and add errors based on the job name and the matrix ID
-                    $ExecutableMatrix.Where( {
+                    $executableMatrix.Where( {
                             $Job.Name -eq ($jobName -f $_.ID)
                         }).Foreach( {
                             $_.JobTime = @{
@@ -796,11 +796,11 @@ Process {
             #endregion
 
             #region Get latest PowerShell configuration name per computer
-            $ExecutableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)
+            $executableMatrix = @(Get-ExecutableMatrixHC -From $ImportedMatrix)
 
             foreach (
                 $E in
-                ($ExecutableMatrix |
+                ($executableMatrix |
                 Group-Object -Property { $_.Import.ComputerName })
             ) {
                 try {
@@ -836,7 +836,7 @@ Process {
 
             #region Test server requirements
             if (
-                $ExecutableMatrix = @(
+                $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $ImportedMatrix)
             ) {
                 $M = 'Check server requirements'
@@ -890,7 +890,7 @@ Process {
                 }
                 #endregion
 
-                $ExecutableMatrix |
+                $executableMatrix |
                 Group-Object -Property { $_.Import.ComputerName } |
                 ForEach-Object @foreachParams
             }
@@ -900,7 +900,7 @@ Process {
             Write-EventLog @EventVerboseParams -Message 'Set permissions'
 
             if (
-                $ExecutableMatrix = @(
+                $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $ImportedMatrix)
             ) {
                 #region Add default permissions
@@ -909,7 +909,7 @@ Process {
                     the AD Object's permissions in the matrix ACL will win.
                 #>
                 if ($DefaultAcl.Count -ne 0) {
-                    foreach ($E in @($ExecutableMatrix.Matrix.ACL).Where( {
+                    foreach ($E in @($executableMatrix.Matrix.ACL).Where( {
                                 $_.Count -ne 0 })
                     ) {
                         $DefaultAcl.GetEnumerator().Where( {
