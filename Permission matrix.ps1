@@ -922,8 +922,6 @@ Process {
     Catch {
         Write-Warning $_
         Get-Job | Remove-Job -Force -EA Ignore
-        Get-PSSession | Remove-PSSession
-
         Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
         Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
         Write-EventLog @EventEndParams; Exit 1
@@ -1945,7 +1943,6 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
     }
     Finally {
         Get-Job | Remove-Job -Force -EA Ignore
-        Get-PSSession | Remove-PSSession -EA Ignore
         Remove-PSDrive ImportDir -EA Ignore
         Write-EventLog @EventEndParams
     }

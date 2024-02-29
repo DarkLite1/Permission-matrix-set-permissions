@@ -835,7 +835,9 @@ Describe 'the script that tests the remote computers for compliance' {
         Mock Invoke-Command {
             & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1] -AsJob -JobName 'TestRequirements'
         } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[1]) -and ($AsJob -eq $true) -and
+            ($ComputerName -eq $testComputerNames[1]) -and
+            ($AsJob -eq $true) -and
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($JobName -eq 'TestRequirements')
         }
 
@@ -907,6 +909,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         } -ParameterFilter {
             ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[0]) -and
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($JobName -eq 'SetPermissions_1')
         }
         Mock Invoke-Command {
@@ -914,6 +917,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         } -ParameterFilter {
             ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[0]) -and
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($JobName -eq 'SetPermissions_2')
         }
         Mock Invoke-Command {
@@ -921,6 +925,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         } -ParameterFilter {
             ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[1]) -and
+            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($JobName -eq 'SetPermissions_3')
         }
 
@@ -1277,6 +1282,7 @@ Describe 'when a job fails' {
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
                 ($ComputerName -eq $testComputerNames[0]) -and
+                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($JobName -eq 'TestRequirements')
             }
             Mock Invoke-Command {
@@ -1284,6 +1290,7 @@ Describe 'when a job fails' {
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
                 ($ComputerName -eq $testComputerNames[1]) -and
+                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($JobName -eq 'TestRequirements')
             }
 
@@ -1313,12 +1320,14 @@ Describe 'when a job fails' {
                 & $TestInvokeCommand -Scriptblock { 1 } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_1'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
+                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($JobName -eq 'SetPermissions_1')
             }
             Mock Invoke-Command {
                 & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_2'
             } -ParameterFilter {
                 ($AsJob -eq $true) -and
+                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($JobName -eq 'SetPermissions_2')
             }
 
