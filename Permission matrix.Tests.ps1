@@ -1,11 +1,7 @@
-#Requires -Version 5.1
+#Requires -Version 7
 #Requires -Modules Pester, ImportExcel
 
 BeforeAll {
-    $testComputerNames = @($env:COMPUTERNAME, 'DEUSFFRAN0031')
-
-    $TestInvokeCommand = Get-Command -Name Invoke-Command
-
     $testParams = @{
         ScriptName              = 'Test (Brecht)'
         ImportDir               = New-Item 'TestDrive:/Matrix' -ItemType Directory
@@ -50,13 +46,7 @@ BeforeAll {
     #endregion
 
     $testDefaultSettings |
-    Export-Excel -Path $testParams.DefaultsFile -WorksheetName Settings
-
-    if (
-        -not (Test-Connection -ComputerName $testComputerNames[1] -Quiet)
-    ) {
-        throw "Test computer '$($testComputerNames[1])' is not online"
-    }
+    Export-Excel -Path $testParams.DefaultsFile -WorksheetName 'Settings'
 
     $SettingsParams = @{
         Path          = Join-Path $testParams.ImportDir 'Matrix.xlsx'
@@ -789,7 +779,7 @@ Describe "the worksheet 'Permissions' is" {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]
+                ComputerName = 'PC1'
                 Path         = 'E:\Department'
                 Action       = 'Check'
                 GroupName    = 'A'
@@ -822,21 +812,21 @@ Describe "the worksheet 'Permissions' is" {
             ($Permissions[4].P2 -eq 'W')
         }
     }
-}
+} -Tag test
 Describe 'the script that tests the remote computers for compliance' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'A' } -ComputerName $testComputerNames[0]
+            'A'
         } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[0]) -and
+            ($ComputerName -eq 'PC1') -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1]
+            'B'
         } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[1]) -and
+            ($ComputerName -eq 'PC2') -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
@@ -844,19 +834,19 @@ Describe 'the script that tests the remote computers for compliance' {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]
+                ComputerName = 'PC1'
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]
+                ComputerName = 'PC1'
                 Path         = 'E:\Reports'
                 Action       = 'Check'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[1]
+                ComputerName = 'PC2'
                 Path         = 'E:\Finance'
                 Action       = 'Check'
             }
@@ -883,7 +873,7 @@ Describe 'the script that tests the remote computers for compliance' {
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
-        @($testComputerNames[0], $testComputerNames[1]) | ForEach-Object {
+        @('PC1', 'PC2') | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements) -and
@@ -892,24 +882,28 @@ Describe 'the script that tests the remote computers for compliance' {
         }
     }
     It 'saves the job result in Settings for each matrix' {
-        @($ImportedMatrix.Settings.Where( {
-                    ($_.Import.ComputerName -eq $testComputerNames[0]) -and
-                    ($_.Check -eq 'A') })).Count |
+        @($ImportedMatrix.Settings.Where(
+                {
+                    ($_.Import.ComputerName -eq 'PC1') -and
+                    ($_.Check -eq 'A') }
+            )
+        ).Count |
         Should -BeExactly 2
 
-        @($ImportedMatrix.Settings.Where( {
-                    ($_.Import.ComputerName -eq $testComputerNames[1]) -and
-                    ($_.Check -eq 'B') })).Count |
+        @($ImportedMatrix.Settings.Where(
+                {
+                    ($_.Import.ComputerName -eq 'PC2') -and
+                    ($_.Check -eq 'B') }
+            )
+        ).Count |
         Should -BeExactly 1
     }
 }
 Describe 'the script that sets the permissions on the remote computers' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
-        Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 1 }
-        } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[0]) -and
+        Mock Invoke-Command { 1 } -ParameterFilter {
+            ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2]) -and
@@ -917,10 +911,8 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
-        Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 2 }
-        } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[0]) -and
+        Mock Invoke-Command { 2 } -ParameterFilter {
+            ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2]) -and
@@ -928,10 +920,8 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
-        Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 3 }
-        } -ParameterFilter {
-            ($ComputerName -eq $testComputerNames[1]) -and
+        Mock Invoke-Command { 3 } -ParameterFilter {
+            ($ComputerName -eq 'PC2') -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2]) -and
@@ -943,19 +933,19 @@ Describe 'the script that sets the permissions on the remote computers' {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]
+                ComputerName = 'PC1'
                 Path         = 'E:\Department'
                 Action       = 'New'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0]
+                ComputerName = 'PC1'
                 Path         = 'E:\Reports'
                 Action       = 'Fix'
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[1]
+                ComputerName = 'PC2'
                 Path         = 'E:\Finance'
                 Action       = 'Check'
             }
@@ -982,7 +972,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
-            ($ComputerName -eq $testComputerNames[0]) -and
+            ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2] -ne $null) -and
@@ -990,7 +980,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
-            ($ComputerName -eq $testComputerNames[0]) -and
+            ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2] -ne $null) -and
@@ -998,7 +988,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
             ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
-            ($ComputerName -eq $testComputerNames[1]) -and
+            ($ComputerName -eq 'PC2') -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2] -ne $null) -and
@@ -1018,14 +1008,14 @@ Describe 'the script that sets the permissions on the remote computers' {
         ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
         Should -Contain 3
     }
-} -Tag test
+}
 Describe 'an email is sent to the user in the default settings file' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0];
+                ComputerName = 'PC1';
                 Path         = 'E:\Reports'
                 Action       = 'Check'
                 GroupName    = 'C'
@@ -1033,7 +1023,7 @@ Describe 'an email is sent to the user in the default settings file' {
             }
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[1]
+                ComputerName = 'PC2'
                 Path         = 'E:\Finance'
                 Action       = 'New'
                 GroupName    = 'x'
@@ -1056,8 +1046,8 @@ Describe 'an email is sent to the user in the default settings file' {
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like "*1*$($testComputerNames[0])*E:\Reports*Check*") -and
-            ($Message -like "*2*$($testComputerNames[1])*E:\Finance*New*") -and
+            ($Message -like "*1*PC1*E:\Reports*Check*") -and
+            ($Message -like "*2*PC2*E:\Finance*New*") -and
             ($Message -like '*Error*Warning*Information*')
         }
     }
@@ -1161,7 +1151,7 @@ Describe "export an Excel file with" {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = $testComputerNames[0];
+                ComputerName = 'PC1';
                 Path         = 'E:\Reports'
                 Action       = 'Check'
                 GroupName    = 'A'
@@ -1281,24 +1271,20 @@ Describe 'when a job fails' {
     Context 'the test requirements script' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
-            Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0]
-            } -ParameterFilter {
-                ($ComputerName -eq $testComputerNames[0]) -and
+            Mock Invoke-Command { throw 'failure' } -ParameterFilter {
+                ($ComputerName -eq 'PC1') -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements)
             }
-            Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 'B' } -ComputerName $testComputerNames[1]
-            } -ParameterFilter {
-                ($ComputerName -eq $testComputerNames[1]) -and
+            Mock Invoke-Command { 'B' } -ParameterFilter {
+                ($ComputerName -eq 'PC2') -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements)
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[1]; Path = 'E:\Reports'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC2'; Path = 'E:\Reports'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1318,16 +1304,12 @@ Describe 'when a job fails' {
     Context 'the set permissions script' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
-            Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 1 }
-            } -ParameterFilter {
+            Mock Invoke-Command { 1 } -ParameterFilter {
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($ArgumentList[0] -eq 'E:\Department') -and
                 ($FilePath -eq $testParams.ScriptSetPermissionFile)
             }
-            Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' }
-            } -ParameterFilter {
+            Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
                 ($ArgumentList[0] -eq 'E:\Reports') -and
                 ($FilePath -eq $testParams.ScriptSetPermissionFile)
@@ -1335,10 +1317,10 @@ Describe 'when a job fails' {
 
             @(
                 [PSCustomObject]@{
-                    Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check'
+                    Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check'
                 }
                 [PSCustomObject]@{
-                    Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Reports'; Action = 'Check'
+                    Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Reports'; Action = 'Check'
                 }
             ) | Export-Excel @SettingsParams
 
@@ -1541,7 +1523,7 @@ Describe 'when the argument CherwellFolder is used' {
     Context 'but the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1582,7 +1564,7 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             @(
@@ -1628,7 +1610,7 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
             ) | Export-Excel @SettingsParams
 
             @(
