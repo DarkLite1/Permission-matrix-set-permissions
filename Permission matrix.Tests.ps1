@@ -3,15 +3,16 @@
 
 BeforeAll {
     $testParams = @{
-        ScriptName              = 'Test (Brecht)'
-        ImportDir               = New-Item 'TestDrive:/Matrix' -ItemType Directory
-        LogFolder               = New-Item 'TestDrive:/log' -ItemType Directory
-        ScriptSetPermissionFile = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
-        ScriptTestRequirements  = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
-        DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
-        ScriptAdmin             = 'admin@contoso.com'
-        MaxConcurrentComputers  = 1
-        MaxConcurrentRemoteJobs = 1
+        ScriptName                         = 'Test (Brecht)'
+        ImportDir                          = New-Item 'TestDrive:/Matrix' -ItemType Directory
+        LogFolder                          = New-Item 'TestDrive:/log' -ItemType Directory
+        ScriptSetPermissionFile            = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
+        ScriptTestRequirements             = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
+        DefaultsFile                       = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+        ScriptAdmin                        = 'admin@contoso.com'
+        MaxConcurrentComputers             = 1
+        MaxConcurrentJobsPerRemoteComputer = 1
+        MaxConcurrentFoldersPerMatrix      = 2
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -976,7 +977,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
@@ -985,7 +986,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
@@ -994,7 +995,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }

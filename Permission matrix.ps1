@@ -74,14 +74,17 @@
         The log name of the Excel file containing the same data as the csv files
         exported to the Cherwell folder.
 
-    .PARAMETER MaxConcurrentRemoteJobs
-        Amount of jobs allowed to run at the same time on the remote computers.
-        Only used when no value is set in 'JobsAtOnce' within the Excel sheet
-        'Settings'.
-
     .PARAMETER MaxConcurrentComputers
         Maximum quantity of unique computer names that can be requested to
         perform jobs at the same time.
+
+    .PARAMETER MaxConcurrentJobsPerRemoteComputer
+        Maximum quantity of jobs to run at the same time on a single remote
+        computer.
+
+    .PARAMETER MaxConcurrentFoldersPerMatrix
+        Maximum quantity of folders to iterate at the same time within a
+        single job running on a remote computer.
 #>
 
 [CmdLetBinding()]
@@ -103,7 +106,8 @@ Param (
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [int]$MaxConcurrentComputers = 10,
-    [Int]$MaxConcurrentRemoteJobs = 3,
+    [Int]$MaxConcurrentJobsPerRemoteComputer = 3,
+    [Int]$MaxConcurrentFoldersPerMatrix = 3,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
@@ -767,7 +771,7 @@ Process {
 
                 $scriptBlock = {
                     try {
-                        #region Declare variables for code running in parallel
+                        #region Declare variables for parallel execution
                         if (-not $MaxConcurrentComputers) {
                             $ScriptTestRequirementsItem = $using:ScriptTestRequirementsItem
                         }
@@ -848,62 +852,92 @@ Process {
                 }
                 #endregion
 
-                $scriptBlock = {
-                    try {
-                        $matrix = $_
+                $matrixes = $null
 
-                        #region Declare variables for code running in parallel
-                        if (-not $MaxConcurrentComputers) {
-                            $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
-                            $DetailedLog = $using:DetailedLog
-                            $MaxConcurrentRemoteJobs = $using:MaxConcurrentRemoteJobs
+                $outerScriptBlock = {
+                    # $VerbosePreference = 'Continue'
+
+                    $matrixes = $_.Group
+
+                    #region Declare variables for parallel execution
+                    if (-not $MaxConcurrentComputers) {
+                        $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
+                        $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                        $DetailedLog = $using:DetailedLog
+                    }
+                    #endregion
+
+                    $innerScriptBlock = {
+                        try {
+                            # $VerbosePreference = 'Continue'
+
+                            $matrix = $_
+
+                            #region Declare variables for parallel execution
+                            if (-not $MaxConcurrentJobsPerRemoteComputer) {
+                                $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
+                                $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                                $DetailedLog = $using:DetailedLog
+                            }
+                            #endregion
+
+                            $matrix.JobTime.Start = Get-Date
+
+                            $params = @{
+                                FilePath          = $ScriptSetPermissionItem
+                                ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentFoldersPerMatrix, $DetailedLog
+                                ConfigurationName = $matrix.Import.ConfigurationName
+                                ComputerName      = $matrix.Import.ComputerName
+                                ErrorAction       = 'Stop'
+                            }
+                            if ($result = Invoke-Command @params) {
+                                $matrix.Check += $result
+                            }
                         }
-                        #endregion
-
-                        $matrix.JobTime.Start = Get-Date
-
-                        $params = @{
-                            FilePath          = $ScriptSetPermissionItem
-                            ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentRemoteJobs, $DetailedLog
-                            ConfigurationName = $matrix.Import.ConfigurationName
-                            ComputerName      = $matrix.Import.ComputerName
-                            ErrorAction       = 'Stop'
+                        catch {
+                            $problem = [PSCustomObject]@{
+                                Type        = 'FatalError'
+                                Name        = 'Set permissions'
+                                Value       = $_
+                                Description = "Failed applying action '$($matrix.Import.Action)' with the 'Set permissions' script."
+                            }
+                            $Error.RemoveAt(0)
+                            $matrix.Check += $problem
                         }
-                        if ($result = Invoke-Command @params) {
-                            $matrix.Check += $result
+                        finally {
+                            $matrix.JobTime.End = Get-Date
+                            $matrix.JobTime.Duration = New-TimeSpan -Start $matrix.JobTime.Start -End $matrix.JobTime.End
                         }
                     }
-                    catch {
-                        $problem = [PSCustomObject]@{
-                            Type        = 'FatalError'
-                            Name        = 'Set permissions'
-                            Value       = $_
-                            Description = "Failed applying action '$($matrix.Import.Action)' with the 'Set permissions' script."
+
+                    $innerForeachParams = @{
+                        Process = $innerScriptBlock
+                    }
+
+                    if (-not $MaxConcurrentJobsPerRemoteComputer) {
+                        $innerForeachParams = @{
+                            Parallel      = $innerScriptBlock
+                            ThrottleLimit = $using:MaxConcurrentJobsPerRemoteComputer
                         }
-                        $Error.RemoveAt(0)
-                        $matrix.Check += $problem
                     }
-                    finally {
-                        $matrix.JobTime.End = Get-Date
-                        $matrix.JobTime.Duration = New-TimeSpan -Start $matrix.JobTime.Start -End $matrix.JobTime.End
-                    }
+
+                    $matrixes | ForEach-Object @innerForeachParams
                 }
 
-                #region Run code serial or parallel
-                $foreachParams = if ($MaxConcurrentComputers -eq 1) {
-                    @{
-                        Process = $scriptBlock
-                    }
+                $foreachParams = @{
+                    Process = $outerScriptBlock
                 }
-                else {
-                    @{
-                        Parallel      = $scriptBlock
+
+                if ($MaxConcurrentComputers -gt 1) {
+                    $foreachParams = @{
+                        Parallel      = $outerScriptBlock
                         ThrottleLimit = $MaxConcurrentComputers
                     }
                 }
-                #endregion
 
-                $executableMatrix | ForEach-Object @foreachParams
+                $executableMatrix |
+                Group-Object -Property { $_.Import.ComputerName } |
+                ForEach-Object @foreachParams -Verbose
             }
             #endregion
         }
