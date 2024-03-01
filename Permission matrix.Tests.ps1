@@ -20,8 +20,10 @@ BeforeAll {
     #region Valid Excel files
     $testMatrix = @(
         [PSCustomObject]@{
-            Path = 'Path'; ACL = @{'Bob' = 'L' };
-            Parent = $true; Ignore = $false
+            Path   = 'Path'
+            ACL    = @{'Bob' = 'L' }
+            Parent = $true
+            Ignore = $false
         }
     )
     $testPermissions = @(
@@ -40,8 +42,15 @@ BeforeAll {
         }
     )
     $testDefaultSettings = @(
-        [PSCustomObject]@{ADObjectName = 'Bob' ; Permission = 'L'; MailTo = 'Bob@contoso.com' }
-        [PSCustomObject]@{ADObjectName = 'Mike'; Permission = 'R' }
+        [PSCustomObject]@{
+            ADObjectName = 'Bob'
+            Permission   = 'L'
+            MailTo       = 'Bob@contoso.com'
+        }
+        [PSCustomObject]@{
+            ADObjectName = 'Mike'
+            Permission   = 'R'
+        }
     )
     #endregion
 
@@ -188,32 +197,56 @@ Describe 'stop the script and send an e-mail to the admin when' {
             @{
                 Name         = "column header 'MailTo'"
                 DefaultsFile = @(
-                    [PSCustomObject]@{ADObjectName = 'Bob' ; Permission = 'L' }
-                    [PSCustomObject]@{ADObjectName = 'Mike'; Permission = 'R' }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Bob'
+                        Permission   = 'L'
+                    }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Mike'
+                        Permission   = 'R'
+                    }
                 )
                 errorMessage = "Column header 'MailTo' not found"
             }
             @{
                 Name         = "column header 'ADObjectName'"
                 DefaultsFile = @(
-                    [PSCustomObject]@{Permission = 'L'; MailTo = 'Bob@mail.com' }
-                    [PSCustomObject]@{Permission = 'R' }
+                    [PSCustomObject]@{
+                        Permission = 'L'
+                        MailTo     = 'Bob@mail.com'
+                    }
+                    [PSCustomObject]@{
+                        Permission = 'R'
+                    }
                 )
                 errorMessage = "Column header 'ADObjectName' not found"
             }
             @{
                 Name         = "column header 'Permission'"
                 DefaultsFile = @(
-                    [PSCustomObject]@{ADObjectName = 'Bob' ; MailTo = 'Bob@mail.com' }
-                    [PSCustomObject]@{ADObjectName = 'Mike' }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Bob'
+                        MailTo       = 'Bob@mail.com'
+                    }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Mike'
+                    }
                 )
                 errorMessage = "Column header 'Permission' not found"
             }
             @{
                 Name         = "'MailTo' addresses"
                 DefaultsFile = @(
-                    [PSCustomObject]@{ADObjectName = 'Bob' ; Permission = 'L'; MailTo = $null }
-                    [PSCustomObject]@{ADObjectName = 'Mike'; Permission = 'R'; MailTo = ' ' }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Bob'
+                        Permission   = 'L'
+                        MailTo       = $null
+                    }
+                    [PSCustomObject]@{
+                        ADObjectName = 'Mike'
+                        Permission   = 'R'
+                        MailTo       = ' '
+                    }
                 )
                 errorMessage = "No mail addresses found"
             }
@@ -264,7 +297,12 @@ Describe 'stop the script and send an e-mail to the admin when' {
 Describe 'a sub folder in the log folder' {
     BeforeAll {
         @(
-            [PSCustomObject]@{Status = $null; ComputerName = 'S1'; Path = 'E:\Test'; Action = 'Check' }
+            [PSCustomObject]@{
+                Status       = $null
+                ComputerName = 'S1'
+                Path         = 'E:\Test'
+                Action       = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -291,7 +329,11 @@ Describe 'a sub folder in the log folder' {
 Describe "when the 'Archive' switch is used then" {
     BeforeAll {
         @(
-            [PSCustomObject]@{ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -316,7 +358,9 @@ Describe "when the 'Archive' switch is used then" {
 
         @(
             [PSCustomObject]@{
-                ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check'
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
             }
         ) | Export-Excel -Path $testFile -WorksheetName $SettingsParams.WorkSheetName
 
@@ -324,7 +368,9 @@ Describe "when the 'Archive' switch is used then" {
 
         @(
             [PSCustomObject]@{
-                ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check'
+                ComputerName = 'S2'
+                Path         = 'E:\Department'
+                Action       = 'Check'
             }
         ) | Export-Excel @SettingsParams
         @(
@@ -347,7 +393,15 @@ Describe "when the 'Archive' switch is used then" {
         1..5 | ForEach-Object {
             $FileName = "$($testParams.ImportDir)\Matrix $_.xlsx"
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; GroupName = 'G1'; SiteName = 'S1'; SiteCode = 'C1'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'S1'
+                    Path         = 'E:\Department'
+                    GroupName    = 'G1'
+                    SiteName     = 'S1'
+                    SiteCode     = 'C1'
+                    Action       = 'Check'
+                }
             ) | Export-Excel -Path $FileName -WorksheetName Settings
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -382,7 +436,12 @@ Describe "do not invoke the script to set permissions when" {
     It "there are only valid matrixes in subfolders of the 'ImportDir' folder" {
         $Folder = (New-Item  "$($testParams.ImportDir)\Archive" -ItemType Directory -Force -EA Ignore).FullName
         @(
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
         ) | Export-Excel -Path "$Folder/Matrix.xlsx" -WorksheetName Settings
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -398,7 +457,12 @@ Describe "do not invoke the script to set permissions when" {
     }
     It "the 'Status' in the worksheet 'Settings' of the matrix file is not set to 'Enabled'" {
         @(
-            [PSCustomObject]@{Status = 'NOTEnabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{
+                Status       = 'NOTEnabled'
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -426,7 +490,12 @@ Describe 'a FatalError object is registered' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'S1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -812,7 +881,7 @@ Describe "the worksheet 'Permissions' is" {
             ($Permissions[4].P2 -eq 'W')
         }
     }
-} -Tag test
+}
 Describe 'the script that tests the remote computers for compliance' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -1015,7 +1084,7 @@ Describe 'an email is sent to the user in the default settings file' {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = 'PC1';
+                ComputerName = 'PC1'
                 Path         = 'E:\Reports'
                 Action       = 'Check'
                 GroupName    = 'C'
@@ -1151,7 +1220,7 @@ Describe "export an Excel file with" {
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
-                ComputerName = 'PC1';
+                ComputerName = 'PC1'
                 Path         = 'E:\Reports'
                 Action       = 'Check'
                 GroupName    = 'A'
@@ -1160,11 +1229,21 @@ Describe "export an Excel file with" {
         ) | Export-Excel @SettingsParams
 
         @(
-            [PSCustomObject]@{P1 = $null      ; P2 = 'bob'       ; P3 = 'movieStars'; P4 = '' ; P5 = '' }
-            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode'  ; P3 = ''; P4 = 'starTrekCaptains' ; P5 = '' }
-            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' ; P3 = ''; P4 = '' ; P5 = 'Singers' }
-            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L'         ; P3 = ''; P4 = '' ; P5 = '' }
-            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W'         ; P3 = ''; P4 = '' ; P5 = '' }
+            [PSCustomObject]@{
+                P1 = $null      ; P2 = 'bob'       ; P3 = 'movieStars'; P4 = '' ; P5 = ''
+            }
+            [PSCustomObject]@{
+                P1 = 'SiteCode' ; P2 = 'SiteCode'  ; P3 = ''; P4 = 'starTrekCaptains' ; P5 = ''
+            }
+            [PSCustomObject]@{
+                P1 = 'GroupName'; P2 = 'GroupName' ; P3 = ''; P4 = '' ; P5 = 'Singers'
+            }
+            [PSCustomObject]@{
+                P1 = 'Path'     ; P2 = 'L'         ; P3 = ''; P4 = '' ; P5 = ''
+            }
+            [PSCustomObject]@{
+                P1 = 'Folder'   ; P2 = 'W'         ; P3 = ''; P4 = '' ; P5 = ''
+            }
         ) | Export-Excel @PermissionsParams
 
         .$testScript @testParams -ExcludedSamAccountName 'IgnoreMe'
@@ -1283,8 +1362,18 @@ Describe 'when a job fails' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC2'; Path = 'E:\Reports'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'PC2'
+                    Path         = 'E:\Reports'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1317,10 +1406,16 @@ Describe 'when a job fails' {
 
             @(
                 [PSCustomObject]@{
-                    Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check'
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
                 }
                 [PSCustomObject]@{
-                    Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Reports'; Action = 'Check'
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Reports'
+                    Action       = 'Check'
                 }
             ) | Export-Excel @SettingsParams
 
@@ -1345,7 +1440,12 @@ Describe 'internal functions' {
             Mock Test-ExpandedMatrixHC
             Mock ConvertTo-MatrixAclHC {
                 @(
-                    [PSCustomObject]@{Path = 'Path'; ACL = @{'Mike' = 'L' }; Parent = $true; Ignore = $false }
+                    [PSCustomObject]@{
+                        Path   = 'Path'
+                        ACL    = @{'Mike' = 'L' }
+                        Parent = $true
+                        Ignore = $false
+                    }
                 )
             }
             Mock Get-DefaultAclHC {
@@ -1354,7 +1454,12 @@ Describe 'internal functions' {
                 }
             }
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'test'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'test'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
@@ -1382,9 +1487,9 @@ Describe 'internal functions' {
             Mock ConvertTo-MatrixAclHC {
                 @(
                     [PSCustomObject]@{
-                        Path   = 'Path';
-                        ACL    = @{};
-                        Parent = $true;
+                        Path   = 'Path'
+                        ACL    = @{}
+                        Parent = $true
                         Ignore = $false
                     }
                 )
@@ -1396,7 +1501,12 @@ Describe 'internal functions' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'test'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'test'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
@@ -1417,7 +1527,15 @@ Describe 'internal functions' {
             Mock Test-ExpandedMatrixHC
             Mock ConvertTo-MatrixAclHC {
                 @(
-                    [PSCustomObject]@{Path = 'Path'; ACL = @{'Mike' = 'L'; 'Bob' = 'L' }; Parent = $true; Ignore = $false }
+                    [PSCustomObject]@{
+                        Path   = 'Path'
+                        ACL    = @{
+                            'Mike' = 'L'
+                            'Bob'  = 'L'
+                        }
+                        Parent = $true
+                        Ignore = $false
+                    }
                 )
             }
             Mock Get-DefaultAclHC {
@@ -1426,7 +1544,12 @@ Describe 'internal functions' {
                 }
             }
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'test'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'test'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
@@ -1465,8 +1588,18 @@ Describe 'when a FatalError occurs while executing the matrix' {
         }
 
         @(
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check' }
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'S2'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         $testPermissions | Export-Excel @PermissionsParams
 
@@ -1487,8 +1620,20 @@ Describe 'when a FatalError occurs while executing the matrix' {
         }
 
         @(
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check'; GroupName = 'Group'; SiteCode = 'Site' }
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'S1'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+                GroupName    = 'Group'
+                SiteCode     = 'Site'
+            }
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'S2'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         $testPermissions | Export-Excel @PermissionsParams
 
@@ -1509,8 +1654,18 @@ Describe 'when a FatalError occurs while executing the matrix' {
         }
 
         @(
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S1'; Path = 'E:\Department'; Action = 'Check'; GroupName = 'Group'; SiteCode = 'Site' }
-            [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'S2'; Path = 'E:\Department'; Action = 'Check' }
+            [PSCustomObject]@{Status = 'Enabled'
+                ComputerName         = 'S1'
+                Path                 = 'E:\Department'
+                Action               = 'Check'
+                GroupName            = 'Group'
+                SiteCode             = 'Site'
+            }
+            [PSCustomObject]@{Status = 'Enabled'
+                ComputerName         = 'S2'
+                Path                 = 'E:\Department'
+                Action               = 'Check'
+            }
         ) | Export-Excel @SettingsParams
         $testPermissions | Export-Excel @PermissionsParams
 
@@ -1523,7 +1678,12 @@ Describe 'when the argument CherwellFolder is used' {
     Context 'but the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
@@ -1564,7 +1724,12 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
 
             @(
@@ -1610,7 +1775,12 @@ Describe 'when the argument CherwellFolder is used' {
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = 'PC1'; Path = 'E:\Department'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status       = 'Enabled'
+                    ComputerName = 'PC1'
+                    Path         = 'E:\Department'
+                    Action       = 'Check'
+                }
             ) | Export-Excel @SettingsParams
 
             @(
