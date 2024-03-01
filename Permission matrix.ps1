@@ -74,7 +74,7 @@
         The log name of the Excel file containing the same data as the csv files
         exported to the Cherwell folder.
 
-    .PARAMETER JobsAtOnceDefault
+    .PARAMETER MaxConcurrentRemoteJobs
         Amount of jobs allowed to run at the same time on the remote computers.
         Only used when no value is set in 'JobsAtOnce' within the Excel sheet
         'Settings'.
@@ -101,8 +101,8 @@ Param (
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
-    [Int]$jobsAtOnceDefault = 3,
     [int]$MaxConcurrentJobs = 10,
+    [Int]$MaxConcurrentRemoteJobs = 3,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
@@ -168,82 +168,6 @@ Begin {
         }
         catch {
             throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
-        }
-    }
-    Function Start-SetPermissionsScriptHC {
-        Try {
-            #region Set NTFS permissions on folders
-            $queue = $executableMatrix | Select-Object ID, Matrix,
-            @{
-                Name       = 'ComputerName'
-                Expression = { $_.Import.ComputerName }
-            },
-            @{
-                Name       = 'ConfigurationName'
-                Expression = { $_.Import.ConfigurationName }
-            },
-            @{
-                Name       = 'Action'
-                Expression = { $_.Import.Action }
-            },
-            @{
-                Name       = 'Path'
-                Expression = { $_.Import.Path }
-            },
-            @{
-                Name       = 'JobThrottleLimit'
-                Expression = {
-                    if ($_.Import.JobsAtOnce) { $_.Import.JobsAtOnce }
-                    else { $jobsAtOnceDefault }
-                }
-            }
-
-            $jobName = 'SetPermissions_{0}'
-
-            $jobs = foreach ($q in  $queue) {
-                $InvokeParams = @{
-                    FilePath          = $ScriptSetPermissionItem
-                    ArgumentList      = $q.Path, $q.Action, $q.Matrix, $q.JobThrottleLimit, $DetailedLog
-                    ConfigurationName = $q.ConfigurationName
-                    ComputerName      = $q.ComputerName
-                    JobName           = $jobName -f $q.ID
-                    ThrottleLimit     = 10
-                    AsJob             = $true
-                }
-                Invoke-Command @InvokeParams
-            }
-
-            if ($jobs) {
-                $null = Wait-Job -Job $jobs
-
-                foreach ($job in $jobs) {
-                    $jobError = Get-JobErrorHC -Job $job
-
-                    #region Retrieve job results and add errors based on the job name and the matrix ID
-                    $executableMatrix.Where( {
-                            $job.Name -eq ($jobName -f $_.ID)
-                        }).Foreach( {
-                            $_.JobTime = @{
-                                Start    = $job.PSBeginTime
-                                End      = $job.PSEndTime
-                                Duration = New-TimeSpan -Start $job.PSBeginTime -End $job.PSEndTime
-                            }
-
-                            if ($jobError) {
-                                $_.Check += [PSCustomObject]$jobError
-                            }
-
-                            $_.Check += Receive-Job -Job $job -Keep -ErrorAction Ignore
-                        })
-                    #endregion
-                }
-
-                $jobs | Remove-Job -Force -EA Ignore
-            }
-            #endregion
-        }
-        Catch {
-            throw "Failed starting the set permissions script: $_"
         }
     }
 
@@ -867,7 +791,7 @@ Process {
                             Type        = 'FatalError'
                             Name        = 'Computer requirements'
                             Value       = $_
-                            Description = 'Failed testing the computer for the minimal requirements to be able to run the script that sets the permissions.'
+                            Description = "Failed checking the computer for the minimal requirements with the 'Test requirements' script."
                         }
                         $Error.RemoveAt(0)
                         $matrix | ForEach-Object { $_.Check += $problem }
@@ -895,30 +819,91 @@ Process {
             #endregion
 
             #region Set permissions
-            Write-EventLog @EventVerboseParams -Message 'Set permissions'
-
             if (
                 $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
+                $M = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
+                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+
                 #region Add default permissions
                 <#
-                    In case of conflict, when the same AD object is used in the matrix ACL and in the default ACL,
-                    the AD Object's permissions in the matrix ACL will win.
+                    In case of conflict the acl in the matrix will win
+                    over the acl in the DefaultsFile.
                 #>
                 if ($DefaultAcl.Count -ne 0) {
-                    foreach ($E in @($executableMatrix.Matrix.ACL).Where( {
-                                $_.Count -ne 0 })
+                    foreach (
+                        $acl in
+                        @($executableMatrix.Matrix.ACL).Where(
+                            { $_.Count -ne 0 }
+                        )
                     ) {
-                        $DefaultAcl.GetEnumerator().Where( {
-                                -not $E.ContainsKey($_.Key) }).Foreach( {
-                                $E.Add($_.Key, $_.Value)
-                            })
+                        $DefaultAcl.GetEnumerator().Where(
+                            { -not $acl.ContainsKey($_.Key) }
+                        ).Foreach(
+                            { $acl.Add($_.Key, $_.Value) }
+                        )
                     }
                 }
                 #endregion
 
-                Start-SetPermissionsScriptHC
+                $scriptBlock = {
+                    try {
+                        $matrix = $_
+
+                        #region Declare variables for code running in parallel
+                        if (-not $MaxConcurrentJobs) {
+                            $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                            $DetailedLog = $using:DetailedLog
+                            $MaxConcurrentRemoteJobs = $using:MaxConcurrentRemoteJobs
+                        }
+                        #endregion
+
+                        $matrix.JobTime.Start = Get-Date
+
+                        $params = @{
+                            FilePath          = $ScriptSetPermissionItem
+                            ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentRemoteJobs, $DetailedLog
+                            ConfigurationName = $matrix.Import.ConfigurationName
+                            ComputerName      = $matrix.Import.ComputerName
+                            ErrorAction       = 'Stop'
+                        }
+                        if ($result = Invoke-Command @params) {
+                            $matrix.Check += $result
+                        }
+                    }
+                    catch {
+                        $problem = [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Set permissions'
+                            Value       = $_
+                            Description = "Failed applying action '$($matrix.Import.Action)' with the 'Set permissions' script."
+                        }
+                        $Error.RemoveAt(0)
+                        $matrix.Check += $problem
+                    }
+                    finally {
+                        $matrix.JobTime.End = Get-Date
+                        $matrix.JobTime.Duration = New-TimeSpan -Start $matrix.JobTime.Start -End $matrix.JobTime.End
+                    }
+                }
+
+                #region Run code serial or parallel
+                $foreachParams = if ($MaxConcurrentJobs -eq 1) {
+                    @{
+                        Process = $scriptBlock
+                    }
+                }
+                else {
+                    @{
+                        Parallel      = $scriptBlock
+                        ThrottleLimit = $MaxConcurrentJobs
+                    }
+                }
+                #endregion
+
+                $executableMatrix | ForEach-Object @foreachParams
+                #endregion
             }
             #endregion
         }

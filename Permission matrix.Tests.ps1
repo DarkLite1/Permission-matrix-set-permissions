@@ -15,6 +15,7 @@ BeforeAll {
         DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
         ScriptAdmin             = 'admin@contoso.com'
         MaxConcurrentJobs       = 1
+        MaxConcurrentRemoteJobs = 1
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -906,28 +907,37 @@ Describe 'the script that sets the permissions on the remote computers' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 1 } -ComputerName localhost -AsJob -JobName 'SetPermissions_1'
+            & $TestInvokeCommand -Scriptblock { 1 }
         } -ParameterFilter {
-            ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[0]) -and
+            ($ArgumentList[0] -eq 'E:\Department') -and
+            ($ArgumentList[1] -eq 'New') -and
+            ($ArgumentList[2]) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-            ($JobName -eq 'SetPermissions_1')
+            ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 2 } -ComputerName localhost -AsJob -JobName 'SetPermissions_2'
+            & $TestInvokeCommand -Scriptblock { 2 }
         } -ParameterFilter {
-            ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[0]) -and
+            ($ArgumentList[0] -eq 'E:\Reports') -and
+            ($ArgumentList[1] -eq 'Fix') -and
+            ($ArgumentList[2]) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-            ($JobName -eq 'SetPermissions_2')
+            ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
         Mock Invoke-Command {
-            & $TestInvokeCommand -Scriptblock { 3 } -ComputerName localhost -AsJob -JobName 'SetPermissions_3'
+            & $TestInvokeCommand -Scriptblock { 3 }
         } -ParameterFilter {
-            ($AsJob -eq $true) -and
             ($ComputerName -eq $testComputerNames[1]) -and
+            ($ArgumentList[0] -eq 'E:\Finance') -and
+            ($ArgumentList[1] -eq 'Check') -and
+            ($ArgumentList[2]) -and
+            ($ArgumentList[3] -eq $testParams.MaxConcurrentRemoteJobs) -and
             ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-            ($JobName -eq 'SetPermissions_3')
+            ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
 
         @(
@@ -968,13 +978,10 @@ Describe 'the script that sets the permissions on the remote computers' {
     }
     It "is called for each row in the 'Settings' worksheets with Status Enabled" {
         Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Describe -ParameterFilter {
-            ($JobName -like 'SetPermissions*' ) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName)
+            ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($AsJob -eq $true) -and
-            ($JobName -eq 'SetPermissions_1' ) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
             ($ComputerName -eq $testComputerNames[0]) -and
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
@@ -982,9 +989,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($AsJob -eq $true) -and
-            ($JobName -eq 'SetPermissions_2' ) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
             ($ComputerName -eq $testComputerNames[0]) -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
@@ -992,9 +997,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($AsJob -eq $true) -and
-            ($JobName -eq 'SetPermissions_3' ) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile.FullName) -and
+            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
             ($ComputerName -eq $testComputerNames[1]) -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
@@ -1015,7 +1018,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
         Should -Contain 3
     }
-}
+} -Tag test
 Describe 'an email is sent to the user in the default settings file' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -1316,23 +1319,27 @@ Describe 'when a job fails' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { 1 } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_1'
+                & $TestInvokeCommand -Scriptblock { 1 }
             } -ParameterFilter {
-                ($AsJob -eq $true) -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-                ($JobName -eq 'SetPermissions_1')
+                ($ArgumentList[0] -eq 'E:\Department') -and
+                ($FilePath -eq $testParams.ScriptSetPermissionFile)
             }
             Mock Invoke-Command {
-                & $TestInvokeCommand -Scriptblock { throw 'failure' } -ComputerName $testComputerNames[0] -AsJob -JobName 'SetPermissions_2'
+                & $TestInvokeCommand -Scriptblock { throw 'failure' }
             } -ParameterFilter {
-                ($AsJob -eq $true) -and
                 ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
-                ($JobName -eq 'SetPermissions_2')
+                ($ArgumentList[0] -eq 'E:\Reports') -and
+                ($FilePath -eq $testParams.ScriptSetPermissionFile)
             }
 
             @(
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check' }
-                [PSCustomObject]@{Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Reports'; Action = 'Check' }
+                [PSCustomObject]@{
+                    Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Department'; Action = 'Check'
+                }
+                [PSCustomObject]@{
+                    Status = 'Enabled'; ComputerName = $testComputerNames[0]; Path = 'E:\Reports'; Action = 'Check'
+                }
             ) | Export-Excel @SettingsParams
 
             $testPermissions | Export-Excel @PermissionsParams
