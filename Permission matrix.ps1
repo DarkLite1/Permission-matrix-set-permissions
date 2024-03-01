@@ -903,7 +903,6 @@ Process {
                 #endregion
 
                 $executableMatrix | ForEach-Object @foreachParams
-                #endregion
             }
             #endregion
         }
