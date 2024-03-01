@@ -79,8 +79,9 @@
         Only used when no value is set in 'JobsAtOnce' within the Excel sheet
         'Settings'.
 
-    .PARAMETER MaxConcurrentJobs
-        Jobs allowed to run at the same time on the local computer.
+    .PARAMETER MaxConcurrentComputers
+        Maximum quantity of unique computer names that can be requested to
+        perform jobs at the same time.
 #>
 
 [CmdLetBinding()]
@@ -101,7 +102,7 @@ Param (
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
-    [int]$MaxConcurrentJobs = 10,
+    [int]$MaxConcurrentComputers = 10,
     [Int]$MaxConcurrentRemoteJobs = 3,
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
@@ -767,7 +768,7 @@ Process {
                 $scriptBlock = {
                     try {
                         #region Declare variables for code running in parallel
-                        if (-not $MaxConcurrentJobs) {
+                        if (-not $MaxConcurrentComputers) {
                             $ScriptTestRequirementsItem = $using:ScriptTestRequirementsItem
                         }
                         #endregion
@@ -799,7 +800,7 @@ Process {
                 }
 
                 #region Run code serial or parallel
-                $foreachParams = if ($MaxConcurrentJobs -eq 1) {
+                $foreachParams = if ($MaxConcurrentComputers -eq 1) {
                     @{
                         Process = $scriptBlock
                     }
@@ -807,7 +808,7 @@ Process {
                 else {
                     @{
                         Parallel      = $scriptBlock
-                        ThrottleLimit = $MaxConcurrentJobs
+                        ThrottleLimit = $MaxConcurrentComputers
                     }
                 }
                 #endregion
@@ -852,7 +853,7 @@ Process {
                         $matrix = $_
 
                         #region Declare variables for code running in parallel
-                        if (-not $MaxConcurrentJobs) {
+                        if (-not $MaxConcurrentComputers) {
                             $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
                             $DetailedLog = $using:DetailedLog
                             $MaxConcurrentRemoteJobs = $using:MaxConcurrentRemoteJobs
@@ -889,7 +890,7 @@ Process {
                 }
 
                 #region Run code serial or parallel
-                $foreachParams = if ($MaxConcurrentJobs -eq 1) {
+                $foreachParams = if ($MaxConcurrentComputers -eq 1) {
                     @{
                         Process = $scriptBlock
                     }
@@ -897,7 +898,7 @@ Process {
                 else {
                     @{
                         Parallel      = $scriptBlock
-                        ThrottleLimit = $MaxConcurrentJobs
+                        ThrottleLimit = $MaxConcurrentComputers
                     }
                 }
                 #endregion

@@ -10,7 +10,7 @@ BeforeAll {
         ScriptTestRequirements  = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
         DefaultsFile            = New-Item 'TestDrive:/Default.xlsx' -ItemType File
         ScriptAdmin             = 'admin@contoso.com'
-        MaxConcurrentJobs       = 1
+        MaxConcurrentComputers  = 1
         MaxConcurrentRemoteJobs = 1
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
