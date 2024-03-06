@@ -85,6 +85,10 @@
     .PARAMETER MaxConcurrentFoldersPerMatrix
         Maximum quantity of folders to iterate at the same time within a
         single job running on a remote computer.
+
+    .PARAMETER PSSessionConfiguration
+        The version of PowerShell on the remote endpoint as returned by
+        Get-PSSessionConfiguration.
 #>
 
 [CmdLetBinding()]
@@ -108,6 +112,7 @@ Param (
     [int]$MaxConcurrentComputers = 10,
     [Int]$MaxConcurrentJobsPerRemoteComputer = 3,
     [Int]$MaxConcurrentFoldersPerMatrix = 3,
+    [String]$PSSessionConfiguration = 'PowerShell.7',
     [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
@@ -724,43 +729,6 @@ Process {
             }
             #endregion
 
-            #region Get latest PowerShell configuration name per computer
-            $executableMatrix = @(Get-ExecutableMatrixHC -From $importedMatrix)
-
-            foreach (
-                $E in
-                ($executableMatrix |
-                Group-Object -Property { $_.Import.ComputerName })
-            ) {
-                try {
-                    $params = @{
-                        ComputerName = $E.Name
-                        ScriptName   = $ScriptName
-                        ErrorAction  = 'Stop'
-                    }
-                    $configurationName = Get-PowerShellConnectableEndpointNameHC @params
-
-                    $E.Group | ForEach-Object {
-                        $_.Import | Add-Member -NotePropertyMembers @{
-                            ConfigurationName = $configurationName
-                        }
-                    }
-                }
-                catch {
-                    $problem = [PSCustomObject]@{
-                        Type        = 'FatalError'
-                        Name        = 'Connection error'
-                        Value       = $_
-                        Description = 'Connecting to the remote machine failed. Most likely the machine is offline or the computer name is incorrect.'
-                    }
-
-                    $Error.RemoveAt(0)
-
-                    $E.Group | ForEach-Object { $_.Check += $problem }
-                }
-            }
-            #endregion
-
             #region Test server requirements
             if (
                 $executableMatrix = @(
@@ -774,6 +742,7 @@ Process {
                         #region Declare variables for parallel execution
                         if (-not $MaxConcurrentComputers) {
                             $ScriptTestRequirementsItem = $using:ScriptTestRequirementsItem
+                            $PSSessionConfiguration = $using:PSSessionConfiguration
                         }
                         #endregion
 
@@ -783,7 +752,7 @@ Process {
                         $params = @{
                             FilePath          = $ScriptTestRequirementsItem
                             ArgumentList      = $matrix.Import.Path, $true
-                            ConfigurationName = $matrix[0].Import.ConfigurationName
+                            ConfigurationName = $PSSessionConfiguration
                             ComputerName      = $computerName
                             ErrorAction       = 'Stop'
                         }
@@ -863,6 +832,7 @@ Process {
                     if (-not $MaxConcurrentComputers) {
                         $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
                         $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                        $PSSessionConfiguration = $using:PSSessionConfiguration
                         $DetailedLog = $using:DetailedLog
                     }
                     #endregion
@@ -877,6 +847,7 @@ Process {
                             if (-not $MaxConcurrentJobsPerRemoteComputer) {
                                 $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
                                 $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                                $PSSessionConfiguration = $using:PSSessionConfiguration
                                 $DetailedLog = $using:DetailedLog
                             }
                             #endregion
@@ -886,7 +857,7 @@ Process {
                             $params = @{
                                 FilePath          = $ScriptSetPermissionItem
                                 ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentFoldersPerMatrix, $DetailedLog
-                                ConfigurationName = $matrix.Import.ConfigurationName
+                                ConfigurationName = $PSSessionConfiguration
                                 ComputerName      = $matrix.Import.ComputerName
                                 ErrorAction       = 'Stop'
                             }

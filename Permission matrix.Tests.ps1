@@ -86,14 +86,6 @@ BeforeAll {
         )
     }
 
-    $testLatestPSSessionConfiguration = Get-PSSessionConfiguration |
-    Sort-Object -Property 'Name' -Descending |
-    Select-Object -ExpandProperty 'Name' -First 1
-
-    Mock Get-PowerShellConnectableEndpointNameHC {
-        $testLatestPSSessionConfiguration
-    }
-
     Mock Invoke-Command
     Mock New-PSSession
     Mock Send-MailHC
@@ -890,14 +882,14 @@ Describe 'the script that tests the remote computers for compliance' {
             'A'
         } -ParameterFilter {
             ($ComputerName -eq 'PC1') -and
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
         Mock Invoke-Command {
             'B'
         } -ParameterFilter {
             ($ComputerName -eq 'PC2') -and
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
 
@@ -940,12 +932,12 @@ Describe 'the script that tests the remote computers for compliance' {
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
         Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptTestRequirements)
         }
         @('PC1', 'PC2') | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($ConfigurationName) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements) -and
                 ($ComputerName -eq $_)
             }
@@ -978,7 +970,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
         Mock Invoke-Command { 2 } -ParameterFilter {
@@ -987,7 +979,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
         Mock Invoke-Command { 3 } -ParameterFilter {
@@ -996,7 +988,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
-            ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+            ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptSetPermissionFile)
         }
 
@@ -1353,12 +1345,12 @@ Describe 'when a job fails' {
             Mock Test-ExpandedMatrixHC
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ComputerName -eq 'PC1') -and
-                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($ConfigurationName) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements)
             }
             Mock Invoke-Command { 'B' } -ParameterFilter {
                 ($ComputerName -eq 'PC2') -and
-                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($ConfigurationName) -and
                 ($FilePath -eq $testParams.ScriptTestRequirements)
             }
 
@@ -1395,12 +1387,12 @@ Describe 'when a job fails' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
             Mock Invoke-Command { 1 } -ParameterFilter {
-                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Department') -and
                 ($FilePath -eq $testParams.ScriptSetPermissionFile)
             }
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
-                ($ConfigurationName -eq $testLatestPSSessionConfiguration) -and
+                ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Reports') -and
                 ($FilePath -eq $testParams.ScriptSetPermissionFile)
             }
