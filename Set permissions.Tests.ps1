@@ -194,13 +194,13 @@ Describe 'create a Matrix object' {
         $testFolder = New-Item 'TestDrive:\parent\folder' -ItemType Directory -Force
 
         $testParams = @{
-            Path              = $testParent.FullName
-            Action            = 'Check'
-            Matrix            = @(
+            Path             = $testParent.FullName
+            Action           = 'Check'
+            Matrix           = @(
                 [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                 [PSCustomObject]@{Path = 'folder'; ACL = @{$env:USERNAME = 'R' } }
             )
-            MaxConcurrentJobs = 1
+            JobThrottleLimit = 2
         }
         .$testScript @testParams
     }
@@ -302,347 +302,347 @@ $testCases = @(
             )
         }
     }
-    # @{
-    #     name       = 'with an ignored folder all its subfolders and files are not checked'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB',
-    #                 '{0}\FolderC'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
-    #         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
-    #         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$env:USERNAME = 'R' } }
-    #         [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}',
-    #             '{0}\FolderB'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\file',
-    #             '{0}\FolderA',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB\file'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'with an ignored folder, its subfolders are checked only when they have permissions defined in the matrix'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB\SubFolder\Reports',
-    #                 '{0}\FolderB\SubFolder\Accounting'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
-    #         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}',
-    #             '{0}\FolderB\SubFolder\Reports'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\file',
-    #             '{0}\FolderA',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB',
-    #             '{0}\FolderB\File',
-    #             '{0}\FolderB\SubFolder\Reports\File'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'with an ignored folder, all folders below are not checked unless they have permissions set, in that case permission checking resumes for all its subfolders'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB\SubFolder\Reports\Year\2020',
-    #                 '{0}\FolderB\SubFolder\Accounting',
-    #                 '{0}\FolderB\SubFolder\Sales',
-    #                 '{0}\FolderC'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
-    #         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports\Year\2020'; ACL = @{ } } # tested because it falls under the Reports folder
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
-    #         [PSCustomObject]@{Path = 'FolderB\SubFolder\Sales'; ACL = @{ } } # ignored because SubFolder is ignored
-    #         [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' } }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}',
-    #             '{0}\FolderB\SubFolder\Reports',
-    #             '{0}\FolderC'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\file',
-    #             '{0}\FolderA',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB',
-    #             '{0}\FolderB\File',
-    #             '{0}\FolderB\SubFolder\Reports\File',
-    #             '{0}\FolderB\SubFolder\Reports\Year',
-    #             '{0}\FolderB\SubFolder\Reports\Year\File',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020\File',
-    #             '{0}\FolderC\File'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'sub folders of ignored folders are not checked'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Profit',
-    #                 '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
-    #                 '{0}\FolderB\SubFolder\Accounting',
-    #                 '{0}\FolderB\SubFolder\Sales',
-    #                 '{0}\FolderC'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{
-    #             Path   = 'Path';
-    #             ACL    = @{$env:USERNAME = 'R' };
-    #             Parent = $true
-    #         }
-    #         [PSCustomObject]@{
-    #             Path   = 'FolderB\SubFolder';
-    #             ACL    = @{$env:USERNAME = 'R' };
-    #             Ignore = $true
-    #         }
-    #         [PSCustomObject]@{
-    #             Path = 'FolderB\SubFolder\Reports';
-    #             ACL  = @{$env:USERNAME = 'R' }
-    #         }
-    #         [PSCustomObject]@{
-    #             Path   = 'FolderB\SubFolder\Reports\Year\2020\CEM';
-    #             ACL    = @{ };
-    #             Ignore = $true
-    #         }
-    #         [PSCustomObject]@{
-    #             Path = 'FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR';
-    #             ACL  = @{ $env:USERNAME = 'R' }
-    #         }
-    #         [PSCustomObject]@{
-    #             Path = 'FolderC';
-    #             ACL  = @{$env:USERNAME = 'R' }
-    #         }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}',
-    #             '{0}\FolderB\SubFolder\Reports',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
-    #             '{0}\FolderC'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\file',
-    #             '{0}\FolderA',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB',
-    #             '{0}\FolderB\File',
-    #             '{0}\FolderB\SubFolder\Reports\File',
-    #             '{0}\FolderB\SubFolder\Reports\Year',
-    #             '{0}\FolderB\SubFolder\Reports\Year\File',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020\File',
-    #             '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File',
-    #             '{0}\FolderC\File'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'when only Path is in the matrix and has permissions all files and folders need to be inherited'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{
-    #             Path   = 'Path';
-    #             ACL    = @{$env:USERNAME = 'R' };
-    #             Parent = $true
-    #         }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\FolderA',
-    #             '{0}\file',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB',
-    #             '{0}\FolderB\File'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'when Path is ignored and a child folder has permissions, only the child folder is checked'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{
-    #             Path   = 'Path'
-    #             ACL    = @{}
-    #             Parent = $true
-    #             Ignore = $true
-    #         }
-    #         [PSCustomObject]@{
-    #             Path = 'FolderA'
-    #             ACL  = @{$env:USERNAME = 'R' }
-    #         }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}\FolderA'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\FolderA\file'
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'when only Path is in the matrix and is ignored no files or folders are checked'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{
-    #             Path   = 'Path'
-    #             ACL    = @{}
-    #             Parent = $true
-    #             Ignore = $true
-    #         }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #         )
-    #         inheritanceTested    = @(
-    #         )
-    #     }
-    # }
-    # @{
-    #     name       = 'that is complex'
-    #     state      = @{
-    #         before = @{
-    #             folders = @(
-    #                 '{0}\FolderA',
-    #                 '{0}\FolderB',
-    #                 '{0}\HR',
-    #                 '{0}\HR\Report',
-    #                 '{0}\HR\Report\Team',
-    #                 '{0}\HR\Report\Team\a',
-    #                 '{0}\HR\Report\Team\b',
-    #                 '{0}\HR\Report\Team\c',
-    #                 '{0}\HR\Report\Projects',
-    #                 '{0}\HR\Report\Projects\a',
-    #                 '{0}\HR\Report\Projects\b',
-    #                 '{0}\HR\Report\Projects\c',
-    #                 '{0}\HR\Benefits',
-    #                 '{0}\HR\Benefits\Projects',
-    #                 '{0}\HR\Benefits\Expenses',
-    #                 '{0}\HR\Charlie\a',
-    #                 '{0}\HR\Charlie\b'
-    #             )
-    #         }
-    #     }
-    #     testMatrix = @(
-    #         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
-    #         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
-    #         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$env:USERNAME = 'R' } }
-    #         [PSCustomObject]@{Path = 'HR'; ACL = @{$env:USERNAME = 'L' } }
-    #         [PSCustomObject]@{Path = 'HR\Report'; ACL = @{$env:USERNAME = 'L' } }
-    #         [PSCustomObject]@{Path = 'HR\Report\Team'; ACL = @{$env:USERNAME = 'W' } }
-    #         [PSCustomObject]@{Path = 'HR\Report\Projects'; ACL = @{$env:USERNAME = 'W' } }
-    #         [PSCustomObject]@{Path = 'HR\Benefits'; ACL = @{$env:USERNAME = 'L' } }
-    #         [PSCustomObject]@{Path = 'HR\Benefits\Projects'; ACL = @{$env:USERNAME = 'W' } }
-    #         [PSCustomObject]@{Path = 'HR\Benefits\Expenses'; ACL = @{$env:USERNAME = 'W' } }
-    #     )
-    #     expected   = @{
-    #         nonInheritanceTested = @(
-    #             '{0}',
-    #             '{0}\FolderB',
-    #             '{0}\HR',
-    #             '{0}\HR\Report',
-    #             '{0}\HR\Report\Team',
-    #             '{0}\HR\Report\Projects',
-    #             '{0}\HR\Benefits',
-    #             '{0}\HR\Benefits\Projects',
-    #             '{0}\HR\Benefits\Expenses'
-    #         )
-    #         inheritanceTested    = @(
-    #             '{0}\file',
-    #             '{0}\FolderA',
-    #             '{0}\FolderA\file',
-    #             '{0}\FolderB\file',
-    #             '{0}\HR\file',
-    #             '{0}\HR\Report\file',
-    #             '{0}\HR\Report\Team\file',
-    #             '{0}\HR\Report\Team\a',
-    #             '{0}\HR\Report\Team\a\file',
-    #             '{0}\HR\Report\Team\b',
-    #             '{0}\HR\Report\Team\b\file',
-    #             '{0}\HR\Report\Team\c',
-    #             '{0}\HR\Report\Team\c\file',
-    #             '{0}\HR\Report\Projects\file',
-    #             '{0}\HR\Report\Projects\a',
-    #             '{0}\HR\Report\Projects\a\file',
-    #             '{0}\HR\Report\Projects\b',
-    #             '{0}\HR\Report\Projects\b\file',
-    #             '{0}\HR\Report\Projects\c',
-    #             '{0}\HR\Report\Projects\c\file',
-    #             '{0}\HR\Benefits\file',
-    #             '{0}\HR\Benefits\Projects\file',
-    #             '{0}\HR\Benefits\Expenses\file',
-    #             '{0}\HR\Charlie',
-    #             '{0}\HR\Charlie\file',
-    #             '{0}\HR\Charlie\a',
-    #             '{0}\HR\Charlie\a\file',
-    #             '{0}\HR\Charlie\b',
-    #             '{0}\HR\Charlie\b\file'
-    #         )
-    #     }
-    # }
+    @{
+        name       = 'with an ignored folder all its subfolders and files are not checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB',
+                    '{0}\FolderC'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
+            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}',
+                '{0}\FolderB'
+            )
+            inheritanceTested    = @(
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB\file'
+            )
+        }
+    }
+    @{
+        name       = 'with an ignored folder, its subfolders are checked only when they have permissions defined in the matrix'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB\SubFolder\Reports',
+                    '{0}\FolderB\SubFolder\Accounting'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
+            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports'
+            )
+            inheritanceTested    = @(
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File'
+            )
+        }
+    }
+    @{
+        name       = 'with an ignored folder, all folders below are not checked unless they have permissions set, in that case permission checking resumes for all its subfolders'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB\SubFolder\Reports\Year\2020',
+                    '{0}\FolderB\SubFolder\Accounting',
+                    '{0}\FolderB\SubFolder\Sales',
+                    '{0}\FolderC'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
+            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports\Year\2020'; ACL = @{ } } # tested because it falls under the Reports folder
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Sales'; ACL = @{ } } # ignored because SubFolder is ignored
+            [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' } }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports',
+                '{0}\FolderC'
+            )
+            inheritanceTested    = @(
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File',
+                '{0}\FolderB\SubFolder\Reports\Year',
+                '{0}\FolderB\SubFolder\Reports\Year\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '{0}\FolderC\File'
+            )
+        }
+    }
+    @{
+        name       = 'sub folders of ignored folders are not checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Profit',
+                    '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
+                    '{0}\FolderB\SubFolder\Accounting',
+                    '{0}\FolderB\SubFolder\Sales',
+                    '{0}\FolderC'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path';
+                ACL    = @{$env:USERNAME = 'R' };
+                Parent = $true
+            }
+            [PSCustomObject]@{
+                Path   = 'FolderB\SubFolder';
+                ACL    = @{$env:USERNAME = 'R' };
+                Ignore = $true
+            }
+            [PSCustomObject]@{
+                Path = 'FolderB\SubFolder\Reports';
+                ACL  = @{$env:USERNAME = 'R' }
+            }
+            [PSCustomObject]@{
+                Path   = 'FolderB\SubFolder\Reports\Year\2020\CEM';
+                ACL    = @{ };
+                Ignore = $true
+            }
+            [PSCustomObject]@{
+                Path = 'FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR';
+                ACL  = @{ $env:USERNAME = 'R' }
+            }
+            [PSCustomObject]@{
+                Path = 'FolderC';
+                ACL  = @{$env:USERNAME = 'R' }
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}',
+                '{0}\FolderB\SubFolder\Reports',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR',
+                '{0}\FolderC'
+            )
+            inheritanceTested    = @(
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Reports\File',
+                '{0}\FolderB\SubFolder\Reports\Year',
+                '{0}\FolderB\SubFolder\Reports\Year\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '{0}\FolderB\SubFolder\Reports\Year\2020\CEM\Loss\HR\File',
+                '{0}\FolderC\File'
+            )
+        }
+    }
+    @{
+        name       = 'when only Path is in the matrix and has permissions all files and folders need to be inherited'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path';
+                ACL    = @{$env:USERNAME = 'R' };
+                Parent = $true
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}'
+            )
+            inheritanceTested    = @(
+                '{0}\FolderA',
+                '{0}\file',
+                '{0}\FolderA\file',
+                '{0}\FolderB',
+                '{0}\FolderB\File'
+            )
+        }
+    }
+    @{
+        name       = 'when Path is ignored and a child folder has permissions, only the child folder is checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path'
+                ACL    = @{}
+                Parent = $true
+                Ignore = $true
+            }
+            [PSCustomObject]@{
+                Path = 'FolderA'
+                ACL  = @{$env:USERNAME = 'R' }
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}\FolderA'
+            )
+            inheritanceTested    = @(
+                '{0}\FolderA\file'
+            )
+        }
+    }
+    @{
+        name       = 'when only Path is in the matrix and is ignored no files or folders are checked'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{
+                Path   = 'Path'
+                ACL    = @{}
+                Parent = $true
+                Ignore = $true
+            }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+            )
+            inheritanceTested    = @(
+            )
+        }
+    }
+    @{
+        name       = 'that is complex'
+        state      = @{
+            before = @{
+                folders = @(
+                    '{0}\FolderA',
+                    '{0}\FolderB',
+                    '{0}\HR',
+                    '{0}\HR\Report',
+                    '{0}\HR\Report\Team',
+                    '{0}\HR\Report\Team\a',
+                    '{0}\HR\Report\Team\b',
+                    '{0}\HR\Report\Team\c',
+                    '{0}\HR\Report\Projects',
+                    '{0}\HR\Report\Projects\a',
+                    '{0}\HR\Report\Projects\b',
+                    '{0}\HR\Report\Projects\c',
+                    '{0}\HR\Benefits',
+                    '{0}\HR\Benefits\Projects',
+                    '{0}\HR\Benefits\Expenses',
+                    '{0}\HR\Charlie\a',
+                    '{0}\HR\Charlie\b'
+                )
+            }
+        }
+        testMatrix = @(
+            [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'R' }; Parent = $true }
+            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB'; ACL = @{$env:USERNAME = 'R' } }
+            [PSCustomObject]@{Path = 'HR'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Report'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Report\Team'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Report\Projects'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Benefits'; ACL = @{$env:USERNAME = 'L' } }
+            [PSCustomObject]@{Path = 'HR\Benefits\Projects'; ACL = @{$env:USERNAME = 'W' } }
+            [PSCustomObject]@{Path = 'HR\Benefits\Expenses'; ACL = @{$env:USERNAME = 'W' } }
+        )
+        expected   = @{
+            nonInheritanceTested = @(
+                '{0}',
+                '{0}\FolderB',
+                '{0}\HR',
+                '{0}\HR\Report',
+                '{0}\HR\Report\Team',
+                '{0}\HR\Report\Projects',
+                '{0}\HR\Benefits',
+                '{0}\HR\Benefits\Projects',
+                '{0}\HR\Benefits\Expenses'
+            )
+            inheritanceTested    = @(
+                '{0}\file',
+                '{0}\FolderA',
+                '{0}\FolderA\file',
+                '{0}\FolderB\file',
+                '{0}\HR\file',
+                '{0}\HR\Report\file',
+                '{0}\HR\Report\Team\file',
+                '{0}\HR\Report\Team\a',
+                '{0}\HR\Report\Team\a\file',
+                '{0}\HR\Report\Team\b',
+                '{0}\HR\Report\Team\b\file',
+                '{0}\HR\Report\Team\c',
+                '{0}\HR\Report\Team\c\file',
+                '{0}\HR\Report\Projects\file',
+                '{0}\HR\Report\Projects\a',
+                '{0}\HR\Report\Projects\a\file',
+                '{0}\HR\Report\Projects\b',
+                '{0}\HR\Report\Projects\b\file',
+                '{0}\HR\Report\Projects\c',
+                '{0}\HR\Report\Projects\c\file',
+                '{0}\HR\Benefits\file',
+                '{0}\HR\Benefits\Projects\file',
+                '{0}\HR\Benefits\Expenses\file',
+                '{0}\HR\Charlie',
+                '{0}\HR\Charlie\file',
+                '{0}\HR\Charlie\a',
+                '{0}\HR\Charlie\a\file',
+                '{0}\HR\Charlie\b',
+                '{0}\HR\Charlie\b\file'
+            )
+        }
+    }
 )
 Describe 'when the script runs for a matrix' {
     Context '<name>' -ForEach $testCases {
@@ -664,10 +664,10 @@ Describe 'when the script runs for a matrix' {
             }
 
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                Matrix            = Copy-ObjectHC $testMatrix
-                MaxConcurrentJobs = 1
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                Matrix           = Copy-ObjectHC $testMatrix
+                JobThrottleLimit = 2
             }
             $testResult = .$testScript @testParams
         }
@@ -688,7 +688,7 @@ Describe 'when the script runs for a matrix' {
             }
             $testedInheritedFilesAndFolders.Count |
             Should -BeExactly $expected.inheritanceTested.Count
-        } -Tag test
+        }
         It 'output is generated for ignored folders in an information object' {
             if ($testIgnoredFolders = $testMatrix | Where-Object ignore) {
                 $actual = $testResult | Where-Object {
@@ -712,10 +712,10 @@ Describe 'Permissions' {
     Context 'are not corrected when they are correct for' {
         It 'List, Write, Read on the parent folder' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = @(
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = @(
                     [PSCustomObject]@{Path = 'Path'; ACL = @{
                             $env:USERNAME = 'L' ; $testUser = 'W'; $testUser2 = 'R';
                         }; Parent = $true
@@ -762,10 +762,10 @@ Describe 'Permissions' {
         }
         It 'List only on the parent folder' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = @(
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = @(
                     [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L' }; Parent = $true }
                     [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                 )
@@ -808,10 +808,10 @@ Describe 'Permissions' {
         }
         It 'List only on the parent folder and Read on a subfolder' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = @(
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = @(
                     [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L' }; Parent = $true }
                     [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                     [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -869,10 +869,10 @@ Describe 'Permissions' {
         }
         It 'List only on the parent folder and different permissions on subfolders' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = @(
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = @(
                     [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                     [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                     [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -961,10 +961,10 @@ Describe 'Permissions' {
         }
         It 'folders that are not in the matrix as they should be inherited' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = @(
+                Path             = $testParentFolder
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = @(
                     [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                     [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                     [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -1064,10 +1064,10 @@ Describe 'Permissions' {
         Context 'a folder that should have explicit permissions has' {
             It 'incorrect explicit permissions' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -1152,10 +1152,10 @@ Describe 'Permissions' {
             }
             It 'the correct explicit permissions but one ACE too much' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -1241,10 +1241,10 @@ Describe 'Permissions' {
             }
             It 'inherited permissions' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
@@ -1320,10 +1320,10 @@ Describe 'Permissions' {
         Context 'a file has' {
             It 'explicit permissions' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{
                             Path   = 'Path'
                             ACL    = @{
@@ -1409,14 +1409,14 @@ Describe 'Permissions' {
 
                 $actual.Value | Should -Be "$($testParams.Path)\FolderA\File"
             }
-        }
+        } -Tag test
         Context 'a folder that should have inherited permissions' {
             It 'in the matrix has explicit permissions' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                         [PSCustomObject]@{Path = 'FolderB\SubFolderB'; ACL = @{$testUser2 = 'W' } }
@@ -1517,10 +1517,10 @@ Describe 'Permissions' {
             }
             It 'not defined in the matrix has explicit permissions' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'R' } }
                         [PSCustomObject]@{Path = 'FolderB\SubFolderB'; ACL = @{$testUser2 = 'W' } }
@@ -1614,7 +1614,7 @@ Describe 'Permissions' {
                 Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
-                $Actual = .$testScript @testParams | Where-Object {
+                $Actual = .$testScript @testParams| Where-Object {
                     $_.Name -EQ 'Inherited permissions incorrect'
                 }
 
@@ -1630,10 +1630,10 @@ Describe 'when Action is' {
     Context 'New' {
         It "create the parent folder 'Path'" {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'New'
-                MaxConcurrentJobs = 1
-                Matrix            = @([PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true })
+                Path             = $testParentFolder
+                Action           = 'New'
+                JobThrottleLimit = 2
+                Matrix           = @([PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true })
             }
 
             .$testScript @testParams
@@ -1642,10 +1642,10 @@ Describe 'when Action is' {
         }
         It 'create a FatalError object when the parent folder is already present' {
             $testParams = @{
-                Path              = $testParentFolder
-                Action            = 'New'
-                MaxConcurrentJobs = 1
-                Matrix            = [PSCustomObject]@{Name = 'test' }
+                Path             = $testParentFolder
+                Action           = 'New'
+                JobThrottleLimit = 2
+                Matrix           = [PSCustomObject]@{Name = 'test' }
             }
 
             New-Item -Path $testParams.Path -ItemType Directory
@@ -1667,10 +1667,10 @@ Describe 'when Action is' {
         Context 'folders in the matrix that need to be created' {
             It 'are created' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1685,10 +1685,10 @@ Describe 'when Action is' {
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1711,10 +1711,10 @@ Describe 'when Action is' {
             }
             It 'are not created when Path is set to Ignore' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ }; Ignore = $true }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1730,10 +1730,10 @@ Describe 'when Action is' {
         Context 'set permissions' {
             It 'on the parent folder' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                     )
@@ -1749,10 +1749,10 @@ Describe 'when Action is' {
             }
             It 'on the child folders' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -1773,10 +1773,10 @@ Describe 'when Action is' {
             }
             It 'a Warning object for incorrect permissions is not created' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1791,10 +1791,10 @@ Describe 'when Action is' {
     Context 'Fix' {
         It "create a FatalError object when the parent folder doesn't exist" {
             $testParams = @{
-                Path              = 'NotExistingTestFolder'
-                Action            = 'Fix'
-                MaxConcurrentJobs = 1
-                Matrix            = [PSCustomObject]@{Name = 'test' }
+                Path             = 'NotExistingTestFolder'
+                Action           = 'Fix'
+                JobThrottleLimit = 2
+                Matrix           = [PSCustomObject]@{Name = 'test' }
             }
 
             $Actual = .$testScript @testParams
@@ -1814,10 +1814,10 @@ Describe 'when Action is' {
         Context 'folders in the matrix that are missing' {
             It 'are created' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1832,10 +1832,10 @@ Describe 'when Action is' {
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1853,10 +1853,10 @@ Describe 'when Action is' {
             }
             It 'are not created when Path is set to Ignore' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ }; Ignore = $true }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -1874,10 +1874,10 @@ Describe 'when Action is' {
             Context 'on non inherited folders' {
                 It 'are corrected' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'New'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'New'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                         )
@@ -1886,10 +1886,10 @@ Describe 'when Action is' {
                     .$testScript @testParams
 
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Fix'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Fix'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser2 = 'R' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'L' } }
                         )
@@ -1910,10 +1910,10 @@ Describe 'when Action is' {
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Fix'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Fix'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                             )
@@ -1934,14 +1934,14 @@ Describe 'when Action is' {
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Fix'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Fix'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                             )
-                            DetailedLog       = $true
+                            DetailedLog      = $true
                         }
 
                         New-Item -Path (Join-Path $testParentFolder '\FolderA') -ItemType Directory -Force
@@ -1970,10 +1970,10 @@ Describe 'when Action is' {
             Context 'on inherited folders' {
                 It 'are corrected' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'New'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'New'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                         )
@@ -1982,10 +1982,10 @@ Describe 'when Action is' {
                     .$testScript @testParams
 
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Fix'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Fix'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         )
@@ -1999,10 +1999,10 @@ Describe 'when Action is' {
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'New'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'New'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                                 [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2012,10 +2012,10 @@ Describe 'when Action is' {
                         .$testScript @testParams
 
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Fix'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Fix'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             )
@@ -2035,10 +2035,10 @@ Describe 'when Action is' {
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'New'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'New'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                                 [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2048,14 +2048,14 @@ Describe 'when Action is' {
                         .$testScript @testParams
 
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Fix'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Fix'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             )
-                            DetailedLog       = $true
+                            DetailedLog      = $true
                         }
 
                         $Actual = .$testScript @testParams |
@@ -2078,10 +2078,10 @@ Describe 'when Action is' {
             Context "set the owner to 'BUILTIN\Administrators' when" {
                 It 'the admin has access to all folders' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Fix'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Fix'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2108,10 +2108,10 @@ Describe 'when Action is' {
                 }
                 It 'the admin has no access to the folder' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Fix'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Fix'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'Reports'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'Reports\Fruits'; ACL = @{ } }
@@ -2144,10 +2144,10 @@ Describe 'when Action is' {
                 }
                 It 'the admin has no access to the parent folder' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Fix'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Fix'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'Reports'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'Reports\Fruits'; ACL = @{ } }
@@ -2186,10 +2186,10 @@ Describe 'when Action is' {
         Context 'when the script is run again after Action Fix/New' {
             It 'the permissions are unchanged' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2213,10 +2213,10 @@ Describe 'when Action is' {
                 & $testPermissions
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2229,10 +2229,10 @@ Describe 'when Action is' {
             }
             It 'nothing is reported as being incorrect' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2242,10 +2242,10 @@ Describe 'when Action is' {
                 .$testScript @testParams
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2259,10 +2259,10 @@ Describe 'when Action is' {
     Context 'Check' {
         It "create a FatalError object when the parent folder doesn't exist" {
             $testParams = @{
-                Path              = 'NotExistingTestFolder'
-                Action            = 'Check'
-                MaxConcurrentJobs = 1
-                Matrix            = [PSCustomObject]@{Name = 'test' }
+                Path             = 'NotExistingTestFolder'
+                Action           = 'Check'
+                JobThrottleLimit = 2
+                Matrix           = [PSCustomObject]@{Name = 'test' }
             }
 
             $Actual = .$testScript @testParams
@@ -2282,10 +2282,10 @@ Describe 'when Action is' {
         Context 'folders in the matrix that are missing' {
             It 'are not created' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -2300,10 +2300,10 @@ Describe 'when Action is' {
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -2320,10 +2320,10 @@ Describe 'when Action is' {
             }
             It 'are not checked when they are set to ignore' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ }; Ignore = $true }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -2337,10 +2337,10 @@ Describe 'when Action is' {
                 Should -BeNullOrEmpty
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB\FolderC'; ACL = @{ } }
@@ -2357,10 +2357,10 @@ Describe 'when Action is' {
             Context 'on non inherited folders' {
                 It 'are not corrected' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Check'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Check'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2403,10 +2403,10 @@ Describe 'when Action is' {
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Check'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Check'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                             )
@@ -2428,14 +2428,14 @@ Describe 'when Action is' {
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Check'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Check'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                             )
-                            DetailedLog       = $true
+                            DetailedLog      = $true
                         }
 
                         New-Item -Path (Join-Path $testParentFolder '\FolderA') -ItemType Directory -Force
@@ -2465,10 +2465,10 @@ Describe 'when Action is' {
             Context 'on inherited folders' {
                 It 'are not corrected' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'New'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'New'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                         )
@@ -2482,10 +2482,10 @@ Describe 'when Action is' {
                     )
 
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Check'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Check'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         )
@@ -2517,10 +2517,10 @@ Describe 'when Action is' {
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'New'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'New'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                                 [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2530,10 +2530,10 @@ Describe 'when Action is' {
                         .$testScript @testParams
 
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Check'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Check'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             )
@@ -2552,10 +2552,10 @@ Describe 'when Action is' {
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'New'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'New'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
                                 [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2565,14 +2565,14 @@ Describe 'when Action is' {
                         .$testScript @testParams
 
                         $testParams = @{
-                            Path              = $testParentFolder
-                            Action            = 'Check'
-                            MaxConcurrentJobs = 1
-                            Matrix            = @(
+                            Path             = $testParentFolder
+                            Action           = 'Check'
+                            JobThrottleLimit = 2
+                            Matrix           = @(
                                 [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                                 [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             )
-                            DetailedLog       = $true
+                            DetailedLog      = $true
                         }
 
                         $Actual = .$testScript @testParams |
@@ -2594,10 +2594,10 @@ Describe 'when Action is' {
             }
             It "don't report missing folders as having incorrect permissions" {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2623,10 +2623,10 @@ Describe 'when Action is' {
         Context 'incorrect file permissions' {
             It 'are not corrected' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2678,10 +2678,10 @@ Describe 'when Action is' {
                 }
                 It 'DetailedLog is False only the file name is saved' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Check'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Check'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2707,15 +2707,15 @@ Describe 'when Action is' {
                 }
                 It 'DetailedLog is True the file name and the the old ACL are saved' {
                     $testParams = @{
-                        Path              = $testParentFolder
-                        Action            = 'Check'
-                        MaxConcurrentJobs = 1
-                        Matrix            = @(
+                        Path             = $testParentFolder
+                        Action           = 'Check'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
                             [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                             [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
                         )
-                        DetailedLog       = $true
+                        DetailedLog      = $true
                     }
 
                     $testFile = New-Item -Path ($testParams.Path + '\FolderB\File.txt') -ItemTyp File -Force
@@ -2758,10 +2758,10 @@ Describe 'when Action is' {
         Context 'when the script is run again after Action Fix/New' {
             It 'the permissions are unchanged' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2785,10 +2785,10 @@ Describe 'when Action is' {
                 & $testPermissions
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2800,10 +2800,10 @@ Describe 'when Action is' {
                 & $testPermissions
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2816,10 +2816,10 @@ Describe 'when Action is' {
             }
             It 'nothing is reported as being incorrect' {
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'New'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'New'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2829,10 +2829,10 @@ Describe 'when Action is' {
                 .$testScript @testParams
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Fix'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Fix'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
@@ -2842,10 +2842,10 @@ Describe 'when Action is' {
                 .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should -BeNullOrEmpty
 
                 $testParams = @{
-                    Path              = $testParentFolder
-                    Action            = 'Check'
-                    MaxConcurrentJobs = 1
-                    Matrix            = @(
+                    Path             = $testParentFolder
+                    Action           = 'Check'
+                    JobThrottleLimit = 2
+                    Matrix           = @(
                         [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
                         [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
                         [PSCustomObject]@{Path = 'FolderB'; ACL = @{$testUser2 = 'R' } }
