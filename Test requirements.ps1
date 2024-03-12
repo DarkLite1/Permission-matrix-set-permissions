@@ -227,9 +227,9 @@ Process {
                         {
                             Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
 
-                            $incorrectPermissions[$_.AccountName] = $_.AccessRight.ToString()
+                            $incorrectPermissions[$_.AccountName] = [String]$_.AccessRight
 
-                            Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction 'Stop' -Force
+                            $null = Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction 'Stop' -Force
                         }
                     )
 
@@ -241,10 +241,10 @@ Process {
                     #region Add correct smb share permissions
                     $RequiredSharePermissions.ForEach(
                         {
-                            Write-Verbose "Add correct smb share permission '$($_.AccountName):$($_.AccessRight)'"
+                            Write-Verbose "Add correct smb share permission '$($_.AccountName): $($_.AccessRight)'"
 
                             $params = $_
-                            Grant-SmbShareAccess -Name $share.Name @params -ErrorAction 'Stop' -Force
+                            $null = Grant-SmbShareAccess -Name $share.Name @params -ErrorAction 'Stop' -Force
                         }
                     )
                     #endregion
@@ -274,7 +274,7 @@ Process {
             Name        = 'Share permissions'
             Description = "The share permissions are now set to {0}. The effective permissions are managed on NTFS level." -f $(
                 $RequiredSharePermissions.GetEnumerator().foreach(
-                    {"'$($_.AccountName): $($_.AccessRight)'"}
+                    { "'$($_.AccountName): $($_.AccessRight)'" }
                 ) -join ', '
             )
             Value       = $permissionsCorrected
