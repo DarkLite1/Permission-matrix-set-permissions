@@ -139,7 +139,7 @@ Describe 'when the smb share permissions are' {
                 $expected = [PSCustomObject]@{
                     Type        = 'Warning'
                     Name        = 'Share permissions'
-                    Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
+                    Description = "The share permissions are now set to 'BUILTIN\Administrators: Full', 'NT AUTHORITY\Authenticated Users: Change'. The effective permissions are managed on NTFS level."
                     Value       = @{$testSmbShare[0].Name = @{
                             'BUILTIN\Administrators'           = 'Full'
                             'Everyone'                         = 'Read'

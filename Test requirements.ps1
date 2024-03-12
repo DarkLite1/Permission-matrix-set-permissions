@@ -272,7 +272,11 @@ Process {
         [PSCustomObject]@{
             Type        = 'Warning'
             Name        = 'Share permissions'
-            Description = "The share permissions are now set to 'Administrators: FullControl' and 'Authenticated users: Change'. The effective permissions are managed on NTFS level."
+            Description = "The share permissions are now set to {0}. The effective permissions are managed on NTFS level." -f $(
+                $RequiredSharePermissions.GetEnumerator().foreach(
+                    {"'$($_.AccountName): $($_.AccessRight)'"}
+                ) -join ', '
+            )
             Value       = $permissionsCorrected
         }
     }
