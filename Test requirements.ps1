@@ -176,7 +176,10 @@ Process {
             #region Set Access based enumeration
             Try {
                 if (
-                    ($share.FolderEnumerationMode -eq 'AccessBased') -ne $Flag
+                    (
+                        ($share.FolderEnumerationMode -eq 'AccessBased') -or
+                        ($share.FolderEnumerationMode -eq 0)
+                    ) -ne $Flag
                 ) {
                     $params = @{
                         Name                  = $share.Name
@@ -205,25 +208,45 @@ Process {
             try {
                 $smbShareAccess = Get-SmbShareAccess -InputObject $share -ErrorAction 'Stop'
 
+                $smbSharePermissions = $smbShareAccess.ForEach(
+                    {
+                        @{
+                            AccountName       = $_.AccountName
+                            AccessControlType = switch ($_.AccessControlType) {
+                                0 { 'Allow'; break }
+                                1 { 'Deny'; break }
+                                Default { [String]$_ }
+                            }
+                            AccessRight       = switch ($_.AccessRight) {
+                                0 { 'Full'; break }
+                                1 { 'Change'; break }
+                                2 { 'Read'; break }
+                                Default { [String]$_ }
+                            }
+                        }
+                    }
+                )
+
                 $correctPermissions = 0
 
                 foreach ($permission in $RequiredSharePermissions) {
-                    $smbShareAccess | Where-Object {
-                    ($_.AccountName -eq $permission.AccountName) -and
-                    ($_.AccessRight -eq $permission.AccessRight)
+                    $smbSharePermissions | Where-Object {
+                        ($_.AccountName -eq $permission.AccountName) -and
+                        ($_.AccessControlType -eq 'Allow') -and
+                        ($_.AccessRight -eq $permission.AccessRight)
                     } | ForEach-Object {
                         $correctPermissions++
                     }
                 }
 
                 if (
-                ($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or
-                ($RequiredSharePermissions.Count -ne $correctPermissions)
+                    ($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or
+                    ($RequiredSharePermissions.Count -ne $correctPermissions)
                 ) {
                     #region Remove incorrect smb share permissions
                     $incorrectPermissions = @{}
 
-                    $smbShareAccess.ForEach(
+                    $smbSharePermissions.ForEach(
                         {
                             Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
 
@@ -248,7 +271,6 @@ Process {
                         }
                     )
                     #endregion
-
                 }
             }
             Catch {

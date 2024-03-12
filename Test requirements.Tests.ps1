@@ -1,5 +1,5 @@
 ﻿#Requires -Version 7
-#Requires -Modules Pester, SmbShare
+#Requires -Modules Pester
 
 BeforeAll {
     $testSmbShare = @(
@@ -18,6 +18,8 @@ BeforeAll {
     )
 
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
+
+    Function Test-IsAdminHC {}
 
     Mock Get-ItemPropertyValue -MockWith { 461808 }
     Mock Test-IsAdminHC { $true }
@@ -51,7 +53,7 @@ Describe 'return a FatalError object when' {
         $actual | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
     }
-    It 'the minimal version fo PowerShell is not installed' {
+    It 'the minimal version for PowerShell is not installed' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'PowerShell version'
@@ -119,16 +121,24 @@ Describe 'when the smb share permissions are' {
                     { $_.AccountName -eq 'BUILTIN\Administrators' }
                 )
 
-                $a.AccessRight | Should -BeExactly 'Full'
-                $a.AccessControlType | Should -BeExactly 'Allow'
+                if ($a.AccessRight -notMatch 'Full|0'){
+                    throw 'Expected Full'
+                }
+                if ($a.AccessControlType -notMatch 'Allow|0'){
+                    throw 'Expected Allow'
+                }
             }
             It 'NT AUTHORITY\Authenticated Users: Change' {
                 $a = $actual.Where(
                     { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
                 )
 
-                $a.AccessRight | Should -BeExactly 'Change'
-                $a.AccessControlType | Should -BeExactly 'Allow'
+                if ($a.AccessRight -notMatch 'Change|1'){
+                    throw 'Expected Change'
+                }
+                if ($a.AccessControlType -notMatch 'Allow|0'){
+                    throw 'Expected Allow'
+                }
             }
             It 'with no other permissions' {
                 $actual | Should -HaveCount 2
@@ -216,8 +226,11 @@ Describe 'set Access Based Enumeration' {
             $actual = .$testScript -Path $testSmbShare[1].Path -Flag $true
         }
         It "to enabled" {
-            (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
-            Should -BeExactly 'AccessBased'
+            $testResult = (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode
+
+            if ($testResult -notmatch 'AccessBased|0') {
+                throw 'Expected AccessBased'
+            }
         }
         It 'and return a Warning object' {
             $expected = [PSCustomObject]@{
@@ -242,8 +255,11 @@ Describe 'set Access Based Enumeration' {
             $actual = .$testScript -Path $testSmbShare[1].Path -Flag $false
         }
         It "to enabled" {
-            (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode |
-            Should -BeExactly 'Unrestricted'
+            $testResult = (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode
+
+            if ($testResult -notmatch 'Unrestricted|1') {
+                throw 'Expected AccessBased'
+            }
         }
         It 'and return a Warning object' {
             $expected = [PSCustomObject]@{
