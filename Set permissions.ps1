@@ -445,17 +445,39 @@ Begin {
                 }
                 Catch {
                     if (-not (Test-Path -LiteralPath $child.FullName)) {
-                        Write-Verbose "Item '$($child.FullName)' removed"
+                        Write-Verbose "Item '$child' removed"
                         $Error.RemoveAt(0)
                     }
                     else {
+                        $errorMessage = $_; $Error.RemoveAt(0)
+
+                        #region Test file in use by another process
+                        if (-not $child.PSIsContainer) {
+                            try {
+                                $fileInfo = New-Object System.IO.FileInfo $child
+
+                                $fileStream = $fileInfo.Open(
+                                    [System.IO.FileMode]::Open,
+                                    [System.IO.FileAccess]::ReadWrite,
+                                    [System.IO.FileShare]::None
+                                )
+                                if ($fileStream) {
+                                    $fileStream.Close()
+                                }
+                            }
+                            catch {
+                                $errorMessage = $_; $Error.RemoveAt(0)
+                            }
+                        }
+                        #endregion
+
                         $ErrorActionPreference = 'Continue'
 
-                        Write-Error "Failed retrieving the ACL of '$($child.FullName)': $_"
+                        Write-Error "Failed retrieving the ACL of '$child': $errorMessage"
 
-                        $Error.RemoveAt(1)
                         $ErrorActionPreference = 'Stop'
                     }
+
                     Continue
                 }
 
@@ -482,7 +504,7 @@ Begin {
         }
 
         $incorrectAclInheritedOnly = {
-            Write-Warning "Incorrect ACL '$($child.FullName)'"
+            Write-Warning "Incorrect ACL '$child'"
             #region Log
             if ($DetailedLog) {
                 $incorrectInheritedAcl.($child.FullName) = $acl.AccessToString
@@ -494,7 +516,7 @@ Begin {
 
             #region Set permissions
             if ($Action -eq 'Fix') {
-                Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
+                Write-Verbose "Set ACL to inherited only '$child'"
 
                 # Workaround for non inherited permissions
                 # $acl.Access | ForEach-Object {
