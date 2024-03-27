@@ -466,7 +466,8 @@ Begin {
                                 }
                             }
                             catch {
-                                $errorMessage = $_; $Error.RemoveAt(0)
+                                $errorMessage = 'File in use by another process'
+                                $Error.RemoveAt(0)
                             }
                         }
                         #endregion
