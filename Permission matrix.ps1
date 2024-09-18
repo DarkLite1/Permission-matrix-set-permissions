@@ -361,15 +361,21 @@ Process {
                 #endregion
 
                 #region Copy file to log folder
-                $copyParams = @{
-                    LiteralPath = $matrixFile.FullName
-                    Destination = $Obj.File.LogFolder
-                    PassThru    = $true
+                try {
+                    $copyParams = @{
+                        LiteralPath = $matrixFile.FullName
+                        Destination = $Obj.File.LogFolder
+                        PassThru    = $true
+                        ErrorAction = 'Stop'
+                    }
+
+                    Write-Verbose "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
+                    $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
                 }
-
-                Write-Verbose "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-
-                $Obj.File.SaveFullName = (Copy-Item @copyParams).FullName
+                catch {
+                    throw "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                }
                 #endregion
 
                 #region Get Excel file details
