@@ -113,7 +113,7 @@ Param (
     [Int]$MaxConcurrentJobsPerRemoteComputer = 3,
     [Int]$MaxConcurrentFoldersPerMatrix = 3,
     [String]$PSSessionConfiguration = 'PowerShell.7',
-    [String]$LogFolder = $env:POWERSHELL_LOG_FOLDER ,
+    [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
     [String[]]$ScriptAdmin = @(
         $env:POWERSHELL_SCRIPT_ADMIN,
         $env:POWERSHELL_SCRIPT_ADMIN_BACKUP
