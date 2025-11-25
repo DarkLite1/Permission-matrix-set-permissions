@@ -1238,38 +1238,94 @@ end {
                     #region Export FormData to an HTML file
                     $htmlStyle = @'
 <style>
-    a {
-        color: black;
-        text-decoration: underline;
-    }
-    a:hover {
-        color: blue;
-    }
-    body {
-        background-color: MediumSeaGreen;
-        color: white;
-    }
-    #overviewTable th {
-        font-weight: normal;
-        text-align: left;
-    }
-    #overviewTable td {
-        text-align: center;
-    }
-    #matrixTable {
-        border: 1px solid Black;
-        /* padding-bottom: 60px; */
-        /* border-spacing: 0.5em; */
-        border-collapse: separate;
-        border-spacing: 0px 0.6em;
-        /* padding: 10px; */
-        width: 600px;
-    }
-    table tbody tr td a {
-        display: block;
-        width: 100%;
-        height: 100%;
-    }
+  body {
+    background-color: #004e2b;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+  }
+
+  a {
+    color: #00dd39;
+    text-decoration: none;
+  }
+  a:hover {
+    color: #004e2b;
+    text-decoration: underline;
+  }
+
+  h1 {
+    border-bottom: 2px solid #ffffff;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    color: white;
+  }
+
+  table {
+    width: 100%;
+    max-width: 900px;
+    margin: 20px 0;
+    border-collapse: collapse;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+    background-color: #ffffff;
+  }
+
+  table th {
+    background-color: #00dd39;
+    color: #004e2b;
+    text-align: left;
+    padding: 12px 15px;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: 1px solid #004e2b;
+    white-space: nowrap;
+  }
+
+  table th:nth-child(3) {
+    text-align: left;
+    word-break: normal;
+  }
+
+  table td {
+    text-align: center;
+    padding: 10px 15px;
+    border: 1px solid #cccccc;
+    vertical-align: middle;
+    color: #004e2b;
+  }
+
+  table td:nth-child(3) {
+    word-break: break-all;
+    min-width: 150px;
+    text-align: left;
+  }
+
+  table tbody tr:nth-child(even) {
+    background-color: #f0f0f0;
+  }
+  table tbody tr:nth-child(odd) {
+    background-color: #ffffff;
+  }
+
+  table tbody tr:hover {
+    background-color: #c2ebcf;
+    color: #004e2b;
+  }
+
+  table tbody tr td a {
+    display: block;
+    width: 100%;
+    height: 100%;
+    color: #004e2b;
+  }
+  table td:last-child a {
+    display: inline;
+    color: #004e2b;
+  }
+
+  table tbody tr:hover td a {
+    color: #004e2b;
+  }
 </style>
 '@
 
@@ -1289,12 +1345,19 @@ end {
 
                     $htmlMatrixTable += $formDataSheet.foreach(
                         {
+                            $emailsMatrixResponsible = foreach (
+                                $email in 
+                                $_.MatrixResponsible -split ','
+                            ) {
+                                "<a href=`"mailto:$email`">$email</a>"
+                            }
+
                             "<tr>
                                 <td>$($_.MatrixCategoryName)</td>
                                 <td>$($_.MatrixSubCategoryName)</td>
-                                <td>$($_.MatrixFolderDisplayName)</td>
+                                <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
                                 <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
-                                <td>$($_.MatrixResponsible -replace ',', '<br>')</td>
+                                <td>$emailsMatrixResponsible</td>
                             </tr>"
                         }
                     )
