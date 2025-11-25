@@ -92,7 +92,7 @@
 #>
 
 [CmdLetBinding()]
-Param (
+param (
     [Parameter(Mandatory)]
     [String]$ScriptName,
     [Parameter(Mandatory)]
@@ -120,8 +120,8 @@ Param (
     )
 )
 
-Begin {
-    Function ConvertTo-HtmlValueHC {
+begin {
+    function ConvertTo-HtmlValueHC {
         if (-not $E.Value) {
             $null
         }
@@ -150,9 +150,9 @@ Begin {
 "@
         }
     }
-    Function Get-HTNLidTagProbTypeHC {
+    function Get-HTNLidTagProbTypeHC {
         [OutputType([String[]])]
-        Param (
+        param (
             [Parameter(Mandatory)]
             [String]$Name
         )
@@ -171,7 +171,7 @@ Begin {
                     'probTypeInfo'
                     break
                 }
-                Default {
+                default {
                     throw "Type '$_' is unknown"
                 }
             }
@@ -181,7 +181,7 @@ Begin {
         }
     }
 
-    Try {
+    try {
         $StartDate = Get-ScriptRuntimeHC -Start
         Import-EventLogParamsHC -Source $ScriptName
         Write-EventLog @EventStartParams
@@ -211,19 +211,19 @@ Begin {
         #endregion
 
         #region Set permissions file
-        Try {
+        try {
             $ScriptSetPermissionItem = Get-Item -LiteralPath $ScriptSetPermissionFile -EA Stop
         }
-        Catch {
+        catch {
             throw "Execution script file '$ScriptSetPermissionFile' not found"
         }
         #endregion
 
         #region Share config file
-        Try {
+        try {
             $ScriptTestRequirementsItem = Get-Item -LiteralPath $ScriptTestRequirements -EA Stop
         }
-        Catch {
+        catch {
             throw "Share configuration script file '$ScriptTestRequirements' not found"
         }
         #endregion
@@ -240,11 +240,11 @@ Begin {
         if (-not (Test-Path -LiteralPath ImportDir:)) {
             $RetryCount = 0; $Completed = $false
             while (-not $Completed) {
-                Try {
+                try {
                     $null = New-PSDrive -Name ImportDir -PSProvider FileSystem -Root $ImportDir -EA Stop
                     $Completed = $true
                 }
-                Catch {
+                catch {
                     if ($RetryCount -ge '240') {
                         throw "Drive mapping failed for '$ImportDir': $_"
                     }
@@ -261,7 +261,7 @@ Begin {
         #endregion
 
         #region Default settings file
-        Try {
+        try {
             #region Get the defaults
             $DefaultsItem = Get-Item -LiteralPath $DefaultsFile -EA Stop
 
@@ -278,7 +278,7 @@ Begin {
                     $_.PSObject.Properties.Name
                 })
 
-            @('MailTo', 'ADObjectName', 'Permission').Where( { $propDefault -notContains $_ }).ForEach( {
+            @('MailTo', 'ADObjectName', 'Permission').Where( { $propDefault -notcontains $_ }).ForEach( {
                     throw "Column header '$_' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
                 })
             #endregion
@@ -297,7 +297,7 @@ Begin {
             }
             #endregion
         }
-        Catch {
+        catch {
             throw "Defaults file '$DefaultsFile' worksheet 'Settings': $_"
         }
         #endregion
@@ -306,16 +306,16 @@ Begin {
             $ArchiveItem = New-FolderHC -Path $ImportDir -ChildPath Archive
         }
     }
-    Catch {
+    catch {
         Write-Warning $_
         Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
         Write-EventLog @EventErrorParams -Message "FAILURE Incorrect input:`n`n- $_"
-        Write-EventLog @EventEndParams; Exit 1
+        Write-EventLog @EventEndParams; exit 1
     }
 }
 
-Process {
-    Try {
+process {
+    try {
         $ID = 0
 
         $getParams = @{
@@ -330,7 +330,7 @@ Process {
             @(Get-ChildItem @getParams).Where(
                 { $_.FullName -ne $DefaultsItem.FullName })
         ) {
-            Try {
+            try {
                 Write-Verbose "Matrix file '$matrixFile'"
 
                 $Obj = [PSCustomObject]@{
@@ -391,7 +391,7 @@ Process {
                 #endregion
 
                 #region Import sheets Settings, Permissions, FormData
-                Try {
+                try {
                     $ImportParams = @{
                         Path        = $matrixFile.FullName
                         DataOnly    = $true
@@ -401,7 +401,7 @@ Process {
                     $Settings = @(
                         Import-Excel @ImportParams -Sheet 'Settings'
                     ).Where(
-                        { $_.Status -EQ 'Enabled' }
+                        { $_.Status -eq 'Enabled' }
                     )
                     $M = "$BeginEvent - Worksheet 'Settings' imported with 'Status' set to 'Enabled': $Settings"
                     Write-EventLog @EventVerboseParams -Message $M
@@ -473,21 +473,21 @@ Process {
                         Write-EventLog @EventVerboseParams -Message "$BeginEvent - No lines found with status 'Enabled' in the worksheet 'Settings'"
                     }
                 }
-                Catch {
-                    $errorMessage = Switch -Wildcard ($_) {
+                catch {
+                    $errorMessage = switch -Wildcard ($_) {
                         "*Worksheet 'Settings' not found*" {
-                            "Worksheet 'Settings' not found"; Break
+                            "Worksheet 'Settings' not found"; break
                         }
                         "*worksheet 'Settings': No column headers found on top row '1'*" {
-                            "Worksheet 'Settings' is empty"; Break
+                            "Worksheet 'Settings' is empty"; break
                         }
                         "*Worksheet 'Permissions' not found*" {
-                            "Worksheet 'Permissions' not found"; Break
+                            "Worksheet 'Permissions' not found"; break
                         }
                         "*worksheet 'Permissions': No column headers found on top row '1'*" {
-                            "Worksheet 'Permissions' is empty"; Break
+                            "Worksheet 'Permissions' is empty"; break
                         }
-                        Default {
+                        default {
                             throw "Failed importing the Excel file '$($matrixFile.FullName)': $_"
                         }
                     }
@@ -498,20 +498,20 @@ Process {
                         Value       = $errorMessage
                     }
 
-                    Try { $Error.RemoveRange(0, 2) }
-                    Catch { throw 'Import-Excel throws 2 errors normally' }
+                    try { $Error.RemoveRange(0, 2) }
+                    catch { throw 'Import-Excel throws 2 errors normally' }
                 }
                 #endregion
 
                 if ($Archive) {
-                    Try {
+                    try {
                         Move-Item -LiteralPath $matrixFile -Destination $ArchiveItem -Force -EA Stop
 
                         $M = "$BeginEvent - Moved file to archive folder:`n$($ArchiveItem.FullName)"
                         Write-EventLog @EventVerboseParams -Message $M
                         Write-Verbose $M
                     }
-                    Catch {
+                    catch {
                         $Obj.File.Check += [PSCustomObject]@{
                             Type        = 'Warning'
                             Name        = 'Archiving failed'
@@ -525,11 +525,11 @@ Process {
 
                 $Obj
             }
-            Catch {
+            catch {
                 Write-Warning $_
                 Send-MailHC -To $ScriptAdmin -Subject 'FAILURE' -Priority 'High' -Message $_ -Header $ScriptName
                 Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
-                Write-EventLog @EventEndParams; Exit 1
+                Write-EventLog @EventEndParams; exit 1
             }
         }
 
@@ -590,17 +590,17 @@ Process {
                 $I in
                 $importedMatrix.Where(
                     {
-                        ($_.File.Check.Type -notContains 'FatalError' ) -and
+                        ($_.File.Check.Type -notcontains 'FatalError' ) -and
                         ($_.Settings)
                     }
                 )
             ) {
-                Try {
+                try {
                     Write-Verbose 'Test matrix permissions'
 
                     $I.Permissions.Check += Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
 
-                    if ($I.Permissions.Check.Type -notContains 'FatalError') {
+                    if ($I.Permissions.Check.Type -notcontains 'FatalError') {
                         foreach ($S in $I.Settings) {
                             $S.Check += Test-MatrixSettingHC -Setting $S.Import
 
@@ -621,7 +621,7 @@ Process {
                             #endregion
 
                             #region Create matrix for each settings line
-                            if ($S.Check.Type -notContains 'FatalError') {
+                            if ($S.Check.Type -notcontains 'FatalError') {
                                 Write-Verbose 'Create matrix for each settings line'
 
                                 $S.AdObjects = $adObjects
@@ -637,7 +637,7 @@ Process {
                         }
                     }
                 }
-                Catch {
+                catch {
                     $I.File.Check += [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Unknown error'
@@ -723,13 +723,13 @@ Process {
                 foreach ($adObject in $ADObjectDetails) {
                     $adObject.adGroupMember = $adObject.adGroupMember |
                     Where-Object {
-                        $ExcludedSamAccountName -notContains $_.SamAccountName
+                        $ExcludedSamAccountName -notcontains $_.SamAccountName
                     }
                 }
                 foreach ($adObject in $groupManagersAdDetails) {
                     $adObject.adGroupMember = $adObject.adGroupMember |
                     Where-Object {
-                        $ExcludedSamAccountName -notContains $_.SamAccountName
+                        $ExcludedSamAccountName -notcontains $_.SamAccountName
                     }
                 }
             }
@@ -919,17 +919,17 @@ Process {
             #endregion
         }
     }
-    Catch {
+    catch {
         Write-Warning $_
         Get-Job | Remove-Job -Force -EA Ignore
         Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
         Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
-        Write-EventLog @EventEndParams; Exit 1
+        Write-EventLog @EventEndParams; exit 1
     }
 }
 
-End {
-    Try {
+end {
+    try {
         $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
             '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
             $StartDate.Year, $StartDate.Month, $StartDate.Day,
@@ -945,7 +945,7 @@ End {
                 #region Get unique SamAccountNames for all matrix in Settings
                 $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName |
                 Select-Object -Property @{
-                    Name       = 'name';
+                    Name       = 'name'
                     Expression = { "$($_)".Trim() }
                 } -Unique |
                 Select-Object -ExpandProperty name
@@ -957,7 +957,7 @@ End {
                 #region Create Excel worksheet 'AccessList'
                 $accessListToExport = foreach ($S in $matrixSamAccountNames) {
                     $adData = $ADObjectDetails |
-                    Where-Object { $S -EQ $_.samAccountName }
+                    Where-Object { $S -eq $_.samAccountName }
 
                     if (-not $adData.adObject) {
                         $M = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
@@ -971,7 +971,7 @@ End {
                     }
                     else {
                         $adData.adGroupMember | Select-Object -Property @{
-                            Name       = 'SamAccountName';
+                            Name       = 'SamAccountName'
                             Expression = { $S }
                         },
                         @{Name = 'Name'; Expression = { $adData.adObject.Name } },
@@ -986,7 +986,7 @@ End {
                 $groupManagersToExport = foreach ($S in $matrixSamAccountNames) {
                     $adData = (
                         $ADObjectDetails | Where-Object {
-                            ($S -EQ $_.samAccountName) -and
+                            ($S -eq $_.samAccountName) -and
                             ($_.adObject.ObjectClass -eq 'group')
                         }
                     )
@@ -1047,7 +1047,7 @@ End {
                     if ($CherwellFolder) {
                         $accessListSheet += $accessListToExport |
                         Select-Object @{
-                            Name       = 'MatrixFileName';
+                            Name       = 'MatrixFileName'
                             Expression = { $I.File.Item.BaseName }
                         }, *
                     }
@@ -1067,7 +1067,7 @@ End {
                         if ($CherwellFolder) {
                             $groupManagersSheet += $groupManagersToExport |
                             Select-Object @{
-                                Name       = 'MatrixFileName';
+                                Name       = 'MatrixFileName'
                                 Expression = { $I.File.Item.BaseName }
                             }, *
                         }
@@ -1083,7 +1083,7 @@ End {
 
             if (
                 $CherwellFolder -and
-                ($importedMatrix.FormData.Check.Type -notContains 'FatalError')
+                ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
             ) {
                 #region Create AD Object names and FormData to export
                 foreach ($I in $importedMatrix) {
@@ -1229,10 +1229,87 @@ End {
                     Export-Excel @ExportParams -WorksheetName 'FormData' -TableName 'FormData'
                     #endregion
 
-                    #region Export FormData to a csv file
+                    #region Export FormData to a CSV file
                     Write-EventLog @EventOutParams -Message "Export FormData to '$($exportCsvFormParams.literalPath)'"
 
                     $formDataSheet | Export-Csv @exportCsvFormParams
+                    #endregion
+
+                    #region Export FormData to an HTML file
+                    $htmlStyle = @'
+<style>
+    a {
+        color: black;
+        text-decoration: underline;
+    }
+    a:hover {
+        color: blue;
+    }
+    body {
+        background-color: MediumSeaGreen;
+        color: white;
+    }
+    #overviewTable th {
+        font-weight: normal;
+        text-align: left;
+    }
+    #overviewTable td {
+        text-align: center;
+    }
+    #matrixTable {
+        border: 1px solid Black;
+        /* padding-bottom: 60px; */
+        /* border-spacing: 0.5em; */
+        border-collapse: separate;
+        border-spacing: 0px 0.6em;
+        /* padding: 10px; */
+        width: 600px;
+    }
+    table tbody tr td a {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+'@
+
+                    $htmlFileContent = @(
+                        $htmlStyle,
+                        '<h1>Matrix files overview</h1>'
+                    )
+
+                    $htmlMatrixTable = '<tr>
+                        <th>Category</th>
+                        <th>Subcategory</th>
+                        <th>Folder</th>
+                        <th>Link to the matrix</th>
+                        <th>Responsible</th>
+                    </tr>
+                    '
+
+                    $htmlMatrixTable += $formDataSheet.foreach(
+                        {
+                            "<tr>
+                                <td>$($_.MatrixCategoryName)</td>
+                                <td>$($_.MatrixSubCategoryName)</td>
+                                <td>$($_.MatrixFolderDisplayName)</td>
+                                <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
+                                <td>$($_.MatrixResponsible -replace ',', '<br>')</td>
+                            </tr>"
+                        }
+                    )
+
+                    $htmlFileContent += "<table>$htmlMatrixTable</table>"
+                    
+                    $joinParams = @{
+                        Path      = $CherwellFolder 
+                        ChildPath = $CherwellExcelOverviewFileName.Replace('.xlsx', '.html')
+                    }
+                    $htmlFilePath = Join-Path @joinParams
+
+                    Write-EventLog @EventOutParams -Message "Export FormData to '$htmlFilePath'"
+                    
+                    $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
                     #endregion
 
                     #region Copy csv file to log folder
@@ -1258,9 +1335,9 @@ End {
             #endregion
 
             #region HTML <style> for Mail and Settings
-            Write-EventLog @EventVerboseParams -Message "Format HTML"
+            Write-EventLog @EventVerboseParams -Message 'Format HTML'
 
-            $htmlStyle = @"
+            $htmlStyle = @'
 <style>
     a {
         color: black;
@@ -1354,11 +1431,11 @@ End {
         height: 100%;
     }
 </style>
-"@
+'@
             #endregion
 
             #region HTML LegendTable for Mail and Settings
-            $htmlLegend = @"
+            $htmlLegend = @'
 <table id="LegendTable">
     <tr>
         <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
@@ -1366,16 +1443,16 @@ End {
         <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
     </tr>
 </table>
-"@
+'@
             #endregion
 
             #region HTML Mail overview & Settings detail
             $htmlMatrixTables = foreach ($I in $importedMatrix) {
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
-                    @"
+                    @'
                     <th id="matrixHeader" colspan="8">File</th>
-"@
+'@
 
                     foreach ($F in $I.File.Check) {
                         $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
@@ -1402,9 +1479,9 @@ End {
 
                 #region HTML FormData
                 $FormDataCheck = if ($I.FormData.Check) {
-                    @"
+                    @'
                     <th id="matrixHeader" colspan="8">FormData</th>
-"@
+'@
 
                     foreach ($F in $I.FormData.Check) {
                         $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
@@ -1431,9 +1508,9 @@ End {
 
                 #region HTML Permissions
                 $PermissionsCheck = if ($I.Permissions.Check) {
-                    @"
+                    @'
                     <th id="matrixHeader" colspan="8">Permissions</th>
-"@
+'@
 
                     foreach ($F in $I.Permissions.Check) {
                         $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
@@ -1465,10 +1542,10 @@ End {
 
                 if (
                     ($I.Settings) -and
-                    ($I.File.Check.Type -notContains 'FatalError') -and
-                    ($I.Permissions.Check.Type -notContains 'FatalError')
+                    ($I.File.Check.Type -notcontains 'FatalError') -and
+                    ($I.Permissions.Check.Type -notcontains 'FatalError')
                 ) {
-                    $HtmlSettingsHeader = @"
+                    $HtmlSettingsHeader = @'
                     <th id="matrixHeader" colspan="8">Settings</th>
                     <tr>
                         <td></td>
@@ -1478,7 +1555,7 @@ End {
                         <td>Action</td>
                         <td>Duration</td>
                     </tr>
-"@
+'@
 
                     $MailSettingsTable = $HtmlSettingsHeader
 
@@ -1675,7 +1752,7 @@ End {
                         </html>
 "@
 
-                        $SettingsFile = Join-Path -Path  $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
+                        $SettingsFile = Join-Path -Path $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
                         $SettingsDetail | Out-File -FilePath $SettingsFile -Encoding utf8
                         #endregion
 
@@ -1936,12 +2013,12 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
             #endregion
         }
     }
-    Catch {
+    catch {
         Write-Warning $_
         Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
-        Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"; Exit 1
+        Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"; exit 1
     }
-    Finally {
+    finally {
         Get-Job | Remove-Job -Force -EA Ignore
         Remove-PSDrive ImportDir -EA Ignore
         Write-EventLog @EventEndParams
