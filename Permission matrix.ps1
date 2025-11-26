@@ -229,11 +229,12 @@ begin {
         #endregion
 
         #region Create log folder
-        $newFolderParams = @{
-            Path      = $LogFolder
-            ChildPath = "Permission matrix\$ScriptName"
+        try {
+            $LogFolder = (New-Item -ItemType 'Directory' -Path $LogFolder -Force -EA Stop).FullName
         }
-        $LogFolder = New-FolderHC @newFolderParams
+        catch {
+            throw "Failed to create log folder '$LogFolder': $_"
+        }
         #endregion
 
         #region Map share with Excel files
@@ -303,7 +304,14 @@ begin {
         #endregion
 
         if ($Archive) {
-            $ArchiveItem = New-FolderHC -Path $ImportDir -ChildPath Archive
+            try {
+                $archivePath = Join-Path -Path $ImportDir -ChildPath 'Archive'
+
+                $ArchiveItem = (New-Item -ItemType 'Directory' -Path $archivePath -Force -EA Stop).FullName
+            }
+            catch {
+                throw "Failed to create archive folder '$archivePath': $_"
+            }
         }
     }
     catch {
@@ -353,9 +361,16 @@ process {
                 }
 
                 #region Create log folder
-                $Obj.File.LogFolder = New-FolderHC -Path $LogFolder -ChildPath (
-                    '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $StartDate.Year, $StartDate.Month,
-                    $StartDate.Day, $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek, $matrixFile.BaseName)
+                try {
+                    $logFolderPath = Join-Path -Path $LogFolder -ChildPath (
+                        '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $StartDate.Year, $StartDate.Month,
+                        $StartDate.Day, $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek, $matrixFile.BaseName)
+
+                    $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $logFolderPath -Force -EA Stop).FullName
+                }
+                catch {
+                    throw "Failed to create log folder '$logFolderPath': $_"
+                }
 
                 $BeginEvent = "$($matrixFile.Name)`n`nExcel file details:`n"
                 #endregion
@@ -1369,7 +1384,7 @@ end {
                     $htmlMatrixTableRows += $formDataSheet.foreach(
                         {
                             $emailsMatrixResponsible = foreach (
-                                $email in 
+                                $email in
                                 $_.MatrixResponsible -split ','
                             ) {
                                 "<a href=`"mailto:$email`">$email</a>"
@@ -1386,15 +1401,15 @@ end {
                     )
 
                     $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
-                    
+
                     $joinParams = @{
-                        Path      = $CherwellFolder 
+                        Path      = $CherwellFolder
                         ChildPath = $CherwellExcelOverviewFileName.Replace('.xlsx', '.html')
                     }
                     $htmlFilePath = Join-Path @joinParams
 
                     Write-EventLog @EventOutParams -Message "Export FormData to '$htmlFilePath'"
-                    
+
                     $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
                     #endregion
 

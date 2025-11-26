@@ -5,7 +5,7 @@ BeforeAll {
     $testParams = @{
         ScriptName                         = 'Test (Brecht)'
         ImportDir                          = New-Item 'TestDrive:/Matrix' -ItemType Directory
-        LogFolder                          = New-Item 'TestDrive:/log' -ItemType Directory
+        LogFolder                          = 'TestDrive:\log\File and folder\Test (Brecht)'
         ScriptSetPermissionFile            = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
         ScriptTestRequirements             = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
         DefaultsFile                       = New-Item 'TestDrive:/Default.xlsx' -ItemType File
@@ -68,7 +68,7 @@ BeforeAll {
         NoHeader      = $true
     }
 
-    Function Compare-HashTableHC {
+    function Compare-HashTableHC {
         param (
             [Parameter(Mandatory)]
             [hashtable]$ReferenceObject,
@@ -123,7 +123,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and
-                ($Message -like "*NonExisting.ps1*not found*")
+                ($Message -like '*NonExisting.ps1*not found*')
             }
         }
         It 'ScriptTestRequirements' {
@@ -134,18 +134,18 @@ Describe 'stop the script and send an e-mail to the admin when' {
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and
-                ($Message -like "*ShareConfigNotExisting.ps1*not found*")
+                ($Message -like '*ShareConfigNotExisting.ps1*not found*')
             }
         }
         It 'LogFolder' {
             $testParams = $testParams.Clone()
-            $testParams.LogFolder = 'NonExistingLog'
+            $testParams.LogFolder = 'x:\NonExistingLog'
 
             .$testScript @testParams
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and
-                ($Message -like "*NonExistingLog*not found*")
+                ($Message -like "*Failed to create log folder 'x:\NonExistingLog'*")
             }
         }
         It 'CherwellFolder' {
@@ -156,7 +156,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
 
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and
-                ($Message -like "*NonExistingFolder*not found*")
+                ($Message -like '*NonExistingFolder*not found*')
             }
         }
     }
@@ -174,7 +174,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
         }
         It "does not have the worksheet 'Settings'" {
             $clonedParams = $testParams.Clone()
-            $clonedParams.DefaultsFile = New-Item "TestDrive:/Folder/Default.xlsx" -ItemType File -Force
+            $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
 
             '1' | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Sheet1
 
@@ -241,13 +241,13 @@ Describe 'stop the script and send an e-mail to the admin when' {
                         MailTo       = ' '
                     }
                 )
-                errorMessage = "No mail addresses found"
+                errorMessage = 'No mail addresses found'
             }
         )
 
-        It "is missing <Name>" -ForEach $TestCases {
+        It 'is missing <Name>' -ForEach $TestCases {
             $clonedParams = $testParams.Clone()
-            $clonedParams.DefaultsFile = New-Item "TestDrive:/Folder/Default.xlsx" -ItemType File -Force
+            $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
 
             $DefaultsFile | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Settings
 
@@ -306,15 +306,13 @@ Describe 'a sub folder in the log folder' {
         ) | Export-Excel @PermissionsParams
 
         .$testScript @testParams
-
-        $testLogFolder = "$($testParams.LogFolder)\Permission matrix\$($testParams.ScriptName)"
     }
     It "is created for each specific Excel file regardless of its 'Status'" {
-        @(Get-ChildItem -Path $testLogFolder -Directory).Count |
+        @(Get-ChildItem -Path $testParams.LogFolder -Directory).Count |
         Should -BeExactly 1
     }
     It 'the Excel file is copied to the log folder' {
-        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
 
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
@@ -412,7 +410,7 @@ Describe "when the 'Archive' switch is used then" {
         Should -BeExactly 5
     }
 }
-Describe "do not invoke the script to set permissions when" {
+Describe 'do not invoke the script to set permissions when' {
     It "there's only a default settings file in the 'ImportDir' folder" {
         .$testScript @testParams
 
@@ -427,7 +425,7 @@ Describe "do not invoke the script to set permissions when" {
         Should -Not -Invoke Invoke-Command
     }
     It "there are only valid matrixes in subfolders of the 'ImportDir' folder" {
-        $Folder = (New-Item  "$($testParams.ImportDir)\Archive" -ItemType Directory -Force -EA Ignore).FullName
+        $Folder = (New-Item "$($testParams.ImportDir)\Archive" -ItemType Directory -Force -EA Ignore).FullName
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
@@ -673,11 +671,11 @@ Describe 'a FatalError object is registered' {
                 $testCheck = $testMatrix.Check | Where-Object {
                     $_.Name -eq $testProblem.Name
                 }
-                $testCheck.Type | Should -Be  $testProblem.Type
-                $testCheck.Name | Should -Be  $testProblem.Name
-                $testCheck.Description | Should -Be  $testProblem.Description
-                $testCheck.Value.Name | Should -Be  $testProblem.Value.Name
-                $testCheck.Value.Value | Should -Be  $testProblem.Value.Value
+                $testCheck.Type | Should -Be $testProblem.Type
+                $testCheck.Name | Should -Be $testProblem.Name
+                $testCheck.Description | Should -Be $testProblem.Description
+                $testCheck.Value.Name | Should -Be $testProblem.Value.Name
+                $testCheck.Value.Value | Should -Be $testProblem.Value.Value
             }
 
         }
@@ -806,7 +804,7 @@ Describe "each row in the worksheet 'settings'" {
     }
     Context 'creates a unique matrix with' {
         It 'complete SamAccountNames constructed from the header rows' {
-            Function testColumnHeaders {
+            function testColumnHeaders {
                 ($null -eq $ColumnHeaders[0].P1) -and
                 ($ColumnHeaders[0].P2 -eq 'bob') -and
                 ($ColumnHeaders[1].P1 -eq 'SiteCode') -and
@@ -1101,20 +1099,20 @@ Describe 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
             ($Subject -eq '1 matrix file') -and
-            ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
-            ($Message -notLike '*Cherwell*') -and
+            ($Message -notlike '*Cherwell*') -and
             ($Message -like '*Matrix results per file*') -and
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like "*1*PC1*E:\Reports*Check*") -and
-            ($Message -like "*2*PC2*E:\Finance*New*") -and
+            ($Message -like '*1*PC1*E:\Reports*Check*') -and
+            ($Message -like '*2*PC2*E:\Finance*New*') -and
             ($Message -like '*Error*Warning*Information*')
         }
     }
 }
-Describe "export an Excel file with" {
+Describe 'export an Excel file with' {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
@@ -1598,7 +1596,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path "$($testParams.LogFolder)\Permission matrix\$($testParams.ScriptName)" -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -NE '.xlsx').Count | Should -BeExactly 2
     }
     It 'a TXT log file is created for each settings row when there are more than 5 elements in the value array' {
@@ -1632,7 +1630,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path "$($testParams.LogFolder)\Permission matrix\$($testParams.ScriptName)" -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -EQ '.txt').Count | Should -BeExactly 2
     }
     It 'an e-mail is send' {
@@ -1685,7 +1683,7 @@ Describe 'when the argument CherwellFolder is used' {
         }
         It 'a FatalError is registered for the file' {
             $actual = $ImportedMatrix.File.Check
-            $actual.Type | Should -Contain "FatalError"
+            $actual.Type | Should -Contain 'FatalError'
             $actual.Name | Should -Contain "Worksheet 'FormData' not found"
         }
         It 'the permissions script is not executed' {
@@ -1694,11 +1692,11 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like "*Worksheet 'FormData' not found*") -and
-                ($Message -notLike '*Check the*overview*for details*')
+                ($Message -notlike '*Check the*overview*for details*')
             }
         }
     }
@@ -1747,12 +1745,12 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
-                ($Message -like "*Errors*Warnings*FormData*") -and
-                ($Message -like "*FormData*incorrect data*") -and
-                ($Message -notLike '*Check the*overview*for details*')
+                ($Message -like '*Errors*Warnings*FormData*') -and
+                ($Message -like '*FormData*incorrect data*') -and
+                ($Message -notlike '*Check the*overview*for details*')
             }
         }
     }
@@ -1800,11 +1798,11 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the warning message' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file, 1 warning.html") -and
+                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
                 ($Subject -eq '1 matrix file, 1 warning') -and
                 ($Priority -eq 'High') -and
-                ($Message -like "*Errors*Warnings*FormData*") -and
-                ($Message -like "*FormData*AD object not found*") -and
+                ($Message -like '*Errors*Warnings*FormData*') -and
+                ($Message -like '*FormData*AD object not found*') -and
                 ($Message -like '*Check the*overview*for details*')
             }
         }
@@ -1898,7 +1896,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
 
         $testCherwellExport = Get-ChildItem $testCherwellFolder.FullName
 
-        $testLogFolderExport = Get-ChildItem $testParams.LogFolder.FullName  -Recurse -File |
+        $testLogFolderExport = Get-ChildItem $testParams.LogFolder -Recurse -File |
         Where-Object Extension -Match '.xlsx$|.csv$'
 
         $testLogFolder = @{
@@ -2128,7 +2126,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
-            ($Save -like "$($testParams.LogFolder.FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
             ($Message -like '*Export to*Cherwell*') -and
@@ -2141,7 +2139,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
             ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like "*1*SERVER1*E:\Department*Check*") -and
+            ($Message -like '*1*SERVER1*E:\Department*Check*') -and
             ($Message -like '*Error*Warning*Information*')
         }
     }
