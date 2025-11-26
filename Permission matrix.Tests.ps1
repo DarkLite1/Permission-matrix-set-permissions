@@ -1953,7 +1953,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
         It 'to an HTML file in the Cherwell folder' {
             $testCherwellFolder.ExcelFile.FullName.Replace('.xlsx', '.html') | Should -Exist
-        } -Tag test
+        }
         It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
