@@ -1236,49 +1236,64 @@ end {
                     #endregion
 
                     #region Export FormData to an HTML file
-                    $htmlStyle = @'
+                    $htmlFileContent = @(
+                        @'
 <style>
   body {
-    background-color: #004e2b;
-    color: #ffffff;
+    background-color: #f0f0f0;
+    color: #004e2b;
     font-family: Arial, sans-serif;
     padding: 20px;
   }
 
   a {
-    color: #00dd39;
+    color: #004e2b;
     text-decoration: none;
   }
   a:hover {
-    color: #004e2b;
+    color: #00dd39;
     text-decoration: underline;
   }
 
   h1 {
-    border-bottom: 2px solid #ffffff;
+    border-bottom: 2px solid #004e2b;
     padding-bottom: 10px;
-    margin-bottom: 10px;
-    color: white;
+    margin-bottom: 25px;
+    color: #004e2b;
+    text-transform: uppercase;
+    font-size: 1.8em;
   }
 
   table {
     width: 100%;
-    max-width: 900px;
+    max-width: 1200px;
     margin: 20px 0;
-    border-collapse: collapse;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.7);
+    border-collapse: separate;
+    border-spacing: 0;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
     background-color: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: auto;
+    border: none;
   }
 
   table th {
-    background-color: #00dd39;
-    color: #004e2b;
+    background-color: #004e2b;
+    color: #ffffff;
     text-align: left;
-    padding: 12px 15px;
+    padding: 15px 20px;
     font-weight: bold;
     text-transform: uppercase;
-    border: 1px solid #004e2b;
-    white-space: nowrap;
+    border: none;
+    font-size: 0.9em;
+  }
+
+  table thead tr:first-child th:first-child {
+    border-top-left-radius: 8px;
+  }
+  table thead tr:first-child th:last-child {
+    border-top-right-radius: 8px;
   }
 
   table th:nth-child(3) {
@@ -1289,29 +1304,40 @@ end {
   table td {
     text-align: center;
     padding: 10px 15px;
-    border: 1px solid #cccccc;
+    border: none;
+    border-bottom: 1px solid #e0e0e0;
     vertical-align: middle;
     color: #004e2b;
   }
 
+  table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
   table td:nth-child(3) {
     word-break: break-all;
-    min-width: 150px;
     text-align: left;
   }
 
+  table td:nth-child(5) {
+    word-break: break-word;
+  }
+
+  /* Alternating row colors (Zebra striping) */
   table tbody tr:nth-child(even) {
-    background-color: #f0f0f0;
+    background-color: #f8f8f8b7;
   }
   table tbody tr:nth-child(odd) {
     background-color: #ffffff;
   }
 
+  /* Hover effect for rows */
   table tbody tr:hover {
     background-color: #c2ebcf;
     color: #004e2b;
   }
 
+  /* Specific link styles */
   table tbody tr td a {
     display: block;
     width: 100%;
@@ -1327,14 +1353,11 @@ end {
     color: #004e2b;
   }
 </style>
-'@
-
-                    $htmlFileContent = @(
-                        $htmlStyle,
+'@,
                         '<h1>Matrix files overview</h1>'
                     )
 
-                    $htmlMatrixTable = '<tr>
+                    $htmlMatrixTableRows = '<tr>
                         <th>Category</th>
                         <th>Subcategory</th>
                         <th>Folder</th>
@@ -1343,7 +1366,7 @@ end {
                     </tr>
                     '
 
-                    $htmlMatrixTable += $formDataSheet.foreach(
+                    $htmlMatrixTableRows += $formDataSheet.foreach(
                         {
                             $emailsMatrixResponsible = foreach (
                                 $email in 
@@ -1362,7 +1385,7 @@ end {
                         }
                     )
 
-                    $htmlFileContent += "<table>$htmlMatrixTable</table>"
+                    $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
                     
                     $joinParams = @{
                         Path      = $CherwellFolder 
