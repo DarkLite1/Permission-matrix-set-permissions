@@ -1381,24 +1381,24 @@ end {
                     </tr>
                     '
 
-                    $htmlMatrixTableRows += $formDataSheet.foreach(
-                        {
-                            $emailsMatrixResponsible = foreach (
-                                $email in
-                                $_.MatrixResponsible -split ','
-                            ) {
-                                "<a href=`"mailto:$email`">$email</a>"
-                            }
+                    $htmlMatrixTableRows += $formDataSheet | 
+                    Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
+                    ForEach-Object {
+                        $emailsMatrixResponsible = foreach (
+                            $email in
+                            $_.MatrixResponsible -split ','
+                        ) {
+                            "<a href=`"mailto:$email`">$email</a>"
+                        }
 
-                            "<tr>
+                        "<tr>
                                 <td>$($_.MatrixCategoryName)</td>
                                 <td>$($_.MatrixSubCategoryName)</td>
                                 <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
                                 <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
                                 <td>$emailsMatrixResponsible</td>
                             </tr>"
-                        }
-                    )
+                    }
 
                     $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
 
