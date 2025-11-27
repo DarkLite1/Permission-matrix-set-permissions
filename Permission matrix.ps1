@@ -1330,15 +1330,29 @@ end {
   }
 
   table td:nth-child(3) {
-    word-break: break-all;
     text-align: left;
+    white-space: nowrap;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  table td:nth-child(4) {
+    text-align: left;
+    white-space: nowrap;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   table td:nth-child(5) {
-    word-break: break-word;
+    text-align: left;
+    white-space: nowrap;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  /* Alternating row colors (Zebra striping) */
   table tbody tr:nth-child(even) {
     background-color: #f8f8f8b7;
   }
@@ -1346,13 +1360,11 @@ end {
     background-color: #ffffff;
   }
 
-  /* Hover effect for rows */
   table tbody tr:hover {
     background-color: #c2ebcf;
     color: #004e2b;
   }
 
-  /* Specific link styles */
   table tbody tr td a {
     display: block;
     width: 100%;
