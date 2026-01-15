@@ -6,10 +6,10 @@
   },
   "Matrix": {
     "FolderPath": "C:\\Permission matrix files",
-    "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx"
+    "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx",
+    "Archive": false,
+    "ExcludedSamAccountName": ["cnorris"]
   },
-  "Archive": false,
-  "ExcludedSamAccountName": ["cnorris"],
   "ServiceNow": {
     "CredentialsFilePath": "C:\\PasswordsServiceNow.json",
     "Environment": "Prod",

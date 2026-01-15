@@ -74,7 +74,6 @@ param (
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [String[]]$ExcludedSamAccountName = 'belsrvc',
-    [Switch]$Archive,
     [Boolean]$DetailedLog = $true,
     [String]$CherwellFolder,
     [String]$CherwellAdObjectsFileName = 'AD object names.csv',
@@ -246,10 +245,10 @@ begin {
                 )
             ) {
                 try {
-                    $null = [Boolean]::Parse($jsonFileContent.$boolean)
+                    $null = [Boolean]::Parse($jsonFileContent.Matrix.$boolean)
                 }
                 catch {
-                    throw "Property '$boolean' is not a boolean value"
+                    throw "Property 'Matrix.$boolean' is not a boolean value"
                 }
             }
             #endregion
@@ -259,7 +258,9 @@ begin {
         }
         #endregion
 
-        
+        $Matrix = $jsonFileContent.Matrix
+        $MaxConcurrent = $jsonFileContent.MaxConcurrent
+
         #region Convert .json file
         Write-Verbose 'Convert .json file'
 
@@ -368,7 +369,7 @@ begin {
         }
         #endregion
 
-        if ($Archive) {
+        if ($Matrix.Archive) {
             try {
                 $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
 
@@ -583,7 +584,7 @@ process {
                 }
                 #endregion
 
-                if ($Archive) {
+                if ($Matrix.Archive) {
                     try {
                         Move-Item -LiteralPath $matrixFile -Destination $ArchiveItem -Force -EA Stop
 
@@ -639,7 +640,7 @@ process {
                     #endregion
 
                     #region Add MatrixFilePath and MatrixFileName
-                    $property.MatrixFilePath = if ($Archive) {
+                    $property.MatrixFilePath = if ($Matrix.Archive) {
                         Join-Path $ArchiveItem $I.File.Item.Name
                     }
                     else {
