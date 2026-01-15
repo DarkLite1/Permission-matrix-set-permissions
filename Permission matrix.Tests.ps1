@@ -6,8 +6,10 @@ BeforeAll {
         ScriptName                         = 'Test (Brecht)'
         ImportDir                          = New-Item 'TestDrive:/Matrix' -ItemType Directory
         LogFolder                          = 'TestDrive:\log\File and folder\Test (Brecht)'
-        ScriptSetPermissionFile            = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
-        ScriptTestRequirements             = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
+        ScriptPath                         = @{
+            TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
+            SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
+        }
         DefaultsFile                       = New-Item 'TestDrive:/Default.xlsx' -ItemType File
         ScriptAdmin                        = 'admin@contoso.com'
         MaxConcurrentComputers             = 1
