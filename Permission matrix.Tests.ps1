@@ -325,7 +325,7 @@ Describe 'a sub folder in the log folder' {
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
 }
-Describe "when the 'Archive' switch is used then" {
+Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
             [PSCustomObject]@{
@@ -342,7 +342,8 @@ Describe "when the 'Archive' switch is used then" {
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
         ) | Export-Excel @PermissionsParams
 
-        .$testScript @testParams -Archive
+        $testParams = $testParams.Clone()
+        $testParams.Matrix.Archive = $true
     }
     It "a sub folder in the 'Matrix.FolderPath' named 'Archive' is created" {
         "$($testParams.Matrix.FolderPath)\Archive" | Should -Exist
