@@ -74,18 +74,6 @@
         The log name of the Excel file containing the same data as the csv files
         exported to the Cherwell folder.
 
-    .PARAMETER MaxConcurrentComputers
-        Maximum quantity of unique computer names that can be requested to
-        perform jobs at the same time.
-
-    .PARAMETER MaxConcurrentJobsPerRemoteComputer
-        Maximum quantity of jobs to run at the same time on a single remote
-        computer.
-
-    .PARAMETER MaxConcurrentFoldersPerMatrix
-        Maximum quantity of folders to iterate at the same time within a
-        single job running on a remote computer.
-
     .PARAMETER PSSessionConfiguration
         The version of PowerShell on the remote endpoint as returned by
         Get-PSSessionConfiguration.
@@ -113,9 +101,6 @@ param (
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
-    [int]$MaxConcurrentComputers = 10,
-    [Int]$MaxConcurrentJobsPerRemoteComputer = 3,
-    [Int]$MaxConcurrentFoldersPerMatrix = 3,
     [String]$PSSessionConfiguration = 'PowerShell.7',
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
     [String[]]$ScriptAdmin = @(
@@ -125,6 +110,12 @@ param (
 )
 
 begin {
+    $ErrorActionPreference = 'stop'
+
+    $eventLogData = [System.Collections.Generic.List[PSObject]]::new()
+    $systemErrors = [System.Collections.Generic.List[PSObject]]::new()
+    $scriptStartTime = Get-Date
+        
     function ConvertTo-HtmlValueHC {
         if (-not $E.Value) {
             $null
@@ -186,10 +177,15 @@ begin {
     }
 
     try {
-        $StartDate = Get-ScriptRuntimeHC -Start
-        Import-EventLogParamsHC -Source $ScriptName
-        Write-EventLog @EventStartParams
-
+        $eventLogData.Add(
+            [PSCustomObject]@{
+                Message   = 'Script started'
+                DateTime  = $scriptStartTime
+                EntryType = 'Information'
+                EventID   = '100'
+            }
+        )
+        
         Get-Job | Remove-Job -Force
 
         #region Test path exists
@@ -212,6 +208,66 @@ begin {
                 }
             }
         )
+        #endregion
+
+        #region Import .json file
+        Write-Verbose "Import .json file '$ConfigurationJsonFile'"
+
+        $jsonFileItem = Get-Item -LiteralPath $ConfigurationJsonFile -ErrorAction Stop
+
+        $jsonFileContent = Get-Content $jsonFileItem -Raw -Encoding UTF8 |
+        ConvertFrom-Json
+        #endregion
+
+        #region Test .json file properties
+        Write-Verbose 'Test .json file properties'
+
+        try {
+            @(
+                'MaxConcurrent', 'ImportDir', 'DefaultsFile'
+            ).where(
+                { -not $jsonFileContent.$_ }
+            ).foreach(
+                { throw "Property '$_' not found" }
+            )
+
+            @(
+                'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
+            ).foreach(
+                {
+                    if (-not $jsonFileContent.MaxConcurrent.$_) {
+                        throw "Property 'MaxConcurrent.$_' not found" 
+                    }
+                    #region Test integer value
+                    try {
+                        [int]$jsonFileContent.MaxConcurrentActions
+                    }
+                    catch {
+                        throw "Property 'MaxConcurrent.$_' needs to be a number, the value '$($jsonFileContent.MaxConcurrent.$_)' is not supported."
+                    }
+                    #endregion
+                }
+            )
+
+            #region Test boolean values
+            foreach (
+                $boolean in
+                @(
+                    'OverwriteFile', 'ExcludeZeroSizeFile'
+                )
+            ) {
+                try {
+                    $null = [Boolean]::Parse($task.Option.$boolean)
+                }
+                catch {
+                    throw "Property 'Tasks.Option.$boolean' is not a boolean value"
+                }
+            }
+            #endregion
+        }
+        catch {
+            throw "Input file '$ConfigurationJsonFile': $_"
+        }
         #endregion
 
         #region Test Cherwell parameters
@@ -371,8 +427,8 @@ process {
                 #region Create log folder
                 try {
                     $logFolderPath = Join-Path -Path $LogFolder -ChildPath (
-                        '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $StartDate.Year, $StartDate.Month,
-                        $StartDate.Day, $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek, $matrixFile.BaseName)
+                        '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
+                        $scriptStartTime.Day, $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek, $matrixFile.BaseName)
 
                     $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $logFolderPath -Force -EA Stop).FullName
                 }
@@ -802,7 +858,7 @@ process {
                 }
 
                 #region Run code serial or parallel
-                $foreachParams = if ($MaxConcurrentComputers -eq 1) {
+                $foreachParams = if ($MaxConcurrent.Computers -eq 1) {
                     @{
                         Process = $scriptBlock
                     }
@@ -810,7 +866,7 @@ process {
                 else {
                     @{
                         Parallel      = $scriptBlock
-                        ThrottleLimit = $MaxConcurrentComputers
+                        ThrottleLimit = $MaxConcurrent.Computers
                     }
                 }
                 #endregion
@@ -858,8 +914,8 @@ process {
                     $matrixes = $_.Group
 
                     #region Declare variables for parallel execution
-                    if (-not $MaxConcurrentComputers) {
-                        $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
+                    if (-not $MaxConcurrent.Computers) {
+                        $MaxConcurrent.FoldersPerMatrix = $using:MaxConcurrent.FoldersPerMatrix
                         $scriptPathItem = $using:scriptPathItem
                         $PSSessionConfiguration = $using:PSSessionConfiguration
                         $DetailedLog = $using:DetailedLog
@@ -873,8 +929,8 @@ process {
                             $matrix = $_
 
                             #region Declare variables for parallel execution
-                            if (-not $MaxConcurrentJobsPerRemoteComputer) {
-                                $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
+                            if (-not $MaxConcurrent.JobsPerRemoteComputer) {
+                                $MaxConcurrent.FoldersPerMatrix = $using:MaxConcurrent.FoldersPerMatrix
                                 $scriptPathItem = $using:scriptPathItem
                                 $PSSessionConfiguration = $using:PSSessionConfiguration
                                 $DetailedLog = $using:DetailedLog
@@ -885,7 +941,7 @@ process {
 
                             $params = @{
                                 FilePath          = $scriptPathItem.SetPermissionFile
-                                ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentFoldersPerMatrix, $DetailedLog
+                                ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
                                 ConfigurationName = $PSSessionConfiguration
                                 ComputerName      = $matrix.Import.ComputerName
                                 ErrorAction       = 'Stop'
@@ -914,10 +970,10 @@ process {
                         Process = $innerScriptBlock
                     }
 
-                    if (-not $MaxConcurrentJobsPerRemoteComputer) {
+                    if (-not $MaxConcurrent.JobsPerRemoteComputer) {
                         $innerForeachParams = @{
                             Parallel      = $innerScriptBlock
-                            ThrottleLimit = $using:MaxConcurrentJobsPerRemoteComputer
+                            ThrottleLimit = $using:MaxConcurrent.JobsPerRemoteComputer
                         }
                     }
 
@@ -928,10 +984,10 @@ process {
                     Process = $outerScriptBlock
                 }
 
-                if ($MaxConcurrentComputers -gt 1) {
+                if ($MaxConcurrent.Computers -gt 1) {
                     $foreachParams = @{
                         Parallel      = $outerScriptBlock
-                        ThrottleLimit = $MaxConcurrentComputers
+                        ThrottleLimit = $MaxConcurrent.Computers
                     }
                 }
 
@@ -955,8 +1011,8 @@ end {
     try {
         $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
             '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
-            $StartDate.Year, $StartDate.Month, $StartDate.Day,
-            $StartDate.Hour, $StartDate.Minute, $StartDate.DayOfWeek
+            $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
+            $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
         )
 
         if ($importedMatrix) {

@@ -1,7 +1,9 @@
 {
-  "MaxConcurrentComputers": 10,
-  "MaxConcurrentFoldersPerMatrix": 3,
-  "MaxConcurrentJobsPerRemoteComputer": 3,
+  "MaxConcurrent": {
+    "Computers": 10,
+    "FoldersPerMatrix": 3,
+    "JobsPerRemoteComputer": 3
+  },
   "ImportDir": "C:\\Permission matrix files",
   "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx",
   "Archive": false,
@@ -66,9 +68,11 @@
     }
   },
   "?": {
-    "MaxConcurrentComputers": "(Optional) Maximum quantity of unique computer names that can be requested to perform jobs at the same time.",
-    "MaxConcurrentFoldersPerMatrix": "(Optional) Maximum quantity of folders to iterate at the same time within a single job running on a remote computer.",
-    "MaxConcurrentJobsPerRemoteComputer": "(Optional) Maximum quantity of jobs to run at the same time on a single remote computer.",
+    "MaxConcurrent": {
+      "Computers": "(Mandatory) Maximum quantity of unique computer names that can be requested to perform jobs at the same time.",
+      "FoldersPerMatrix": "(Mandatory) Maximum quantity of folders to iterate at the same time within a single job running on a remote computer.",
+      "JobsPerRemoteComputer": "(Mandatory) Maximum quantity of jobs to run at the same time on a single remote computer."
+    },
     "ImportDir": "(Mandatory) The folder path where the matrix Excel files are located.",
     "DefaultsFile": "(Mandatory) An Excel file containing general settings that apply to all matrix files. This file contains the worksheet 'Permissions', responsible for setting default permissions for all matrixes; and the worksheet 'MailTo', containing the e-mail addresses of users that need to receive the report on the results.",
     "Archive": "(Mandatory) Whether to move processed matrix files to the folder 'Archive' in the ImportDir folder. Possible values: true or false.",
