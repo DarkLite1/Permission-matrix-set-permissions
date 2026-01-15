@@ -11,22 +11,6 @@
         This script launches the script 'Sync permissions' to apply the
         permission matrix (Check, Fix, New).
 
-    .PARAMETER ImportDir
-        The path where the Excel files (matrixes) are located.
-
-    .PARAMETER Archive
-        When the 'Archive' switch is used the files will be moved to the folder
-        'Archive' in the source directory.
-
-    .PARAMETER DefaultsFile
-        The Excel file that contains the worksheets 'Permissions', which
-        contain the default permissions that need to be applied everywhere, and
-        'MailTo', containing the e-mail addresses of users that need to receive
-        the report on the results.
-
-        This can be an absolute path to the file or a file name with extension
-        that is located within the ImportDir.
-
     .PARAMETER Regex
         The Regex parameter is used to identify incorrect input in the Excel
         sheets. We only accept:
@@ -85,9 +69,6 @@ param (
     [String]$ConfigurationJsonFile,
     [Parameter(Mandatory)]
     [String]$ScriptName,
-    [Parameter(Mandatory)]
-    [String]$ImportDir,
-    [String]$DefaultsFile = "$ImportDir\Defaults.xlsx",
     [HashTable]$ScriptPath = @{
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
@@ -224,11 +205,19 @@ begin {
 
         try {
             @(
-                'MaxConcurrent', 'ImportDir', 'DefaultsFile'
+                'MaxConcurrent', 'Matrix'
             ).where(
                 { -not $jsonFileContent.$_ }
             ).foreach(
                 { throw "Property '$_' not found" }
+            )
+
+            @(
+                'FolderPath', 'DefaultsFile'
+            ).where(
+                { -not $jsonFileContent.Matrix.$_ }
+            ).foreach(
+                { throw "Property 'Matrix.$_' not found" }
             )
 
             @(
@@ -240,7 +229,7 @@ begin {
                     }
                     #region Test integer value
                     try {
-                        [int]$jsonFileContent.MaxConcurrentActions
+                        [int]$jsonFileContent.MaxConcurrent.$_
                     }
                     catch {
                         throw "Property 'MaxConcurrent.$_' needs to be a number, the value '$($jsonFileContent.MaxConcurrent.$_)' is not supported."
@@ -267,6 +256,18 @@ begin {
         }
         catch {
             throw "Input file '$ConfigurationJsonFile': $_"
+        }
+        #endregion
+
+        
+        #region Convert .json file
+        Write-Verbose 'Convert .json file'
+
+        #region Set PSSessionConfiguration
+        $PSSessionConfiguration = $jsonFileContent.PSSessionConfiguration
+
+        if (-not $PSSessionConfiguration) {
+            $PSSessionConfiguration = 'PowerShell.7'
         }
         #endregion
 
@@ -302,16 +303,16 @@ begin {
         #endregion
 
         #region Map share with Excel files
-        if (-not (Test-Path -LiteralPath ImportDir:)) {
+        if (-not (Test-Path -LiteralPath MatrixFolderPath:)) {
             $RetryCount = 0; $Completed = $false
             while (-not $Completed) {
                 try {
-                    $null = New-PSDrive -Name ImportDir -PSProvider FileSystem -Root $ImportDir -EA Stop
+                    $null = New-PSDrive -Name MatrixFolderPath -PSProvider FileSystem -Root $Matrix.FolderPath -EA Stop
                     $Completed = $true
                 }
                 catch {
                     if ($RetryCount -ge '240') {
-                        throw "Drive mapping failed for '$ImportDir': $_"
+                        throw "Drive mapping failed for '$($Matrix.FolderPath)': $_"
                     }
                     else {
                         Start-Sleep -Seconds 30
@@ -322,13 +323,13 @@ begin {
             }
         }
 
-        $ImportDir = Get-Item $ImportDir -EA Stop
+        $Matrix.FolderPath = Get-Item $Matrix.FolderPath -EA Stop
         #endregion
 
         #region Default settings file
         try {
             #region Get the defaults
-            $DefaultsItem = Get-Item -LiteralPath $DefaultsFile -EA Stop
+            $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -EA Stop
 
             try {
                 $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'
@@ -363,13 +364,13 @@ begin {
             #endregion
         }
         catch {
-            throw "Defaults file '$DefaultsFile' worksheet 'Settings': $_"
+            throw "Defaults file '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
         }
         #endregion
 
         if ($Archive) {
             try {
-                $archivePath = Join-Path -Path $ImportDir -ChildPath 'Archive'
+                $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
 
                 $ArchiveItem = (New-Item -ItemType 'Directory' -Path $archivePath -Force -EA Stop).FullName
             }
@@ -391,7 +392,7 @@ process {
         $ID = 0
 
         $getParams = @{
-            Path        = 'ImportDir:\*'
+            Path        = 'MatrixFolderPath:\*'
             Include     = '*.xlsx'
             File        = $true
             ErrorAction = 'Stop'
@@ -888,7 +889,7 @@ process {
                 #region Add default permissions
                 <#
                     In case of conflict the acl in the matrix will win
-                    over the acl in the DefaultsFile.
+                    over the acl in the Matrix.DefaultsFile.
                 #>
                 if ($DefaultAcl.Count -ne 0) {
                     foreach (
@@ -2197,7 +2198,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
     }
     finally {
         Get-Job | Remove-Job -Force -EA Ignore
-        Remove-PSDrive ImportDir -EA Ignore
+        Remove-PSDrive MatrixFolderPath -EA Ignore
         Write-EventLog @EventEndParams
     }
 }

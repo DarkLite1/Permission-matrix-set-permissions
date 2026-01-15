@@ -4,8 +4,10 @@
     "FoldersPerMatrix": 3,
     "JobsPerRemoteComputer": 3
   },
-  "ImportDir": "C:\\Permission matrix files",
-  "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx",
+  "Matrix": {
+    "FolderPath": "C:\\Permission matrix files",
+    "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx"
+  },
   "Archive": false,
   "ExcludedSamAccountName": ["cnorris"],
   "ServiceNow": {
@@ -73,8 +75,10 @@
       "FoldersPerMatrix": "(Mandatory) Maximum quantity of folders to iterate at the same time within a single job running on a remote computer.",
       "JobsPerRemoteComputer": "(Mandatory) Maximum quantity of jobs to run at the same time on a single remote computer."
     },
-    "ImportDir": "(Mandatory) The folder path where the matrix Excel files are located.",
-    "DefaultsFile": "(Mandatory) An Excel file containing general settings that apply to all matrix files. This file contains the worksheet 'Permissions', responsible for setting default permissions for all matrixes; and the worksheet 'MailTo', containing the e-mail addresses of users that need to receive the report on the results.",
+    "Matrix": {
+      "FolderPath": "(Mandatory) The folder path where the matrix Excel files are located.",
+      "DefaultsFile": "(Mandatory) An Excel file containing general settings that apply to all matrix files. This file contains the worksheet 'Permissions', responsible for setting default permissions for all matrixes; and the worksheet 'MailTo', containing the e-mail addresses of users that need to receive the report on the results."
+    },
     "Archive": "(Mandatory) Whether to move processed matrix files to the folder 'Archive' in the ImportDir folder. Possible values: true or false.",
     "ExcludedSamAccountName": "(Optional) A list of AD SamAccountNames that will be excluded when checking for group memberships. These accounts are usually used as a place holder, so there are no empty groups in AD.",
     "PSSessionConfiguration": "(Optional) The PowerShell version of the remote endpoint. This value corresponds to the output of the Get-PSSessionConfiguration cmdlet. The minimum supported version is 'PowerShell.7'. Defaults to 'PowerShell.7' if not specified.",
