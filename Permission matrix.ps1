@@ -253,14 +253,14 @@ begin {
             foreach (
                 $boolean in
                 @(
-                    'OverwriteFile', 'ExcludeZeroSizeFile'
+                    'Archive'
                 )
             ) {
                 try {
-                    $null = [Boolean]::Parse($task.Option.$boolean)
+                    $null = [Boolean]::Parse($jsonFileContent.$boolean)
                 }
                 catch {
-                    throw "Property 'Tasks.Option.$boolean' is not a boolean value"
+                    throw "Property '$boolean' is not a boolean value"
                 }
             }
             #endregion
