@@ -94,6 +94,8 @@
 [CmdLetBinding()]
 param (
     [Parameter(Mandatory)]
+    [String]$ConfigurationJsonFile,
+    [Parameter(Mandatory)]
     [String]$ScriptName,
     [Parameter(Mandatory)]
     [String]$ImportDir,
