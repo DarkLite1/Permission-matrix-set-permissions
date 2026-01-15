@@ -3,18 +3,23 @@
 
 BeforeAll {
     $testParams = @{
-        ScriptName                         = 'Test (Brecht)'
-        ImportDir                          = New-Item 'TestDrive:/Matrix' -ItemType Directory
-        LogFolder                          = 'TestDrive:\log\File and folder\Test (Brecht)'
-        ScriptPath                         = @{
+        ScriptName    = 'Test (Brecht)'
+        MaxConcurrent = @{
+            Computers             = 1
+            JobsPerRemoteComputer = 1
+            FoldersPerMatrix      = 2
+        }
+        Matrix        = @{
+            FolderPath   = New-Item 'TestDrive:/Matrix' -ItemType Directory
+            DefaultsFile = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+        }
+        LogFolder     = 'TestDrive:\log\File and folder\Test (Brecht)'
+        ScriptPath    = @{
             TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
             SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
         }
-        DefaultsFile                       = New-Item 'TestDrive:/Default.xlsx' -ItemType File
-        ScriptAdmin                        = 'admin@contoso.com'
-        MaxConcurrentComputers             = 1
-        MaxConcurrentJobsPerRemoteComputer = 1
-        MaxConcurrentFoldersPerMatrix      = 2
+        ScriptAdmin   = 'admin@contoso.com'
+        
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
@@ -61,7 +66,7 @@ BeforeAll {
     Export-Excel -Path $testParams.DefaultsFile -WorksheetName 'Settings'
 
     $SettingsParams = @{
-        Path          = Join-Path $testParams.ImportDir 'Matrix.xlsx'
+        Path          = Join-Path $testParams.Matrix.FolderPath 'Matrix.xlsx'
         WorkSheetName = 'Settings'
     }
     $PermissionsParams = @{
@@ -101,8 +106,7 @@ BeforeAll {
 }
 Describe 'the mandatory parameters are' {
     It '<_>' -ForEach @(
-        'ScriptName',
-        'ImportDir'
+        'ConfigurationJsonFile'
     ) {
         (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
         Should -BeTrue
@@ -338,15 +342,15 @@ Describe "when the 'Archive' switch is used then" {
 
         .$testScript @testParams -Archive
     }
-    It "a sub folder in the 'ImportDir' named 'Archive' is created" {
-        "$($testParams.ImportDir)\Archive" | Should -Exist
+    It "a sub folder in the 'Matrix.FolderPath' named 'Archive' is created" {
+        "$($testParams.Matrix.FolderPath)\Archive" | Should -Exist
     }
     It 'all matrix files are moved to the archive folder, even disabled ones' {
         $SettingsParams.Path | Should -Not -Exist
-        "$($testParams.ImportDir)\Archive\Matrix.xlsx" | Should -Exist
+        "$($testParams.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
     }
     It 'a matrix with the same name is overwritten in the archive folder' {
-        $testFile = "$($testParams.ImportDir)\Archive\Matrix.xlsx"
+        $testFile = "$($testParams.Matrix.FolderPath)\Archive\Matrix.xlsx"
         $testFile | Remove-Item -Force -EA Ignore
 
         @(
@@ -382,9 +386,9 @@ Describe "when the 'Archive' switch is used then" {
         Should -Be 'S2'
     }
     It 'multiple matrix files are moved to the archive folder' {
-        Remove-Item -Path "$($testParams.ImportDir)\Archive" -Recurse -EA Ignore
+        Remove-Item -Path "$($testParams.Matrix.FolderPath)\Archive" -Recurse -EA Ignore
         1..5 | ForEach-Object {
-            $FileName = "$($testParams.ImportDir)\Matrix $_.xlsx"
+            $FileName = "$($testParams.Matrix.FolderPath)\Matrix $_.xlsx"
             @(
                 [PSCustomObject]@{
                     Status       = 'Enabled'
@@ -407,27 +411,27 @@ Describe "when the 'Archive' switch is used then" {
 
         .$testScript @testParams -Archive
 
-        (Get-ChildItem "$($testParams.ImportDir)\Matrix*" -File).Count | Should -BeExactly 0
-        (Get-ChildItem "$($testParams.ImportDir)\Archive" -File).Count |
+        (Get-ChildItem "$($testParams.Matrix.FolderPath)\Matrix*" -File).Count | Should -BeExactly 0
+        (Get-ChildItem "$($testParams.Matrix.FolderPath)\Archive" -File).Count |
         Should -BeExactly 5
     }
 }
 Describe 'do not invoke the script to set permissions when' {
-    It "there's only a default settings file in the 'ImportDir' folder" {
+    It "there's only a default settings file in the 'Matrix.FolderPath' folder" {
         .$testScript @testParams
 
         Should -Not -Invoke Invoke-Command
     }
-    It "there are only other file types than '.xlsx' in the 'ImportDir' folder" {
-        1 | Out-File "$($testParams.ImportDir)\Wrong.txt"
-        1 | Out-File "$($testParams.ImportDir)\Wrong.csv"
+    It "there are only other file types than '.xlsx' in the 'Matrix.FolderPath' folder" {
+        1 | Out-File "$($testParams.Matrix.FolderPath)\Wrong.txt"
+        1 | Out-File "$($testParams.Matrix.FolderPath)\Wrong.csv"
 
         .$testScript @testParams
 
         Should -Not -Invoke Invoke-Command
     }
-    It "there are only valid matrixes in subfolders of the 'ImportDir' folder" {
-        $Folder = (New-Item "$($testParams.ImportDir)\Archive" -ItemType Directory -Force -EA Ignore).FullName
+    It "there are only valid matrixes in subfolders of the 'Matrix.FolderPath' folder" {
+        $Folder = (New-Item "$($testParams.Matrix.FolderPath)\Archive" -ItemType Directory -Force -EA Ignore).FullName
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
@@ -474,7 +478,7 @@ Describe 'a FatalError object is registered' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.ImportDir)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "building the matrix with 'ConvertTo-MatrixAclHC' fails" {
@@ -725,7 +729,7 @@ Describe 'a Warning object is registered' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.ImportDir)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "the worksheet 'Settings' has no row with status 'Enabled'" {
@@ -1569,7 +1573,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.ImportDir)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     It 'a detailed HTML log file is created for each settings row' {
         $testProblem = @{
