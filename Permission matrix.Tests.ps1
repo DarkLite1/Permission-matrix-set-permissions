@@ -10,8 +10,10 @@ BeforeAll {
             FoldersPerMatrix      = 2
         }
         Matrix        = @{
-            FolderPath   = New-Item 'TestDrive:/Matrix' -ItemType Directory
-            DefaultsFile = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+            FolderPath             = New-Item 'TestDrive:/Matrix' -ItemType Directory
+            DefaultsFile           = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+            Archive                = $false
+            ExcludedSamAccountName = @()
         }
         LogFolder     = 'TestDrive:\log\File and folder\Test (Brecht)'
         ScriptPath    = @{
