@@ -100,8 +100,10 @@ param (
     [Parameter(Mandatory)]
     [String]$ImportDir,
     [String]$DefaultsFile = "$ImportDir\Defaults.xlsx",
-    [String]$ScriptSetPermissionFile = "$PSScriptRoot\Set permissions.ps1",
-    [String]$ScriptTestRequirements = "$PSScriptRoot\Test requirements.ps1",
+    [HashTable]$ScriptPath = @{
+        TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
+        SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
+    },
     [String[]]$ExcludedSamAccountName = 'belsrvc',
     [Switch]$Archive,
     [Boolean]$DetailedLog = $true,
@@ -190,6 +192,28 @@ begin {
 
         Get-Job | Remove-Job -Force
 
+        #region Test path exists
+        $scriptPathItem = @{}
+
+        $ScriptPath.GetEnumerator().ForEach(
+            {
+                try {
+                    $key = $_.Key
+                    $value = $_.Value
+
+                    $params = @{
+                        Path        = $value
+                        ErrorAction = 'Stop'
+                    }
+                    $scriptPathItem[$key] = (Get-Item @params).FullName
+                }
+                catch {
+                    throw "ScriptPath.$key '$value' not found"
+                }
+            }
+        )
+        #endregion
+
         #region Test Cherwell parameters
         if ($CherwellFolder) {
             if (-not
@@ -209,24 +233,6 @@ begin {
                 }).foreach( {
                     throw "Parameter '$_' is mandatory when the parameter CherwellFolder is used."
                 })
-        }
-        #endregion
-
-        #region Set permissions file
-        try {
-            $ScriptSetPermissionItem = Get-Item -LiteralPath $ScriptSetPermissionFile -EA Stop
-        }
-        catch {
-            throw "Execution script file '$ScriptSetPermissionFile' not found"
-        }
-        #endregion
-
-        #region Share config file
-        try {
-            $ScriptTestRequirementsItem = Get-Item -LiteralPath $ScriptTestRequirements -EA Stop
-        }
-        catch {
-            throw "Share configuration script file '$ScriptTestRequirements' not found"
         }
         #endregion
 
@@ -764,7 +770,7 @@ process {
                     try {
                         #region Declare variables for parallel execution
                         if (-not $MaxConcurrentComputers) {
-                            $ScriptTestRequirementsItem = $using:ScriptTestRequirementsItem
+                            $scriptPathItem = $using:scriptPathItem
                             $PSSessionConfiguration = $using:PSSessionConfiguration
                         }
                         #endregion
@@ -773,7 +779,7 @@ process {
                         $computerName = $_.Name
 
                         $params = @{
-                            FilePath          = $ScriptTestRequirementsItem
+                            FilePath          = $scriptPathItem.TestRequirementsFile
                             ArgumentList      = $matrix.Import.Path, $true
                             ConfigurationName = $PSSessionConfiguration
                             ComputerName      = $computerName
@@ -854,7 +860,7 @@ process {
                     #region Declare variables for parallel execution
                     if (-not $MaxConcurrentComputers) {
                         $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
-                        $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                        $scriptPathItem = $using:scriptPathItem
                         $PSSessionConfiguration = $using:PSSessionConfiguration
                         $DetailedLog = $using:DetailedLog
                     }
@@ -869,7 +875,7 @@ process {
                             #region Declare variables for parallel execution
                             if (-not $MaxConcurrentJobsPerRemoteComputer) {
                                 $MaxConcurrentFoldersPerMatrix = $using:MaxConcurrentFoldersPerMatrix
-                                $ScriptSetPermissionItem = $using:ScriptSetPermissionItem
+                                $scriptPathItem = $using:scriptPathItem
                                 $PSSessionConfiguration = $using:PSSessionConfiguration
                                 $DetailedLog = $using:DetailedLog
                             }
@@ -878,7 +884,7 @@ process {
                             $matrix.JobTime.Start = Get-Date
 
                             $params = @{
-                                FilePath          = $ScriptSetPermissionItem
+                                FilePath          = $scriptPathItem.SetPermissionFile
                                 ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrentFoldersPerMatrix, $DetailedLog
                                 ConfigurationName = $PSSessionConfiguration
                                 ComputerName      = $matrix.Import.ComputerName
