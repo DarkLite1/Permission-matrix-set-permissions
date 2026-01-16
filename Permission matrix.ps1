@@ -917,7 +917,7 @@ process {
 
                     #region Declare variables for parallel execution
                     if (-not $MaxConcurrent.Computers) {
-                        $MaxConcurrent.FoldersPerMatrix = $using:MaxConcurrent.FoldersPerMatrix
+                        $MaxConcurrent = $using:MaxConcurrent
                         $scriptPathItem = $using:scriptPathItem
                         $PSSessionConfiguration = $using:PSSessionConfiguration
                         $DetailedLog = $using:DetailedLog
@@ -931,8 +931,8 @@ process {
                             $matrix = $_
 
                             #region Declare variables for parallel execution
-                            if (-not $MaxConcurrent.JobsPerRemoteComputer) {
-                                $MaxConcurrent.FoldersPerMatrix = $using:MaxConcurrent.FoldersPerMatrix
+                            if (-not $MaxConcurrent) {
+                                $MaxConcurrent = $using:MaxConcurrent
                                 $scriptPathItem = $using:scriptPathItem
                                 $PSSessionConfiguration = $using:PSSessionConfiguration
                                 $DetailedLog = $using:DetailedLog
