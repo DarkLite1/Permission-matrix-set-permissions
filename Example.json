@@ -10,6 +10,16 @@
     "Archive": false,
     "ExcludedSamAccountName": ["cnorris"]
   },
+  "Export": {
+    "FolderPath": "C:\\ServiceNow",
+    "FileName": {
+      "AdObjects": "ADObjectNames.csv",
+      "FormData": "FormData.csv",
+      "GroupManagers": "GroupManagers.csv",
+      "AccessList": "AccessList.csv",
+      "ExcelOverview": "Overview.xlsx"
+    }
+  },
   "ServiceNow": {
     "CredentialsFilePath": "C:\\PasswordsServiceNow.json",
     "Environment": "Prod",

@@ -71,7 +71,7 @@ BeforeAll {
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 
-    $testCherwellFolder = New-Item 'TestDrive:/Cherwell' -ItemType Directory
+    $testCherwellFolder = New-Item 'TestDrive:/Export' -ItemType Directory
 
     #region Valid Excel files
     $testMatrix = @(
@@ -1156,7 +1156,7 @@ Describe 'an email is sent to the user in the default settings file' {
             ($Subject -eq '1 matrix file') -and
             ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
-            ($Message -notlike '*Cherwell*') -and
+            ($Message -notlike '*Export*') -and
             ($Message -like '*Matrix results per file*') -and
             ($Message -like '*Matrix.xlsx*') -and
             ($Message -like '*Settings*') -and
@@ -1993,7 +1993,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     Context 'the FormData is exported' {
-        It 'to a CSV file in the Cherwell folder' {
+        It 'to a CSV file in the Export folder' {
             $testCherwellFolder.FormDataCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
@@ -2001,10 +2001,10 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.FormDataCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel file in the Cherwell folder' {
+        It 'to an Excel file in the Export folder' {
             $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
-        It 'to an HTML file in the Cherwell folder' {
+        It 'to an HTML file in the Export folder' {
             $testCherwellFolder.ExcelFile.FullName.Replace('.xlsx', '.html') | Should -Exist
         }
         It 'to an Excel file in the log folder' {
@@ -2052,7 +2052,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     Context 'the AD object names are exported' {
-        It 'to a CSV file in the Cherwell folder' {
+        It 'to a CSV file in the Export folder' {
             $testCherwellFolder.AdObjectsCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
@@ -2060,7 +2060,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.AdObjectsCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel file in the Cherwell folder' {
+        It 'to an Excel file in the Export folder' {
             $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
@@ -2094,7 +2094,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     Context 'the GroupManagers are exported' {
-        It 'to a CSV file in the Cherwell folder' {
+        It 'to a CSV file in the Export folder' {
             $testCherwellFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
@@ -2102,7 +2102,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.GroupManagersCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel file in the Cherwell folder' {
+        It 'to an Excel file in the Export folder' {
             $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
@@ -2136,7 +2136,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     Context 'the AccessList are exported' {
-        It 'to a CSV file in the Cherwell folder' {
+        It 'to a CSV file in the Export folder' {
             $testCherwellFolder.AccessListCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
@@ -2144,7 +2144,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             $testLogFolder.AccessListCsvFile.FullName |
             Should -Not -BeNullOrEmpty
         }
-        It 'to an Excel file in the Cherwell folder' {
+        It 'to an Excel file in the Export folder' {
             $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
@@ -2184,7 +2184,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
-            ($Message -like '*Export to*Cherwell*') -and
+            ($Message -like '*Export to*Export*') -and
             ($Message -like '*Check the*overview*for details*') -and
             ($Message -like '*Access list*1*') -and
             ($Message -like '*AD objects*2*') -and
