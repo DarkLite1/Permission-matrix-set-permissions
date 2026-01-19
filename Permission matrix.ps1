@@ -72,7 +72,6 @@ param (
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [Boolean]$DetailedLog = $true,
-    [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [String]$PSSessionConfiguration = 'PowerShell.7',
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
@@ -1225,7 +1224,7 @@ end {
                 Remove-Item -EA Ignore
 
                 $exportCsvAccessListParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $CherwellAccessListFileName
+                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.AccessList
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
@@ -1297,7 +1296,7 @@ end {
                     #region Copy csv file to log folder
                     $copyParams = @{
                         LiteralPath = $exportCsvAccessListParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $CherwellAccessListFileName"
+                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.AccessList)"
                     }
                     Copy-Item @copyParams
                     #endregion
