@@ -4,8 +4,7 @@
 
 <#
     .SYNOPSIS
-        Creates/checks/fixes a folder structure based on permissions defined in
-        an Excel file.
+        Apply or verify file and folder permissions.
 
     .DESCRIPTION
         Read an input file that contains all the parameters for this script.
