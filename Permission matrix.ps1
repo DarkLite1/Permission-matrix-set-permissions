@@ -73,7 +73,6 @@ param (
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
-    [String[]]$ExcludedSamAccountName = 'belsrvc',
     [Boolean]$DetailedLog = $true,
     [String]$CherwellFolder,
     [String]$CherwellAdObjectsFileName = 'AD object names.csv',
@@ -252,6 +251,12 @@ begin {
                 }
             }
             #endregion
+
+            #region Test array
+            if (-not ($jsonFileContent.Matrix.ExcludedSamAccountName -is [Array])) {
+                throw "Property 'Matrix.ExcludedSamAccountName' needs to be array"
+            }
+            #endregion
         }
         catch {
             throw "Input file '$ConfigurationJsonFile': $_"
@@ -260,6 +265,7 @@ begin {
 
         $Matrix = $jsonFileContent.Matrix
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
+        $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
 
         #region Convert .json file
         Write-Verbose 'Convert .json file'
