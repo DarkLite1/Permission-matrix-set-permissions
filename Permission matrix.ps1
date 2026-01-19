@@ -836,6 +836,7 @@ process {
                         if (-not $MaxConcurrentComputers) {
                             $scriptPathItem = $using:scriptPathItem
                             $PSSessionConfiguration = $using:PSSessionConfiguration
+                            $eventLogData = $using:eventLogData
                         }
                         #endregion
 
@@ -927,6 +928,7 @@ process {
                         $scriptPathItem = $using:scriptPathItem
                         $PSSessionConfiguration = $using:PSSessionConfiguration
                         $DetailedLog = $using:DetailedLog
+                        $eventLogData = $using:eventLogData
                     }
                     #endregion
 
@@ -942,6 +944,7 @@ process {
                                 $scriptPathItem = $using:scriptPathItem
                                 $PSSessionConfiguration = $using:PSSessionConfiguration
                                 $DetailedLog = $using:DetailedLog
+                                $eventLogData = $using:eventLogData
                             }
                             #endregion
 
@@ -974,28 +977,32 @@ process {
                         }
                     }
 
-                    $innerForeachParams = @{
-                        Process = $innerScriptBlock
-                    }
-
-                    if (-not $MaxConcurrent.JobsPerRemoteComputer) {
-                        $innerForeachParams = @{
+                    $innerForeachParams = if (
+                        $MaxConcurrent.JobsPerRemoteComputer -gt 1
+                    ) {
+                        @{
                             Parallel      = $innerScriptBlock
                             ThrottleLimit = $MaxConcurrent.JobsPerRemoteComputer
                         }
+                    }
+                    else {
+                        @{
+                            Process = $innerScriptBlock
+                        }    
                     }
 
                     $matrixes | ForEach-Object @innerForeachParams
                 }
 
-                $foreachParams = @{
-                    Process = $outerScriptBlock
-                }
-
-                if ($MaxConcurrent.Computers -gt 1) {
-                    $foreachParams = @{
+                $foreachParams = if ($MaxConcurrent.Computers -gt 1) {
+                    @{
                         Parallel      = $outerScriptBlock
                         ThrottleLimit = $MaxConcurrent.Computers
+                    }
+                }
+                else {
+                    @{
+                        Process = $outerScriptBlock
                     }
                 }
 
