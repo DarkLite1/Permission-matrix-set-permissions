@@ -72,8 +72,6 @@ param (
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [Boolean]$DetailedLog = $true,
-    [String]$CherwellFormDataFileName = 'Form data.csv',
-    [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
     [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [String]$PSSessionConfiguration = 'PowerShell.7',
@@ -1212,14 +1210,14 @@ end {
                 $exportCsvAdParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvFormParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $CherwellFormDataFileName
+                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.FormData
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
                 $exportCsvFormParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvGroupManagersParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $CherwellGroupManagersFileName
+                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.GroupManagers
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
@@ -1275,7 +1273,7 @@ end {
                     #region Copy csv file to log folder
                     $copyParams = @{
                         LiteralPath = $exportCsvGroupManagersParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $CherwellGroupManagersFileName"
+                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.GroupManagers)"
                     }
                     Copy-Item @copyParams
                     #endregion
@@ -1497,7 +1495,7 @@ end {
                     #region Copy csv file to log folder
                     $copyParams = @{
                         LiteralPath = $exportCsvFormParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $CherwellFormDataFileName"
+                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.FormData)"
                     }
                     Copy-Item @copyParams
                     #endregion
