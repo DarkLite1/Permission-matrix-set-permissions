@@ -51,6 +51,7 @@ BeforeAll {
                 }
             }
             SaveLogFiles   = @{
+                Detailed            = $true
                 What                = @{
                     SystemErrors     = $true
                     AllActions       = $true
