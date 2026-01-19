@@ -260,6 +260,7 @@ begin {
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
         $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
+        $LogFolder = $jsonFileContent.Settings.SaveLogFiles.Where.Folder
 
         #region Convert .json file
         Write-Verbose 'Convert .json file'
@@ -621,7 +622,7 @@ process {
         }
 
         if ($importedMatrix) {
-            #region Build FormData for CherwellFolder
+            #region Build FormData for Export folder
             foreach ($I in ($importedMatrix.Where( { $_.FormData.Import }))) {
                 try {
                     $property = @{}
