@@ -65,7 +65,7 @@ BeforeAll {
     #endregion
 
     $testDefaultSettings |
-    Export-Excel -Path $testParams.DefaultsFile -WorksheetName 'Settings'
+    Export-Excel -Path $testParams.Matrix.DefaultsFile -WorksheetName 'Settings'
 
     $SettingsParams = @{
         Path          = Join-Path $testParams.Matrix.FolderPath 'Matrix.xlsx'
