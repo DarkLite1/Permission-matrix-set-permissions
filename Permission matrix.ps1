@@ -916,7 +916,7 @@ process {
                     $matrixes = $_.Group
 
                     #region Declare variables for parallel execution
-                    if (-not $MaxConcurrent.Computers) {
+                    if (-not $MaxConcurrent) {
                         $MaxConcurrent = $using:MaxConcurrent
                         $scriptPathItem = $using:scriptPathItem
                         $PSSessionConfiguration = $using:PSSessionConfiguration
@@ -975,7 +975,7 @@ process {
                     if (-not $MaxConcurrent.JobsPerRemoteComputer) {
                         $innerForeachParams = @{
                             Parallel      = $innerScriptBlock
-                            ThrottleLimit = $using:MaxConcurrent.JobsPerRemoteComputer
+                            ThrottleLimit = $MaxConcurrent.JobsPerRemoteComputer
                         }
                     }
 
