@@ -126,7 +126,7 @@
         }
       },
       "SaveLogFiles": {
-        "Detailed": "(Mandatory) Whether to save detailed log files. Possible values: true or false.",
+        "Detailed": "(Mandatory) When set to true, the script logs granular details for troubleshooting incorrect Access Control Lists (ACLs). In addition to the folder path, it reports both the current and expected ACL settings. Due to a significant decrease in performance, this setting should only be enabled when investigating specific issues. Possible values: true or false.",
         "What": {
           "SystemErrors": "(Mandatory) Whether to log execution errors, incorrect input file errors, etc. Possible values: true or false.",
           "AllActions": "(Mandatory) Whether to log all actions performed by the script, including errors. Possible values: true or false.",

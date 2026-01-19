@@ -8,28 +8,18 @@
         an Excel file.
 
     .DESCRIPTION
-        This script launches the script 'Sync permissions' to apply the
-        permission matrix (Check, Fix, New).
+        Read an input file that contains all the parameters for this script.
 
-    .PARAMETER Regex
-        The Regex parameter is used to identify incorrect input in the Excel
-        sheets. We only accept:
-        L = List
-        R = Read
-        W = Write
-        F = Full Control
-        I = Ignore
+        This script applies NTFS and SMB permissions to files and folders. It 
+        reads an Excel file as input and performs the request actions (Check, 
+        Fix, New).
 
-    .PARAMETER DetailedLog
-        When set to true, the script will be able to log more details for
-        better troubleshooting. In case of ACL's that are incorrect, in normal
-        circumstances only the FullName of the path is reported. When
-        DetailedLog is enabled, the ACL's that are on the folder and the
-        expected ACL are also reported.
-
-        Keep in mind that when enabling DetailedLog, the script execution
-        performance will drop. For this reason it is only advised to use this
-        feature only in case of troubleshooting.
+        Permissions in the Excel file are defined as:
+        - L : List
+        - R : Read
+        - W : Write
+        - F : Full Control
+        - I : Ignore
 #>
 
 [CmdLetBinding()]
