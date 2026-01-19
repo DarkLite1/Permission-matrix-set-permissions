@@ -660,8 +660,15 @@ process {
             #endregion
 
             #region Build the matrix and check for incorrect input
-            $M = 'Build the matrix and check for incorrect input'
-            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            $eventLogData.Add(
+                [PSCustomObject]@{
+                    Message   = 'Build the matrix and check for incorrect input'
+                    DateTime  = Get-Date
+                    EntryType = 'Information'
+                    EventID   = '2'
+                }
+            )
+            Write-Verbose $eventLogData[-1].Message
 
             foreach (
                 $I in
@@ -726,8 +733,8 @@ process {
             }
             #endregion
 
-            #region Duplicate ComputerName/Path combination
-            Write-EventLog @EventVerboseParams -Message 'Check duplicate ComputerName/Path combination'
+            #region Test duplicate ComputerName/Path combination
+            Write-Verbose 'Check duplicate ComputerName/Path combination'
 
             (
                 @($importedMatrix.Settings | Group-Object @{
@@ -749,9 +756,8 @@ process {
             )
             #endregion
 
-            #region Check expanded matrix and get AD object details
-            $M = 'Check expanded matrix'
-            Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+            #region Test expanded matrix and get AD object details
+            Write-Verbose 'Check expanded matrix'
 
             $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys
 
@@ -784,8 +790,15 @@ process {
                 $groupManagers = $ADObjectDetails.ADObject.ManagedBy |
                 Sort-Object -Unique
             ) {
-                $M = "Retrieve AD object details for $($groupManagers.Count) group managers"
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                $eventLogData.Add(
+                    [PSCustomObject]@{
+                        Message   = "Retrieve AD object details for $($groupManagers.Count) group managers"
+                        DateTime  = Get-Date
+                        EntryType = 'Information'
+                        EventID   = '2'
+                    }
+                )
+                Write-Verbose $eventLogData[-1].Message
 
                 $params = @{
                     ADObjectName = $groupManagers
@@ -817,8 +830,15 @@ process {
                 $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
-                $M = 'Check server requirements'
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                $eventLogData.Add(
+                    [PSCustomObject]@{
+                        Message   = 'Test server requirements'
+                        DateTime  = Get-Date
+                        EntryType = 'Information'
+                        EventID   = '2'
+                    }
+                )
+                Write-Verbose $eventLogData[-1].Message
 
                 $scriptBlock = {
                     try {
@@ -881,8 +901,15 @@ process {
                 $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
-                $M = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                $eventLogData.Add(
+                    [PSCustomObject]@{
+                        Message   = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
+                        DateTime  = Get-Date
+                        EntryType = 'Information'
+                        EventID   = '2'
+                    }
+                )
+                Write-Verbose $eventLogData[-1].Message
 
                 #region Add default permissions
                 <#
