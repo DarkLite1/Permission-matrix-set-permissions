@@ -1072,8 +1072,7 @@ end {
                 } -Unique |
                 Select-Object -ExpandProperty name
 
-                $M = "Matrix '$($i.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
-                Write-Verbose $M; Write-EventLog @EventVerboseParams -Message $M
+                Write-Verbose "Matrix '$($i.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
                 #endregion
 
                 #region Create Excel worksheet 'AccessList'
@@ -1082,8 +1081,15 @@ end {
                     Where-Object { $S -eq $_.samAccountName }
 
                     if (-not $adData.adObject) {
-                        $M = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
-                        Write-Warning $M; Write-EventLog @EventWarnParams -Message $M
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '2'
+                            }
+                        )
+                        Write-Warning $eventLogData[-1].Message
                     }
                     elseif (-not $adData.adGroupMember) {
                         $adData | Select-Object -Property SamAccountName,
@@ -1159,13 +1165,20 @@ end {
                         ClearSheet         = $true
                     }
 
-                    $M = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-                    Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
-
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
+                        
                     $accessListToExport | Export-Excel @excelParams
                     #endregion
 
-                    #region Create 'AccessList' to export for Cherwell
+                    #region Create 'AccessList' to export
                     if ($Export.FolderPath) {
                         $accessListSheet += $accessListToExport |
                         Select-Object @{
@@ -1179,13 +1192,20 @@ end {
                         #region Export to Excel worksheet 'GroupManagers'
                         $excelParams.WorksheetName = $excelParams.TableName = 'GroupManagers'
 
-                        $M = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-                        Write-Verbose $M; Write-EventLog @EventOutParams -Message $M
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
+                        Write-Verbose $eventLogData[-1].Message
 
                         $groupManagersToExport | Export-Excel @excelParams
                         #endregion
 
-                        #region Create 'GroupManagers' to export for Cherwell
+                        #region Create 'GroupManagers' to export
                         if ($Export.FolderPath) {
                             $groupManagersSheet += $groupManagersToExport |
                             Select-Object @{
@@ -1273,15 +1293,31 @@ end {
                 #endregion
 
                 if ($AdObjectNamesSheet) {
-                    #region Export AD object names to an Excel file
-                    Write-EventLog @EventOutParams -Message "Export $($AdObjectNamesSheet.Count) AD object names to '$($ExportParams.Path)'"
+                    #region Export AD object names to .XLSX file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($AdObjectNamesSheet.Count) AD object names to '$($ExportParams.Path)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $AdObjectNamesSheet |
                     Export-Excel @ExportParams -WorksheetName 'AdObjectNames' -TableName 'AdObjectNames'
                     #endregion
 
-                    #region Export AD object names to a csv file
-                    Write-EventLog @EventOutParams -Message "Export AD object names to '$($exportCsvAdParams.literalPath)'"
+                    #region Export AD object names to a .CSV file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($AdObjectNamesSheet.Count) AD object names to '$($exportCsvAdParams.literalPath)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $adObjectNamesSheet | Export-Csv @exportCsvAdParams
                     #endregion
@@ -1296,15 +1332,31 @@ end {
                 }
 
                 if ($groupManagersSheet) {
-                    #region Export group managers to an Excel file
-                    Write-EventLog @EventOutParams -Message "Export $($groupManagersSheet.Count) group managers to '$($ExportParams.Path)'"
+                    #region Export group managers to .XLSX file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($groupManagersSheet.Count) group managers to '$($ExportParams.Path)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $groupManagersSheet |
                     Export-Excel @ExportParams -WorksheetName 'GroupManagers' -TableName 'GroupManagers'
                     #endregion
 
-                    #region Export group managers to a csv file
-                    Write-EventLog @EventOutParams -Message "Export group managers to '$($exportCsvGroupManagersParams.literalPath)'"
+                    #region Export group managers to a .CSV file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($groupManagersSheet.Count) group managers to '$($exportCsvGroupManagersParams.literalPath)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $groupManagersSheet |
                     Export-Csv @exportCsvGroupManagersParams
@@ -1320,15 +1372,31 @@ end {
                 }
 
                 if ($accessListSheet) {
-                    #region Export access list to an Excel file
-                    Write-EventLog @EventOutParams -Message "Export $($accessListSheet.Count) access list to '$($ExportParams.Path)'"
+                    #region Export access list to .XLSX file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($accessListSheet.Count) access list to '$($ExportParams.Path)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $accessListSheet |
                     Export-Excel @ExportParams -WorksheetName 'AccessList' -TableName 'AccessList'
                     #endregion
 
-                    #region Export access list to a csv file
-                    Write-EventLog @EventOutParams -Message "Export access list to '$($exportCsvAccessListParams.literalPath)'"
+                    #region Export access list to .CSV file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export access list to '$($exportCsvAccessListParams.literalPath)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $accessListSheet |
                     Export-Csv @exportCsvAccessListParams
@@ -1344,15 +1412,31 @@ end {
                 }
 
                 if ($formDataSheet) {
-                    #region Export FormData to an Excel file
-                    Write-EventLog @EventOutParams -Message "Export FormData to '$($ExportParams.Path)'"
+                    #region Export FormData to .XLSX file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export FormData to '$($ExportParams.Path)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $formDataSheet |
                     Export-Excel @ExportParams -WorksheetName 'FormData' -TableName 'FormData'
                     #endregion
 
-                    #region Export FormData to a CSV file
-                    Write-EventLog @EventOutParams -Message "Export FormData to '$($exportCsvFormParams.literalPath)'"
+                    #region Export FormData to .CSV file
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export FormData to '$($exportCsvFormParams.literalPath)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $formDataSheet | Export-Csv @exportCsvFormParams
                     #endregion
@@ -1527,7 +1611,15 @@ end {
                     }
                     $htmlFilePath = Join-Path @joinParams
 
-                    Write-EventLog @EventOutParams -Message "Export FormData to '$htmlFilePath'"
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export FormData to '$htmlFilePath'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
 
                     $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
                     #endregion
@@ -1555,7 +1647,7 @@ end {
             #endregion
 
             #region HTML <style> for Mail and Settings
-            Write-EventLog @EventVerboseParams -Message 'Format HTML'
+            Write-Verbose 'Format HTML'
 
             $htmlStyle = @'
 <style>
