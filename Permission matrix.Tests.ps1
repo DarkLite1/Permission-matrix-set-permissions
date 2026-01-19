@@ -3,7 +3,6 @@
 
 BeforeAll {
     $testParams = @{
-        ScriptName    = 'Test (Brecht)'
         MaxConcurrent = @{
             Computers             = 1
             JobsPerRemoteComputer = 1
@@ -15,13 +14,55 @@ BeforeAll {
             Archive                = $false
             ExcludedSamAccountName = @()
         }
+        Export        = @{
+            FolderPath            = New-Item 'TestDrive:/SerivceNow' -ItemType Directory
+            AdObjectsFileName     = 'AD object names.csv'
+            FormDataFileName      = 'Form data.csv'
+            GroupManagersFileName = 'GroupManagers.csv'
+        }
         LogFolder     = 'TestDrive:\log\File and folder\Test (Brecht)'
         ScriptPath    = @{
             TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
             SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
         }
         ScriptAdmin   = 'admin@contoso.com'
-        
+        Settings      = @{
+            ScriptName     = 'Test (Brecht)'
+            SendMail       = @{
+                When         = 'Always'
+                From         = 'm@example.com'
+                To           = '007@example.com'
+                Subject      = 'Email subject'
+                Body         = 'Email body'
+                Smtp         = @{
+                    ServerName     = 'SMTP_SERVER'
+                    Port           = 25
+                    ConnectionType = 'StartTls'
+                    UserName       = 'bob'
+                    Password       = 'pass'
+                }
+                AssemblyPath = @{
+                    MailKit = 'C:\Program Files\PackageManagement\NuGet\Packages\MailKit.4.11.0\lib\net8.0\MailKit.dll'
+                    MimeKit = 'C:\Program Files\PackageManagement\NuGet\Packages\MimeKit.4.11.0\lib\net8.0\MimeKit.dll'
+                }
+            }
+            SaveLogFiles   = @{
+                What                = @{
+                    SystemErrors     = $true
+                    AllActions       = $true
+                    OnlyActionErrors = $false
+                }
+                Where               = @{
+                    Folder         = (New-Item 'TestDrive:/log' -ItemType Directory).FullName
+                    FileExtensions = @('.json')
+                }
+                deleteLogsAfterDays = 1
+            }
+            SaveInEventLog = @{
+                Save    = $true
+                LogName = 'Scripts'
+            }
+        }
     }
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
 

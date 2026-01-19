@@ -67,14 +67,11 @@
 param (
     [Parameter(Mandatory)]
     [String]$ConfigurationJsonFile,
-    [Parameter(Mandatory)]
-    [String]$ScriptName,
     [HashTable]$ScriptPath = @{
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [Boolean]$DetailedLog = $true,
-    [String]$CherwellFolder,
     [String]$CherwellAdObjectsFileName = 'AD object names.csv',
     [String]$CherwellFormDataFileName = 'Form data.csv',
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
@@ -264,6 +261,7 @@ begin {
         #endregion
 
         $Matrix = $jsonFileContent.Matrix
+        $Export = $jsonFileContent.Export
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
 
@@ -279,11 +277,11 @@ begin {
         #endregion
 
         #region Test Cherwell parameters
-        if ($CherwellFolder) {
+        if ($Export.FolderPath) {
             if (-not
-                (Test-Path -LiteralPath $CherwellFolder -PathType Container)
+                (Test-Path -LiteralPath $Export.FolderPath -PathType Container)
             ) {
-                throw "Cherwell folder '$CherwellFolder' not found"
+                throw "Export folder '$($Export.FolderPath)' not found"
             }
 
             @(
@@ -521,7 +519,7 @@ process {
                         #endregion
 
                         #region Import sheet FormData
-                        if ($CherwellFolder) {
+                        if ($Export.FolderPath) {
                             try {
                                 $formData = Import-Excel @ImportParams -Sheet 'FormData' -ErrorVariable importFail
 
@@ -1131,7 +1129,7 @@ end {
                     #endregion
 
                     #region Create 'AccessList' to export for Cherwell
-                    if ($CherwellFolder) {
+                    if ($Export.FolderPath) {
                         $accessListSheet += $accessListToExport |
                         Select-Object @{
                             Name       = 'MatrixFileName'
@@ -1151,7 +1149,7 @@ end {
                         #endregion
 
                         #region Create 'GroupManagers' to export for Cherwell
-                        if ($CherwellFolder) {
+                        if ($Export.FolderPath) {
                             $groupManagersSheet += $groupManagersToExport |
                             Select-Object @{
                                 Name       = 'MatrixFileName'
@@ -1169,7 +1167,7 @@ end {
             $adObjectNamesSheet = @()
 
             if (
-                $CherwellFolder -and
+                $Export.FolderPath -and
                 ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
             ) {
                 #region Create AD Object names and FormData to export
@@ -1208,21 +1206,21 @@ end {
                 $ExportParams.Path | Remove-Item -EA Ignore
 
                 $exportCsvAdParams = @{
-                    literalPath       = Join-Path $CherwellFolder $CherwellAdObjectsFileName
+                    literalPath       = Join-Path $Export.FolderPath $CherwellAdObjectsFileName
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
                 $exportCsvAdParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvFormParams = @{
-                    literalPath       = Join-Path $CherwellFolder $CherwellFormDataFileName
+                    literalPath       = Join-Path $Export.FolderPath $CherwellFormDataFileName
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
                 $exportCsvFormParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvGroupManagersParams = @{
-                    literalPath       = Join-Path $CherwellFolder $CherwellGroupManagersFileName
+                    literalPath       = Join-Path $Export.FolderPath $CherwellGroupManagersFileName
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
@@ -1230,7 +1228,7 @@ end {
                 Remove-Item -EA Ignore
 
                 $exportCsvAccessListParams = @{
-                    literalPath       = Join-Path $CherwellFolder $CherwellAccessListFileName
+                    literalPath       = Join-Path $Export.FolderPath $CherwellAccessListFileName
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
@@ -1487,7 +1485,7 @@ end {
                     $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
 
                     $joinParams = @{
-                        Path      = $CherwellFolder
+                        Path      = $Export.FolderPath
                         ChildPath = $CherwellExcelOverviewFileName.Replace('.xlsx', '.html')
                     }
                     $htmlFilePath = Join-Path @joinParams
@@ -1511,7 +1509,7 @@ end {
                     #region Copy Excel file from log folder to Cherwell folder
                     $copyParams = @{
                         LiteralPath = $ExportParams.Path
-                        Destination = Join-Path $CherwellFolder $CherwellExcelOverviewFileName
+                        Destination = Join-Path $Export.FolderPath $CherwellExcelOverviewFileName
                     }
                     Copy-Item @copyParams
                     #endregion
@@ -2018,9 +2016,9 @@ end {
 
             #endregion
 
-            $htmlFormData = if ($CherwellFolder) {
+            $htmlFormData = if ($Export.FolderPath) {
                 @"
-            <p><b>Export to <a href="$CherwellFolder">Cherwell</a>:</b></p>
+            <p><b>Export to <a href="$($Export.FolderPath)">Cherwell</a>:</b></p>
             <table id="overviewTable">
             <tr>
                 <th>
