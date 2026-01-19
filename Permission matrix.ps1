@@ -28,6 +28,7 @@ param (
     [HashTable]$ScriptPath = @{
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
+        UpdateServiceNow     = "$PSScriptRoot\Update ServiceNow.ps1"
     }
 )
 
