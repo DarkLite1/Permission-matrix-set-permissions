@@ -1635,7 +1635,7 @@ end {
 
                 if ($adObjectNamesSheet -or $formDataSheet -or
                     $accessListSheet -or $groupManagersSheet) {
-                    #region Copy Excel file from log folder to Cherwell folder
+                    #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $ExportParams.Path
                         Destination = Join-Path $Export.FolderPath $Export.FileName.ExcelOverview
