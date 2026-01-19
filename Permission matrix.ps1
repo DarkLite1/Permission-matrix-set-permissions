@@ -71,7 +71,6 @@ param (
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
-    [Boolean]$DetailedLog = $true,
     [String]$PSSessionConfiguration = 'PowerShell.7',
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
     [String[]]$ScriptAdmin = @(
@@ -242,6 +241,13 @@ begin {
                     throw "Property 'Matrix.$boolean' is not a boolean value"
                 }
             }
+            
+            try {
+                $null = [Boolean]::Parse($jsonFileContent.Settings.SaveLogFiles.Detailed)
+            }
+            catch {
+                throw "Property 'Settings.SaveLogFiles.Detailed' is not a boolean value"
+            }
             #endregion
 
             #region Test array
@@ -259,6 +265,7 @@ begin {
         $Export = $jsonFileContent.Export
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
+        $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
 
         #region Convert .json file
         Write-Verbose 'Convert .json file'
