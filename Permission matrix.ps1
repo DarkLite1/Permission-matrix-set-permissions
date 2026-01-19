@@ -1219,7 +1219,7 @@ end {
             }
             #endregion
 
-            #region Export Cherwell FormData and AD Objects
+            #region Export data to .XLSX and .CSV files
             $formDataSheet = @()
             $adObjectNamesSheet = @()
 
