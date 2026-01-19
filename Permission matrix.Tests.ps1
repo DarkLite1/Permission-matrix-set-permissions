@@ -3,18 +3,18 @@
 
 BeforeAll {
     $testParams = @{
-        MaxConcurrent = @{
+        MaxConcurrent          = @{
             Computers             = 1
             JobsPerRemoteComputer = 1
             FoldersPerMatrix      = 2
         }
-        Matrix        = @{
+        Matrix                 = @{
             FolderPath             = New-Item 'TestDrive:/Matrix' -ItemType Directory
             DefaultsFile           = New-Item 'TestDrive:/Default.xlsx' -ItemType File
             Archive                = $false
             ExcludedSamAccountName = @()
         }
-        Export        = @{
+        Export                 = @{
             FolderPath = New-Item 'TestDrive:/ServiceNow' -ItemType Directory
             FileName   = @{
                 AdObjects     = 'AD object names.csv'
@@ -24,13 +24,13 @@ BeforeAll {
                 ExcelOverview = 'Overview.xlsx'
             }
         }
-        LogFolder     = 'TestDrive:\log\File and folder\Test (Brecht)'
-        ScriptPath    = @{
+        ScriptPath             = @{
             TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
             SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
         }
-        ScriptAdmin   = 'admin@contoso.com'
-        Settings      = @{
+        ScriptAdmin            = 'admin@contoso.com'
+        PSSessionConfiguration = 'PowerShell.7'
+        Settings               = @{
             ScriptName     = 'Test (Brecht)'
             SendMail       = @{
                 When         = 'Always'

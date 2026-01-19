@@ -70,13 +70,7 @@ param (
     [HashTable]$ScriptPath = @{
         TestRequirementsFile = "$PSScriptRoot\Test requirements.ps1"
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
-    },
-    [String]$PSSessionConfiguration = 'PowerShell.7',
-    [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
-    [String[]]$ScriptAdmin = @(
-        $env:POWERSHELL_SCRIPT_ADMIN,
-        $env:POWERSHELL_SCRIPT_ADMIN_BACKUP
-    )
+    }
 )
 
 begin {
@@ -278,7 +272,7 @@ begin {
         }
         #endregion
 
-        #region Test Cherwell parameters
+        #region Test Export parameters
         if ($Export.FolderPath) {
             if (-not
                 (Test-Path -LiteralPath $Export.FolderPath -PathType Container)
