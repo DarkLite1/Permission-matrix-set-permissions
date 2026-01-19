@@ -281,15 +281,15 @@ begin {
             }
 
             @(
-                'CherwellAdObjectsFileName',
-                'CherwellFormDataFileName',
-                'CherwellAccessListFileName',
-                'CherwellGroupManagersFileName',
-                'CherwellExcelOverviewFileName'
-            ).Where( {
-                    -not (Get-Variable -Name $_).Value
-                }).foreach( {
-                    throw "Parameter '$_' is mandatory when the parameter CherwellFolder is used."
+                'AdObjects',
+                'FormData',
+                'AccessList',
+                'GroupManagers',
+                'ExcelOverview'
+            ).Where( 
+                { -not ($Export.FileName[$_]) }
+            ).foreach( {
+                    throw "Property 'Export.FileName.$_' is mandatory when the parameter Export.FolderPath is used."
                 })
         }
         #endregion
