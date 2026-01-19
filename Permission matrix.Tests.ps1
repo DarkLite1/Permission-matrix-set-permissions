@@ -15,10 +15,14 @@ BeforeAll {
             ExcludedSamAccountName = @()
         }
         Export        = @{
-            FolderPath            = New-Item 'TestDrive:/SerivceNow' -ItemType Directory
-            AdObjectsFileName     = 'AD object names.csv'
-            FormDataFileName      = 'Form data.csv'
-            GroupManagersFileName = 'GroupManagers.csv'
+            FolderPath = New-Item 'TestDrive:/ServiceNow' -ItemType Directory
+            FileName   = @{
+                AdObjects     = 'AD object names.csv'
+                FormData      = 'Form data.csv'
+                GroupManagers = 'GroupManagers.csv'
+                AccessList    = 'AccessList.csv'
+                ExcelOverview = 'Overview.xlsx'
+            }
         }
         LogFolder     = 'TestDrive:\log\File and folder\Test (Brecht)'
         ScriptPath    = @{

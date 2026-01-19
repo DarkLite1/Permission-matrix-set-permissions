@@ -72,7 +72,6 @@ param (
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [Boolean]$DetailedLog = $true,
-    [String]$CherwellAdObjectsFileName = 'AD object names.csv',
     [String]$CherwellFormDataFileName = 'Form data.csv',
     [String]$CherwellGroupManagersFileName = 'GroupManagers.csv',
     [String]$CherwellAccessListFileName = 'AccessList.csv',
@@ -1206,7 +1205,7 @@ end {
                 $ExportParams.Path | Remove-Item -EA Ignore
 
                 $exportCsvAdParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $CherwellAdObjectsFileName
+                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.AdObjects
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
@@ -1252,7 +1251,7 @@ end {
                     #region Copy csv file to log folder
                     $copyParams = @{
                         LiteralPath = $exportCsvAdParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $CherwellAdObjectsFileName"
+                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.AdObjects)"
                     }
                     Copy-Item @copyParams
                     #endregion
