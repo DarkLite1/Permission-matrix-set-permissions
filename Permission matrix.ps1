@@ -72,7 +72,6 @@ param (
         SetPermissionFile    = "$PSScriptRoot\Set permissions.ps1"
     },
     [Boolean]$DetailedLog = $true,
-    [String]$CherwellExcelOverviewFileName = 'Overview.xlsx',
     [String]$PSSessionConfiguration = 'PowerShell.7',
     [String]$LogFolder = "$env:POWERSHELL_LOG_FOLDER\File or folder\Permission matrix set permissions\$ScriptName",
     [String[]]$ScriptAdmin = @(
@@ -1195,7 +1194,7 @@ end {
 
                 #region Remove old exported files
                 $ExportParams = @{
-                    Path         = "$matrixLogFile - Cherwell - $CherwellExcelOverviewFileName"
+                    Path         = "$matrixLogFile - Cherwell - $($Export.FileName.ExcelOverview)"
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
@@ -1482,7 +1481,7 @@ end {
 
                     $joinParams = @{
                         Path      = $Export.FolderPath
-                        ChildPath = $CherwellExcelOverviewFileName.Replace('.xlsx', '.html')
+                        ChildPath = $Export.FileName.ExcelOverview.Replace('.xlsx', '.html')
                     }
                     $htmlFilePath = Join-Path @joinParams
 
@@ -1505,7 +1504,7 @@ end {
                     #region Copy Excel file from log folder to Cherwell folder
                     $copyParams = @{
                         LiteralPath = $ExportParams.Path
-                        Destination = Join-Path $Export.FolderPath $CherwellExcelOverviewFileName
+                        Destination = Join-Path $Export.FolderPath $Export.FileName.ExcelOverview
                     }
                     Copy-Item @copyParams
                     #endregion
