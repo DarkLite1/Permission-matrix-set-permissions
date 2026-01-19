@@ -205,66 +205,32 @@ process {
             }
             New-ServiceNowSessionHC @params
             #endregion
+        }
 
-            #region Get all table records
-            try {
-                Write-Verbose "Get all records in ServiceNow table '$TableName'"
+        #region Get all table records
+        try {
+            Write-Verbose "Get all records in ServiceNow table '$TableName'"
 
-                $allTableRecords = Get-ServiceNowRecord -Table $TableName -IncludeTotalCount -First 300
-            }
-            catch {
-                throw "Failed to retrieve all table records in ServiceNow table '$TableName': $_"
-            }
-            #endregion
+            $allTableRecords = Get-ServiceNowRecord -Table $TableName -IncludeTotalCount -First 300
+        }
+        catch {
+            throw "Failed to retrieve all table records in ServiceNow table '$TableName': $_"
+        }
+        #endregion
 
-            #region Remove all records in the ServiceNow table
-            if ($allTableRecords) {
-                Write-Verbose "Remove all records in ServiceNow table '$TableName'"
+        #region Remove all records in the ServiceNow table
+        if ($allTableRecords) {
+            Write-Verbose "Remove all records in ServiceNow table '$TableName'"
 
-                $currentRecordCount = 0
-                $totalRecordCount = $allTableRecords.Count
-
-                $removeParams = @{
-                    Confirm = $false
-                    Verbose = $false
-                }
-
-                foreach ($tableRecord in $allTableRecords) {
-                    $attempt = 0
-                    $currentRecordCount++
-    
-                    while ($attempt -lt $MaxRetries) {
-                        $attempt++
-                
-                        try {
-                            Write-Verbose "($currentRecordCount/$totalRecordCount) Remove record '$($tableRecord.sys_id)' $(if($attempt -gt 1) {' - Retry'})"
-
-                            $tableRecord | Remove-ServiceNowRecord @removeParams
-
-                            break
-                        }
-                        catch {
-                            Write-Warning "Failed to remove record '$($tableRecord.sys_id)': $_"
-                        
-                            Start-Sleep -Seconds 3
-                        }
-                    }
-                }
-            }
-            #endregion
-
-            #region Create new records in the ServiceNow table
-            Write-Verbose "Create $($recordsToCreate.Count) records in the ServiceNow table '$TableName'"
-        
             $currentRecordCount = 0
-            $totalRecordCount = $recordsToCreate.Count
+            $totalRecordCount = $allTableRecords.Count
 
-            $createParams = @{
-                Table   = $TableName
+            $removeParams = @{
+                Confirm = $false
                 Verbose = $false
             }
 
-            foreach ($record in $recordsToCreate) {
+            foreach ($tableRecord in $allTableRecords) {
                 $attempt = 0
                 $currentRecordCount++
     
@@ -272,20 +238,54 @@ process {
                     $attempt++
                 
                     try {
-                        Write-Verbose "($currentRecordCount/$totalRecordCount) Create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)' $(if($attempt -gt 1) {' - Retry'})"
+                        Write-Verbose "($currentRecordCount/$totalRecordCount) Remove record '$($tableRecord.sys_id)' $(if($attempt -gt 1) {' - Retry'})"
 
-                        $record | New-ServiceNowRecord @createParams
+                        $tableRecord | Remove-ServiceNowRecord @removeParams
 
                         break
                     }
                     catch {
-                        Write-Warning "Failed to create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)': $_"
+                        Write-Warning "Failed to remove record '$($tableRecord.sys_id)': $_"
                         
                         Start-Sleep -Seconds 3
                     }
                 }
             }
-            #endregion
         }
+        #endregion
+
+        #region Create new records in the ServiceNow table
+        Write-Verbose "Create $($recordsToCreate.Count) records in the ServiceNow table '$TableName'"
+        
+        $currentRecordCount = 0
+        $totalRecordCount = $recordsToCreate.Count
+
+        $createParams = @{
+            Table   = $TableName
+            Verbose = $false
+        }
+
+        foreach ($record in $recordsToCreate) {
+            $attempt = 0
+            $currentRecordCount++
+    
+            while ($attempt -lt $MaxRetries) {
+                $attempt++
+                
+                try {
+                    Write-Verbose "($currentRecordCount/$totalRecordCount) Create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)' $(if($attempt -gt 1) {' - Retry'})"
+
+                    $record | New-ServiceNowRecord @createParams
+
+                    break
+                }
+                catch {
+                    Write-Warning "Failed to create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)': $_"
+                        
+                    Start-Sleep -Seconds 3
+                }
+            }
+        }
+        #endregion
     }
 }
