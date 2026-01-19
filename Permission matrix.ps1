@@ -381,10 +381,16 @@ begin {
         }
     }
     catch {
-        Write-Warning $_
-        Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
-        Write-EventLog @EventErrorParams -Message "FAILURE Incorrect input:`n`n- $_"
-        Write-EventLog @EventEndParams; exit 1
+        $systemErrors.Add(
+            [PSCustomObject]@{
+                DateTime = Get-Date
+                Message  = "Input file '$ConfigurationJsonFile': $_"
+            }
+        )
+
+        Write-Warning $systemErrors[-1].Message
+
+        return
     }
 }
 
@@ -1001,11 +1007,22 @@ process {
         }
     }
     catch {
-        Write-Warning $_
-        Get-Job | Remove-Job -Force -EA Ignore
-        Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
-        Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
-        Write-EventLog @EventEndParams; exit 1
+        $systemErrors.Add(
+            [PSCustomObject]@{
+                DateTime = Get-Date
+                Message  = $_
+            }
+        )
+
+        Write-Warning $systemErrors[-1].Message
+    }
+    finally {
+        if ($psSessions.Values.Session) {
+            # Only close PS Sessions and not the WinPSCompatSession
+            # used by Write-EventLog
+            # https://github.com/PowerShell/PowerShell/issues/24227
+            $psSessions.Values.Session | Remove-PSSession -EA Ignore
+        }
     }
 }
 
@@ -2193,13 +2210,34 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
         }
     }
     catch {
-        Write-Warning $_
-        Send-MailHC -To $ScriptAdmin -Subject FAILURE -Priority High -Message $_ -Header $ScriptName
-        Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"; exit 1
+        $systemErrors.Add(
+            [PSCustomObject]@{
+                DateTime = Get-Date
+                Message  = $_
+            }
+        )
+
+        Write-Warning $systemErrors[-1].Message
     }
     finally {
         Get-Job | Remove-Job -Force -EA Ignore
         Remove-PSDrive MatrixFolderPath -EA Ignore
-        Write-EventLog @EventEndParams
+
+        if ($systemErrors) {
+            $M = 'Found {0} system error{1}' -f
+            $systemErrors.Count,
+            $(if ($systemErrors.Count -ne 1) { 's' })
+            Write-Warning $M
+
+            $systemErrors | ForEach-Object {
+                Write-Warning $_.Message
+            }
+
+            Write-Warning 'Exit script with error code 1'
+            exit 1
+        }
+        else {
+            Write-Verbose 'Script finished successfully'
+        }
     }
 }
