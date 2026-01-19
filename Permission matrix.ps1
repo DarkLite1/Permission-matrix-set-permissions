@@ -405,8 +405,6 @@ process {
                 }
                 #endregion
 
-                $BeginEvent = "$($matrixFile.Name)`n`nExcel file details:`n"
-
                 #region Copy file to log folder
                 try {
                     $copyParams = @{
@@ -601,10 +599,14 @@ process {
                 $Obj
             }
             catch {
-                Write-Warning $_
-                Send-MailHC -To $ScriptAdmin -Subject 'FAILURE' -Priority 'High' -Message $_ -Header $ScriptName
-                Write-EventLog @EventErrorParams -Message "FAILURE:`n`n- $_"
-                Write-EventLog @EventEndParams; exit 1
+                $systemErrors.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "File '$($matrixFile.Name)': $_"
+                    }
+                )
+
+                Write-Warning $systemErrors[-1].Message
             }
         }
 
