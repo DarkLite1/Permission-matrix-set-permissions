@@ -22,7 +22,8 @@
   },
   "ServiceNow": {
     "CredentialsFilePath": "C:\\PasswordsServiceNow.json",
-    "Environment": "Prod"
+    "Environment": "Prod",
+    "TableName": "u_bnl_roles"
   },
   "PSSessionConfiguration": "PowerShell.7",
   "Settings": {

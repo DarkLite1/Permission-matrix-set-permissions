@@ -1,13 +1,12 @@
 param (
     [Parameter(Mandatory)]
+    [String]$ServiceNowCredentialsFilePath,
+    [Parameter(Mandatory)]
+    [String]$Environment,
+    [Parameter(Mandatory)]
     [String]$FormDataFile,
     [Parameter(Mandatory)]
-    [PSCustomObject]$ServiceNow,
-
-    [string]$PermissionMatrixAdObjectNamesFile = '\\grouphc.net\bnl\LOCAPPS\Scripts\Matrix\2.Nightly\Cherwell\AD object names.csv',
-    [string]$PermissionMatrixFormDataFile = '\\grouphc.net\bnl\LOCAPPS\Scripts\Matrix\2.Nightly\Cherwell\Form data.csv',
-
-    [String]$TableName = 'u_bnl_roles',
+    [String]$TableName,
     [int]$MaxRetries = 3
 )
 
@@ -106,48 +105,45 @@ begin {
     }
 
     $ErrorActionPreference = 'Stop'
-    
-    #region Import matrix AD object names
+
     try {
-        Write-Verbose 'Import data from files'
+        #region Import .JSON file
+        Write-Verbose "Import .json file '$ServiceNowCredentialsFilePath'"
+
+        $serviceNowJsonFileContent = Get-Content $ServiceNowCredentialsFilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        #endregion
+
+        #region Test .JSON file properties
+        Write-Verbose 'Test .json file properties'
+
+        $serviceNowEnvironment = $serviceNowJsonFileContent.($Environment)
     
-        $permissionMatrixAdObjectNames = Import-Csv -LiteralPath $PermissionMatrixAdObjectNamesFile
+        if (-not $serviceNowEnvironment) {
+            throw "Failed to find environment '$($Environment)' in the ServiceNow environment file '$($ServiceNowCredentialsFilePath)'"
+        }
+    
+        @(
+            'Uri', 'UserName', 'Password', 'ClientId', 'ClientSecret'
+        ).where(
+            { -not $serviceNowEnvironment.$_ }
+        ).foreach(
+            { 
+                throw "Property '$_' not found for environment '$($Environment)' in file '$($ServiceNowCredentialsFilePath)'"
+            }
+        )
+        #endregion
     }
     catch {
-        throw "Failed to read data from file '$PermissionMatrixAdObjectNamesFile': $_"
+        throw "ServiceNow credentials file '$ServiceNowCredentialsFilePath': $_"
     }
-    #endregion
-    
-    #region Import matrix form data
-    try {
-        $permissionMatrixFormData = Import-Csv -LiteralPath $PermissionMatrixFormDataFile   
-    }
-    catch {
-        throw "Failed to read data from file '$PermissionMatrixFormDataFile': $_"
-    }
-    #endregion
 }
 
 process {
-    #region Create objects for ServiceNow
-    Write-Verbose 'Create objects for ServiceNow'
-
-    $recordsToCreate = foreach (
-        $adObjectName in 
-        $permissionMatrixAdObjectNames
-    ) {
+    #region Import FormData from .CSV file
+    try {
+        Write-Verbose 'Import FormData from .CSV file'
     
-        $formData = $permissionMatrixFormData.Where(
-            { 
-                $adObjectName.MatrixFileName -eq $_.MatrixFileName
-            }, 'first'
-        )
-    
-        if ((-not $formData) -or ($formData.MatrixFormStatus -ne 'Enabled')) {
-            continue
-        }
-
-        $adObjectName | ForEach-Object {
+        $recordsToCreate = Import-Csv -LiteralPath $FormDataFile | ForEach-Object {
             @{
                 u_matrixcategoryname    = $formData.MatrixCategoryName
                 u_matrixsubcategoryname = $formData.MatrixSubCategoryName
@@ -158,54 +154,22 @@ process {
             }
         }
     }
+    catch {
+        throw "Failed to import FormData from .CSV file '$FormDataFile': $_"
+    }
     #endregion
     
     if ($recordsToCreate) {
-        if ((-not $ServiceNowSession) -or ($ServiceNowSession.Count -eq 0)) {
-            #region Test ServiceNow parameters
-            @(
-                'CredentialsFilePath', 'Environment', 'TicketFields'
-            ).where(
-                { -not $ServiceNow.$_ }
-            ).foreach(
-                { throw "Property 'ServiceNow.$_' not found" }
-            )
-    
-            try {
-                $serviceNowJsonFileContent = Get-Content $ServiceNow.CredentialsFilePath -Raw -EA Stop | ConvertFrom-Json
-            }
-            catch {
-                throw "Failed to import the ServiceNow environment file '$($ServiceNow.CredentialsFilePath)': $_"
-            }
-    
-            $serviceNowEnvironment = $serviceNowJsonFileContent.($ServiceNow.Environment)
-    
-            if (-not $serviceNowEnvironment) {
-                throw "Failed to find environment '$($ServiceNow.Environment)' in the ServiceNow environment file '$($ServiceNow.CredentialsFilePath)'"
-            }
-    
-            @(
-                'Uri', 'UserName', 'Password', 'ClientId', 'ClientSecret'
-            ).where(
-                { -not $serviceNowEnvironment.$_ }
-            ).foreach(
-                { 
-                    throw "Property '$_' not found for environment '$($ServiceNow.Environment)' in file '$($ServiceNow.CredentialsFilePath)'"
-                }
-            )
-            #endregion
-
-            #region Create global variable $ServiceNowSession
-            $params = @{
-                Uri          = Get-StringValueHC -Name $serviceNowEnvironment.Uri
-                UserName     = Get-StringValueHC -Name $serviceNowEnvironment.UserName
-                Password     = Get-StringValueHC -Name $serviceNowEnvironment.Password
-                ClientId     = Get-StringValueHC -Name $serviceNowEnvironment.ClientId
-                ClientSecret = Get-StringValueHC -Name $serviceNowEnvironment.ClientSecret
-            }
-            New-ServiceNowSessionHC @params
-            #endregion
+        #region Create global variable $ServiceNowSession
+        $params = @{
+            Uri          = Get-StringValueHC -Name $serviceNowEnvironment.Uri
+            UserName     = Get-StringValueHC -Name $serviceNowEnvironment.UserName
+            Password     = Get-StringValueHC -Name $serviceNowEnvironment.Password
+            ClientId     = Get-StringValueHC -Name $serviceNowEnvironment.ClientId
+            ClientSecret = Get-StringValueHC -Name $serviceNowEnvironment.ClientSecret
         }
+        New-ServiceNowSessionHC @params
+        #endregion
 
         #region Get all table records
         try {
