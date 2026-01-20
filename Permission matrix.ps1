@@ -2181,8 +2181,20 @@ end {
                         Where-Object Type -EQ 'Warning'
                     ).count
                 }
+                Total       = @{
+                    Errors   = 0
+                    Warnings = 0
+                }
             }
 
+            $count.Total.Errors = (
+                $count.FormData.error + $count.Permissions.error +
+                $count.Settings.error + $count.File.error
+            )
+            $count.Total.Warnings = (
+                $count.FormData.warning + $count.Permissions.warning +
+                $count.Settings.warning + $count.File.warning
+            )
             #endregion
 
             $htmlFormData = if ($Export.FolderPath) {
@@ -2268,16 +2280,8 @@ end {
 "@
             }
 
-            $errorCount = (
-                $count.FormData.error + $count.Permissions.error +
-                $count.Settings.error + $count.File.error
-            )
-            $warningCount = (
-                $count.FormData.warning + $count.Permissions.warning +
-                $count.Settings.warning + $count.File.warning
-            )
-
-            $htmlErrorWarningTable = if ($errorCount + $warningCount) {
+        
+            $htmlErrorWarningTable = if ($count.Total.Errors + $count.Total.Warnings) {
                 @"
             <p><b>Detected issues:</b></p>
             <table id="overviewTable">
@@ -2319,16 +2323,16 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 if (@($importedMatrix).Count -ne 1) { 's' }
             ),
             $(
-                if ($errorCount) {
-                    ", $errorCount error{0}" -f $(
-                        if ($errorCount -ne 1) { 's' }
+                if ($count.Total.Errors) {
+                    ", $($count.Total.Errors) error{0}" -f $(
+                        if ($count.Total.Errors -ne 1) { 's' }
                     )
                 }
             ),
             $(
-                if ($warningCount) {
-                    ", $warningCount warning{0}" -f $(
-                        if ($warningCount -ne 1) { 's' }
+                if ($count.Total.Warnings) {
+                    ", $($count.Total.Warnings) warning{0}" -f $(
+                        if ($count.Total.Warnings -ne 1) { 's' }
                     )
                 }
             )
@@ -2336,7 +2340,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
             $MailParams = @{
                 To        = $MailTo
                 Bcc       = $ScriptAdmin
-                Priority  = if ($errorCount + $warningCount) { 'High' }
+                Priority  = if ($count.Total.Errors + $count.Total.Warnings) { 'High' }
                 else { 'Normal' }
                 Subject   = $Subject
                 Message   = $htmlMail
