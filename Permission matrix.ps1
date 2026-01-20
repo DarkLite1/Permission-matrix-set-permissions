@@ -1238,7 +1238,6 @@ end {
             #endregion
 
             #region Export data to .XLSX and .CSV files
-            $adObjectNamesSheet = @()
             $dataToExport = @{}
 
             if (
@@ -1286,7 +1285,7 @@ end {
                     if ($adObjects) {
                         $dataToExport['FormData'].Data += $I.FormData.Import
 
-                        $adObjectNamesSheet += $adObjects |
+                        $dataToExport['AdObjects'].Data += $adObjects |
                         Group-Object SamAccountName |
                         ForEach-Object { $_.Group[0] }
                     }
@@ -1325,11 +1324,11 @@ end {
                 }
                 #endregion
 
-                if ($AdObjectNamesSheet) {
+                if ($dataToExport['AdObjects'].Data) {
                     #region Export AD object names to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($AdObjectNamesSheet.Count) AD object names to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($ExportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1337,14 +1336,14 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $AdObjectNamesSheet |
+                    $dataToExport['AdObjects'].Data |
                     Export-Excel @ExportParams -WorksheetName 'AdObjectNames' -TableName 'AdObjectNames'
                     #endregion
 
                     #region Export AD object names to a .CSV file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($AdObjectNamesSheet.Count) AD object names to '$($exportCsvAdParams.literalPath)'"
+                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($exportCsvAdParams.literalPath)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1352,7 +1351,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $adObjectNamesSheet | Export-Csv @exportCsvAdParams
+                    $dataToExport['AdObjects'].Data | Export-Csv @exportCsvAdParams
                     #endregion
 
                     #region Copy csv file to log folder
@@ -1688,7 +1687,7 @@ end {
                     #endregion
                 }
 
-                if ($adObjectNamesSheet -or $dataToExport['FormData'].Data -or
+                if ($dataToExport['AdObjects'].Data -or $dataToExport['FormData'].Data -or
                     $accessListSheet -or $groupManagersSheet) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
@@ -2235,7 +2234,7 @@ end {
             <tr>
                 <th>
                 $(
-                    if ($adObjectNamesSheet.count -and
+                    if ($dataToExport['AdObjects'].Data.count -and
                         $exportCsvAdParams.literalPath -and
                         (Test-Path -LiteralPath $exportCsvAdParams.literalPath)
                     ) {
@@ -2246,7 +2245,7 @@ end {
                     else {'AD objects'}
                 )
                 </th>
-                <td>$($adObjectNamesSheet.count)</td>
+                <td>$($dataToExport['AdObjects'].Data.count)</td>
             </tr>
             <tr>
                 <th>
