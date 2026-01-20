@@ -1649,6 +1649,28 @@ end {
                     }
                     Copy-Item @copyParams
                     #endregion
+
+                    #region Start ServiceNow FormData upload
+                    try {
+                        $params = @{
+                            ServiceNowCredentialsFilePath = $jsonFileContent.ServiceNow.CredentialsFilePath
+                            Environment                   = $jsonFileContent.ServiceNow.Environment
+                            FormDataFile                  = $exportCsvFormParams.literalPath
+                            TableName                     = $jsonFileContent.ServiceNow.TableName
+                        }
+                        & $scriptPathItem.UpdateServiceNow @params
+                    }
+                    catch {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                            }
+                        )
+
+                        Write-Warning $systemErrors[-1].Message
+                    }
+                    #endregion
                 }
 
                 if ($adObjectNamesSheet -or $formDataSheet -or
