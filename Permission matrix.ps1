@@ -1078,21 +1078,43 @@ end {
         )
         #endregion
 
-        #region Create data to export hashtable
         $dataToExport = @{}
 
         foreach ($property in $Export.FileName.PSObject.Properties) {
+            #region Create data to export hashtable
             $dataToExport[$property.Name] = @{
                 LogFilePath    = "$matrixLogFile - Export - $($property.Value)"
                 ExportFilePath = Join-Path $Export.FolderPath $property.Value
                 Data           = @()
             }
+            #endregion
+            
+            #region Remove old exported log files
+            $fileToRemove = $dataToExport[$property.Name].LogFilePath
+                    
+            if (Test-Path $fileToRemove) {
+                Write-Verbose "Remove file '$fileToRemove'"
+                Remove-Item -Path $fileToRemove -ErrorAction Ignore
+            }
+            #endregion
         }
-        #endregion
+
+        $isExportToFolder = (
+            $importedMatrix -and $Export.FolderPath -and
+            ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
+        )
 
         if ($importedMatrix) {
             #region Export to matrix Excel log file
             foreach ($I in $importedMatrix) {
+                $excelParams = @{
+                    Path               = $I.File.SaveFullName
+                    AutoSize           = $true
+                    ClearSheet         = $true
+                    FreezeTopRow       = $true
+                    NoNumberConversion = '*'
+                }
+                
                 #region Get unique SamAccountNames for all matrix in Settings
                 $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName |
                 Select-Object -Property @{
@@ -1104,7 +1126,8 @@ end {
                 Write-Verbose "Matrix '$($i.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
                 #endregion
 
-                #region Create Excel worksheet 'AccessList'
+                #region AccessList
+                #region Create object
                 $accessListToExport = foreach ($S in $matrixSamAccountNames) {
                     $adData = $ADObjectDetails |
                     Where-Object { $S -eq $_.samAccountName }
@@ -1139,7 +1162,37 @@ end {
                 }
                 #endregion
 
-                #region Create Excel worksheet 'GroupManagers'
+                if ($accessListToExport) {
+                    #region Export to Excel
+                    $excelParams.WorksheetName = $excelParams.TableName = 'AccessList'
+              
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
+                        
+                    $accessListToExport | Export-Excel @excelParams
+                    #endregion
+
+                    #region Add to export
+                    if ($isExportToFolder) {
+                        $dataToExport['AccessList'].Data += $accessListToExport |
+                        Select-Object @{
+                            Name       = 'MatrixFileName'
+                            Expression = { $I.File.Item.BaseName }
+                        }, *
+                    }
+                    #endregion
+                }
+                #endregion
+
+                #region GroupManagers
+                #region Create objects
                 $groupManagersToExport = foreach ($S in $matrixSamAccountNames) {
                     $adData = (
                         $ADObjectDetails | Where-Object {
@@ -1182,98 +1235,44 @@ end {
                 }
                 #endregion
 
-                if ($accessListToExport) {
-                    #region Export to Excel worksheet 'AccessList'
-                    $excelParams = @{
-                        Path               = $I.File.SaveFullName
-                        AutoSize           = $true
-                        WorksheetName      = 'AccessList'
-                        TableName          = 'AccessList'
-                        FreezeTopRow       = $true
-                        NoNumberConversion = '*'
-                        ClearSheet         = $true
-                    }
+                if ($groupManagersToExport) {
+                    #region Export to Excel
+                    $excelParams.WorksheetName = $excelParams.TableName = 'GroupManagers'
 
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                            Message   = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
                         }
                     )
                     Write-Verbose $eventLogData[-1].Message
-                        
-                    $accessListToExport | Export-Excel @excelParams
+
+                    $groupManagersToExport | Export-Excel @excelParams
                     #endregion
 
-                    #region Create 'AccessList' to export
-                    if ($Export.FolderPath) {
-                        $dataToExport['AccessList'].Data += $accessListToExport |
+                    #region Add to export
+                    if ($isExportToFolder) {
+                        $dataToExport['GroupManagers'].Data += $groupManagersToExport |
                         Select-Object @{
                             Name       = 'MatrixFileName'
                             Expression = { $I.File.Item.BaseName }
                         }, *
                     }
                     #endregion
-
-                    if ($groupManagersToExport) {
-                        #region Export to Excel worksheet 'GroupManagers'
-                        $excelParams.WorksheetName = $excelParams.TableName = 'GroupManagers'
-
-                        $eventLogData.Add(
-                            [PSCustomObject]@{
-                                Message   = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            }
-                        )
-                        Write-Verbose $eventLogData[-1].Message
-
-                        $groupManagersToExport | Export-Excel @excelParams
-                        #endregion
-
-                        #region Create 'GroupManagers' to export
-                        if ($Export.FolderPath) {
-                            $dataToExport['GroupManagers'].Data += $groupManagersToExport |
-                            Select-Object @{
-                                Name       = 'MatrixFileName'
-                                Expression = { $I.File.Item.BaseName }
-                            }, *
-                        }
-                        #endregion
-                    }
-                }
-            }
-            #endregion
-
-            #region Export data to .XLSX and .CSV files
-
-            if (
-                $Export.FolderPath -and
-                ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
-            ) {
-                #region Remove old exported log files
-                $dataToExport.GetEnumerator() | ForEach-Object {
-                    $fileToRemove = $_.Value.LogFilePath
-                    
-                    if (Test-Path $fileToRemove) {
-                        Write-Verbose "Remove file '$fileToRemove'"
-                        Remove-Item -Path $fileToRemove -ErrorAction Ignore
-                    }
                 }
                 #endregion
 
-                #region Create AdObjectNames and FormData to export
-                foreach ($I in $importedMatrix) {
+                #region AdObjectNames and FormData
+                if ($isExportToFolder) {
                     $adObjects = foreach (
                         $S in
                         $I.Settings.Where( { $_.AdObjects.Count -ne 0 })
                     ) {
                         foreach ($A in ($S.AdObjects.GetEnumerator())) {
                             [PSCustomObject]@{
-                                MatrixFileName	= $I.File.Item.BaseName
+                                MatrixFileName = $I.File.Item.BaseName
                                 SamAccountName = $A.Value.SamAccountName
                                 GroupName      = $A.Value.Converted.Begin
                                 SiteCode       = $A.Value.Converted.Middle
@@ -1291,9 +1290,13 @@ end {
                     }
                 }
                 #endregion
+            }
+            #endregion
 
+            #region Export all matrix data to .XLSX and .CSV files
+            if ($isExportToFolder) {
                 #region Create parameters
-                $ExportParams = @{
+                $exportParams = @{
                     Path         = "$matrixLogFile - Cherwell - $($Export.FileName.ExcelOverview)"
                     AutoSize     = $true
                     FreezeTopRow = $true
@@ -1328,7 +1331,7 @@ end {
                     #region Export AD object names to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($exportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1367,7 +1370,7 @@ end {
                     #region Export group managers to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($exportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1407,7 +1410,7 @@ end {
                     #region Export access list to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['AccessList'].Data.Count) access list to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['AccessList'].Data.Count) access list to '$($exportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1447,7 +1450,7 @@ end {
                     #region Export FormData to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export FormData to '$($ExportParams.Path)'"
+                            Message   = "Export FormData to '$($exportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1691,7 +1694,7 @@ end {
                     $dataToExport['AccessList'].Data -or $dataToExport['GroupManagers'].Data) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
-                        LiteralPath = $ExportParams.Path
+                        LiteralPath = $exportParams.Path
                         Destination = Join-Path $Export.FolderPath $Export.FileName.ExcelOverview
                     }
                     Copy-Item @copyParams
@@ -2282,11 +2285,11 @@ end {
             </table>
             $(
                 if (
-                    ($ExportParams.Path) -and
-                    (Test-Path -LiteralPath $ExportParams.Path)
+                    ($exportParams.Path) -and
+                    (Test-Path -LiteralPath $exportParams.Path)
                 ) {
 @"
-<p><i>* Check the <a href="$($ExportParams.Path)">overview</a> for details.</i></p>
+<p><i>* Check the <a href="$($exportParams.Path)">overview</a> for details.</i></p>
 "@
                 }
             )
