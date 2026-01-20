@@ -2,7 +2,7 @@
 #Requires -Modules Pester, ImportExcel
 
 BeforeAll {
-    $testParams = @{
+    $testInputFile = @{
         MaxConcurrent          = @{
             Computers             = 1
             JobsPerRemoteComputer = 1
@@ -27,6 +27,7 @@ BeforeAll {
         ScriptPath             = @{
             TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
             SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
+            UpdateServiceNow    = New-Item 'TestDrive:/UpdateServiceNow.ps1' -ItemType File
         }
         ScriptAdmin            = 'admin@contoso.com'
         PSSessionConfiguration = 'PowerShell.7'
@@ -111,10 +112,10 @@ BeforeAll {
     #endregion
 
     $testDefaultSettings |
-    Export-Excel -Path $testParams.Matrix.DefaultsFile -WorksheetName 'Settings'
+    Export-Excel -Path $testInputFile.Matrix.DefaultsFile -WorksheetName 'Settings'
 
     $SettingsParams = @{
-        Path          = Join-Path $testParams.Matrix.FolderPath 'Matrix.xlsx'
+        Path          = Join-Path $testInputFile.Matrix.FolderPath 'Matrix.xlsx'
         WorkSheetName = 'Settings'
     }
     $PermissionsParams = @{
@@ -163,15 +164,15 @@ Describe 'the mandatory parameters are' {
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
-            ($To -eq $testParams.ScriptAdmin) -and
+            ($To -eq $testInputFile.ScriptAdmin) -and
             ($Priority -eq 'High') -and
             ($Subject -eq 'FAILURE')
         }
     }
     Context 'a file or folder is not found' {
         It 'Script SetPermissionFile' {
-            $testParams = $testParams.Clone()
-            $testParams.ScriptPath.SetPermissionFile = 'NonExisting.ps1'
+            $testInputFile = $testInputFile.Clone()
+            $testInputFile.ScriptPath.SetPermissionFile = 'NonExisting.ps1'
 
             .$testScript @testParams
 
@@ -181,8 +182,8 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         }
         It 'Script TestRequirements' {
-            $testParams = $testParams.Clone()
-            $testParams.ScriptPath.TestRequirementsFile = 'ShareConfigNotExisting.ps1'
+            $testInputFile = $testInputFile.Clone()
+            $testInputFile.ScriptPath.TestRequirementsFile = 'ShareConfigNotExisting.ps1'
 
             .$testScript @testParams
 
@@ -192,8 +193,8 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         }
         It 'LogFolder' {
-            $testParams = $testParams.Clone()
-            $testParams.LogFolder = 'x:\NonExistingLog'
+            $testInputFile = $testInputFile.Clone()
+            $testInputFile.LogFolder = 'x:\NonExistingLog'
 
             .$testScript @testParams
 
@@ -203,8 +204,8 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         }
         It 'CherwellFolder' {
-            $testParams = $testParams.Clone()
-            $testParams.CherwellFolder = 'NonExistingFolder'
+            $testInputFile = $testInputFile.Clone()
+            $testInputFile.CherwellFolder = 'NonExistingFolder'
 
             .$testScript @testParams
 
@@ -216,7 +217,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
     }
     Context 'the default settings file' {
         It 'is not found' {
-            $clonedParams = $testParams.Clone()
+            $clonedParams = $testInputFile.Clone()
             $clonedParams.DefaultsFile = 'notExisting'
 
             .$testScript @clonedParams
@@ -227,7 +228,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         }
         It "does not have the worksheet 'Settings'" {
-            $clonedParams = $testParams.Clone()
+            $clonedParams = $testInputFile.Clone()
             $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
 
             '1' | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Sheet1
@@ -300,7 +301,7 @@ Describe 'stop the script and send an e-mail to the admin when' {
         )
 
         It 'is missing <Name>' -ForEach $TestCases {
-            $clonedParams = $testParams.Clone()
+            $clonedParams = $testInputFile.Clone()
             $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
 
             $DefaultsFile | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Settings
@@ -362,11 +363,11 @@ Describe 'a sub folder in the log folder' {
         .$testScript @testParams
     }
     It "is created for each specific Excel file regardless of its 'Status'" {
-        @(Get-ChildItem -Path $testParams.LogFolder -Directory).Count |
+        @(Get-ChildItem -Path $testInputFile.LogFolder -Directory).Count |
         Should -BeExactly 1
     }
     It 'the Excel file is copied to the log folder' {
-        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
 
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
@@ -388,18 +389,18 @@ Describe "when 'Matrix.Archive' is true then" {
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
         ) | Export-Excel @PermissionsParams
 
-        $testParams = $testParams.Clone()
-        $testParams.Matrix.Archive = $true
+        $testInputFile = $testInputFile.Clone()
+        $testInputFile.Matrix.Archive = $true
     }
     It "a sub folder in the 'Matrix.FolderPath' named 'Archive' is created" {
-        "$($testParams.Matrix.FolderPath)\Archive" | Should -Exist
+        "$($testInputFile.Matrix.FolderPath)\Archive" | Should -Exist
     }
     It 'all matrix files are moved to the archive folder, even disabled ones' {
         $SettingsParams.Path | Should -Not -Exist
-        "$($testParams.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
+        "$($testInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
     }
     It 'a matrix with the same name is overwritten in the archive folder' {
-        $testFile = "$($testParams.Matrix.FolderPath)\Archive\Matrix.xlsx"
+        $testFile = "$($testInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx"
         $testFile | Remove-Item -Force -EA Ignore
 
         @(
@@ -435,9 +436,9 @@ Describe "when 'Matrix.Archive' is true then" {
         Should -Be 'S2'
     }
     It 'multiple matrix files are moved to the archive folder' {
-        Remove-Item -Path "$($testParams.Matrix.FolderPath)\Archive" -Recurse -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\Archive" -Recurse -EA Ignore
         1..5 | ForEach-Object {
-            $FileName = "$($testParams.Matrix.FolderPath)\Matrix $_.xlsx"
+            $FileName = "$($testInputFile.Matrix.FolderPath)\Matrix $_.xlsx"
             @(
                 [PSCustomObject]@{
                     Status       = 'Enabled'
@@ -460,8 +461,8 @@ Describe "when 'Matrix.Archive' is true then" {
 
         .$testScript @testParams -Archive
 
-        (Get-ChildItem "$($testParams.Matrix.FolderPath)\Matrix*" -File).Count | Should -BeExactly 0
-        (Get-ChildItem "$($testParams.Matrix.FolderPath)\Archive" -File).Count |
+        (Get-ChildItem "$($testInputFile.Matrix.FolderPath)\Matrix*" -File).Count | Should -BeExactly 0
+        (Get-ChildItem "$($testInputFile.Matrix.FolderPath)\Archive" -File).Count |
         Should -BeExactly 5
     }
 }
@@ -472,15 +473,15 @@ Describe 'do not invoke the script to set permissions when' {
         Should -Not -Invoke Invoke-Command
     }
     It "there are only other file types than '.xlsx' in the 'Matrix.FolderPath' folder" {
-        1 | Out-File "$($testParams.Matrix.FolderPath)\Wrong.txt"
-        1 | Out-File "$($testParams.Matrix.FolderPath)\Wrong.csv"
+        1 | Out-File "$($testInputFile.Matrix.FolderPath)\Wrong.txt"
+        1 | Out-File "$($testInputFile.Matrix.FolderPath)\Wrong.csv"
 
         .$testScript @testParams
 
         Should -Not -Invoke Invoke-Command
     }
     It "there are only valid matrixes in subfolders of the 'Matrix.FolderPath' folder" {
-        $Folder = (New-Item "$($testParams.Matrix.FolderPath)\Archive" -ItemType Directory -Force -EA Ignore).FullName
+        $Folder = (New-Item "$($testInputFile.Matrix.FolderPath)\Archive" -ItemType Directory -Force -EA Ignore).FullName
         @(
             [PSCustomObject]@{
                 Status       = 'Enabled'
@@ -526,8 +527,8 @@ Describe 'do not invoke the script to set permissions when' {
 Describe 'a FatalError object is registered' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "building the matrix with 'ConvertTo-MatrixAclHC' fails" {
@@ -777,8 +778,8 @@ Describe 'a FatalError object is registered' {
 Describe 'a Warning object is registered' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "the worksheet 'Settings' has no row with status 'Enabled'" {
@@ -936,14 +937,14 @@ Describe 'the script that tests the remote computers for compliance' {
         } -ParameterFilter {
             ($ComputerName -eq 'PC1') -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptTestRequirements)
+            ($FilePath -eq $testInputFile.ScriptTestRequirements)
         }
         Mock Invoke-Command {
             'B'
         } -ParameterFilter {
             ($ComputerName -eq 'PC2') -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptTestRequirements)
+            ($FilePath -eq $testInputFile.ScriptTestRequirements)
         }
 
         @(
@@ -979,19 +980,19 @@ Describe 'the script that tests the remote computers for compliance' {
     }
     It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
         Should -Not -Invoke Invoke-Command -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testParams.ScriptTestRequirements) -and
+            ($FilePath -eq $testInputFile.ScriptTestRequirements) -and
             ($ComputerName -eq 'ignoredPc')
         }
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
         Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptTestRequirements)
+            ($FilePath -eq $testInputFile.ScriptTestRequirements)
         }
         @('PC1', 'PC2') | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
                 ($ConfigurationName) -and
-                ($FilePath -eq $testParams.ScriptTestRequirements) -and
+                ($FilePath -eq $testInputFile.ScriptTestRequirements) -and
                 ($ComputerName -eq $_)
             }
         }
@@ -1022,27 +1023,27 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile)
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
         }
         Mock Invoke-Command { 2 } -ParameterFilter {
             ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile)
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
         }
         Mock Invoke-Command { 3 } -ParameterFilter {
             ($ComputerName -eq 'PC2') -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testParams.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testParams.ScriptSetPermissionFile)
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
         }
 
         @(
@@ -1083,10 +1084,10 @@ Describe 'the script that sets the permissions on the remote computers' {
     }
     It "is called for each row in the 'Settings' worksheets with Status Enabled" {
         Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testParams.ScriptSetPermissionFile)
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
             ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
@@ -1094,7 +1095,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
             ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
@@ -1102,7 +1103,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testParams.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
             ($ComputerName -eq 'PC2') -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
@@ -1154,7 +1155,7 @@ Describe 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
             ($Subject -eq '1 matrix file') -and
-            ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
             ($Message -notlike '*Export*') -and
             ($Message -like '*Matrix results per file*') -and
@@ -1294,7 +1295,7 @@ Describe 'export an Excel file with' {
 
         .$testScript @testParams -ExcludedSamAccountName 'IgnoreMe'
 
-        $testMatrixFile = Get-ChildItem $testParams.logFolder -Filter '*Matrix.xlsx' -Recurse -File
+        $testMatrixFile = Get-ChildItem $testInputFile.logFolder -Filter '*Matrix.xlsx' -Recurse -File
     }
     Context "the worksheet 'AccessList'" {
         BeforeAll {
@@ -1399,12 +1400,12 @@ Describe 'when a job fails' {
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ComputerName -eq 'PC1') -and
                 ($ConfigurationName) -and
-                ($FilePath -eq $testParams.ScriptTestRequirements)
+                ($FilePath -eq $testInputFile.ScriptTestRequirements)
             }
             Mock Invoke-Command { 'B' } -ParameterFilter {
                 ($ComputerName -eq 'PC2') -and
                 ($ConfigurationName) -and
-                ($FilePath -eq $testParams.ScriptTestRequirements)
+                ($FilePath -eq $testInputFile.ScriptTestRequirements)
             }
 
             @(
@@ -1442,12 +1443,12 @@ Describe 'when a job fails' {
             Mock Invoke-Command { 1 } -ParameterFilter {
                 ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Department') -and
-                ($FilePath -eq $testParams.ScriptSetPermissionFile)
+                ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
             }
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Reports') -and
-                ($FilePath -eq $testParams.ScriptSetPermissionFile)
+                ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
             }
 
             @(
@@ -1621,8 +1622,8 @@ Describe 'internal functions' {
 Describe 'when a FatalError occurs while executing the matrix' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testParams.LogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testParams.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     It 'a detailed HTML log file is created for each settings row' {
         $testProblem = @{
@@ -1651,7 +1652,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -NE '.xlsx').Count | Should -BeExactly 2
     }
     It 'a TXT log file is created for each settings row when there are more than 5 elements in the value array' {
@@ -1685,7 +1686,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testParams.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -EQ '.txt').Count | Should -BeExactly 2
     }
     It 'an e-mail is send' {
@@ -1747,7 +1748,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like "*Worksheet 'FormData' not found*") -and
@@ -1800,7 +1801,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like '*Errors*Warnings*FormData*') -and
@@ -1853,7 +1854,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the warning message' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
+                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
                 ($Subject -eq '1 matrix file, 1 warning') -and
                 ($Priority -eq 'High') -and
                 ($Message -like '*Errors*Warnings*FormData*') -and
@@ -1951,7 +1952,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
 
         $testCherwellExport = Get-ChildItem $testCherwellFolder.FullName
 
-        $testLogFolderExport = Get-ChildItem $testParams.LogFolder -Recurse -File |
+        $testLogFolderExport = Get-ChildItem $testInputFile.LogFolder -Recurse -File |
         Where-Object Extension -Match '.xlsx$|.csv$'
 
         $testLogFolder = @{
@@ -2181,7 +2182,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
-            ($Save -like "$((Get-Item $testParams.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
             ($Message -like '*Export to*Export*') -and
