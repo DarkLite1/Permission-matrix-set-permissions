@@ -1240,12 +1240,34 @@ end {
             #region Export data to .XLSX and .CSV files
             $formDataSheet = @()
             $adObjectNamesSheet = @()
+            $dataToExport = @{}
 
             if (
                 $Export.FolderPath -and
                 ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
             ) {
-                #region Create AD Object names and FormData to export
+                #region Create data to export hashtable
+                foreach ($property in $Export.FileName) {
+                    $dataToExport[$property.Name] = @{
+                        LogFilePath    = "$matrixLogFile - Export - $($property.Value)"
+                        ExportFilePath = Join-Path $Export.FolderPath $property.Value
+                        Data           = @()
+                    }
+                }
+                #endregion
+
+                #region Remove old exported log files
+                $dataToExport.GetEnumerator() | ForEach-Object {
+                    $fileToRemove = $_.Value.LogFilePath
+                    
+                    if (Test-Path $fileToRemove) {
+                        Write-Verbose "Remove file '$fileToRemove'"
+                        Remove-Item -Path $fileToRemove -ErrorAction Ignore
+                    }
+                }
+                #endregion
+
+                #region Create AdObjectNames and FormData to export
                 foreach ($I in $importedMatrix) {
                     $adObjects = foreach (
                         $S in
@@ -1272,42 +1294,36 @@ end {
                 }
                 #endregion
 
-                #region Remove old exported files
+                #region Create parameters
                 $ExportParams = @{
                     Path         = "$matrixLogFile - Cherwell - $($Export.FileName.ExcelOverview)"
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
-                $ExportParams.Path | Remove-Item -EA Ignore
 
                 $exportCsvAdParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.AdObjects
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
-                $exportCsvAdParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvFormParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.FormData
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
-                $exportCsvFormParams.literalPath | Remove-Item -EA Ignore
 
                 $exportCsvGroupManagersParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.GroupManagers
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
-                $exportCsvGroupManagersParams.literalPath |
-                Remove-Item -EA Ignore
 
                 $exportCsvAccessListParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.AccessList
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
-                $exportCsvAccessListParams.literalPath | Remove-Item -EA Ignore
                 #endregion
 
                 if ($AdObjectNamesSheet) {

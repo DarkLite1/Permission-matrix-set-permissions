@@ -17,7 +17,8 @@
       "FormData": "FormData.csv",
       "GroupManagers": "GroupManagers.csv",
       "AccessList": "AccessList.csv",
-      "ExcelOverview": "Overview.xlsx"
+      "ExcelOverview": "Overview.xlsx",
+      "HtmlOverview": "Overview.html"
     }
   },
   "ServiceNow": {
