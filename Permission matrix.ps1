@@ -1052,6 +1052,24 @@ process {
 
 end {
     try {
+        $settings = $jsonFileContent.Settings
+
+        $scriptName = $settings.ScriptName
+        $saveInEventLog = $settings.SaveInEventLog
+        $sendMail = $settings.SendMail
+        $saveLogFiles = $settings.SaveLogFiles
+
+        $allLogFilePaths = @()
+        $baseLogName = $null
+        $logFolderPath = $null
+
+        #region Get script name
+        if (-not $scriptName) {
+            Write-Warning "No 'Settings.ScriptName' found in import file."
+            $scriptName = 'Default script name'
+        }
+        #endregion
+
         $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
             '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
             $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,

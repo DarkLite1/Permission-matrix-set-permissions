@@ -24,11 +24,6 @@ BeforeAll {
                 ExcelOverview = 'Overview.xlsx'
             }
         }
-        ScriptPath             = @{
-            TestRequirementsFile = New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File
-            SetPermissionFile    = New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File
-            UpdateServiceNow    = New-Item 'TestDrive:/UpdateServiceNow.ps1' -ItemType File
-        }
         ScriptAdmin            = 'admin@contoso.com'
         PSSessionConfiguration = 'PowerShell.7'
         Settings               = @{
@@ -70,7 +65,20 @@ BeforeAll {
             }
         }
     }
+
+    $testOutParams = @{
+        FilePath = (New-Item 'TestDrive:/Test.json' -ItemType File).FullName
+    }
+
     $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
+    $testParams = @{
+        ConfigurationJsonFile = $testOutParams.FilePath
+        ScriptPath            = @{
+            TestRequirementsFile = (New-Item 'TestDrive:/TestRequirements.ps1' -ItemType File).FullName
+            SetPermissionFile    = (New-Item 'TestDrive:/SetPermissions.ps1' -ItemType File).FullName
+            UpdateServiceNow     = (New-Item 'TestDrive:/UpdateServiceNow.ps1' -ItemType File).FullName
+        }
+    }
 
     $testCherwellFolder = New-Item 'TestDrive:/Export' -ItemType Directory
 
@@ -141,6 +149,37 @@ BeforeAll {
             Sort-Object { $_.Key } | ConvertTo-Json
         )
     }
+    function Test-GetLogFileDataHC {
+        param (
+            [String]$FileNameRegex = '* - System errors log.json',
+            [String]$LogFolderPath = $testInputFile.Settings.SaveLogFiles.Where.Folder
+        )
+
+        $testLogFile = Get-ChildItem -Path $LogFolderPath -File -Filter $FileNameRegex
+
+        if ($testLogFile.count -eq 1) {
+            Get-Content $testLogFile | ConvertFrom-Json
+        }
+        elseif (-not $testLogFile) {
+            throw "No log file found in folder '$LogFolderPath' matching '$FileNameRegex'"
+        }
+        else {
+            throw "Found multiple log files in folder '$LogFolderPath' matching '$FileNameRegex'"
+        }
+    }
+    function Test-NewJsonFileHC {
+        try {
+            if (-not $testNewInputFile) {
+                throw "Variable '$testNewInputFile' cannot be blank"
+            }
+
+            $testNewInputFile | ConvertTo-Json -Depth 7 |
+            Out-File @testOutParams
+        }
+        catch {
+            throw "Failure in Test-NewJsonFileHC: $_"
+        }
+    }
 
     Mock Invoke-Command
     Mock New-PSSession
@@ -159,6 +198,124 @@ Describe 'the mandatory parameters are' {
     ) {
         (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
         Should -BeTrue
+    }
+}
+Describe 'create an error log file when' {
+    It 'the log folder cannot be created' {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Settings.SaveLogFiles.Where.Folder = 'x:\notExistingLocation'
+
+        Test-NewJsonFileHC
+
+        Mock Out-File
+
+        .$testScript @testParams
+
+        $LASTEXITCODE | Should -Be 1
+
+        Should -Not -Invoke Out-File
+    }
+    Context 'the ImportFile' {
+        It 'is not found' {
+            Mock Out-File
+
+            $testNewParams = $testParams.clone()
+            $testNewParams.ConfigurationJsonFile = 'nonExisting.json'
+
+            .$testScript @testNewParams
+
+            $LASTEXITCODE | Should -Be 1
+
+            Should -Not -Invoke Out-File
+        }
+        Context 'property' {
+            It '<_> not found' -ForEach @(
+                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 
+                'PSSessionConfiguration', 'Settings'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.$_ = $null
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Property '$_' not found*"
+            } -Tag test
+            It 'Tasks.Sftp.<_> not found' -ForEach @(
+                'ComputerName', 'Credential'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Tasks[0].Sftp.$_ = $null
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Property 'Tasks.Sftp.$_' not found*"
+            }
+            It 'Tasks.Sftp.Credential.<_> not found' -ForEach @(
+                'UserName'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Tasks[0].Sftp.Credential.$_ = $null
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Property 'Tasks.Sftp.Credential.$_' not found*"
+            }
+            It 'Tasks.Option.<_> not found' -ForEach @(
+                'MatchFileNameRegex'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Tasks[0].Option.$_ = $null
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Property 'Tasks.Option.$_' not found*"
+            }
+            It 'Tasks.Actions.<_> not found' -ForEach @(
+                'Paths'
+            ) {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Tasks[0].Actions[0].$_ = $null
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Property 'Tasks.Actions.$_' not found*"
+            }
+        }
     }
 }
 Describe 'stop the script and send an e-mail to the admin when' {
