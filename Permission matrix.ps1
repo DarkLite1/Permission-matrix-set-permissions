@@ -1359,7 +1359,6 @@ end {
                     #endregion
                 }
 
-
                 #region Create parameters
                 $exportParams = @{
                     Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
@@ -1392,155 +1391,7 @@ end {
                 }
                 #endregion
 
-                if ($dataToExport['AdObjects'].Data) {
-                    #region Export AD object names to .XLSX file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($exportParams.Path)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['AdObjects'].Data |
-                    Export-Excel @ExportParams -WorksheetName 'AdObjectNames' -TableName 'AdObjectNames'
-                    #endregion
-
-                    #region Export AD object names to a .CSV file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['AdObjects'].Data.Count) AD object names to '$($exportCsvAdParams.literalPath)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['AdObjects'].Data | Export-Csv @exportCsvAdParams
-                    #endregion
-
-                    #region Copy csv file to log folder
-                    $copyParams = @{
-                        LiteralPath = $exportCsvAdParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.AdObjects)"
-                    }
-                    Copy-Item @copyParams
-                    #endregion
-                }
-
-                if ($dataToExport['GroupManagers'].Data) {
-                    #region Export group managers to .XLSX file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($exportParams.Path)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['GroupManagers'].Data |
-                    Export-Excel @ExportParams -WorksheetName 'GroupManagers' -TableName 'GroupManagers'
-                    #endregion
-
-                    #region Export group managers to a .CSV file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($exportCsvGroupManagersParams.literalPath)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['GroupManagers'].Data |
-                    Export-Csv @exportCsvGroupManagersParams
-                    #endregion
-
-                    #region Copy csv file to log folder
-                    $copyParams = @{
-                        LiteralPath = $exportCsvGroupManagersParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.GroupManagers)"
-                    }
-                    Copy-Item @copyParams
-                    #endregion
-                }
-
-                if ($dataToExport['AccessList'].Data) {
-                    #region Export access list to .XLSX file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($dataToExport['AccessList'].Data.Count) access list to '$($exportParams.Path)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['AccessList'].Data |
-                    Export-Excel @ExportParams -WorksheetName 'AccessList' -TableName 'AccessList'
-                    #endregion
-
-                    #region Export access list to .CSV file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export access list to '$($exportCsvAccessListParams.literalPath)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['AccessList'].Data |
-                    Export-Csv @exportCsvAccessListParams
-                    #endregion
-
-                    #region Copy csv file to log folder
-                    $copyParams = @{
-                        LiteralPath = $exportCsvAccessListParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.AccessList)"
-                    }
-                    Copy-Item @copyParams
-                    #endregion
-                }
-
-                if ($dataToExport['FormData'].Data) {
-                    #region Export FormData to .XLSX file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export FormData to '$($exportParams.Path)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['FormData'].Data |
-                    Export-Excel @ExportParams -WorksheetName 'FormData' -TableName 'FormData'
-                    #endregion
-
-                    #region Export FormData to .CSV file
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export FormData to '$($exportCsvFormParams.literalPath)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
-
-                    $dataToExport['FormData'].Data | Export-Csv @exportCsvFormParams
-                    #endregion
-
+                if ($dataToExport['HtmlOverview'].Data) {
                     #region Export FormData to an HTML file
                     $htmlFileContent = @(
                         @'
@@ -1755,8 +1606,12 @@ end {
                     #endregion
                 }
 
-                if ($dataToExport['AdObjects'].Data -or $dataToExport['FormData'].Data -or
-                    $dataToExport['AccessList'].Data -or $dataToExport['GroupManagers'].Data) {
+                if (
+                    $dataToExport['AdObjects'].Data -or 
+                    $dataToExport['FormData'].Data -or
+                    $dataToExport['AccessList'].Data -or 
+                    $dataToExport['GroupManagers'].Data
+                ) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $exportParams.Path
