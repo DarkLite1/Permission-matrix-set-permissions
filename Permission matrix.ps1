@@ -1238,7 +1238,6 @@ end {
             #endregion
 
             #region Export data to .XLSX and .CSV files
-            $formDataSheet = @()
             $adObjectNamesSheet = @()
             $dataToExport = @{}
 
@@ -1285,7 +1284,7 @@ end {
                     }
 
                     if ($adObjects) {
-                        $formDataSheet += $I.FormData.Import
+                        $dataToExport['FormData'].Data += $I.FormData.Import
 
                         $adObjectNamesSheet += $adObjects |
                         Group-Object SamAccountName |
@@ -1445,7 +1444,7 @@ end {
                     #endregion
                 }
 
-                if ($formDataSheet) {
+                if ($dataToExport['FormData'].Data) {
                     #region Export FormData to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
@@ -1457,7 +1456,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $formDataSheet |
+                    $dataToExport['FormData'].Data |
                     Export-Excel @ExportParams -WorksheetName 'FormData' -TableName 'FormData'
                     #endregion
 
@@ -1472,7 +1471,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $formDataSheet | Export-Csv @exportCsvFormParams
+                    $dataToExport['FormData'].Data | Export-Csv @exportCsvFormParams
                     #endregion
 
                     #region Export FormData to an HTML file
@@ -1618,7 +1617,7 @@ end {
                     </tr>
                     '
 
-                    $htmlMatrixTableRows += $formDataSheet | 
+                    $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
                     Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
                     ForEach-Object {
                         $emailsMatrixResponsible = foreach (
@@ -1689,7 +1688,7 @@ end {
                     #endregion
                 }
 
-                if ($adObjectNamesSheet -or $formDataSheet -or
+                if ($adObjectNamesSheet -or $dataToExport['FormData'].Data -or
                     $accessListSheet -or $groupManagersSheet) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
@@ -2268,7 +2267,7 @@ end {
             <tr>
                 <th>
             $(
-                if ($formDataSheet.count -and
+                if ($dataToExport['FormData'].Data.count -and
                     $exportCsvFormParams.literalPath -and
                     (Test-Path -LiteralPath $exportCsvFormParams.literalPath)
                 ) {
@@ -2279,7 +2278,7 @@ end {
                 else {'From data'}
             )
                 </th>
-                <td>$($formDataSheet.count)</td>
+                <td>$($dataToExport['FormData'].Data.count)</td>
             </tr>
             </table>
             $(
