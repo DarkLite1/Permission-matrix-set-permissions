@@ -2199,7 +2199,7 @@ end {
 
             $htmlFormData = if ($Export.FolderPath) {
                 @"
-            <p><b>Export to <a href="$($Export.FolderPath)">Cherwell</a>:</b></p>
+            <p><b>Export to <a href="$($Export.FolderPath)">folder</a>:</b></p>
             <table id="overviewTable">
             <tr>
                 <th>
