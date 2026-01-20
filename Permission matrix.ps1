@@ -1070,16 +1070,27 @@ end {
         }
         #endregion
 
+        #region Create matrix log file name
         $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
             '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
             $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
             $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
         )
+        #endregion
+
+        #region Create data to export hashtable
+        $dataToExport = @{}
+
+        foreach ($property in $Export.FileName.PSObject.Properties) {
+            $dataToExport[$property.Name] = @{
+                LogFilePath    = "$matrixLogFile - Export - $($property.Value)"
+                ExportFilePath = Join-Path $Export.FolderPath $property.Value
+                Data           = @()
+            }
+        }
+        #endregion
 
         if ($importedMatrix) {
-            $groupManagersSheet = @()
-            $accessListSheet = @()
-
             #region Export to matrix Excel log file
             foreach ($I in $importedMatrix) {
                 #region Get unique SamAccountNames for all matrix in Settings
@@ -1198,7 +1209,7 @@ end {
 
                     #region Create 'AccessList' to export
                     if ($Export.FolderPath) {
-                        $accessListSheet += $accessListToExport |
+                        $dataToExport['AccessList'].Data += $accessListToExport |
                         Select-Object @{
                             Name       = 'MatrixFileName'
                             Expression = { $I.File.Item.BaseName }
@@ -1225,7 +1236,7 @@ end {
 
                         #region Create 'GroupManagers' to export
                         if ($Export.FolderPath) {
-                            $groupManagersSheet += $groupManagersToExport |
+                            $dataToExport['GroupManagers'].Data += $groupManagersToExport |
                             Select-Object @{
                                 Name       = 'MatrixFileName'
                                 Expression = { $I.File.Item.BaseName }
@@ -1238,22 +1249,11 @@ end {
             #endregion
 
             #region Export data to .XLSX and .CSV files
-            $dataToExport = @{}
 
             if (
                 $Export.FolderPath -and
                 ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
             ) {
-                #region Create data to export hashtable
-                foreach ($property in $Export.FileName) {
-                    $dataToExport[$property.Name] = @{
-                        LogFilePath    = "$matrixLogFile - Export - $($property.Value)"
-                        ExportFilePath = Join-Path $Export.FolderPath $property.Value
-                        Data           = @()
-                    }
-                }
-                #endregion
-
                 #region Remove old exported log files
                 $dataToExport.GetEnumerator() | ForEach-Object {
                     $fileToRemove = $_.Value.LogFilePath
@@ -1363,11 +1363,11 @@ end {
                     #endregion
                 }
 
-                if ($groupManagersSheet) {
+                if ($dataToExport['GroupManagers'].Data) {
                     #region Export group managers to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($groupManagersSheet.Count) group managers to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($ExportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1375,14 +1375,14 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $groupManagersSheet |
+                    $dataToExport['GroupManagers'].Data |
                     Export-Excel @ExportParams -WorksheetName 'GroupManagers' -TableName 'GroupManagers'
                     #endregion
 
                     #region Export group managers to a .CSV file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($groupManagersSheet.Count) group managers to '$($exportCsvGroupManagersParams.literalPath)'"
+                            Message   = "Export $($dataToExport['GroupManagers'].Data.Count) group managers to '$($exportCsvGroupManagersParams.literalPath)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1390,7 +1390,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $groupManagersSheet |
+                    $dataToExport['GroupManagers'].Data |
                     Export-Csv @exportCsvGroupManagersParams
                     #endregion
 
@@ -1403,11 +1403,11 @@ end {
                     #endregion
                 }
 
-                if ($accessListSheet) {
+                if ($dataToExport['AccessList'].Data) {
                     #region Export access list to .XLSX file
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($accessListSheet.Count) access list to '$($ExportParams.Path)'"
+                            Message   = "Export $($dataToExport['AccessList'].Data.Count) access list to '$($ExportParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1415,7 +1415,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $accessListSheet |
+                    $dataToExport['AccessList'].Data |
                     Export-Excel @ExportParams -WorksheetName 'AccessList' -TableName 'AccessList'
                     #endregion
 
@@ -1430,7 +1430,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
 
-                    $accessListSheet |
+                    $dataToExport['AccessList'].Data |
                     Export-Csv @exportCsvAccessListParams
                     #endregion
 
@@ -1688,7 +1688,7 @@ end {
                 }
 
                 if ($dataToExport['AdObjects'].Data -or $dataToExport['FormData'].Data -or
-                    $accessListSheet -or $groupManagersSheet) {
+                    $dataToExport['AccessList'].Data -or $dataToExport['GroupManagers'].Data) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $ExportParams.Path
@@ -2218,7 +2218,7 @@ end {
             <tr>
                 <th>
                 $(
-                    if ($accessListSheet.count -and
+                    if ($dataToExport['AccessList'].Data.count -and
                         $exportCsvAccessListParams.literalPath -and
                         (Test-Path -LiteralPath $exportCsvAccessListParams.literalPath)
                     ) {
@@ -2229,7 +2229,7 @@ end {
                     else {'Access list'}
                 )
                 </th>
-                <td>$($accessListSheet.count)</td>
+                <td>$($dataToExport['AccessList'].Data.count)</td>
             </tr>
             <tr>
                 <th>
@@ -2250,7 +2250,7 @@ end {
             <tr>
                 <th>
                 $(
-                    if ($groupManagersSheet.count -and
+                    if ($dataToExport['GroupManagers'].Data.count -and
                         $exportCsvGroupManagersParams.literalPath -and
                         (Test-Path -LiteralPath $exportCsvGroupManagersParams.literalPath)
                     ) {
@@ -2261,7 +2261,7 @@ end {
                     else {'Group managers'}
                 )
                 </th>
-                <td>$($groupManagersSheet.count)</td>
+                <td>$($dataToExport['GroupManagers'].Data.count)</td>
             </tr>
             <tr>
                 <th>
