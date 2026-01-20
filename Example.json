@@ -13,7 +13,7 @@
   "Export": {
     "FolderPath": "C:\\ServiceNow",
     "FileName": {
-      "AdObjects": "ADObjectNames.csv",
+      "AdObjects": "AdObjectNames.csv",
       "FormData": "FormData.csv",
       "GroupManagers": "GroupManagers.csv",
       "AccessList": "AccessList.csv",

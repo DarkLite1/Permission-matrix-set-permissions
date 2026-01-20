@@ -1083,7 +1083,7 @@ end {
         foreach ($property in $Export.FileName.PSObject.Properties) {
             #region Create data to export hashtable
             $dataToExport[$property.Name] = @{
-                LogFilePath    = "$matrixLogFile - Export - $($property.Value)"
+                LogFilePath    = "$matrixLogFile - AllMatrix - $($property.Value)"
                 ExportFilePath = Join-Path $Export.FolderPath $property.Value
                 Data           = @()
             }
@@ -1105,7 +1105,7 @@ end {
         )
 
         if ($importedMatrix) {
-            #region Export to matrix Excel log file
+            #region Crate export data and export to matrix Excel log file
             foreach ($I in $importedMatrix) {
                 $excelParams = @{
                     Path               = $I.File.SaveFullName
@@ -1295,9 +1295,45 @@ end {
 
             #region Export all matrix data to .XLSX and .CSV files
             if ($isExportToFolder) {
+                $dataToExport.GetEnumerator() |
+                Where-Object { 
+                    (@(
+                        'ExcelOverview',
+                        'HtmlOverview'
+                    ) -notcontains $_.Name) -and
+                    ($_.Value.Data)
+                } | ForEach-Object {
+                    $name = $_.Name
+                    $data = $_.Value.Data
+                    $exportFilePath = $_.Value.ExportFilePath
+
+                    #region Export data to sheet in Excel file
+                    $exportParams = @{
+                        Path          = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
+                        AutoSize      = $true
+                        FreezeTopRow  = $true
+                        WorksheetName = $name
+                        TableName     = $name
+                    }
+
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($data.Count) $Name objects to '$($exportParams.Path)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
+                   
+                    $data | Export-Excel @ExportParams
+                    #endregion
+                }
+
+
                 #region Create parameters
                 $exportParams = @{
-                    Path         = "$matrixLogFile - Cherwell - $($Export.FileName.ExcelOverview)"
+                    Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
