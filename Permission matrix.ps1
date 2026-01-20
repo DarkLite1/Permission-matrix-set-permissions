@@ -1085,6 +1085,7 @@ end {
             $dataToExport[$property.Name] = @{
                 LogFilePath    = "$matrixLogFile - AllMatrix - $($property.Value)"
                 ExportFilePath = Join-Path $Export.FolderPath $property.Value
+                ExportFileName = $property.Value
                 Data           = @()
             }
             #endregion
@@ -1306,8 +1307,9 @@ end {
                     $name = $_.Name
                     $data = $_.Value.Data
                     $exportFilePath = $_.Value.ExportFilePath
+                    $exportFileName = $_.Value.ExportFileName
 
-                    #region Export data to sheet in Excel file
+                    #region Create sheet in Excel log file
                     $exportParams = @{
                         Path          = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
                         AutoSize      = $true
@@ -1327,6 +1329,33 @@ end {
                     Write-Verbose $eventLogData[-1].Message
                    
                     $data | Export-Excel @ExportParams
+                    #endregion
+
+                    #region Create .CSV file in export folder
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Export $($data.Count) $Name objects toto '$exportFilePath'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
+
+                    $exportCsvParams = @{
+                        literalPath       = $exportFilePath
+                        Encoding          = 'utf8'
+                        NoTypeInformation = $true
+                    }
+                    $data | Export-Csv @exportCsvParams
+                    #endregion
+
+                    #region Copy .CSV file from export folder to log folder
+                    $copyParams = @{
+                        LiteralPath = $exportCsvParams.literalPath
+                        Destination = "$matrixLogFile - AllMatrix - $exportFileName"
+                    }
+                    Copy-Item @copyParams
                     #endregion
                 }
 
