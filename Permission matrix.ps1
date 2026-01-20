@@ -2140,7 +2140,7 @@ end {
             }
 
             #region FatalError and warning count
-            $count = @{
+            $counter = @{
                 FormData    = @{
                     Error   = @(
                         $importedMatrix.FormData.Check |
@@ -2187,13 +2187,13 @@ end {
                 }
             }
 
-            $count.Total.Errors = (
-                $count.FormData.error + $count.Permissions.error +
-                $count.Settings.error + $count.File.error
+            $counter.Total.Errors = (
+                $counter.FormData.error + $counter.Permissions.error +
+                $counter.Settings.error + $counter.File.error
             )
-            $count.Total.Warnings = (
-                $count.FormData.warning + $count.Permissions.warning +
-                $count.Settings.warning + $count.File.warning
+            $counter.Total.Warnings = (
+                $counter.FormData.warning + $counter.Permissions.warning +
+                $counter.Settings.warning + $counter.File.warning
             )
             #endregion
 
@@ -2281,7 +2281,7 @@ end {
             }
 
         
-            $htmlErrorWarningTable = if ($count.Total.Errors + $count.Total.Warnings) {
+            $htmlErrorWarningTable = if ($counter.Total.Errors + $counter.Total.Warnings) {
                 @"
             <p><b>Detected issues:</b></p>
             <table id="overviewTable">
@@ -2291,8 +2291,8 @@ end {
                 <td>Warnings</td>
             </tr>
             $(
-                foreach ($item in ($count.GetEnumerator())) {
-                    if ($item.Value.Error + $item.Value.warning) {
+                foreach ($item in ($counter.GetEnumerator())) {
+                    if ($item.Value.Error + $item.Value.Warning) {
 @"
                     <tr>
                         <th>$($item.Key)</th>
@@ -2323,16 +2323,16 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 if (@($importedMatrix).Count -ne 1) { 's' }
             ),
             $(
-                if ($count.Total.Errors) {
-                    ", $($count.Total.Errors) error{0}" -f $(
-                        if ($count.Total.Errors -ne 1) { 's' }
+                if ($counter.Total.Errors) {
+                    ", $($counter.Total.Errors) error{0}" -f $(
+                        if ($counter.Total.Errors -ne 1) { 's' }
                     )
                 }
             ),
             $(
-                if ($count.Total.Warnings) {
-                    ", $($count.Total.Warnings) warning{0}" -f $(
-                        if ($count.Total.Warnings -ne 1) { 's' }
+                if ($counter.Total.Warnings) {
+                    ", $($counter.Total.Warnings) warning{0}" -f $(
+                        if ($counter.Total.Warnings -ne 1) { 's' }
                     )
                 }
             )
@@ -2340,7 +2340,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
             $MailParams = @{
                 To        = $MailTo
                 Bcc       = $ScriptAdmin
-                Priority  = if ($count.Total.Errors + $count.Total.Warnings) { 'High' }
+                Priority  = if ($counter.Total.Errors + $counter.Total.Warnings) { 'High' }
                 else { 'Normal' }
                 Subject   = $Subject
                 Message   = $htmlMail
