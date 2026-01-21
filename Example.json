@@ -53,14 +53,8 @@
     },
     "SaveLogFiles": {
       "Detailed": true,
-      "What": {
-        "SystemErrors": true,
-        "AllActions": true,
-        "OnlyActionErrors": true
-      },
       "Where": {
-        "Folder": "\\\\BELSGFRANIT07\\Log\\File or folder\\Permission matrix\\Permission matrix (BNL)",
-        "FileExtensions": [".xlsx"]
+        "Folder": "\\\\BELSGFRANIT07\\Log\\File or folder\\Permission matrix\\Permission matrix (BNL)"
       },
       "DeleteLogsAfterDays": 30
     },
