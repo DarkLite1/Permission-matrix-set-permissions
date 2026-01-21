@@ -356,6 +356,8 @@ begin {
 }
 
 process {
+    if ($systemErrors) { return }
+
     try {
         $ID = 0
 
