@@ -1559,10 +1559,10 @@ end {
                     ) {
                         try {
                             $params = @{
-                                ServiceNowCredentialsFilePath = $ServiceNow.CredentialsFilePath
-                                Environment                   = $ServiceNow.Environment
-                                TableName                     = $ServiceNow.TableName
-                                FormDataFile                  = $dataToExport['FormData'].ExportFilePath
+                                CredentialsFilePath = $ServiceNow.CredentialsFilePath
+                                Environment         = $ServiceNow.Environment
+                                TableName           = $ServiceNow.TableName
+                                FormDataFile        = $dataToExport['FormData'].ExportFilePath
                             }
                             & $scriptPathItem.UpdateServiceNow @params
                         }

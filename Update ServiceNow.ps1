@@ -1,6 +1,6 @@
 param (
     [Parameter(Mandatory)]
-    [String]$ServiceNowCredentialsFilePath,
+    [String]$CredentialsFilePath,
     [Parameter(Mandatory)]
     [String]$Environment,
     [Parameter(Mandatory)]
@@ -108,9 +108,9 @@ begin {
 
     try {
         #region Import .JSON file
-        Write-Verbose "Import .json file '$ServiceNowCredentialsFilePath'"
+        Write-Verbose "Import .json file '$CredentialsFilePath'"
 
-        $serviceNowJsonFileContent = Get-Content $ServiceNowCredentialsFilePath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $serviceNowJsonFileContent = Get-Content $CredentialsFilePath -Raw -Encoding UTF8 | ConvertFrom-Json
         #endregion
 
         #region Test .JSON file properties
@@ -119,7 +119,7 @@ begin {
         $serviceNowEnvironment = $serviceNowJsonFileContent.($Environment)
     
         if (-not $serviceNowEnvironment) {
-            throw "Failed to find environment '$($Environment)' in the ServiceNow environment file '$($ServiceNowCredentialsFilePath)'"
+            throw "Failed to find environment '$($Environment)' in the ServiceNow environment file '$($CredentialsFilePath)'"
         }
     
         @(
@@ -128,13 +128,13 @@ begin {
             { -not $serviceNowEnvironment.$_ }
         ).foreach(
             { 
-                throw "Property '$_' not found for environment '$($Environment)' in file '$($ServiceNowCredentialsFilePath)'"
+                throw "Property '$_' not found for environment '$($Environment)' in file '$($CredentialsFilePath)'"
             }
         )
         #endregion
     }
     catch {
-        throw "ServiceNow credentials file '$ServiceNowCredentialsFilePath': $_"
+        throw "ServiceNow credentials file '$CredentialsFilePath': $_"
     }
 }
 
