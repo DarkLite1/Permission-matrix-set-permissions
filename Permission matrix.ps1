@@ -1316,21 +1316,23 @@ end {
                     $exportFilePath = $_.Value.ExportFilePath
                     $exportFileName = $_.Value.ExportFileName
 
-                    #region Create Excel Overview sheets in log file
-                    $excelOverviewParams.WorksheetName = $name
-                    $excelOverviewParams.TableName = $name
+                    #region Add sheet to Excel Overview log file
+                    if ($Export.FileName.Overview.ExcelExportOverview) {
+                        $excelOverviewParams.WorksheetName = $name
+                        $excelOverviewParams.TableName = $name
 
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($data.Count) $Name objects to '$($excelOverviewParams.Path)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Export $($data.Count) $Name objects to '$($excelOverviewParams.Path)'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
+                        Write-Verbose $eventLogData[-1].Message
                    
-                    $data | Export-Excel @excelOverviewParams
+                        $data | Export-Excel @excelOverviewParams
+                    }
                     #endregion
 
                     #region Create .CSV file in export folder
@@ -1359,14 +1361,6 @@ end {
                     }
                     Copy-Item @copyParams
                     #endregion
-                }
-
-                if ($dataToExport['Overview'].Excel) {
-                    
-                }
-
-                if ($dataToExport['Overview'].Html) {
-                    
                 }
 
                 if (
@@ -1556,20 +1550,9 @@ end {
                     #endregion
                 }
 
-
                 if (
                     $dataToExport['HtmlOverview'].ExportFileName
                 ) {
-                 
-
-                    #region Copy .CSV file from export folder to log folder
-                    $copyParams = @{
-                        LiteralPath = $dataToExport['FormData'].ExportFilePath
-                        Destination = "$matrixLogFile - AllMatrix - $($Export.FileName.FormData)"
-                    }
-                    Copy-Item @copyParams
-                    #endregion
-
                     #region Start ServiceNow FormData upload
                     try {
                         $params = @{
@@ -2143,7 +2126,7 @@ end {
                     ($excelOverviewParams.Path) -and
                     (Test-Path -LiteralPath $excelOverviewParams.Path)
                 ) {
-                    "<p><i>* Check the <a href=`"$($excelOverviewParams.Path)`">overview</a> for details.</i></p>"
+                    "<p><i>* Check the <a href=`"$($excelOverviewParams.Path)`">Excel overview</a> for details.</i></p>"
                 }
             )
             <hr style="width:50%;text-align:left;margin-left:0">
