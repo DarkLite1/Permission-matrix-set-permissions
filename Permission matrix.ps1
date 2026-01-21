@@ -142,6 +142,14 @@ begin {
         ConvertFrom-Json
         #endregion
 
+        $Matrix = $jsonFileContent.Matrix
+        $Export = $jsonFileContent.Export
+        $ServiceNow = $jsonFileContent.ServiceNow
+        $MaxConcurrent = $jsonFileContent.MaxConcurrent
+        $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
+        $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
+        $LogFolder = $jsonFileContent.Settings.SaveLogFiles.Where.Folder
+
         #region Test .json file properties
         Write-Verbose 'Test .json file properties'
 
@@ -213,14 +221,6 @@ begin {
             throw "Input file '$ConfigurationJsonFile': $_"
         }
         #endregion
-
-        $Matrix = $jsonFileContent.Matrix
-        $Export = $jsonFileContent.Export
-        $ServiceNow = $jsonFileContent.ServiceNow
-        $MaxConcurrent = $jsonFileContent.MaxConcurrent
-        $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
-        $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
-        $LogFolder = $jsonFileContent.Settings.SaveLogFiles.Where.Folder
 
         #region Convert .json file
         Write-Verbose 'Convert .json file'
@@ -1060,10 +1060,6 @@ end {
         $saveInEventLog = $settings.SaveInEventLog
         $sendMail = $settings.SendMail
         $saveLogFiles = $settings.SaveLogFiles
-
-        $allLogFilePaths = @()
-        $baseLogName = $null
-        $logFolderPath = $null
 
         #region Get script name
         if (-not $scriptName) {
