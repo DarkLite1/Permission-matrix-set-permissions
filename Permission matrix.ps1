@@ -2132,70 +2132,21 @@ end {
                 @"
             <p><b>Export to <a href="$($Export.FolderPath)">folder</a>:</b></p>
             <table id="overviewTable">
-            <tr>
-                <th>
-                $(
-                    if ($dataToExport['AccessList'].Data.count -and
-                        $exportCsvAccessListParams.literalPath -and
-                        (Test-Path -LiteralPath $exportCsvAccessListParams.literalPath)
-                    ) {
-@"
-                        <a href="$($exportCsvAccessListParams.literalPath)">Access list</a>
-"@
-                    }
-                    else {'Access list'}
-                )
-                </th>
-                <td>$($dataToExport['AccessList'].Data.count)</td>
-            </tr>
-            <tr>
-                <th>
-                $(
-                    if ($dataToExport['AdObjects'].Data.count -and
-                        $exportCsvAdParams.literalPath -and
-                        (Test-Path -LiteralPath $exportCsvAdParams.literalPath)
-                    ) {
-@"
-                        <a href="$($exportCsvAdParams.literalPath)">AD objects</a>
-"@
-                    }
-                    else {'AD objects'}
-                )
-                </th>
-                <td>$($dataToExport['AdObjects'].Data.count)</td>
-            </tr>
-            <tr>
-                <th>
-                $(
-                    if ($dataToExport['GroupManagers'].Data.count -and
-                        $exportCsvGroupManagersParams.literalPath -and
-                        (Test-Path -LiteralPath $exportCsvGroupManagersParams.literalPath)
-                    ) {
-@"
-                        <a href="$($exportCsvGroupManagersParams.literalPath)">Group managers</a>
-"@
-                    }
-                    else {'Group managers'}
-                )
-                </th>
-                <td>$($dataToExport['GroupManagers'].Data.count)</td>
-            </tr>
-            <tr>
-                <th>
             $(
-                if ($dataToExport['FormData'].Data.count -and
-                    $exportCsvFormParams.literalPath -and
-                    (Test-Path -LiteralPath $exportCsvFormParams.literalPath)
-                ) {
-@"
-                    <a href="$($exportCsvFormParams.literalPath)">Form data</a>
-"@
+                $dataToExport.GetEnumerator() |
+                Where-Object { 
+                    @('ExcelOverview','HtmlOverview') -notcontains $_.Name
+                }| ForEach-Object {
+                    $data = $_.Value.Data
+                    $exportFilePath = $_.Value.ExportFilePath
+                    $exportFileName = $_.Value.ExportFileName   
+
+                    "<tr>
+                        <th><a href=`"$exportFilePath`">$exportFileName</a></th>
+                        <td>$($data.count)</td>
+                    </tr>"
                 }
-                else {'From data'}
             )
-                </th>
-                <td>$($dataToExport['FormData'].Data.count)</td>
-            </tr>
             </table>
             $(
                 if (
