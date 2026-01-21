@@ -1315,7 +1315,7 @@ end {
                     $exportFilePath = $_.Value.ExportFilePath
                     $exportFileName = $_.Value.ExportFileName
 
-                    #region Create sheet in Overview Excel log file
+                    #region Create Excel Overview sheets in log file
                     $excelOverviewParams.WorksheetName = $name
                     $excelOverviewParams.TableName = $name
 
