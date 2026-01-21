@@ -1310,65 +1310,82 @@ end {
                     FreezeTopRow = $true
                 }
 
-                $dataToExport.GetEnumerator() |
-                Where-Object { $_.Value.Data } | ForEach-Object {
-                    $name = $_.Name
-                    $data = $_.Value.Data
-                    $exportFilePath = $_.Value.ExportFilePath
-                    $exportFileName = $_.Value.ExportFileName
+                foreach (
+                    $property in    
+                    $dataToExport.GetEnumerator() | Where-Object { 
+                        $_.Value.Data
+                    }
+                ) {
+                    try {
+                        $name = $property.Name
+                        $data = $property.Value.Data
+                        $exportFilePath = $property.Value.ExportFilePath
+                        $exportFileName = $property.Value.ExportFileName
 
-                    #region Add sheet to Excel Overview log file
-                    if ($Export.FileName.Overview.ExcelExportOverview) {
-                        $excelOverviewParams.WorksheetName = $name
-                        $excelOverviewParams.TableName = $name
+                        #region Add sheet to Excel Overview log file
+                        if ($Export.FileName.Overview.ExcelExportOverview) {
+                            $excelOverviewParams.WorksheetName = $name
+                            $excelOverviewParams.TableName = $name
 
+                            $eventLogData.Add(
+                                [PSCustomObject]@{
+                                    Message   = "Export $($data.Count) $Name objects to '$($excelOverviewParams.Path)'"
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '1'
+                                }
+                            )
+                            Write-Verbose $eventLogData[-1].Message
+                   
+                            $data | Export-Excel @excelOverviewParams
+                        }
+                        #endregion
+
+                        #region Create .CSV file in export folder
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Export $($data.Count) $Name objects to '$($excelOverviewParams.Path)'"
+                                Message   = "Export $($data.Count) $Name objects toto '$exportFilePath'"
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
                         Write-Verbose $eventLogData[-1].Message
-                   
-                        $data | Export-Excel @excelOverviewParams
-                    }
-                    #endregion
 
-                    #region Create .CSV file in export folder
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export $($data.Count) $Name objects toto '$exportFilePath'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
+                        $exportCsvParams = @{
+                            literalPath       = $exportFilePath
+                            Encoding          = 'utf8'
+                            NoTypeInformation = $true
                         }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
+                        $data | Export-Csv @exportCsvParams
+                        #endregion
 
-                    $exportCsvParams = @{
-                        literalPath       = $exportFilePath
-                        Encoding          = 'utf8'
-                        NoTypeInformation = $true
+                        #region Copy .CSV file from export folder to log folder
+                        $copyParams = @{
+                            LiteralPath = $exportCsvParams.literalPath
+                            Destination = "$matrixLogFile - AllMatrix - $exportFileName"
+                        }
+                        Copy-Item @copyParams
+                        #endregion   
                     }
-                    $data | Export-Csv @exportCsvParams
-                    #endregion
+                    catch {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Failed to export all matrix data to .XLSX and .CSV files for '$($property.Name)': $_"
+                            }
+                        )
 
-                    #region Copy .CSV file from export folder to log folder
-                    $copyParams = @{
-                        LiteralPath = $exportCsvParams.literalPath
-                        Destination = "$matrixLogFile - AllMatrix - $exportFileName"
+                        Write-Warning $systemErrors[-1].Message
                     }
-                    Copy-Item @copyParams
-                    #endregion
                 }
 
                 if ($dataToExport['FormData'].Data) {
                     #region Export FormData to HTML file
                     if ($Export.FileName.Overview.HtmlMatrixOverview) {
-                        $htmlFileContent = @(
-                            @'
+                        try {
+                            $htmlFileContent = @(
+                                @'
 <style>
   body {
     background-color: #f0f0f0;
@@ -1497,10 +1514,10 @@ end {
   }
 </style>
 '@,
-                            '<h1>Matrix files overview</h1>'
-                        )
+                                '<h1>Matrix files overview</h1>'
+                            )
 
-                        $htmlMatrixTableRows = '<tr>
+                            $htmlMatrixTableRows = '<tr>
                         <th>Category</th>
                         <th>Subcategory</th>
                         <th>Folder</th>
@@ -1508,44 +1525,55 @@ end {
                         <th>Responsible</th>
                     </tr>'
 
-                        $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
-                        Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
-                        ForEach-Object {
-                            $emailsMatrixResponsible = foreach (
-                                $email in
-                                $_.MatrixResponsible -split ','
-                            ) {
-                                "<a href=`"mailto:$email`">$email</a>"
-                            }
+                            $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
+                            Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
+                            ForEach-Object {
+                                $emailsMatrixResponsible = foreach (
+                                    $email in
+                                    $_.MatrixResponsible -split ','
+                                ) {
+                                    "<a href=`"mailto:$email`">$email</a>"
+                                }
 
-                            "<tr>
+                                "<tr>
                                 <td>$($_.MatrixCategoryName)</td>
                                 <td>$($_.MatrixSubCategoryName)</td>
                                 <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
                                 <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
                                 <td>$emailsMatrixResponsible</td>
                             </tr>"
-                        }
-
-                        $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
-
-                        $joinParams = @{
-                            Path      = $Export.FolderPath
-                            ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
-                        }
-                        $htmlFilePath = Join-Path @joinParams
-
-                        $eventLogData.Add(
-                            [PSCustomObject]@{
-                                Message   = "Export FormData to '$htmlFilePath'"
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
                             }
-                        )
-                        Write-Verbose $eventLogData[-1].Message
 
-                        $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
+                            $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
+
+                            $joinParams = @{
+                                Path      = $Export.FolderPath
+                                ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
+                            }
+                            $htmlFilePath = Join-Path @joinParams
+
+                            $eventLogData.Add(
+                                [PSCustomObject]@{
+                                    Message   = "Export FormData to '$htmlFilePath'"
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '1'
+                                }
+                            )
+                            Write-Verbose $eventLogData[-1].Message
+
+                            $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
+                        }
+                        catch {
+                            $systemErrors.Add(
+                                [PSCustomObject]@{
+                                    DateTime = Get-Date
+                                    Message  = "Failed to export FormData to HTML file '$htmlFilePath': $_"
+                                }
+                            )
+
+                            Write-Warning $systemErrors[-1].Message
+                        }
                     }
                     #endregion
 
@@ -1575,6 +1603,16 @@ end {
 
                             Write-Warning $systemErrors[-1].Message
                         }
+                    }
+                    else {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = 'Parameter missing to upload data to ServiceNow'
+                            }
+                        )
+
+                        Write-Warning $systemErrors[-1].Message
                     }
                     #endregion
                 }
