@@ -1364,9 +1364,7 @@ end {
                     #endregion
                 }
 
-                if (
-                    $dataToExport['FormData'].Data
-                ) {
+                if ($dataToExport['FormData'].Data) {
                     #region Export FormData to HTML file
                     if ($Export.FileName.Overview.HtmlMatrixOverview) {
                         $htmlFileContent = @(
@@ -1581,11 +1579,11 @@ end {
                     #endregion
                 }
 
+                #region Copy Overview Excel file from log to Export folder
                 if (
                     $Export.FileName.Overview.ExcelExportOverview -and
                     (Test-Path -LiteralPath $excelOverviewParams.Path -PathType Leaf)
                 ) {
-                    #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $excelOverviewParams.Path
                         Destination = Join-Path $Export.FolderPath $Export.FileName.Overview.ExcelExportOverview
@@ -1602,8 +1600,8 @@ end {
                     Write-Verbose $eventLogData[-1].Message
 
                     Copy-Item @copyParams
-                    #endregion
                 }
+                #endregion
             }
             #endregion
 
