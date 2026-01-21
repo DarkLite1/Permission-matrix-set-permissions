@@ -1555,7 +1555,8 @@ end {
                     if (
                         $ServiceNow.CredentialsFilePath -and
                         $ServiceNow.Environment -and
-                        $ServiceNow.TableName
+                        $ServiceNow.TableName -and
+                        $dataToExport['FormData'].ExportFilePath
                     ) {
                         try {
                             $params = @{
@@ -1581,16 +1582,25 @@ end {
                 }
 
                 if (
-                    $dataToExport['AdObjects'].Data -or 
-                    $dataToExport['FormData'].Data -or
-                    $dataToExport['AccessList'].Data -or 
-                    $dataToExport['GroupManagers'].Data
+                    $Export.FileName.Overview.ExcelExportOverview -and
+                    (Test-Path -LiteralPath $excelOverviewParams.Path -PathType Leaf)
                 ) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $excelOverviewParams.Path
                         Destination = Join-Path $Export.FolderPath $Export.FileName.Overview.ExcelExportOverview
                     }
+
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                            DateTime  = Get-Date
+                            EntryType = 'Information'
+                            EventID   = '1'
+                        }
+                    )
+                    Write-Verbose $eventLogData[-1].Message
+
                     Copy-Item @copyParams
                     #endregion
                 }
