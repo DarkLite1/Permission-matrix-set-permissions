@@ -1296,6 +1296,12 @@ end {
 
             #region Export all matrix data to .XLSX and .CSV files
             if ($isExportToFolder) {
+                $excelOverviewParams = @{
+                    Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
+                    AutoSize     = $true
+                    FreezeTopRow = $true
+                }
+
                 $dataToExport.GetEnumerator() |
                 Where-Object { 
                     (@(
@@ -1309,18 +1315,13 @@ end {
                     $exportFilePath = $_.Value.ExportFilePath
                     $exportFileName = $_.Value.ExportFileName
 
-                    #region Create sheet in Excel log file
-                    $exportParams = @{
-                        Path          = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
-                        AutoSize      = $true
-                        FreezeTopRow  = $true
-                        WorksheetName = $name
-                        TableName     = $name
-                    }
+                    #region Create sheet in Overview Excel log file
+                    $excelOverviewParams.WorksheetName = $name
+                    $excelOverviewParams.TableName = $name
 
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($data.Count) $Name objects to '$($exportParams.Path)'"
+                            Message   = "Export $($data.Count) $Name objects to '$($excelOverviewParams.Path)'"
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
@@ -1328,7 +1329,7 @@ end {
                     )
                     Write-Verbose $eventLogData[-1].Message
                    
-                    $data | Export-Excel @ExportParams
+                    $data | Export-Excel @excelOverviewParams
                     #endregion
 
                     #region Create .CSV file in export folder
@@ -1360,12 +1361,6 @@ end {
                 }
 
                 #region Create parameters
-                $exportParams = @{
-                    Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
-                    AutoSize     = $true
-                    FreezeTopRow = $true
-                }
-
                 $exportCsvAdParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.AdObjects
                     Encoding          = 'utf8'
@@ -1532,8 +1527,7 @@ end {
                         <th>Folder</th>
                         <th>Link to the matrix</th>
                         <th>Responsible</th>
-                    </tr>
-                    '
+                    </tr>'
 
                     $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
                     Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
@@ -1614,7 +1608,7 @@ end {
                 ) {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
-                        LiteralPath = $exportParams.Path
+                        LiteralPath = $excelOverviewParams.Path
                         Destination = Join-Path $Export.FolderPath $Export.FileName.ExcelOverview
                     }
                     Copy-Item @copyParams
@@ -2205,11 +2199,11 @@ end {
             </table>
             $(
                 if (
-                    ($exportParams.Path) -and
-                    (Test-Path -LiteralPath $exportParams.Path)
+                    ($excelOverviewParams.Path) -and
+                    (Test-Path -LiteralPath $excelOverviewParams.Path)
                 ) {
 @"
-<p><i>* Check the <a href="$($exportParams.Path)">overview</a> for details.</i></p>
+<p><i>* Check the <a href="$($excelOverviewParams.Path)">overview</a> for details.</i></p>
 "@
                 }
             )
