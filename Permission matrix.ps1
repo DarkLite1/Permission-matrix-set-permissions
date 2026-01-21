@@ -216,6 +216,7 @@ begin {
 
         $Matrix = $jsonFileContent.Matrix
         $Export = $jsonFileContent.Export
+        $ServiceNow = $jsonFileContent.ServiceNow
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
         $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
@@ -1364,12 +1365,12 @@ end {
                 }
 
                 if (
-                    $dataToExport['FormData'].Data -and
-                    $Export.FileName.Overview.HtmlMatrixOverview
+                    $dataToExport['FormData'].Data
                 ) {
                     #region Export FormData to HTML file
-                    $htmlFileContent = @(
-                        @'
+                    if ($Export.FileName.Overview.HtmlMatrixOverview) {
+                        $htmlFileContent = @(
+                            @'
 <style>
   body {
     background-color: #f0f0f0;
@@ -1498,10 +1499,10 @@ end {
   }
 </style>
 '@,
-                        '<h1>Matrix files overview</h1>'
-                    )
+                            '<h1>Matrix files overview</h1>'
+                        )
 
-                    $htmlMatrixTableRows = '<tr>
+                        $htmlMatrixTableRows = '<tr>
                         <th>Category</th>
                         <th>Subcategory</th>
                         <th>Folder</th>
@@ -1509,69 +1510,72 @@ end {
                         <th>Responsible</th>
                     </tr>'
 
-                    $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
-                    Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
-                    ForEach-Object {
-                        $emailsMatrixResponsible = foreach (
-                            $email in
-                            $_.MatrixResponsible -split ','
-                        ) {
-                            "<a href=`"mailto:$email`">$email</a>"
-                        }
+                        $htmlMatrixTableRows += $dataToExport['FormData'].Data | 
+                        Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
+                        ForEach-Object {
+                            $emailsMatrixResponsible = foreach (
+                                $email in
+                                $_.MatrixResponsible -split ','
+                            ) {
+                                "<a href=`"mailto:$email`">$email</a>"
+                            }
 
-                        "<tr>
+                            "<tr>
                                 <td>$($_.MatrixCategoryName)</td>
                                 <td>$($_.MatrixSubCategoryName)</td>
                                 <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
                                 <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
                                 <td>$emailsMatrixResponsible</td>
                             </tr>"
-                    }
-
-                    $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
-
-                    $joinParams = @{
-                        Path      = $Export.FolderPath
-                        ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
-                    }
-                    $htmlFilePath = Join-Path @joinParams
-
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Export FormData to '$htmlFilePath'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
                         }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
 
-                    $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
-                    #endregion
-                }
+                        $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
 
-                if (
-                    $dataToExport['HtmlOverview'].ExportFileName
-                ) {
-                    #region Start ServiceNow FormData upload
-                    try {
-                        $params = @{
-                            ServiceNowCredentialsFilePath = $jsonFileContent.ServiceNow.CredentialsFilePath
-                            Environment                   = $jsonFileContent.ServiceNow.Environment
-                            FormDataFile                  = $dataToExport['FormData'].ExportFilePath
-                            TableName                     = $jsonFileContent.ServiceNow.TableName
+                        $joinParams = @{
+                            Path      = $Export.FolderPath
+                            ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
                         }
-                        & $scriptPathItem.UpdateServiceNow @params
-                    }
-                    catch {
-                        $systemErrors.Add(
+                        $htmlFilePath = Join-Path @joinParams
+
+                        $eventLogData.Add(
                             [PSCustomObject]@{
-                                DateTime = Get-Date
-                                Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                                Message   = "Export FormData to '$htmlFilePath'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
                             }
                         )
+                        Write-Verbose $eventLogData[-1].Message
 
-                        Write-Warning $systemErrors[-1].Message
+                        $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
+                    }
+                    #endregion
+
+                    #region Start ServiceNow FormData upload
+                    if (
+                        $ServiceNow.CredentialsFilePath -and
+                        $ServiceNow.Environment -and
+                        $ServiceNow.TableName
+                    ) {
+                        try {
+                            $params = @{
+                                ServiceNowCredentialsFilePath = $ServiceNow.CredentialsFilePath
+                                Environment                   = $ServiceNow.Environment
+                                TableName                     = $ServiceNow.TableName
+                                FormDataFile                  = $dataToExport['FormData'].ExportFilePath
+                            }
+                            & $scriptPathItem.UpdateServiceNow @params
+                        }
+                        catch {
+                            $systemErrors.Add(
+                                [PSCustomObject]@{
+                                    DateTime = Get-Date
+                                    Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                                }
+                            )
+
+                            Write-Warning $systemErrors[-1].Message
+                        }
                     }
                     #endregion
                 }
