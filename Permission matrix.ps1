@@ -2153,9 +2153,7 @@ end {
                     ($excelOverviewParams.Path) -and
                     (Test-Path -LiteralPath $excelOverviewParams.Path)
                 ) {
-@"
-<p><i>* Check the <a href="$($excelOverviewParams.Path)">overview</a> for details.</i></p>
-"@
+                    "<p><i>* Check the <a href=`"$($excelOverviewParams.Path)`">overview</a> for details.</i></p>"
                 }
             )
             <hr style="width:50%;text-align:left;margin-left:0">
