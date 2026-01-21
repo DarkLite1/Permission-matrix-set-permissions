@@ -234,9 +234,10 @@ begin {
 
         #region Test Export parameters
         if ($Export.FolderPath) {
-            if (-not
-                (Test-Path -LiteralPath $Export.FolderPath -PathType Container)
-            ) {
+            $isExportFolderPathExisting = 
+            Test-Path -LiteralPath $Export.FolderPath -PathType Container
+
+            if (-not $isExportFolderPathExisting) {
                 throw "Export folder '$($Export.FolderPath)' not found"
             }
 
@@ -1080,7 +1081,12 @@ end {
 
         $dataToExport = @{}
 
-        foreach ($property in $Export.FileName.PSObject.Properties) {
+        foreach (
+            $property in 
+            $Export.FileName.PSObject.Properties | Where-Object {
+                $_.Name -ne 'Overview'
+            }
+        ) {
             #region Create data to export hashtable
             $dataToExport[$property.Name] = @{
                 LogFilePath    = "$matrixLogFile - AllMatrix - $($property.Value)"
@@ -1101,7 +1107,8 @@ end {
         }
 
         $isExportToFolder = (
-            $importedMatrix -and $Export.FolderPath -and
+            $importedMatrix -and $Export.FolderPath -and 
+            $isExportFolderPathExisting -and
             ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
         )
 
@@ -1297,19 +1304,13 @@ end {
             #region Export all matrix data to .XLSX and .CSV files
             if ($isExportToFolder) {
                 $excelOverviewParams = @{
-                    Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.ExcelOverview)"
+                    Path         = "$matrixLogFile - AllMatrix - $($Export.FileName.Overview.ExcelExportOverview)"
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
 
                 $dataToExport.GetEnumerator() |
-                Where-Object { 
-                    (@(
-                        'ExcelOverview',
-                        'HtmlOverview'
-                    ) -notcontains $_.Name) -and
-                    ($_.Value.Data)
-                } | ForEach-Object {
+                Where-Object { $_.Value.Data } | ForEach-Object {
                     $name = $_.Name
                     $data = $_.Value.Data
                     $exportFilePath = $_.Value.ExportFilePath
@@ -1360,8 +1361,19 @@ end {
                     #endregion
                 }
 
-                if ($dataToExport['HtmlOverview'].Data) {
-                    #region Export FormData to an HTML file
+                if ($dataToExport['Overview'].Excel) {
+                    
+                }
+
+                if ($dataToExport['Overview'].Html) {
+                    
+                }
+
+                if (
+                    $dataToExport['FormData'].Data -and
+                    $Export.FileName.Overview.HtmlMatrixOverview
+                ) {
+                    #region Export FormData to HTML file
                     $htmlFileContent = @(
                         @'
 <style>
@@ -1526,7 +1538,7 @@ end {
 
                     $joinParams = @{
                         Path      = $Export.FolderPath
-                        ChildPath = $Export.FileName.ExcelOverview.Replace('.xlsx', '.html')
+                        ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
                     }
                     $htmlFilePath = Join-Path @joinParams
 
@@ -1542,6 +1554,13 @@ end {
 
                     $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
                     #endregion
+                }
+
+
+                if (
+                    $dataToExport['HtmlOverview'].ExportFileName
+                ) {
+                 
 
                     #region Copy .CSV file from export folder to log folder
                     $copyParams = @{
@@ -1583,7 +1602,7 @@ end {
                     #region Copy Excel file from log folder to Export folder
                     $copyParams = @{
                         LiteralPath = $excelOverviewParams.Path
-                        Destination = Join-Path $Export.FolderPath $Export.FileName.ExcelOverview
+                        Destination = Join-Path $Export.FolderPath $Export.FileName.Overview.ExcelExportOverview
                     }
                     Copy-Item @copyParams
                     #endregion
@@ -2107,10 +2126,7 @@ end {
             <p><b>Export to <a href="$($Export.FolderPath)">folder</a>:</b></p>
             <table id="overviewTable">
             $(
-                $dataToExport.GetEnumerator() |
-                Where-Object { 
-                    @('ExcelOverview','HtmlOverview') -notcontains $_.Name
-                }| ForEach-Object {
+                $dataToExport.GetEnumerator() | ForEach-Object {
                     $data = $_.Value.Data
                     $exportFilePath = $_.Value.ExportFilePath
                     $exportFileName = $_.Value.ExportFileName   
