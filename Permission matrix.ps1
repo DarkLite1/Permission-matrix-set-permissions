@@ -1578,7 +1578,7 @@ end {
                     #region Copy csv file to log folder
                     $copyParams = @{
                         LiteralPath = $exportCsvFormParams.literalPath
-                        Destination = "$matrixLogFile - Cherwell - $($Export.FileName.FormData)"
+                        Destination = "$matrixLogFile - AllMatrix - $($Export.FileName.FormData)"
                     }
                     Copy-Item @copyParams
                     #endregion
