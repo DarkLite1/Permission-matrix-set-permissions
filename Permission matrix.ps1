@@ -188,6 +188,8 @@ begin {
                 }
             )
 
+
+
             #region Test boolean values
             foreach (
                 $boolean in
@@ -221,9 +223,6 @@ begin {
             throw "Input file '$ConfigurationJsonFile': $_"
         }
         #endregion
-
-        #region Convert .json file
-        Write-Verbose 'Convert .json file'
 
         #region Set PSSessionConfiguration
         $PSSessionConfiguration = $jsonFileContent.PSSessionConfiguration
