@@ -1361,26 +1361,8 @@ end {
                 }
 
                 #region Create parameters
-                $exportCsvAdParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.AdObjects
-                    Encoding          = 'utf8'
-                    NoTypeInformation = $true
-                }
-
                 $exportCsvFormParams = @{
                     literalPath       = Join-Path $Export.FolderPath $Export.FileName.FormData
-                    Encoding          = 'utf8'
-                    NoTypeInformation = $true
-                }
-
-                $exportCsvGroupManagersParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.GroupManagers
-                    Encoding          = 'utf8'
-                    NoTypeInformation = $true
-                }
-
-                $exportCsvAccessListParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.AccessList
                     Encoding          = 'utf8'
                     NoTypeInformation = $true
                 }
