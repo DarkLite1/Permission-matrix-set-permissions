@@ -1360,14 +1360,6 @@ end {
                     #endregion
                 }
 
-                #region Create parameters
-                $exportCsvFormParams = @{
-                    literalPath       = Join-Path $Export.FolderPath $Export.FileName.FormData
-                    Encoding          = 'utf8'
-                    NoTypeInformation = $true
-                }
-                #endregion
-
                 if ($dataToExport['HtmlOverview'].Data) {
                     #region Export FormData to an HTML file
                     $htmlFileContent = @(
@@ -1551,9 +1543,9 @@ end {
                     $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
                     #endregion
 
-                    #region Copy csv file to log folder
+                    #region Copy .CSV file from export folder to log folder
                     $copyParams = @{
-                        LiteralPath = $exportCsvFormParams.literalPath
+                        LiteralPath = $dataToExport['FormData'].ExportFilePath
                         Destination = "$matrixLogFile - AllMatrix - $($Export.FileName.FormData)"
                     }
                     Copy-Item @copyParams
@@ -1564,7 +1556,7 @@ end {
                         $params = @{
                             ServiceNowCredentialsFilePath = $jsonFileContent.ServiceNow.CredentialsFilePath
                             Environment                   = $jsonFileContent.ServiceNow.Environment
-                            FormDataFile                  = $exportCsvFormParams.literalPath
+                            FormDataFile                  = $dataToExport['FormData'].ExportFilePath
                             TableName                     = $jsonFileContent.ServiceNow.TableName
                         }
                         & $scriptPathItem.UpdateServiceNow @params
