@@ -98,6 +98,17 @@ begin {
             throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
         }
     }
+    function Remove-FileHC {
+        param (
+            [parameter(Mandatory)]
+            [string]$FilePath
+        )
+                
+        if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
+            Write-Verbose "Remove file '$FilePath'"
+            Remove-Item -Path $FilePath -ErrorAction Ignore
+        }
+    }
 
     try {
         $eventLogData.Add(
@@ -229,29 +240,6 @@ begin {
 
         if (-not $PSSessionConfiguration) {
             $PSSessionConfiguration = 'PowerShell.7'
-        }
-        #endregion
-
-        #region Test Export parameters
-        if ($Export.FolderPath) {
-            $isExportFolderPathExisting = 
-            Test-Path -LiteralPath $Export.FolderPath -PathType Container
-
-            if (-not $isExportFolderPathExisting) {
-                throw "Export folder '$($Export.FolderPath)' not found"
-            }
-
-            @(
-                'AdObjects',
-                'FormData',
-                'AccessList',
-                'GroupManagers',
-                'ExcelOverview'
-            ).Where( 
-                { -not ($Export.FileName[$_]) }
-            ).foreach( {
-                    throw "Property 'Export.FileName.$_' is mandatory when the parameter Export.FolderPath is used."
-                })
         }
         #endregion
 
@@ -613,7 +601,7 @@ process {
             }
         }
 
-        if ($importedMatrix) {
+        if ($importedMatrix -and (-not $systemErrors)) {
             #region Build FormData for Export folder
             foreach ($I in ($importedMatrix.Where( { $_.FormData.Import }))) {
                 try {
@@ -1061,7 +1049,7 @@ end {
         }
         #endregion
 
-        #region Create matrix log file name
+        #region Get matrix log file name
         $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
             '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
             $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
@@ -1070,41 +1058,40 @@ end {
         #endregion
 
         if (-not $systemErrors) {
-            $dataToExport = @{}
-
-            foreach (
-                $property in 
-                $Export.FileName.PSObject.Properties | Where-Object {
-                    $_.Name -ne 'Overview'
-                }
+            if (
+                $Export.FormDataExcelFile -and
+                $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
             ) {
-                #region Create data to export hashtable
-                $dataToExport[$property.Name] = @{
-                    LogFilePath    = "$matrixLogFile - AllMatrix - $($property.Value)"
-                    ExportFilePath = Join-Path $Export.FolderPath $property.Value
-                    ExportFileName = $property.Value
-                    Data           = @()
-                }
-                #endregion
-            
-                #region Remove old exported log files
-                $fileToRemove = $dataToExport[$property.Name].LogFilePath
-                    
-                if (Test-Path $fileToRemove) {
-                    Write-Verbose "Remove file '$fileToRemove'"
-                    Remove-Item -Path $fileToRemove -ErrorAction Ignore
-                }
-                #endregion
+                Remove-FileHC -FilePath $Export.FormDataExcelFile
+                        
+              
+            }
+            if ($Export.OverviewHtmlFile) {
+                Remove-FileHC -FilePath $Export.OverviewHtmlFile
+                
+            }
+            if ($Export.PermissionsExcelFile) {
+                Remove-FileHC -FilePath $Export.PermissionsExcelFile
+                
             }
 
-            $isExportToFolder = (
-                $importedMatrix -and $Export.FolderPath -and 
-                $isExportFolderPathExisting -and
-                ($importedMatrix.FormData.Check.Type -notcontains 'FatalError')
-            )
+            # @(
+            #     'AdObjects',
+            #     'FormData',
+            #     'AccessList',
+            #     'GroupManagers',
+            #     'ExcelOverview'
+            # )
+
+            $dataToExport = @{
+                AccessList    = @()
+                AdObjects     = @()
+                FormData      = @()
+                GroupManagers = @()
+            }
 
             if ($importedMatrix) {
-                #region Crate export data and export to matrix Excel log file
+                #region Export to Excel log file and collect all matrix data
                 foreach ($I in $importedMatrix) {
                     $excelParams = @{
                         Path               = $I.File.SaveFullName
@@ -1114,7 +1101,7 @@ end {
                         NoNumberConversion = '*'
                     }
                 
-                    #region Get unique SamAccountNames for all matrix in Settings
+                    #region Get SamAccountNames for rows Settings sheet
                     $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName |
                     Select-Object -Property @{
                         Name       = 'name'
@@ -1163,7 +1150,8 @@ end {
 
                     if ($accessListToExport) {
                         #region Export to Excel
-                        $excelParams.WorksheetName = $excelParams.TableName = 'AccessList'
+                        $excelParams.WorksheetName = 'AccessList'
+                        $excelParams.TableName = 'AccessList'
               
                         $eventLogData.Add(
                             [PSCustomObject]@{
@@ -1179,13 +1167,11 @@ end {
                         #endregion
 
                         #region Add to export
-                        if ($isExportToFolder) {
-                            $dataToExport['AccessList'].Data += $accessListToExport |
-                            Select-Object @{
-                                Name       = 'MatrixFileName'
-                                Expression = { $I.File.Item.BaseName }
-                            }, *
-                        }
+                        $dataToExport['AccessList'].Data += $accessListToExport |
+                        Select-Object @{
+                            Name       = 'MatrixFileName'
+                            Expression = { $I.File.Item.BaseName }
+                        }, *
                         #endregion
                     }
                     #endregion
@@ -1236,7 +1222,8 @@ end {
 
                     if ($groupManagersToExport) {
                         #region Export to Excel
-                        $excelParams.WorksheetName = $excelParams.TableName = 'GroupManagers'
+                        $excelParams.WorksheetName = 'GroupManagers'
+                        $excelParams.TableName = 'GroupManagers'
 
                         $eventLogData.Add(
                             [PSCustomObject]@{
@@ -1252,42 +1239,49 @@ end {
                         #endregion
 
                         #region Add to export
-                        if ($isExportToFolder) {
-                            $dataToExport['GroupManagers'].Data += $groupManagersToExport |
-                            Select-Object @{
-                                Name       = 'MatrixFileName'
-                                Expression = { $I.File.Item.BaseName }
-                            }, *
-                        }
+                        $dataToExport['GroupManagers'].Data += $groupManagersToExport |
+                        Select-Object @{
+                            Name       = 'MatrixFileName'
+                            Expression = { $I.File.Item.BaseName }
+                        }, *
                         #endregion
                     }
                     #endregion
 
-                    #region AdObjectNames and FormData
-                    if ($isExportToFolder) {
-                        $adObjects = foreach (
-                            $S in
-                            $I.Settings.Where( { $_.AdObjects.Count -ne 0 })
-                        ) {
-                            foreach ($A in ($S.AdObjects.GetEnumerator())) {
-                                [PSCustomObject]@{
-                                    MatrixFileName = $I.File.Item.BaseName
-                                    SamAccountName = $A.Value.SamAccountName
-                                    GroupName      = $A.Value.Converted.Begin
-                                    SiteCode       = $A.Value.Converted.Middle
-                                    Name           = $A.Value.Converted.End
-                                }
+                    #region AdObjects
+                    $adObjects = foreach (
+                        $S in
+                        $I.Settings.Where( { $_.AdObjects.Count -ne 0 })
+                    ) {
+                        foreach ($A in ($S.AdObjects.GetEnumerator())) {
+                            [PSCustomObject]@{
+                                MatrixFileName = $I.File.Item.BaseName
+                                SamAccountName = $A.Value.SamAccountName
+                                GroupName      = $A.Value.Converted.Begin
+                                SiteCode       = $A.Value.Converted.Middle
+                                Name           = $A.Value.Converted.End
                             }
                         }
-
-                        if ($adObjects) {
-                            $dataToExport['FormData'].Data += $I.FormData.Import
-
-                            $dataToExport['AdObjects'].Data += $adObjects |
-                            Group-Object SamAccountName |
-                            ForEach-Object { $_.Group[0] }
-                        }
                     }
+
+                    if ($adObjects) {
+                        #region Export to Excel
+                        $excelParams.WorksheetName = 'AdObjects'
+                        $excelParams.TableName = 'AdObjects'
+                        
+                        $AdObjects | Export-Excel @ExportParams
+                        #endregion
+
+                        #region Add to export
+                        $dataToExport['AdObjects'].Data += $adObjects |
+                        Group-Object SamAccountName |
+                        ForEach-Object { $_.Group[0] }
+                        #endregion
+                    }
+                    #endregion
+
+                    #region FormData
+                    $dataToExport['FormData'].Data += $I.FormData.Import                    
                     #endregion
                 }
                 #endregion
