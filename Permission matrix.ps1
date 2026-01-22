@@ -1043,14 +1043,6 @@ process {
 
         Write-Warning $systemErrors[-1].Message
     }
-    finally {
-        if ($psSessions.Values.Session) {
-            # Only close PS Sessions and not the WinPSCompatSession
-            # used by Write-EventLog
-            # https://github.com/PowerShell/PowerShell/issues/24227
-            $psSessions.Values.Session | Remove-PSSession -EA Ignore
-        }
-    }
 }
 
 end {
