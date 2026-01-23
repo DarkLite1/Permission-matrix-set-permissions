@@ -1345,23 +1345,55 @@ end {
                 #endregion
 
                 if (
-                    $Export.FormDataExcelFile -and
+                    $dataToExport['FormData'] -and
                     $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
                 ) {
-                    Remove-FileHC -FilePath $Export.FormDataExcelFile
-                        
+                    if ($Export.FormDataExcelFile) {
+                        Remove-FileHC -FilePath $Export.FormDataExcelFile
               
-                }
-                if ($Export.OverviewHtmlFile) {
-                    Remove-FileHC -FilePath $Export.OverviewHtmlFile
+                        #region Start ServiceNow FormData upload
+                        if (
+                            $ServiceNow.CredentialsFilePath -and
+                            $ServiceNow.Environment -and
+                            $ServiceNow.TableName -and
+                            $dataToExport['FormData'].ExportFilePath
+                        ) {
+                            try {
+                                $params = @{
+                                    CredentialsFilePath = $ServiceNow.CredentialsFilePath
+                                    Environment         = $ServiceNow.Environment
+                                    TableName           = $ServiceNow.TableName
+                                    FormDataFile        = $dataToExport['FormData'].ExportFilePath
+                                }
+                                & $scriptPathItem.UpdateServiceNow @params
+                            }
+                            catch {
+                                $systemErrors.Add(
+                                    [PSCustomObject]@{
+                                        DateTime = Get-Date
+                                        Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                                    }
+                                )
+
+                                Write-Warning $systemErrors[-1].Message
+                            }
+                        }
+                        else {
+                            $systemErrors.Add(
+                                [PSCustomObject]@{
+                                    DateTime = Get-Date
+                                    Message  = 'Parameter missing to upload data to ServiceNow'
+                                }
+                            )
+
+                            Write-Warning $systemErrors[-1].Message
+                        }
+                        #endregion
+                    }
+                    if ($Export.OverviewHtmlFile) {
+                        Remove-FileHC -FilePath $Export.OverviewHtmlFile
                 
-                }
-
-    
-
-                if ($dataToExport['FormData']) {
-                    #region Export FormData to HTML file
-                    if ($Export.FileName.Overview.HtmlMatrixOverview) {
+                        #region Export FormData to HTML file
                         try {
                             $htmlFileContent = @(
                                 @'
@@ -1525,15 +1557,15 @@ end {
 
                             $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
 
-                            $joinParams = @{
-                                Path      = $Export.FolderPath
-                                ChildPath = $Export.FileName.Overview.HtmlMatrixOverview
+                            $params = @{
+                                LiteralPath = $Export.OverviewHtmlFile 
+                                Encoding    = 'utf8'
+                                Force       = $true
                             }
-                            $htmlFilePath = Join-Path @joinParams
 
                             $eventLogData.Add(
                                 [PSCustomObject]@{
-                                    Message   = "Export FormData to '$htmlFilePath'"
+                                    Message   = "Export FormData to '$($params.LiteralPath)'"
                                     DateTime  = Get-Date
                                     EntryType = 'Information'
                                     EventID   = '1'
@@ -1541,59 +1573,20 @@ end {
                             )
                             Write-Verbose $eventLogData[-1].Message
 
-                            $htmlFileContent | Out-File -LiteralPath $htmlFilePath -Encoding utf8 -Force
+                            $htmlFileContent | Out-File @params
                         }
                         catch {
                             $systemErrors.Add(
                                 [PSCustomObject]@{
                                     DateTime = Get-Date
-                                    Message  = "Failed to export FormData to HTML file '$htmlFilePath': $_"
+                                    Message  = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
                                 }
                             )
 
                             Write-Warning $systemErrors[-1].Message
                         }
+                        #endregion
                     }
-                    #endregion
-
-                    #region Start ServiceNow FormData upload
-                    if (
-                        $ServiceNow.CredentialsFilePath -and
-                        $ServiceNow.Environment -and
-                        $ServiceNow.TableName -and
-                        $dataToExport['FormData'].ExportFilePath
-                    ) {
-                        try {
-                            $params = @{
-                                CredentialsFilePath = $ServiceNow.CredentialsFilePath
-                                Environment         = $ServiceNow.Environment
-                                TableName           = $ServiceNow.TableName
-                                FormDataFile        = $dataToExport['FormData'].ExportFilePath
-                            }
-                            & $scriptPathItem.UpdateServiceNow @params
-                        }
-                        catch {
-                            $systemErrors.Add(
-                                [PSCustomObject]@{
-                                    DateTime = Get-Date
-                                    Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
-                                }
-                            )
-
-                            Write-Warning $systemErrors[-1].Message
-                        }
-                    }
-                    else {
-                        $systemErrors.Add(
-                            [PSCustomObject]@{
-                                DateTime = Get-Date
-                                Message  = 'Parameter missing to upload data to ServiceNow'
-                            }
-                        )
-
-                        Write-Warning $systemErrors[-1].Message
-                    }
-                    #endregion
                 }
 
                 #region HTML <style> for Mail and Settings
