@@ -1074,7 +1074,7 @@ end {
             }
 
             if ($importedMatrix) {
-                #region Export to Excel log file and collect all matrix data
+                #region Create sheets in Excel log file and collect data
                 foreach ($I in $importedMatrix) {
                     $excelParams = @{
                         Path               = $I.File.SaveFullName
@@ -1269,20 +1269,7 @@ end {
                 }
                 #endregion
 
-                if (
-                    $Export.FormDataExcelFile -and
-                    $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
-                ) {
-                    Remove-FileHC -FilePath $Export.FormDataExcelFile
-                        
-              
-                }
-                if ($Export.OverviewHtmlFile) {
-                    Remove-FileHC -FilePath $Export.OverviewHtmlFile
-                
-                }
-
-                #region Export Permissions to Excel files
+                #region Create Permissions Excel files
                 if ($Export.PermissionsExcelFile) {
                     Remove-FileHC -FilePath $Export.PermissionsExcelFile
 
@@ -1356,6 +1343,21 @@ end {
                     #endregion
                 }
                 #endregion
+
+                if (
+                    $Export.FormDataExcelFile -and
+                    $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
+                ) {
+                    Remove-FileHC -FilePath $Export.FormDataExcelFile
+                        
+              
+                }
+                if ($Export.OverviewHtmlFile) {
+                    Remove-FileHC -FilePath $Export.OverviewHtmlFile
+                
+                }
+
+    
 
                 if ($dataToExport['FormData']) {
                     #region Export FormData to HTML file
