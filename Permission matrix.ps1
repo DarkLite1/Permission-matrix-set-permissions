@@ -1525,19 +1525,21 @@ end {
   }
 </style>
 '@,
-                                '<h1>Matrix files overview</h1>'
+                                '<h1>Matrix files overview</h1>',
+                                '<table>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Subcategory</th>
+                                        <th>Folder</th>
+                                        <th>Link to the matrix</th>
+                                        <th>Responsible</th>
+                                    </tr>'
                             )
 
-                            $htmlMatrixTableRows = '<tr>
-                        <th>Category</th>
-                        <th>Subcategory</th>
-                        <th>Folder</th>
-                        <th>Link to the matrix</th>
-                        <th>Responsible</th>
-                    </tr>'
-
-                            $htmlMatrixTableRows += $dataToExport['FormData'] | 
-                            Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' | 
+                            $htmlFileContent += $dataToExport['FormData'] | 
+                            Sort-Object -Property 'MatrixCategoryName', 
+                            'MatrixSubCategoryName', 
+                            'MatrixFolderDisplayName' | 
                             ForEach-Object {
                                 $emailsMatrixResponsible = foreach (
                                     $email in
@@ -1547,15 +1549,15 @@ end {
                                 }
 
                                 "<tr>
-                                <td>$($_.MatrixCategoryName)</td>
-                                <td>$($_.MatrixSubCategoryName)</td>
-                                <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
-                                <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
-                                <td>$emailsMatrixResponsible</td>
-                            </tr>"
+                                    <td>$($_.MatrixCategoryName)</td>
+                                    <td>$($_.MatrixSubCategoryName)</td>
+                                    <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
+                                    <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
+                                    <td>$emailsMatrixResponsible</td>
+                                </tr>"
                             }
 
-                            $htmlFileContent += "<table>$htmlMatrixTableRows</table>"
+                            $htmlFileContent += '</table>'
 
                             $params = @{
                                 LiteralPath = $Export.OverviewHtmlFile 
