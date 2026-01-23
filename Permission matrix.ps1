@@ -1355,21 +1355,62 @@ end {
                     if ($Export.FormDataExcelFile) {
                         Remove-FileHC -FilePath $Export.FormDataExcelFile
 
-                        $exportedFiles['FormDataExcelFile'] = $Export.FormDataExcelFile
+                        #region Create objects for ServiceNow
+                        Write-Verbose 'Create objects for ServiceNow form'
+
+                        $serviceNowFormData = foreach (
+                            $adObjectName in 
+                            $dataToExport.AdObjects
+                        ) {
+    
+                            $formData = $dataToExport.FormData.Where(
+                                { 
+                                    $adObjectName.MatrixFileName -eq $_.MatrixFileName
+                                }, 'first'
+                            )
+    
+                            if ((-not $formData) -or ($formData.MatrixFormStatus -ne 'Enabled')) {
+                                continue
+                            }
+
+                            $adObjectName | ForEach-Object {
+                                @{
+                                    u_matrixcategoryname    = $formData.MatrixCategoryName
+                                    u_matrixsubcategoryname = $formData.MatrixSubCategoryName
+                                    u_matrixfilename        = $_.MatrixFileName
+                                    u_matrixresponsible     = $formData.MatrixResponsible
+                                    u_matrixfolderpath      = $formData.MatrixFolderPath 
+                                    u_adobjectname          = $_.SamAccountName
+                                }
+                            }
+                        }
+                        #endregion
+
+                        #region Export to Excel
+                        $params = @{
+                            Path         = $Export.FormDataExcelFile
+                            AutoSize     = $true
+                            FreezeTopRow = $true
+                        }
+
+                        $serviceNowFormData | Export-Excel @params
+                        #endregion
+
+                        $exportedFiles['FormDataExcelFile'] = $params.Path
               
                         #region Start ServiceNow FormData upload
                         if (
                             $ServiceNow.CredentialsFilePath -and
                             $ServiceNow.Environment -and
                             $ServiceNow.TableName -and
-                            $dataToExport['FormData'].ExportFilePath
+                            $serviceNowFormData
                         ) {
                             try {
                                 $params = @{
                                     CredentialsFilePath = $ServiceNow.CredentialsFilePath
                                     Environment         = $ServiceNow.Environment
                                     TableName           = $ServiceNow.TableName
-                                    FormDataFile        = $dataToExport['FormData'].ExportFilePath
+                                    FormDataFile        = $params.Path
                                 }
                                 & $scriptPathItem.UpdateServiceNow @params
                             }
