@@ -1269,6 +1269,8 @@ end {
                 }
                 #endregion
 
+                $exportedFiles = @{}
+
                 #region Create Permissions Excel files
                 if ($Export.PermissionsExcelFile) {
                     Remove-FileHC -FilePath $Export.PermissionsExcelFile
@@ -1341,6 +1343,8 @@ end {
                         Copy-Item @copyParams
                     }
                     #endregion
+
+                    $exportedFiles['PermissionsExcelFile'] = $Export.PermissionsExcelFile
                 }
                 #endregion
 
@@ -1350,6 +1354,8 @@ end {
                 ) {
                     if ($Export.FormDataExcelFile) {
                         Remove-FileHC -FilePath $Export.FormDataExcelFile
+
+                        $exportedFiles['FormDataExcelFile'] = $Export.FormDataExcelFile
               
                         #region Start ServiceNow FormData upload
                         if (
@@ -1588,6 +1594,8 @@ end {
                             Write-Warning $systemErrors[-1].Message
                         }
                         #endregion
+
+                        $exportedFiles['OverviewHtmlFile'] = $Export.OverviewHtmlFile
                     }
                 }
 
@@ -2102,32 +2110,18 @@ end {
                 )
                 #endregion
 
-                $htmlFormData = if ($Export.FolderPath) {
-                    @"
-            <p><b>Export to <a href="$($Export.FolderPath)">folder</a>:</b></p>
-            <table id="overviewTable">
-            $(
-                $dataToExport.GetEnumerator() | ForEach-Object {
-                    $data = $_.Value.Data
-                    $exportFilePath = $_.Value.ExportFilePath
-                    $exportFileName = $_.Value.ExportFileName   
+                $htmlExportFiles = @()
 
-                    "<tr>
-                        <th><a href=`"$exportFilePath`">$exportFileName</a></th>
-                        <td>$($data.count)</td>
-                    </tr>"
-                }
-            )
-            </table>
+                $htmlExportFiles = if ($exportedFiles.Count) {
+                    @"
+            <p><b>Exported $($exportedFiles.Count) files:</b></p>
+            <ul>
             $(
-                if (
-                    ($permissionsExcelLogFileParams.Path) -and
-                    (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path)
-                ) {
-                    "<p><i>* Check the <a href=`"$($permissionsExcelLogFileParams.Path)`">Excel overview</a> for details.</i></p>"
+                $exportedFiles.GetEnumerator() | ForEach-Object {
+                    "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
                 }
             )
-            <hr style="width:50%;text-align:left;margin-left:0">
+            </ul>
 "@
                 }
 
@@ -2164,7 +2158,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 $htmlMail = @"
                 $htmlStyle
                 $htmlErrorWarningTable
-                $htmlFormData
+                $htmlExportFiles
                 <p><b>Matrix results per file:</b></p>
                 $htmlMatrixTables
                 $htmlLegend
