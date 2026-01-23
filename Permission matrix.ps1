@@ -2110,8 +2110,6 @@ end {
                 )
                 #endregion
 
-                $htmlExportFiles = @()
-
                 $htmlExportFiles = if ($exportedFiles.Count) {
                     @"
             <p><b>Exported $($exportedFiles.Count) files:</b></p>
