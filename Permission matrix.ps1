@@ -1074,7 +1074,7 @@ end {
             }
 
             if ($importedMatrix) {
-                #region Create sheets in Excel log file and collect data
+                #region Add sheets to Matrix log file and collect data
                 foreach ($I in $importedMatrix) {
                     $excelParams = @{
                         Path               = $I.File.SaveFullName
