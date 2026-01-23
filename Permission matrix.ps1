@@ -2124,7 +2124,6 @@ end {
             </ul>
 "@
                 }
-
         
                 $htmlErrorWarningTable = if ($counter.Total.Errors + $counter.Total.Warnings) {
                     @"
