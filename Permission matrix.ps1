@@ -598,10 +598,12 @@ process {
                 )
 
                 Write-Warning $systemErrors[-1].Message
+
+                return
             }
         }
 
-        if ($importedMatrix -and (-not $systemErrors)) {
+        if ($importedMatrix) {
             #region Build FormData for Export folder
             foreach ($I in ($importedMatrix.Where( { $_.FormData.Import }))) {
                 try {
