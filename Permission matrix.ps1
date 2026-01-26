@@ -1046,28 +1046,36 @@ end {
 
         #region Get script name
         if (-not $scriptName) {
-            Write-Warning "No 'Settings.ScriptName' found in import file."
+            $systemErrors.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Input file '$ConfigurationJsonFile': No 'Settings.ScriptName' found."
+                }
+            )
+
+            Write-Warning $systemErrors[-1].Message
+
             $scriptName = 'Default script name'
         }
         #endregion
 
-        #region Get matrix log file name
-        $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
-            '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
-            $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
-            $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
-        )
-        #endregion
-
         if (-not $systemErrors) {
-            $dataToExport = @{
-                AccessList    = @()
-                AdObjects     = @()
-                FormData      = @()
-                GroupManagers = @()
-            }
-
             if ($importedMatrix) {
+                $dataToExport = @{
+                    AccessList    = @()
+                    AdObjects     = @()
+                    FormData      = @()
+                    GroupManagers = @()
+                }
+
+                #region Get matrix log file name
+                $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
+                    '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
+                    $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
+                    $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
+                )
+                #endregion
+
                 #region Add sheets to Matrix log files and collect data
                 foreach ($I in $importedMatrix) {
                     $excelParams = @{
