@@ -13,19 +13,7 @@
   "Export": {
     "FormDataExcelFile": "C:\\ServiceNow\\FromData.xlsx",
     "OverviewHtmlFile": "C:\\reports\\Overview.html",
-    "PermissionsExcelFile": "C:\\reports\\Permissions.xlsx",
-
-    "FolderPath": "C:\\ServiceNow",
-    "FileName": {
-      "AdObjects": "AdObjectNames.csv",
-      "FormData": "FormData.csv",
-      "GroupManagers": "GroupManagers.csv",
-      "AccessList": "AccessList.csv",
-      "Overview": {
-        "ExcelExportOverview": "ExportOverview.xlsx",
-        "HtmlMatrixOverview": "MatrixOverview.html"
-      }
-    }
+    "PermissionsExcelFile": "C:\\reports\\Permissions.xlsx"
   },
   "ServiceNow": {
     "CredentialsFilePath": "C:\\PasswordsServiceNow.json",
