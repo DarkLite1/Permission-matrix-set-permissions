@@ -1058,14 +1058,6 @@ end {
         #endregion
 
         if (-not $systemErrors) {
-            # @(
-            #     'AdObjects',
-            #     'FormData',
-            #     'AccessList',
-            #     'GroupManagers',
-            #     'ExcelOverview'
-            # )
-
             $dataToExport = @{
                 AccessList    = @()
                 AdObjects     = @()
