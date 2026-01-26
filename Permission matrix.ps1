@@ -477,7 +477,7 @@ process {
                         #endregion
 
                         #region Import sheet FormData
-                        if ($Export.FormDataExcelFile) {
+                        if ($Export.ServiceNowFormDataExcelFile) {
                             try {
                                 $eventLogData.Add(
                                     [PSCustomObject]@{
@@ -501,7 +501,7 @@ process {
                                 $Obj.File.Check += [PSCustomObject]@{
                                     Type        = 'FatalError'
                                     Name        = "Worksheet 'FormData' not found"
-                                    Description = "When the argument 'Export.FormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
+                                    Description = "When the argument 'Export.ServiceNowFormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
                                     Value       = @($_)
                                 }
                                 # remove multiple errors from Import-Excel
@@ -1344,8 +1344,8 @@ end {
                     $dataToExport['FormData'] -and
                     $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
                 ) {
-                    if ($Export.FormDataExcelFile) {
-                        Remove-FileHC -FilePath $Export.FormDataExcelFile
+                    if ($Export.ServiceNowFormDataExcelFile) {
+                        Remove-FileHC -FilePath $Export.ServiceNowFormDataExcelFile
 
                         #region Create objects for ServiceNow
                         Write-Verbose 'Create objects for ServiceNow form'
@@ -1380,7 +1380,7 @@ end {
 
                         #region Export to Excel
                         $params = @{
-                            Path         = $Export.FormDataExcelFile
+                            Path         = $Export.ServiceNowFormDataExcelFile
                             AutoSize     = $true
                             FreezeTopRow = $true
                         }
@@ -1388,7 +1388,7 @@ end {
                         $serviceNowFormData | Export-Excel @params
                         #endregion
 
-                        $exportedFiles['FormDataExcelFile'] = $params.Path
+                        $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
               
                         #region Start ServiceNow FormData upload
                         if (

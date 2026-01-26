@@ -11,7 +11,7 @@
     "ExcludedSamAccountName": ["cnorris"]
   },
   "Export": {
-    "FormDataExcelFile": "C:\\ServiceNow\\FromData.xlsx",
+    "ServiceNowFormDataExcelFile": "C:\\ServiceNow\\FromData.xlsx",
     "OverviewHtmlFile": "C:\\reports\\Overview.html",
     "PermissionsExcelFile": "C:\\reports\\Permissions.xlsx"
   },
