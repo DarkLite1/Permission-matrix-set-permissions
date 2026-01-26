@@ -477,7 +477,7 @@ process {
                         #endregion
 
                         #region Import sheet FormData
-                        if ($Export.FolderPath) {
+                        if ($Export.FormDataExcelFile) {
                             try {
                                 $eventLogData.Add(
                                     [PSCustomObject]@{
@@ -501,7 +501,7 @@ process {
                                 $Obj.File.Check += [PSCustomObject]@{
                                     Type        = 'FatalError'
                                     Name        = "Worksheet 'FormData' not found"
-                                    Description = "When the argument 'Export.FolderPath' is used the Excel file needs to have a worksheet 'FormData'."
+                                    Description = "When the argument 'Export.FormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
                                     Value       = @($_)
                                 }
                                 # remove multiple errors from Import-Excel
