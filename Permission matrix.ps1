@@ -63,7 +63,7 @@ begin {
         }
     }
     function Get-HTNLidTagProbTypeHC {
-        [OutputType([String[]])]
+        [OutputType([String])]
         param (
             [Parameter(Mandatory)]
             [String]$Name
@@ -2381,21 +2381,22 @@ end {
 '@
 
                         foreach ($F in $I.File.Check) {
-                            $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
-
-                            $ProbValue = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( { "<li>$_</li>" })
-                                '</ul>'
+                            $problem = @{
+                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details = if ($F.Value) {
+                                    '<ul>'
+                                    @($F.Value).ForEach( { "<li>$_</li>" })
+                                    '</ul>'
+                                }
                             }
 
                             @"
                         <tr>
-                            <td id="$ProbType"></td>
+                            <td id="$($problem.Type)"></td>
                             <td colspan="7">
                                 <p id="probTitle">$($F.Name)</p>
                                 <p>$($F.Description)</p>
-                                $ProbValue
+                                $($problem.Details)
                             </td>
                         </tr>
 "@
@@ -2410,21 +2411,22 @@ end {
 '@
 
                         foreach ($F in $I.FormData.Check) {
-                            $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
-
-                            $ProbValue = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( { "<li>$_</li>" })
-                                '</ul>'
+                            $problem = @{
+                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details = if ($F.Value) {
+                                    '<ul>'
+                                    @($F.Value).ForEach( { "<li>$_</li>" })
+                                    '</ul>'
+                                }
                             }
 
                             @"
                         <tr>
-                            <td id="$ProbType"></td>
+                            <td id="$($problem.Type)"></td>
                             <td colspan="7">
                                 <p id="probTitle">$($F.Name)</p>
                                 <p>$($F.Description)</p>
-                                $ProbValue
+                                $($problem.Details)
                             </td>
                         </tr>
 "@
@@ -2439,23 +2441,22 @@ end {
 '@
 
                         foreach ($F in $I.Permissions.Check) {
-                            $ProbType = Get-HTNLidTagProbTypeHC -Name $F.Type
-
-                            $ProbValue = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( {
-                                        "<li>$_</li>"
-                                    })
-                                '</ul>'
+                            $problem = @{
+                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details = if ($F.Value) {
+                                    '<ul>'
+                                    @($F.Value).ForEach( { "<li>$_</li>" })
+                                    '</ul>'
+                                }
                             }
 
                             @"
                         <tr>
-                            <td id="$ProbType"></td>
+                            <td id="$($problem.Type)"></td>
                             <td colspan="7">
                                 <p id="probTitle">$($F.Name)</p>
                                 <p>$($F.Description)</p>
-                                $ProbValue
+                                $($problem.Details)
                             </td>
                         </tr>
 "@
@@ -2486,8 +2487,10 @@ end {
                         $html.Mail.SettingsTable = $html.Mail.SettingsHeader
 
                         foreach ($S in $I.Settings) {
+                            $problem = @{}
+
                             #region Get problem color
-                            $ProbType = if ($S.Check.Type -contains 'FatalError') {
+                            $problem.Type = if ($S.Check.Type -contains 'FatalError') {
                                 Get-HTNLidTagProbTypeHC -Name 'FatalError'
                             }
                             elseif ($S.Check.Type -contains 'Warning') {
@@ -2626,7 +2629,7 @@ end {
                                 </tr>
                                 $($html.Mail.SettingsHeader)
                                 <tr>
-                                    <td id="$ProbType"></td>
+                                    <td id="$($problem.Type)"></td>
                                     <td>$($S.ID)</td>
                                     <td>$($S.Import.ComputerName)</td>
                                     <td>$($S.Import.Path)</td>
@@ -2697,7 +2700,7 @@ end {
 
                             $html.Mail.SettingsTable += "
                         <tr>
-                            <td id=`"$ProbType`"></td>
+                            <td id=`"$($problem.Type)`"></td>
                             <td><a href=`"{0}`">$($S.ID)</a></td>
                             <td><a href=`"{0}`">$($S.Import.ComputerName)</a></td>
                             <td><a href=`"{0}`">$($S.Import.Path)</a></td>
