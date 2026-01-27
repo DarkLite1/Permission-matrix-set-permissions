@@ -2375,9 +2375,7 @@ end {
                 $htmlMatrixTables = foreach ($I in $importedMatrix) {
                     #region HTML File
                     $FileCheck = if ($I.File.Check) {
-                        @'
-                    <th id="matrixHeader" colspan="8">File</th>
-'@
+                        '<th id="matrixHeader" colspan="8">File</th>'
 
                         foreach ($F in $I.File.Check) {
                             $problem = @{
