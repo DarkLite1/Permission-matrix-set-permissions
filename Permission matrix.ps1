@@ -2405,9 +2405,7 @@ end {
 
                     #region HTML FormData
                     $FormDataCheck = if ($I.FormData.Check) {
-                        @'
-                    <th id="matrixHeader" colspan="8">FormData</th>
-'@
+                        '<th id="matrixHeader" colspan="8">FormData</th>'
 
                         foreach ($F in $I.FormData.Check) {
                             $problem = @{
