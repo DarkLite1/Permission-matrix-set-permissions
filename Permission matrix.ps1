@@ -2471,7 +2471,7 @@ end {
                         ($I.File.Check.Type -notcontains 'FatalError') -and
                         ($I.Permissions.Check.Type -notcontains 'FatalError')
                     ) {
-                        $HtmlSettingsHeader = @'
+                        $html.Mail.SettingsHeader = @'
                     <th id="matrixHeader" colspan="8">Settings</th>
                     <tr>
                         <td></td>
@@ -2483,7 +2483,7 @@ end {
                     </tr>
 '@
 
-                        $html.Mail.SettingsTable = $HtmlSettingsHeader
+                        $html.Mail.SettingsTable = $html.Mail.SettingsHeader
 
                         foreach ($S in $I.Settings) {
                             #region Get problem color
@@ -2501,7 +2501,7 @@ end {
                             #region HTML Settings Create tables
                             $html.MatrixLogFile = @{}
 
-                            $SettingsDetailFatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
+                            $html.MatrixLogFile.FatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
                                 $htmlValue = ConvertTo-HtmlValueHC
                                 @"
                             <tr>
@@ -2515,7 +2515,7 @@ end {
 "@
                             }
 
-                            $SettingsDetailWarning = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Warning' })) {
+                            $html.MatrixLogFile.Warning = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Warning' })) {
                                 $htmlValue = ConvertTo-HtmlValueHC
                                 @"
                             <tr>
@@ -2529,7 +2529,7 @@ end {
 "@
                             }
 
-                            $SettingsDetailInfo = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Information' })) {
+                            $html.MatrixLogFile.Info = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Information' })) {
                                 $htmlValue = ConvertTo-HtmlValueHC
                                 @"
                             <tr>
@@ -2624,7 +2624,7 @@ end {
                                 <tr>
                                     <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
                                 </tr>
-                                $HtmlSettingsHeader
+                                $($html.Mail.SettingsHeader)
                                 <tr>
                                     <td id="$ProbType"></td>
                                     <td>$($S.ID)</td>
@@ -2634,9 +2634,9 @@ end {
                                     <td>$(if($D = $S.JobTime.Duration){ '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds}else{'NA'})</td>
                                 </tr>
 
-                                $(if ($SettingsDetailFatalError) {'<th id="matrixHeader" colspan="8">Error</th>' + $SettingsDetailFatalError})
-                                $(if ($SettingsDetailWarning) {'<th id="matrixHeader" colspan="8">Warning</th>' + $SettingsDetailWarning})
-                                $(if ($SettingsDetailInfo) {'<th id="matrixHeader" colspan="8">Information</th>' + $SettingsDetailInfo})
+                                $(if ($html.MatrixLogFile.FatalError) {'<th id="matrixHeader" colspan="8">Error</th>' + $html.MatrixLogFile.FatalError})
+                                $(if ($html.MatrixLogFile.Warning) {'<th id="matrixHeader" colspan="8">Warning</th>' + $html.MatrixLogFile.Warning})
+                                $(if ($html.MatrixLogFile.Info) {'<th id="matrixHeader" colspan="8">Information</th>' + $html.MatrixLogFile.Info})
 
                                 </table>
                                 <br>
