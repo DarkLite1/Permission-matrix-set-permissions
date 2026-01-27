@@ -2361,15 +2361,14 @@ end {
                     }
                 </style>'
 
-                $html.LegendTable = @'
-<table id="LegendTable">
-    <tr>
-        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
-        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
-        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
-    </tr>
-</table>
-'@
+                $html.LegendTable = '
+                <table id="LegendTable">
+                    <tr>
+                        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
+                        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
+                        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
+                    </tr>
+                </table>'
                 #endregion
 
                 #region HTML Mail overview & Settings detail
@@ -2557,7 +2556,7 @@ end {
                             #endregion
 
                             #region HTML Settings Create file
-                            $html.MatrixLogFile.Table  =
+                            $html.MatrixLogFile.Table =
                             '<!DOCTYPE html>
                             <html>
                             <head>
