@@ -2631,7 +2631,14 @@ end {
                                     <td>$($S.Import.ComputerName)</td>
                                     <td>$($S.Import.Path)</td>
                                     <td>$($S.Import.Action)</td>
-                                    <td>$(if($D = $S.JobTime.Duration){ '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds}else{'NA'})</td>
+                                    <td>$(
+                                        if($D = $S.JobTime.Duration) {
+                                            '{0:00}:{1:00}:{2:00}' -f 
+                                            $D.Hours, $D.Minutes, $D.Seconds
+                                        }
+                                        else{'NA'}
+                                        )
+                                    </td>
                                 </tr>
 
                                 $(if ($html.MatrixLogFile.FatalError) {'<th id="matrixHeader" colspan="8">Error</th>' + $html.MatrixLogFile.FatalError})
@@ -2700,7 +2707,8 @@ end {
                             $($matrixLogFileParams.FilePath), 
                             $(
                                 if ($D = $S.JobTime.Duration) {
-                                    '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds
+                                    '{0:00}:{1:00}:{2:00}' -f
+                                    $D.Hours, $D.Minutes, $D.Seconds
                                 }
                                 else { 'NA' })
                         }
