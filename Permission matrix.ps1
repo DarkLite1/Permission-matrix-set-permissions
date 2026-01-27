@@ -1687,7 +1687,7 @@ end {
                 }
 
                 #region Get matrix log file name
-                $matrixLogFile = Join-Path -Path $LogFolder -ChildPath (
+                $matrixLogFileBasePath = Join-Path -Path $LogFolder -ChildPath (
                     '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
                     $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
                     $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
@@ -1897,7 +1897,7 @@ end {
 
                     #region Add sheets to Permissions log file
                     $permissionsExcelLogFileParams = @{
-                        Path         = "$matrixLogFile - AllMatrix - Permissions.xlsx"
+                        Path         = "$matrixLogFileBasePath - AllMatrix - Permissions.xlsx"
                         AutoSize     = $true
                         FreezeTopRow = $true
                     }
@@ -2262,10 +2262,10 @@ end {
                 }
                 #endregion
 
+                $html = @{}
+
                 #region HTML Style and table legend
                 Write-Verbose 'Format HTML'
-
-                $html = @{}
 
                 $html.Style = '<style>
                     a {
@@ -2464,7 +2464,7 @@ end {
                     #endregion
 
                     #region HTML Mail overview Settings table $ Settings detail file
-                    $MailSettingsTable = $null
+                    $html.Mail = @{}
 
                     if (
                         ($I.Settings) -and
@@ -2483,7 +2483,7 @@ end {
                     </tr>
 '@
 
-                        $MailSettingsTable = $HtmlSettingsHeader
+                        $html.Mail.SettingsTable = $HtmlSettingsHeader
 
                         foreach ($S in $I.Settings) {
                             #region Get problem color
@@ -2499,6 +2499,8 @@ end {
                             #endregion
 
                             #region HTML Settings Create tables
+                            $html.MatrixLogFile = @{}
+
                             $SettingsDetailFatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
                                 $htmlValue = ConvertTo-HtmlValueHC
                                 @"
@@ -2682,7 +2684,7 @@ end {
                             $SettingsDetail | Out-File -FilePath $SettingsFile -Encoding utf8
                             #endregion
 
-                            $MailSettingsTable += @"
+                            $html.Mail.SettingsTable += @"
                         <tr>
                             <td id="$ProbType"></td>
                             <td><a href="$SettingsFile">$($S.ID)</a></td>
@@ -2707,7 +2709,7 @@ end {
                     $FileCheck
                     $FormDataCheck
                     $PermissionsCheck
-                    $MailSettingsTable
+                    $($html.Mail.SettingsTable)
                 </table>
                 <br><br>
 "@
@@ -2847,7 +2849,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                     else { 'Normal' }
                     Subject   = $Subject
                     Message   = $htmlMail
-                    Save      = "$matrixLogFile - Mail - $Subject.html"
+                    Save      = "$matrixLogFileBasePath - Mail - $Subject.html"
                     Header    = $ScriptName
                     LogFolder = $LogFolder
                 }
@@ -2863,7 +2865,7 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                         Priority  = 'High'
                         Subject   = "FAILURE - $($error.count) non terminating errors"
                         Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message | Where-Object { $_  } | ConvertTo-HtmlListHC -Spacing Wide )"
-                        Save      = "$matrixLogFile - Mail - $($error.count) non terminating errors.html"
+                        Save      = "$matrixLogFileBasePath - Mail - $($error.count) non terminating errors.html"
                         Header    = $ScriptName
                         LogFolder = $LogFolder
                     }
