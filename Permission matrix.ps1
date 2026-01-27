@@ -61,11 +61,9 @@ begin {
             $E | ConvertTo-Json -Depth 100 | ForEach-Object {
                 [System.Text.RegularExpressions.Regex]::Unescape($_)
             } | Out-File @OutParams
-            @"
-        <ul>
-            <li><a href="$($OutParams.LiteralPath)">$("$($E.Value.Count) items")</a></li>
-        </ul>
-"@
+            '<ul>
+                <li><a href="{0}">{1} items</a></li>
+            </ul>' -f $($OutParams.LiteralPath), $($E.Value.Count)
         }
     }
     function Get-HTNLidTagProbTypeHC {
@@ -98,8 +96,8 @@ begin {
             throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
         }
     }
-            function Get-StringValueHC {
-            <#
+    function Get-StringValueHC {
+        <#
         .SYNOPSIS
             Retrieve a string from the environment variables or a regular string.
 
@@ -127,29 +125,29 @@ begin {
 
             # Output: NULL
         #>
-            param (
-                [String]$Name
-            )
+        param (
+            [String]$Name
+        )
 
-            if (-not $Name) {
-                return $null
-            }
-            elseif (
-                $Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)
-            ) {
-                $envVariableName = $Name.Substring(4).Trim()
-                $envStringValue = Get-Item -Path "Env:\$envVariableName" -EA Ignore
-                if ($envStringValue) {
-                    return $envStringValue.Value
-                }
-                else {
-                    throw "Environment variable '$envVariableName' not found."
-                }
+        if (-not $Name) {
+            return $null
+        }
+        elseif (
+            $Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)
+        ) {
+            $envVariableName = $Name.Substring(4).Trim()
+            $envStringValue = Get-Item -Path "Env:\$envVariableName" -EA Ignore
+            if ($envStringValue) {
+                return $envStringValue.Value
             }
             else {
-                return $Name
+                throw "Environment variable '$envVariableName' not found."
             }
         }
+        else {
+            return $Name
+        }
+    }
 
     function Remove-FileHC {
         param (
