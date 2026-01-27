@@ -2262,10 +2262,12 @@ end {
                 }
                 #endregion
 
-                #region HTML Style for Mail and Settings
+                #region HTML Style and table legend
                 Write-Verbose 'Format HTML'
 
-                $htmlStyle = '<style>
+                $html = @{}
+
+                $html.Style = '<style>
                     a {
                         color: black;
                         text-decoration: underline;
@@ -2358,10 +2360,8 @@ end {
                         height: 100%;
                     }
                 </style>'
-                #endregion
 
-                #region HTML LegendTable for Mail and Settings
-                $htmlLegend = @'
+                $html.LegendTable = @'
 <table id="LegendTable">
     <tr>
         <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
@@ -2617,7 +2617,7 @@ end {
                             </head>
 
                             <body>
-                                $htmlStyle
+                                $($html.Style)
                                 <table id="matrixTable">
                                 <tr>
                                     <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
@@ -2638,7 +2638,7 @@ end {
 
                                 </table>
                                 <br>
-                                $htmlLegend
+                                $($html.LegendTable)
                                     <h2>About</h2>
                                 <table>
                                     <tr>
@@ -2814,12 +2814,12 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                 }
 
                 $htmlMail = @"
-                $htmlStyle
+                $($html.Style)
                 $htmlErrorWarningTable
                 $htmlExportFiles
                 <p><b>Matrix results per file:</b></p>
                 $htmlMatrixTables
-                $htmlLegend
+                $($html.LegendTable)
 "@
 
                 $Subject = "$(@($importedMatrix).Count) matrix file{0}{1}{2}" -f $(
