@@ -2382,24 +2382,28 @@ end {
 
                         foreach ($F in $I.File.Check) {
                             $problem = @{
-                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
-                                Details = if ($F.Value) {
+                                Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details     = if ($F.Value) {
                                     '<ul>'
                                     @($F.Value).ForEach( { "<li>$_</li>" })
                                     '</ul>'
                                 }
+                                Name        = $F.Name
+                                Description = $F.Description
                             }
 
-                            @"
-                        <tr>
-                            <td id="$($problem.Type)"></td>
-                            <td colspan="7">
-                                <p id="probTitle">$($F.Name)</p>
-                                <p>$($F.Description)</p>
-                                $($problem.Details)
-                            </td>
-                        </tr>
-"@
+                            '<tr>
+                                <td id="{0}"></td>
+                                <td colspan="7">
+                                    <p id="probTitle">{1}</p>
+                                    <p>{2}</p>
+                                    {3}
+                                </td>
+                            </tr>' -f 
+                            $($problem.Type), 
+                            $($problem.Name), 
+                            $($problem.Description), 
+                            $($problem.Details)
                         }
                     }
                     #endregion
@@ -2412,54 +2416,60 @@ end {
 
                         foreach ($F in $I.FormData.Check) {
                             $problem = @{
-                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
-                                Details = if ($F.Value) {
+                                Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details     = if ($F.Value) {
                                     '<ul>'
                                     @($F.Value).ForEach( { "<li>$_</li>" })
                                     '</ul>'
                                 }
+                                Name        = $F.Name
+                                Description = $F.Description
                             }
 
-                            @"
-                        <tr>
-                            <td id="$($problem.Type)"></td>
-                            <td colspan="7">
-                                <p id="probTitle">$($F.Name)</p>
-                                <p>$($F.Description)</p>
-                                $($problem.Details)
-                            </td>
-                        </tr>
-"@
+                            '<tr>
+                                <td id="{0}"></td>
+                                <td colspan="7">
+                                    <p id="probTitle">{1}</p>
+                                    <p>{2}</p>
+                                    {3}
+                                </td>
+                            </tr>' -f 
+                            $($problem.Type), 
+                            $($problem.Name), 
+                            $($problem.Description), 
+                            $($problem.Details)
                         }
                     }
                     #endregion
 
                     #region HTML Permissions
                     $PermissionsCheck = if ($I.Permissions.Check) {
-                        @'
-                    <th id="matrixHeader" colspan="8">Permissions</th>
-'@
+                        '<th id="matrixHeader" colspan="8">Permissions</th>'
 
                         foreach ($F in $I.Permissions.Check) {
                             $problem = @{
-                                Type    = Get-HTNLidTagProbTypeHC -Name $F.Type
-                                Details = if ($F.Value) {
+                                Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                                Details     = if ($F.Value) {
                                     '<ul>'
                                     @($F.Value).ForEach( { "<li>$_</li>" })
                                     '</ul>'
                                 }
+                                Name        = $F.Name
+                                Description = $F.Description
                             }
 
-                            @"
-                        <tr>
-                            <td id="$($problem.Type)"></td>
-                            <td colspan="7">
-                                <p id="probTitle">$($F.Name)</p>
-                                <p>$($F.Description)</p>
-                                $($problem.Details)
-                            </td>
-                        </tr>
-"@
+                            '<tr>
+                                <td id="{0}"></td>
+                                <td colspan="7">
+                                    <p id="probTitle">{1}</p>
+                                    <p>{2}</p>
+                                    {3}
+                                </td>
+                            </tr>' -f 
+                            $($problem.Type), 
+                            $($problem.Name), 
+                            $($problem.Description), 
+                            $($problem.Details)
                         }
                     }
                     #endregion
@@ -2472,17 +2482,16 @@ end {
                         ($I.File.Check.Type -notcontains 'FatalError') -and
                         ($I.Permissions.Check.Type -notcontains 'FatalError')
                     ) {
-                        $html.Mail.SettingsHeader = @'
-                    <th id="matrixHeader" colspan="8">Settings</th>
-                    <tr>
-                        <td></td>
-                        <td>ID</td>
-                        <td>ComputerName</td>
-                        <td>Path</td>
-                        <td>Action</td>
-                        <td>Duration</td>
-                    </tr>
-'@
+                        $html.Mail.SettingsHeader = '
+                        <th id="matrixHeader" colspan="8">Settings</th>
+                        <tr>
+                            <td></td>
+                            <td>ID</td>
+                            <td>ComputerName</td>
+                            <td>Path</td>
+                            <td>Action</td>
+                            <td>Duration</td>
+                        </tr>'
 
                         $html.Mail.SettingsTable = $html.Mail.SettingsHeader
 
@@ -2548,8 +2557,8 @@ end {
                             #endregion
 
                             #region HTML Settings Create file
-                            $html.MatrixLogFile.Table = @"
-                            <!DOCTYPE html>
+                            $html.MatrixLogFile.Table  =
+                            '<!DOCTYPE html>
                             <html>
                             <head>
                                 <style type="text/css">
@@ -2619,8 +2628,9 @@ end {
                                         target="_blank"
                                     }
                                 </style>
-                            </head>
+                            </head>'
 
+                            $html.MatrixLogFile.Table += @"
                             <body>
                                 $($html.Style)
                                 <table id="matrixTable">
