@@ -44,11 +44,7 @@ begin {
             $null
         }
         elseif (($E.Value.Count -le 5) -and (-not ($E.Value -is [HashTable]))) {
-            @"
-        <ul>
-            $(@($E.Value).ForEach({"<li>$_</li>"}))
-        </ul>
-"@
+            "<ul>{0}</ul>" -f $(@($E.Value).ForEach({"<li>$_</li>"}))
         }
         else {
             $fileName = "ID $($S.ID) - $($E.Type) - $($E.Name).txt".Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
