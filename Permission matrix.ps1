@@ -144,7 +144,6 @@ begin {
             return $Name
         }
     }
-
     function Remove-FileHC {
         param (
             [parameter(Mandatory)]
