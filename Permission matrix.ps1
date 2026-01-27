@@ -2064,135 +2064,133 @@ end {
                         #region Export FormData to HTML file
                         try {
                             $htmlFileContent = @(
-                                @'
-<style>
-  body {
-    background-color: #f0f0f0;
-    color: #004e2b;
-    font-family: Arial, sans-serif;
-    padding: 20px;
-  }
+                                '<style>
+                                    body {
+                                        background-color: #f0f0f0;
+                                        color: #004e2b;
+                                        font-family: Arial, sans-serif;
+                                        padding: 20px;
+                                    }
 
-  a {
-    color: #004e2b;
-    text-decoration: none;
-  }
-  a:hover {
-    color: #00dd39;
-    text-decoration: underline;
-  }
+                                    a {
+                                        color: #004e2b;
+                                        text-decoration: none;
+                                    }
+                                    a:hover {
+                                        color: #00dd39;
+                                        text-decoration: underline;
+                                    }
 
-  h1 {
-    border-bottom: 2px solid #004e2b;
-    padding-bottom: 10px;
-    margin-bottom: 25px;
-    color: #004e2b;
-    text-transform: uppercase;
-    font-size: 1.8em;
-  }
+                                    h1 {
+                                        border-bottom: 2px solid #004e2b;
+                                        padding-bottom: 10px;
+                                        margin-bottom: 25px;
+                                        color: #004e2b;
+                                        text-transform: uppercase;
+                                        font-size: 1.8em;
+                                    }
 
-  table {
-    width: 100%;
-    max-width: 1200px;
-    margin: 20px 0;
-    border-collapse: separate;
-    border-spacing: 0;
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
-    background-color: #ffffff;
-    border-radius: 8px;
-    overflow: hidden;
-    table-layout: auto;
-    border: none;
-  }
+                                    table {
+                                        width: 100%;
+                                        max-width: 1200px;
+                                        margin: 20px 0;
+                                        border-collapse: separate;
+                                        border-spacing: 0;
+                                        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+                                        background-color: #ffffff;
+                                        border-radius: 8px;
+                                        overflow: hidden;
+                                        table-layout: auto;
+                                        border: none;
+                                    }
 
-  table th {
-    background-color: #004e2b;
-    color: #ffffff;
-    text-align: left;
-    padding: 15px 20px;
-    font-weight: bold;
-    text-transform: uppercase;
-    border: none;
-    font-size: 0.9em;
-  }
+                                    table th {
+                                        background-color: #004e2b;
+                                        color: #ffffff;
+                                        text-align: left;
+                                        padding: 15px 20px;
+                                        font-weight: bold;
+                                        text-transform: uppercase;
+                                        border: none;
+                                        font-size: 0.9em;
+                                    }
 
-  table thead tr:first-child th:first-child {
-    border-top-left-radius: 8px;
-  }
-  table thead tr:first-child th:last-child {
-    border-top-right-radius: 8px;
-  }
+                                    table thead tr:first-child th:first-child {
+                                        border-top-left-radius: 8px;
+                                    }
+                                    table thead tr:first-child th:last-child {
+                                        border-top-right-radius: 8px;
+                                    }
 
-  table th:nth-child(3) {
-    text-align: left;
-    word-break: normal;
-  }
+                                    table th:nth-child(3) {
+                                        text-align: left;
+                                        word-break: normal;
+                                    }
 
-  table td {
-    text-align: center;
-    padding: 10px 15px;
-    border: none;
-    border-bottom: 1px solid #e0e0e0;
-    vertical-align: middle;
-    color: #004e2b;
-  }
+                                    table td {
+                                        text-align: center;
+                                        padding: 10px 15px;
+                                        border: none;
+                                        border-bottom: 1px solid #e0e0e0;
+                                        vertical-align: middle;
+                                        color: #004e2b;
+                                    }
 
-  table tbody tr:last-child td {
-    border-bottom: none;
-  }
+                                    table tbody tr:last-child td {
+                                        border-bottom: none;
+                                    }
 
-  table td:nth-child(3) {
-    text-align: left;
-    white-space: nowrap;
-    word-break: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+                                    table td:nth-child(3) {
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        word-break: normal;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                    }
 
-  table td:nth-child(4) {
-    text-align: left;
-    white-space: nowrap;
-    word-break: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+                                    table td:nth-child(4) {
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        word-break: normal;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                    }
 
-  table td:nth-child(5) {
-    text-align: left;
-    white-space: nowrap;
-    word-break: normal;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+                                    table td:nth-child(5) {
+                                        text-align: left;
+                                        white-space: nowrap;
+                                        word-break: normal;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                    }
 
-  table tbody tr:nth-child(even) {
-    background-color: #f8f8f8b7;
-  }
-  table tbody tr:nth-child(odd) {
-    background-color: #ffffff;
-  }
+                                    table tbody tr:nth-child(even) {
+                                        background-color: #f8f8f8b7;
+                                    }
+                                    table tbody tr:nth-child(odd) {
+                                        background-color: #ffffff;
+                                    }
 
-  table tbody tr:hover {
-    background-color: #c2ebcf;
-    color: #004e2b;
-  }
+                                    table tbody tr:hover {
+                                        background-color: #c2ebcf;
+                                        color: #004e2b;
+                                    }
 
-  table tbody tr td a {
-    display: block;
-    width: 100%;
-    height: 100%;
-    color: #004e2b;
-  }
-  table td:last-child a {
-    display: inline;
-    color: #004e2b;
-  }
+                                    table tbody tr td a {
+                                        display: block;
+                                        width: 100%;
+                                        height: 100%;
+                                        color: #004e2b;
+                                    }
+                                    table td:last-child a {
+                                        display: inline;
+                                        color: #004e2b;
+                                    }
 
-  table tbody tr:hover td a {
-    color: #004e2b;
-  }
-</style>
-'@,
+                                    table tbody tr:hover td a {
+                                        color: #004e2b;
+                                    }
+                                    </style>',
                                 '<h1>Matrix files overview</h1>',
                                 '<table>
                                     <tr>
