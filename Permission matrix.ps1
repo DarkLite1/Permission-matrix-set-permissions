@@ -2545,7 +2545,7 @@ end {
                             #endregion
 
                             #region HTML Settings Create file
-                            $SettingsDetail = @"
+                            $html.MatrixLogFile.Table = @"
                             <!DOCTYPE html>
                             <html>
                             <head>
@@ -2680,18 +2680,22 @@ end {
                         </html>
 "@
 
-                            $SettingsFile = Join-Path -Path $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
-                            $SettingsDetail | Out-File -FilePath $SettingsFile -Encoding utf8
+                            $matrixLogFileParams = @{
+                                FilePath = Join-Path -Path $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
+                                Encoding = 'utf8'
+                            }
+                            $html.MatrixLogFile.Table | 
+                            Out-File @matrixLogFileParams
                             #endregion
 
                             $html.Mail.SettingsTable += @"
                         <tr>
                             <td id="$ProbType"></td>
-                            <td><a href="$SettingsFile">$($S.ID)</a></td>
-                            <td><a href="$SettingsFile">$($S.Import.ComputerName)</a></td>
-                            <td><a href="$SettingsFile">$($S.Import.Path)</a></td>
-                            <td><a href="$SettingsFile">$($S.Import.Action)</a></td>
-                            <td><a href="$SettingsFile">$(if($D = $S.JobTime.Duration){ '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds}else{'NA'})</a></td>
+                            <td><a href="$($matrixLogFileParams.FilePath)">$($S.ID)</a></td>
+                            <td><a href="$($matrixLogFileParams.FilePath)">$($S.Import.ComputerName)</a></td>
+                            <td><a href="$($matrixLogFileParams.FilePath)">$($S.Import.Path)</a></td>
+                            <td><a href="$($matrixLogFileParams.FilePath)">$($S.Import.Action)</a></td>
+                            <td><a href="$($matrixLogFileParams.FilePath)">$(if($D = $S.JobTime.Duration){ '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds}else{'NA'})</a></td>
                         </tr>
 "@
                         }
