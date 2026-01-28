@@ -2876,31 +2876,16 @@ $(if ($item.Value.Warning) {' id="probTextWarning"'})
                     Header    = $ScriptName
                     LogFolder = $LogFolder
                 }
-                Get-ScriptRuntimeHC -Stop
                 Send-MailHC @MailParams
-                #endregion
-
-                #region Non terminating errors are reported to the admin
-                # usually when Get-ADObjectDetailHC times out for groups too large
-                if ($error) {
-                    $MailParams = @{
-                        To        = $ScriptAdmin
-                        Priority  = 'High'
-                        Subject   = "FAILURE - $($error.count) non terminating errors"
-                        Message   = "While running the permission matrix the following non terminating errors where reported: $($error.Exception.Message | Where-Object { $_  } | ConvertTo-HtmlListHC -Spacing Wide )"
-                        Save      = "$matrixLogFileBasePath - Mail - $($error.count) non terminating errors.html"
-                        Header    = $ScriptName
-                        LogFolder = $LogFolder
-                    }
-                    Send-MailHC @MailParams
-                }
                 #endregion
             }
         }
 
         #region Send email
+        $isSendMail = $false
+
         if ($systemErrors -or $importedMatrix) {
-            $isSendMail = $false
+            $isSendMail = $true
         }
 
       
