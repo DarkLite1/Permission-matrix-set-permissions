@@ -2370,7 +2370,7 @@ end {
                 #endregion
 
                 #region HTML Mail overview & Settings detail
-                $htmlMatrixTables = foreach ($I in $importedMatrix) {
+                $html.MatrixTables = foreach ($I in $importedMatrix) {
                     #region HTML File
                     $FileCheck = if ($I.File.Check) {
                         '<th id="matrixHeader" colspan="8">File</th>'
@@ -2796,83 +2796,82 @@ end {
                 )
                 #endregion
 
-                $htmlExportFiles = if ($exportedFiles.Count) {
-                    @"
-            <p><b>Exported $($exportedFiles.Count) files:</b></p>
-            <ul>
-            $(
-                $exportedFiles.GetEnumerator() | ForEach-Object {
-                    "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
-                }
-            )
-            </ul>
-"@
+                $html.ExportFiles = if ($exportedFiles.Count) {
+                    '<p><b>Exported {0} files:</b></p>
+                    <ul>{1}</ul>' -f 
+                    $($exportedFiles.Count), 
+                    $(
+                        $exportedFiles.GetEnumerator() | ForEach-Object {
+                            "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
+                        }
+                    )
                 }
         
-                $htmlErrorWarningTable = if ($counter.Total.Errors + $counter.Total.Warnings) {
-                    @"
-            <p><b>Detected issues:</b></p>
-            <table id="overviewTable">
-            <tr>
-                <td></td>
-                <td>Errors</td>
-                <td>Warnings</td>
-            </tr>
-            $(
-                foreach ($item in ($counter.GetEnumerator())) {
-                    if ($item.Value.Error + $item.Value.Warning) {
-@"
+                $html.ErrorWarningTable = if (
+                    $counter.Total.Errors + $counter.Total.Warnings
+                ) {
+                    '<p><b>Detected issues:</b></p>
+                    <table id="overviewTable">
                     <tr>
-                        <th>$($item.Key)</th>
-                        <td{0}>$($item.Value.Error)</td>
-                        <td{1}>$($item.Value.Warning)</td>
+                        <td></td>
+                        <td>Errors</td>
+                        <td>Warnings</td>
                     </tr>
-"@ -f $(if ($item.Value.Error) {' id="probTextError"'}),
-$(if ($item.Value.Warning) {' id="probTextWarning"'})
-                    }
-                }
-            )
-            </table>
-            <p><i>* Check the matrix results below for details.</i></p>
-            <hr style="width:50%;text-align:left;margin-left:0">
-"@
-                }
-
-                $htmlMail = @"
-                $($html.Style)
-                $htmlErrorWarningTable
-                $htmlExportFiles
-                <p><b>Matrix results per file:</b></p>
-                $htmlMatrixTables
-                $($html.LegendTable)
-"@
-
-                $Subject = "$(@($importedMatrix).Count) matrix file{0}{1}{2}" -f $(
-                    if (@($importedMatrix).Count -ne 1) { 's' }
-                ),
-                $(
-                    if ($counter.Total.Errors) {
-                        ", $($counter.Total.Errors) error{0}" -f $(
-                            if ($counter.Total.Errors -ne 1) { 's' }
-                        )
-                    }
-                ),
-                $(
-                    if ($counter.Total.Warnings) {
-                        ", $($counter.Total.Warnings) warning{0}" -f $(
-                            if ($counter.Total.Warnings -ne 1) { 's' }
-                        )
-                    }
-                )
+                        {0}
+                    </table>
+                    <p><i>* Check the matrix results below for details.</i></p>
+                    <hr style="width:50%;text-align:left;margin-left:0">' -f 
+                    $(
+                        foreach ($item in ($counter.GetEnumerator())) {
+                            if ($item.Value.Error + $item.Value.Warning) {
+                                "<tr>
+                                    <th>$($item.Key)</th>
+                                    <td{0}>$($item.Value.Error)</td>
+                                    <td{1}>$($item.Value.Warning)</td>
+                                </tr>" -f 
+                                $(
+                                    if ($item.Value.Error) 
+                                    { ' id="probTextError"' }),
+                                $(
+                                    if ($item.Value.Warning) 
+                                    { ' id="probTextWarning"' })
+                            }
+                        }
+                    )
+                }               
 
                 $MailParams = @{
                     To        = $MailTo
                     Bcc       = $ScriptAdmin
-                    Priority  = if ($counter.Total.Errors + $counter.Total.Warnings) { 'High' }
+                    Priority  = if (
+                        $counter.Total.Errors + $counter.Total.Warnings) { 
+                        'High' 
+                    }
                     else { 'Normal' }
-                    Subject   = $Subject
-                    Message   = $htmlMail
-                    Save      = "$matrixLogFileBasePath - Mail - $Subject.html"
+                    Subject   = "$(@($importedMatrix).Count) matrix file{0}{1}{2}" -f $(
+                        if (@($importedMatrix).Count -ne 1) { 's' }
+                    ),
+                    $(
+                        if ($counter.Total.Errors) {
+                            ", $($counter.Total.Errors) error{0}" -f $(
+                                if ($counter.Total.Errors -ne 1) { 's' }
+                            )
+                        }
+                    ),
+                    $(
+                        if ($counter.Total.Warnings) {
+                            ", $($counter.Total.Warnings) warning{0}" -f $(
+                                if ($counter.Total.Warnings -ne 1) { 's' }
+                            )
+                        }
+                    )
+                    Message   = "
+                        $($html.Style)
+                        $($html.ErrorWarningTable)
+                        $($html.ExportFiles)
+                        <p><b>Matrix results per file:</b></p>
+                        $($html.MatrixTables)
+                        $($html.LegendTable)"
                     Header    = $ScriptName
                     LogFolder = $LogFolder
                 }
