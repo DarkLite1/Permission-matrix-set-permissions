@@ -2874,7 +2874,7 @@ end {
         #region Send email
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
-                To                  = $sendMail.To + $MailTo
+                To                  = @($sendMail.To + $MailTo).Where({ $_ })
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
                 SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
