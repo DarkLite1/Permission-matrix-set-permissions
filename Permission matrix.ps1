@@ -2932,7 +2932,7 @@ end {
             $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
             $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
 
-            if ( $smtpUserName -and $smtpPassword) {
+            if ($smtpUserName -and $smtpPassword) {
                 try {
                     $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
 
