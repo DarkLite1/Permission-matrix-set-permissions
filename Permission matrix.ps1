@@ -2995,6 +2995,64 @@ end {
             #endregion
         }
 
+        #region Write events to event log
+        try {
+            $saveInEventLog.LogName = Get-StringValueHC $saveInEventLog.LogName
+
+            if ($saveInEventLog.Save -and $saveInEventLog.LogName) {
+                $systemErrors | ForEach-Object {
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = $_.Message
+                            DateTime  = $_.DateTime
+                            EntryType = 'Error'
+                            EventID   = '2'
+                        }
+                    )
+                }
+
+                $eventLogData.Add(
+                    [PSCustomObject]@{
+                        Message   = 'Script ended'
+                        DateTime  = Get-Date
+                        EntryType = 'Information'
+                        EventID   = '199'
+                    }
+                )
+
+                $params = @{
+                    Source  = $scriptName
+                    LogName = $saveInEventLog.LogName
+                    Events  = $eventLogData
+                }
+                Write-EventsToEventLogHC @params
+            }
+            elseif ($saveInEventLog.Save -and (-not $saveInEventLog.LogName)) {
+                throw "Both 'Settings.SaveInEventLog.Save' and 'Settings.SaveInEventLog.LogName' are required to save events in the event log."
+            }
+        }
+        catch {
+            $systemErrors.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Failed writing events to event log: $_"
+                }
+            )
+
+            Write-Warning $systemErrors[-1].Message
+
+            if ($baseLogName -and $isLog.systemErrors) {
+                $params = @{
+                    DataToExport   = $systemErrors[-1]
+                    PartialPath    = "$baseLogName - Errors"
+                    FileExtensions = $logFileExtensions
+                    Append         = $true
+                }
+                $allLogFilePaths += Out-LogFileHC @params -EA Ignore
+            }
+        }
+        #endregion
+
         #region Remove old log files
         if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
             $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
