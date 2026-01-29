@@ -2834,7 +2834,6 @@ end {
             }               
                 
             $mailParams += @{
-                To        = $MailTo + $sendMail.To
                 Priority  = if (
                     $counter.Total.Errors + $counter.Total.Warnings) { 
                     'High' 
