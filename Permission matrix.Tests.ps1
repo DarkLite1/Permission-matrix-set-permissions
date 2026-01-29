@@ -15,16 +15,15 @@ BeforeAll {
             ExcludedSamAccountName = @()
         }
         Export                 = @{
-            FolderPath = New-Item 'TestDrive:/ServiceNow' -ItemType Directory
-            FileName   = @{
-                AdObjects     = 'AD object names.csv'
-                FormData      = 'Form data.csv'
-                GroupManagers = 'GroupManagers.csv'
-                AccessList    = 'AccessList.csv'
-                ExcelOverview = 'Overview.xlsx'
-            }
+            ServiceNowFormDataExcelFile = New-Item 'TestDrive:/snow.xlsx' -ItemType File
+            OverviewHtmlFile            = New-Item 'TestDrive:/overview.html' -ItemType File
+            PermissionsExcelFile        = New-Item 'TestDrive:/permissions.xlsx' -ItemType File
         }
-        ScriptAdmin            = 'admin@contoso.com'
+        ServiceNow             = @{
+            CredentialsFilePath = New-Item 'TestDrive:/cred.json' -ItemType File
+            Environment         = 'Test'
+            TableName           = 'roles'
+        }
         PSSessionConfiguration = 'PowerShell.7'
         Settings               = @{
             ScriptName     = 'Test (Brecht)'
@@ -321,7 +320,7 @@ Describe 'create an error log file when' {
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
-            ($To -eq $testInputFile.ScriptAdmin) -and
+            ($To -eq $testInputFile.Settings.SendMail.To) -and
             ($Priority -eq 'High') -and
             ($Subject -eq 'FAILURE')
         }
