@@ -1923,7 +1923,7 @@ end {
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to export all matrix data to .XLSX and .CSV files for '$($property.Name)': $_"
+                                Message  = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
                             }
                         )
                                 
@@ -1937,22 +1937,34 @@ end {
                     $Export.PermissionsExcelFile -and
                     (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path -PathType Leaf)
                 ) {
-                    $copyParams = @{
-                        LiteralPath = $permissionsExcelLogFileParams.Path
-                        Destination = $Export.PermissionsExcelFile
-                    }
-
-                    $eventLogData.Add(
-                        [PSCustomObject]@{
-                            Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
+                    try {
+                        $copyParams = @{
+                            LiteralPath = $permissionsExcelLogFileParams.Path
+                            Destination = $Export.PermissionsExcelFile
                         }
-                    )
-                    Write-Verbose $eventLogData[-1].Message
 
-                    Copy-Item @copyParams
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
+                        Write-Verbose $eventLogData[-1].Message
+
+                        Copy-Item @copyParams       
+                    }
+                    catch {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                            }
+                        )
+                                
+                        Write-Warning $systemErrors[-1].Message
+                    }
                 }
                 #endregion
 
@@ -2787,6 +2799,11 @@ end {
                 $counter.FormData.warning + $counter.Permissions.warning +
                 $counter.Settings.warning + $counter.File.warning
             )
+ 
+            if (
+                $counter.Total.Errors -or $counter.Total.Warnings) { 
+                $mailParams.Priority = 'High' 
+            }
             #endregion
 
             $html.ExportFiles = if ($exportedFiles.Count) {
@@ -2834,11 +2851,6 @@ end {
             }               
                 
             $mailParams += @{
-                Priority  = if (
-                    $counter.Total.Errors + $counter.Total.Warnings) { 
-                    'High' 
-                }
-                else { 'Normal' }
                 Subject   = '{0} matrix file{1}{2}{3}' -f 
                 $(@($importedMatrix).Count),
                 $(
