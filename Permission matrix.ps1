@@ -3001,7 +3001,7 @@ end {
         if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
             $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
 
-            Write-Verbose "Removing log files older than $cutoffDate from '$logFolder'"
+            Write-Verbose "Remove log files older than $cutoffDate from '$logFolder'"
 
             Get-ChildItem -Path $logFolder -Recurse | 
             Sort-Object 'FullName' -Descending |
