@@ -1887,7 +1887,7 @@ end {
             if ($Export.PermissionsExcelFile) {
                 Remove-FileHC -FilePath $Export.PermissionsExcelFile
 
-                #region Add sheets to Permissions log file
+                #region Create Permissions file in log folder
                 $permissionsExcelLogFileParams = @{
                     Path         = "$matrixLogFileBasePath - AllMatrix - Permissions.xlsx"
                     AutoSize     = $true
@@ -1932,7 +1932,7 @@ end {
                 }
                 #endregion
                         
-                #region Copy Permissions Excel file from log to prod folder
+                #region Copy Permissions file from log to prod folder
                 if (
                     $Export.PermissionsExcelFile -and
                     (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path -PathType Leaf)
