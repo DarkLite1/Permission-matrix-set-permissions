@@ -2799,11 +2799,6 @@ end {
                 $counter.FormData.warning + $counter.Permissions.warning +
                 $counter.Settings.warning + $counter.File.warning
             )
- 
-            if (
-                $counter.Total.Errors -or $counter.Total.Warnings) { 
-                $mailParams.Priority = 'High' 
-            }
             #endregion
 
             $html.ExportFiles = if ($exportedFiles.Count) {
@@ -2851,25 +2846,6 @@ end {
             }               
                 
             $mailParams += @{
-                Subject   = '{0} matrix file{1}{2}{3}' -f 
-                $(@($importedMatrix).Count),
-                $(
-                    if (@($importedMatrix).Count -ne 1) { 's' }
-                ),
-                $(
-                    if ($counter.Total.Errors) {
-                        ", $($counter.Total.Errors) error{0}" -f $(
-                            if ($counter.Total.Errors -ne 1) { 's' }
-                        )
-                    }
-                ),
-                $(
-                    if ($counter.Total.Warnings) {
-                        ", $($counter.Total.Warnings) warning{0}" -f $(
-                            if ($counter.Total.Warnings -ne 1) { 's' }
-                        )
-                    }
-                )
                 Body      = "
                         $($html.Style)
                         $($html.ErrorWarningTable)
@@ -2897,16 +2873,43 @@ end {
                 $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
             }
 
-            if ($sendMail.Subject) {
-                $mailParams.Subject = '{0}, {1}' -f
-                $mailParams.Subject, $sendMail.Subject
-            }
+            $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f 
+            $(
+                @($importedMatrix).Count
+            ),
+            $(
+                if (@($importedMatrix).Count -ne 1) { 's' }
+            ),
+            $(
+                if ($counter.Total.Errors) {
+                    ", $($counter.Total.Errors) error{0}" -f $(
+                        if ($counter.Total.Errors -ne 1) { 's' }
+                    )
+                }
+            ),
+            $(
+                if ($counter.Total.Warnings) {
+                    ", $($counter.Total.Warnings) warning{0}" -f $(
+                        if ($counter.Total.Warnings -ne 1) { 's' }
+                    )
+                }
+            ),
+            $(
+                if ($sendMail.Subject) {
+                    ', {1}' -f $sendMail.Subject
+                }
+            )
+
 
             if ($sendMail.Bcc) {
                 $mailParams.Bcc = $sendMail.Bcc
             }
 
-            if ($counter.Total.Errors) {
+            if (
+                $counter.Total.Errors -or 
+                $counter.Total.Warnings -or 
+                $systemErrors
+            ) {
                 $mailParams.Priority = 'High'
                 $mailParams.Subject = '{0} error{1}, {2}' -f
                 $counter.Total.Errors,
