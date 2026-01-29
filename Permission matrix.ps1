@@ -2900,21 +2900,16 @@ end {
                 }
             )
 
-
             if ($sendMail.Bcc) {
                 $mailParams.Bcc = $sendMail.Bcc
             }
 
             if (
+                $systemErrors -or
                 $counter.Total.Errors -or 
-                $counter.Total.Warnings -or 
-                $systemErrors
+                $counter.Total.Warnings
             ) {
                 $mailParams.Priority = 'High'
-                $mailParams.Subject = '{0} error{1}, {2}' -f
-                $counter.Total.Errors,
-                $(if ($counter.Total.Errors -ne 1) { 's' }),
-                $mailParams.Subject
             }
 
             if ($sendMail.Smtp.ConnectionType) {
