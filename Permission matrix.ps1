@@ -720,6 +720,8 @@ begin {
     }
 
     try {
+        $mailParams = @{}
+
         $eventLogData.Add(
             [PSCustomObject]@{
                 Message   = 'Script started'
@@ -2830,8 +2832,6 @@ end {
                     }
                 )
             }               
-
-            $mailParams = @{}
                 
             $mailParams += @{
                 To        = $MailTo + $sendMail.To
