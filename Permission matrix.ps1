@@ -2869,11 +2869,16 @@ end {
                 MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
             }
 
-            if (-not $mailParams.Body) {
+            if ($systemErrors) {
                 $mailParams.Body = '
                 <p>Found <b>{0} system errors</b>.</p>
                 <p><i>Please check the attachment for details.</i></p>' -f
                 $systemErrors.Count
+            }
+
+            if (-not $mailParams.Body) {
+                $mailParams.Body = '
+                <p>Manage file and folder permissions.</p>'
             }
 
             if ($sendMail.FromDisplayName) {
