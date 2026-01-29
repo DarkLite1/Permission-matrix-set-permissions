@@ -870,8 +870,6 @@ begin {
             }
         )
         
-        Get-Job | Remove-Job -Force
-
         #region Test path exists
         $scriptPathItem = @{}
 
@@ -3170,7 +3168,6 @@ end {
         Write-Warning $systemErrors[-1].Message
     }
     finally {
-        Get-Job | Remove-Job -Force -EA Ignore
         Remove-PSDrive MatrixFolderPath -EA Ignore
 
         if ($systemErrors) {
