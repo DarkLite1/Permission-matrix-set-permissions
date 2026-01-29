@@ -2938,7 +2938,6 @@ end {
             #endregion
 
             Send-MailKitMessageHC @mailParams
-
         }
         #endregion
     }
