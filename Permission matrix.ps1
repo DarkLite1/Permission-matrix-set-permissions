@@ -2902,10 +2902,6 @@ end {
                 $mailParams.Subject, $sendMail.Subject
             }
 
-            if ($sendMail.To) {
-                $mailParams.To = $sendMail.To
-            }
-
             if ($sendMail.Bcc) {
                 $mailParams.Bcc = $sendMail.Bcc
             }
