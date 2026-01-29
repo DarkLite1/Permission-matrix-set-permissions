@@ -33,12 +33,6 @@ param (
 )
 
 begin {
-    $ErrorActionPreference = 'stop'
-
-    $eventLogData = [System.Collections.Generic.List[PSObject]]::new()
-    $systemErrors = [System.Collections.Generic.List[PSObject]]::new()
-    $scriptStartTime = Get-Date
-        
     function ConvertTo-HtmlValueHC {
         if (-not $E.Value) {
             $null
@@ -858,6 +852,12 @@ begin {
         }
     }
 
+    $ErrorActionPreference = 'stop'
+
+    $eventLogData = [System.Collections.Generic.List[PSObject]]::new()
+    $systemErrors = [System.Collections.Generic.List[PSObject]]::new()
+    $scriptStartTime = Get-Date
+
     try {
         $mailParams = @{}
 
@@ -938,7 +938,7 @@ begin {
                     }
                     #region Test integer value
                     try {
-                        [int]$jsonFileContent.MaxConcurrent.$_
+                        $null = [int]$jsonFileContent.MaxConcurrent.$_
                     }
                     catch {
                         throw "Property 'MaxConcurrent.$_' needs to be a number, the value '$($jsonFileContent.MaxConcurrent.$_)' is not supported."
@@ -946,8 +946,6 @@ begin {
                     #endregion
                 }
             )
-
-
 
             #region Test boolean values
             foreach (
