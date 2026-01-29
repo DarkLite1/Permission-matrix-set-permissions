@@ -144,6 +144,145 @@ begin {
             return $Name
         }
     }
+    function Out-LogFileHC {
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory)]
+            [PSCustomObject[]]$DataToExport,
+            [Parameter(Mandatory)]
+            [String]$PartialPath,
+            [Parameter(Mandatory)]
+            [String[]]$FileExtensions,
+            [hashtable]$ExcelFile = @{
+                SheetName = 'Overview'
+                TableName = 'Overview'
+                CellStyle = $null
+            },
+            [Switch]$Append
+        )
+
+        $allLogFilePaths = @()
+
+        foreach (
+            $fileExtension in
+            $FileExtensions | Sort-Object -Unique
+        ) {
+            try {
+                $logFilePath = "$PartialPath{0}" -f $fileExtension
+
+                $M = "Export {0} object{1} to '$logFilePath'" -f
+                $DataToExport.Count,
+                $(if ($DataToExport.Count -ne 1) { 's' })
+                Write-Verbose $M
+
+                switch ($fileExtension) {
+                    '.csv' {
+                        $params = @{
+                            LiteralPath       = $logFilePath
+                            Append            = $Append
+                            Delimiter         = ';'
+                            NoTypeInformation = $true
+                        }
+                        $DataToExport | Export-Csv @params
+
+                        break
+                    }
+                    '.json' {
+                        #region Convert error object to error message string
+                        $convertedDataToExport = foreach (
+                            $exportObject in
+                            $DataToExport
+                        ) {
+                            foreach ($property in $exportObject.PSObject.Properties) {
+                                $name = $property.Name
+                                $value = $property.Value
+                                if (
+                                    $value -is [System.Management.Automation.ErrorRecord]
+                                ) {
+                                    if (
+                                        $value.Exception -and $value.Exception.Message
+                                    ) {
+                                        $exportObject.$name = $value.Exception.Message
+                                    }
+                                    else {
+                                        $exportObject.$name = $value.ToString()
+                                    }
+                                }
+                            }
+                            $exportObject
+                        }
+                        #endregion
+
+                        if (
+                            $Append -and
+                            (Test-Path -LiteralPath $logFilePath -PathType Leaf)
+                        ) {
+                            $params = @{
+                                LiteralPath = $logFilePath
+                                Raw         = $true
+                                Encoding    = 'UTF8'
+                            }
+                            $jsonFileContent = Get-Content @params | ConvertFrom-Json
+
+                            $convertedDataToExport = [array]$convertedDataToExport + [array]$jsonFileContent
+                        }
+
+                        $convertedDataToExport |
+                        ConvertTo-Json -Depth 7 |
+                        Out-File -LiteralPath $logFilePath
+
+                        break
+                    }
+                    '.txt' {
+                        $params = @{
+                            LiteralPath = $logFilePath
+                            Append      = $Append
+                        }
+
+                        $DataToExport | Format-List -Property * -Force |
+                        Out-File @params
+
+                        break
+                    }
+                    '.xlsx' {
+                        if (
+                            (-not $Append) -and
+                            (Test-Path -LiteralPath $logFilePath -PathType Leaf)
+                        ) {
+                            $logFilePath | Remove-Item
+                        }
+
+                        $excelParams = @{
+                            Path          = $logFilePath
+                            Append        = $true
+                            AutoNameRange = $true
+                            AutoSize      = $true
+                            FreezeTopRow  = $true
+                            WorksheetName = $ExcelFile.SheetName
+                            TableName     = $ExcelFile.TableName
+                            Verbose       = $false
+                        }
+                        if ($ExcelFile.CellStyle) {
+                            $excelParams.CellStyleSB = $ExcelFile.CellStyle
+                        }
+                        $DataToExport | Export-Excel @excelParams
+
+                        break
+                    }
+                    default {
+                        throw "Log file extension '$_' not supported. Supported values are '.csv', '.json', '.txt' or '.xlsx'."
+                    }
+                }
+
+                $allLogFilePaths += $logFilePath
+            }
+            catch {
+                Write-Warning "Failed creating log file '$logFilePath': $_"
+            }
+        }
+
+        $allLogFilePaths
+    }
     function Remove-FileHC {
         param (
             [parameter(Mandatory)]
@@ -994,16 +1133,16 @@ process {
                     }
                 }
 
-                #region Create log folder
+                #region Create matrix log folder
                 try {
-                    $logFolderPath = Join-Path -Path $LogFolder -ChildPath (
+                    $matrixLogFolderPath = Join-Path -Path $LogFolder -ChildPath (
                         '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
                         $scriptStartTime.Day, $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek, $matrixFile.BaseName)
 
-                    $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $logFolderPath -Force -EA Stop).FullName
+                    $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $matrixLogFolderPath -Force -EA Stop).FullName
                 }
                 catch {
-                    throw "Failed to create log folder '$logFolderPath': $_"
+                    throw "Failed to create log folder '$matrixLogFolderPath': $_"
                 }
                 #endregion
 
@@ -2857,6 +2996,73 @@ end {
             }
             #endregion
         }
+
+        #region Remove old log files
+        if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
+            $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
+
+            Write-Verbose "Removing log files older than $cutoffDate from '$logFolder'"
+
+            Get-ChildItem -Path $logFolder -Recurse | 
+            Sort-Object 'FullName' -Descending |
+            ForEach-Object {
+                $item = $_
+                try {
+                    $shouldDelete = $false
+
+                    if (-not $item.PSIsContainer) {
+                        if ($item.LastWriteTime -lt $cutoffDate) { 
+                            $shouldDelete = $true 
+                        }
+                    } 
+                    else {
+                        if (
+                            ($item.GetFiles().Count -eq 0) -and 
+                            ($item.GetDirectories().Count -eq 0)
+                        ) {
+                            $shouldDelete = $true
+                        }
+                    }
+
+                    if ($shouldDelete) {
+                        Write-Verbose "Remove '$($item.FullName)'"
+                        Remove-Item -Path $item.FullName -Force -Recurse
+                    }
+                }
+                catch {
+                    $systemErrors.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = "Failed to remove file '$($item.FullName)': $_"
+                        }
+                    )
+
+                    Write-Warning $systemErrors[-1].Message
+                }
+            }
+        }
+        #endregion
+
+        #region Create system errors log file
+        if (
+            $systemErrors -and
+            (Test-Path -Path $LogFolder -PathType Container)
+        ) {
+            $baseLogName = Join-Path -Path $logFolder -ChildPath (
+                '{0} - {1} ({2})' -f
+                $scriptStartTime.ToString('yyyy_MM_dd'),
+                $scriptName,
+                $jsonFileItem.BaseName
+            )
+
+            $params = @{
+                DataToExport   = $systemErrors
+                PartialPath    = "$baseLogName - System errors"
+                FileExtensions = '.json'
+            }
+            $mailParams.Attachments = Out-LogFileHC @params -EA Ignore
+        }
+        #endregion
 
         #region Send email
         if ($systemErrors -or $importedMatrix) {
