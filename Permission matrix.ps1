@@ -936,14 +936,12 @@ begin {
                     if (-not $jsonFileContent.MaxConcurrent.$_) {
                         throw "Property 'MaxConcurrent.$_' not found" 
                     }
-                    #region Test integer value
                     try {
                         $null = [int]$jsonFileContent.MaxConcurrent.$_
                     }
                     catch {
                         throw "Property 'MaxConcurrent.$_' needs to be a number, the value '$($jsonFileContent.MaxConcurrent.$_)' is not supported."
                     }
-                    #endregion
                 }
             )
 
