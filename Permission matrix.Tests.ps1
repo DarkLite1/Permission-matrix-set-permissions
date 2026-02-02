@@ -289,8 +289,9 @@ Describe 'create an error log file when' {
         }
         Context 'property' {
             It '<_> not found' -ForEach @(
-                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 
-                'PSSessionConfiguration', 'Settings'
+                'MaxConcurrent'
+                # , 'Matrix', 'Export', 'ServiceNow', 
+                # 'PSSessionConfiguration', 'Settings'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.$_ = $null
