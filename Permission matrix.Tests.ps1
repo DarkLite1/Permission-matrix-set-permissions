@@ -56,7 +56,7 @@ BeforeAll {
                     Folder         = (New-Item 'TestDrive:/log' -ItemType Directory).FullName
                     FileExtensions = @('.json')
                 }
-                deleteLogsAfterDays = 1
+                deleteLogsAfterDays = 30
             }
             SaveInEventLog = @{
                 Save    = $true
@@ -316,7 +316,7 @@ Describe 'create an error log file when' {
             }
         }
     }
-}
+} -Tag test
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
