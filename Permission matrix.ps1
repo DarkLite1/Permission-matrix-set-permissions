@@ -806,17 +806,17 @@ begin {
         )
 
         try {
-            if (-not [System.Diagnostics.EventLog]::SourceExists($Source)) {
+            if ([System.Diagnostics.EventLog]::SourceExists($Source)) {
+                $existingLogName = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
+    
+                if ($existingLogName -ne $LogName) {
+                    throw "The event log source '$Source' is already registered with event log name '$existingLogName', it cannot be used with log name '$LogName'."
+                }
+            }
+            else {
                 Write-Verbose "Create event log source '$Source' with log name '$LogName'"
                     
                 New-EventLog -LogName $LogName -Source $Source -EA Stop
-            }
-            else {
-                $existingLog = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
-
-                if ($existingLog -ne $LogName) {
-                    throw "The event log source '$Source' is already registered with event log name '$existingLog', it cannot be used with log name '$LogName'."
-                }
             }
 
             foreach ($eventItem in $Events) {
