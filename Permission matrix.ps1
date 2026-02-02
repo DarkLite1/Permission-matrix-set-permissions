@@ -2413,13 +2413,11 @@ end {
                     a:hover {
                         color: blue;
                     }
-
                     #overviewTable {
                         border-collapse: collapse;
                         border: 1px solid Black;
                         table-layout: fixed;
                     }
-
                     #overviewTable th {
                         font-weight: normal;
                         text-align: left;
@@ -2427,7 +2425,6 @@ end {
                     #overviewTable td {
                         text-align: center;
                     }
-
                     #matrixTable {
                         border: 1px solid Black;
                         /* padding-bottom: 60px; */
@@ -2437,41 +2434,34 @@ end {
                         /* padding: 10px; */
                         width: 600px;
                     }
-
                     #matrixTitle {
                         border: none;
                         background-color: lightgrey;
                         text-align: center;
                         padding: 6px;
                     }
-
                     #matrixHeader {
                         font-weight: normal;
                         letter-spacing: 5pt;
                         font-style: italic;
                     }
-
                     #matrixFileInfo {
                         font-weight: normal;
                         font-size: 12px;
                         font-style: italic;
                         text-align: center;
                     }
-
                     #LegendTable {
                         border-collapse: collapse;
                         border: 1px solid Black;
                         table-layout: fixed;
                     }
-
                     #LegendTable td {
                         text-align: center;
                     }
-
                     #probTitle {
                         font-weight: bold;
                     }
-
                     #probTypeWarning {
                         background-color: orange;
                     }
@@ -2479,7 +2469,6 @@ end {
                         color: orange;
                         font-weight: bold;
                     }
-
                     #probTypeError {
                         background-color: red;
                     }
@@ -2487,15 +2476,24 @@ end {
                         color: red;
                         font-weight: bold;
                     }
-
                     #probTypeInfo {
                         background-color: lightgrey;
                     }
-
                     table tbody tr td a {
                         display: block;
                         width: 100%;
                         height: 100%;
+                    }
+                    #aboutTable th {
+                        color: rgb(143, 140, 140);
+                        font-weight: normal;
+                    }
+                    #aboutTable td {
+                        color: rgb(143, 140, 140);
+                        font-weight: normal;
+                    }
+                    base {
+                        target="_blank"
                     }
                 </style>'
 
