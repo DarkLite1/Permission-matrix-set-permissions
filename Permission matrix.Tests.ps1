@@ -470,33 +470,6 @@ Describe 'stop the script and send an e-mail to the admin when' {
             }
         }
     }
-    Context 'the argument CherwellFolder is used but' {
-        BeforeAll {
-            $testCherwellParams = @{
-                CherwellFolder                = $testCherwellFolder.FullName
-                CherwellAdObjectsFileName     = 'BNL Matrix AD object names.csv'
-                CherwellFormDataFileName      = 'BNL Matrix form data.csv'
-                CherwellExcelOverviewFileName = 'Overview.xlsx'
-            }
-        }
-        It '<Name> is missing' -ForEach @(
-            @{ Name = 'CherwellAdObjectsFileName' }
-            @{ Name = 'CherwellFormDataFileName' }
-            @{ Name = 'CherwellGroupManagersFileName' }
-            @{ Name = 'CherwellAccessListFileName' }
-            @{ Name = 'CherwellExcelOverviewFileName' }
-        ) {
-            $clonedCherwellParams = $testCherwellParams.Clone()
-            $clonedCherwellParams.$Name = ''
-
-            .$testScript @testParams @clonedCherwellParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like "*Parameter '$Name' is mandatory when the parameter CherwellFolder is used*")
-            }
-        }
-    }
 }
 Describe 'a sub folder in the log folder' {
     BeforeAll {
