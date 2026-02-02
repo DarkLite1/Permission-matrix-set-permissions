@@ -2986,224 +2986,223 @@ end {
                 $($html.ErrorWarningTable)
                 $($html.ExportFiles)
                 <p><b>Matrix results per file:</b></p>
-                $($html.MatrixTables)
-                $($html.LegendTable)"
+                $($html.MatrixTables)"
+        
+            #endregion
         }
-        #endregion
-    }
 
-    #region Write events to event log
-    try {
-        $saveInEventLog.LogName = Get-StringValueHC $saveInEventLog.LogName
+        #region Write events to event log
+        try {
+            $saveInEventLog.LogName = Get-StringValueHC $saveInEventLog.LogName
 
-        if ($saveInEventLog.Save -and $saveInEventLog.LogName) {
-            $systemErrors | ForEach-Object {
+            if ($saveInEventLog.Save -and $saveInEventLog.LogName) {
+                $systemErrors | ForEach-Object {
+                    $eventLogData.Add(
+                        [PSCustomObject]@{
+                            Message   = $_.Message
+                            DateTime  = $_.DateTime
+                            EntryType = 'Error'
+                            EventID   = '2'
+                        }
+                    )
+                }
+
                 $eventLogData.Add(
                     [PSCustomObject]@{
-                        Message   = $_.Message
-                        DateTime  = $_.DateTime
-                        EntryType = 'Error'
-                        EventID   = '2'
+                        Message   = 'Script ended'
+                        DateTime  = Get-Date
+                        EntryType = 'Information'
+                        EventID   = '199'
                     }
                 )
-            }
 
-            $eventLogData.Add(
+                $params = @{
+                    Source  = $scriptName
+                    LogName = $saveInEventLog.LogName
+                    Events  = $eventLogData
+                }
+                Write-EventsToEventLogHC @params
+            }
+            elseif ($saveInEventLog.Save -and (-not $saveInEventLog.LogName)) {
+                throw "Both 'Settings.SaveInEventLog.Save' and 'Settings.SaveInEventLog.LogName' are required to save events in the event log."
+            }
+        }
+        catch {
+            $systemErrors.Add(
                 [PSCustomObject]@{
-                    Message   = 'Script ended'
-                    DateTime  = Get-Date
-                    EntryType = 'Information'
-                    EventID   = '199'
+                    DateTime = Get-Date
+                    Message  = "Failed writing events to event log: $_"
                 }
             )
 
-            $params = @{
-                Source  = $scriptName
-                LogName = $saveInEventLog.LogName
-                Events  = $eventLogData
-            }
-            Write-EventsToEventLogHC @params
-        }
-        elseif ($saveInEventLog.Save -and (-not $saveInEventLog.LogName)) {
-            throw "Both 'Settings.SaveInEventLog.Save' and 'Settings.SaveInEventLog.LogName' are required to save events in the event log."
-        }
-    }
-    catch {
-        $systemErrors.Add(
-            [PSCustomObject]@{
-                DateTime = Get-Date
-                Message  = "Failed writing events to event log: $_"
-            }
-        )
-
-        Write-Warning $systemErrors[-1].Message
-    }
-    #endregion
-
-    #region Remove old log files
-    if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
-        $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
-
-        Write-Verbose "Remove log files older than $cutoffDate from '$logFolder'"
-
-        Get-ChildItem -Path $logFolder -Recurse | 
-        Sort-Object 'FullName' -Descending |
-        ForEach-Object {
-            $item = $_
-            try {
-                $shouldDelete = $false
-
-                if (-not $item.PSIsContainer) {
-                    if ($item.LastWriteTime -lt $cutoffDate) { 
-                        $shouldDelete = $true 
-                    }
-                } 
-                else {
-                    if (
-                        ($item.GetFiles().Count -eq 0) -and 
-                        ($item.GetDirectories().Count -eq 0)
-                    ) {
-                        $shouldDelete = $true
-                    }
-                }
-
-                if ($shouldDelete) {
-                    Write-Verbose "Remove '$($item.FullName)'"
-                    Remove-Item -Path $item.FullName -Force -Recurse
-                }
-            }
-            catch {
-                $systemErrors.Add(
-                    [PSCustomObject]@{
-                        DateTime = Get-Date
-                        Message  = "Failed to remove file '$($item.FullName)': $_"
-                    }
-                )
-
-                Write-Warning $systemErrors[-1].Message
-            }
-        }
-    }
-    #endregion
-
-    #region Create system errors log file
-    if (
-        $systemErrors -and
-        (Test-Path -Path $LogFolder -PathType Container)
-    ) {
-        $baseLogName = Join-Path -Path $logFolder -ChildPath (
-            '{0} - {1} ({2})' -f
-            $scriptStartTime.ToString('yyyy_MM_dd'),
-            $scriptName,
-            $jsonFileItem.BaseName
-        )
-
-        $params = @{
-            DataToExport   = $systemErrors
-            PartialPath    = "$baseLogName - System errors"
-            FileExtensions = '.json'
-        }
-        $mailParams.Attachments = Out-LogFileHC @params -EA Ignore
-    }
-    #endregion
-
-    #region Send email
-    if ($systemErrors -or $importedMatrix) {
-        $mailParams += @{
-            To                  = @($sendMail.To + $MailTo).Where({ $_ })
-            From                = Get-StringValueHC $sendMail.From
-            SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
-            SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
-            MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
-            MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
-        }
-
-        if ($systemErrors) {
-            $mailParams.Body = '
-                <p>Found <b>{0} system errors</b>.</p>
-                <p><i>Please check the attachment for details.</i></p>
-                {1}' -f
-            $systemErrors.Count, $mailParams.Body 
-        }
-
-        if (-not $mailParams.Body) {
-            $mailParams.Body = '
-                <p>Manage file and folder permissions.</p>'
-        }
-
-        if ($sendMail.FromDisplayName) {
-            $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
-        }
-
-        $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f 
-        $(
-            @($importedMatrix).Count
-        ),
-        $(
-            if (@($importedMatrix).Count -ne 1) { 's' }
-        ),
-        $(
-            if ($counter.Total.Errors) {
-                ", $($counter.Total.Errors) error{0}" -f $(
-                    if ($counter.Total.Errors -ne 1) { 's' }
-                )
-            }
-        ),
-        $(
-            if ($counter.Total.Warnings) {
-                ", $($counter.Total.Warnings) warning{0}" -f $(
-                    if ($counter.Total.Warnings -ne 1) { 's' }
-                )
-            }
-        ),
-        $(
-            if ($sendMail.Subject) {
-                ', {1}' -f $sendMail.Subject
-            }
-        )
-
-        if ($sendMail.Bcc) {
-            $mailParams.Bcc = $sendMail.Bcc
-        }
-
-        if (
-            $systemErrors -or
-            $counter.Total.Errors -or 
-            $counter.Total.Warnings
-        ) {
-            $mailParams.Priority = 'High'
-        }
-
-        if ($sendMail.Smtp.ConnectionType) {
-            $mailParams.SmtpConnectionType = Get-StringValueHC $sendMail.Smtp.ConnectionType
-        }
-
-        #region Create SMTP credential
-        $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
-        $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
-
-        if ($smtpUserName -and $smtpPassword) {
-            try {
-                $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
-
-                $credential = New-Object System.Management.Automation.PSCredential($smtpUserName, $securePassword)
-
-                $mailParams.Credential = $credential
-            }
-            catch {
-                throw "Failed to create credential: $_"
-            }
-        }
-        elseif ($smtpUserName -or $smtpPassword) {
-            throw "Both 'Settings.SendMail.Smtp.Username' and 'Settings.SendMail.Smtp.Password' are required when authentication is needed."
+            Write-Warning $systemErrors[-1].Message
         }
         #endregion
 
-        Send-MailKitMessageHC @mailParams
+        #region Remove old log files
+        if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
+            $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
+
+            Write-Verbose "Remove log files older than $cutoffDate from '$logFolder'"
+
+            Get-ChildItem -Path $logFolder -Recurse | 
+            Sort-Object 'FullName' -Descending |
+            ForEach-Object {
+                $item = $_
+                try {
+                    $shouldDelete = $false
+
+                    if (-not $item.PSIsContainer) {
+                        if ($item.LastWriteTime -lt $cutoffDate) { 
+                            $shouldDelete = $true 
+                        }
+                    } 
+                    else {
+                        if (
+                            ($item.GetFiles().Count -eq 0) -and 
+                            ($item.GetDirectories().Count -eq 0)
+                        ) {
+                            $shouldDelete = $true
+                        }
+                    }
+
+                    if ($shouldDelete) {
+                        Write-Verbose "Remove '$($item.FullName)'"
+                        Remove-Item -Path $item.FullName -Force -Recurse
+                    }
+                }
+                catch {
+                    $systemErrors.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = "Failed to remove file '$($item.FullName)': $_"
+                        }
+                    )
+
+                    Write-Warning $systemErrors[-1].Message
+                }
+            }
+        }
+        #endregion
+
+        #region Create system errors log file
+        if (
+            $systemErrors -and
+            (Test-Path -Path $LogFolder -PathType Container)
+        ) {
+            $baseLogName = Join-Path -Path $logFolder -ChildPath (
+                '{0} - {1} ({2})' -f
+                $scriptStartTime.ToString('yyyy_MM_dd'),
+                $scriptName,
+                $jsonFileItem.BaseName
+            )
+
+            $params = @{
+                DataToExport   = $systemErrors
+                PartialPath    = "$baseLogName - System errors"
+                FileExtensions = '.json'
+            }
+            $mailParams.Attachments = Out-LogFileHC @params -EA Ignore
+        }
+        #endregion
+
+        #region Send email
+        if ($systemErrors -or $importedMatrix) {
+            $mailParams += @{
+                To                  = @($sendMail.To + $MailTo).Where({ $_ })
+                From                = Get-StringValueHC $sendMail.From
+                SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
+                SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
+                MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
+                MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
+            }
+
+            if ($systemErrors) {
+                $mailParams.Body = '
+                <p>Found <b>{0} system errors</b>.</p>
+                <p><i>Please check the attachment for details.</i></p>
+                {1}' -f
+                $systemErrors.Count, $mailParams.Body 
+            }
+
+            if (-not $mailParams.Body) {
+                $mailParams.Body = '
+                <p>Manage file and folder permissions.</p>'
+            }
+
+            if ($sendMail.FromDisplayName) {
+                $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
+            }
+
+            $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f 
+            $(
+                @($importedMatrix).Count
+            ),
+            $(
+                if (@($importedMatrix).Count -ne 1) { 's' }
+            ),
+            $(
+                if ($counter.Total.Errors) {
+                    ", $($counter.Total.Errors) error{0}" -f $(
+                        if ($counter.Total.Errors -ne 1) { 's' }
+                    )
+                }
+            ),
+            $(
+                if ($counter.Total.Warnings) {
+                    ", $($counter.Total.Warnings) warning{0}" -f $(
+                        if ($counter.Total.Warnings -ne 1) { 's' }
+                    )
+                }
+            ),
+            $(
+                if ($sendMail.Subject) {
+                    ', {1}' -f $sendMail.Subject
+                }
+            )
+
+            if ($sendMail.Bcc) {
+                $mailParams.Bcc = $sendMail.Bcc
+            }
+
+            if (
+                $systemErrors -or
+                $counter.Total.Errors -or 
+                $counter.Total.Warnings
+            ) {
+                $mailParams.Priority = 'High'
+            }
+
+            if ($sendMail.Smtp.ConnectionType) {
+                $mailParams.SmtpConnectionType = Get-StringValueHC $sendMail.Smtp.ConnectionType
+            }
+
+            #region Create SMTP credential
+            $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
+            $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
+
+            if ($smtpUserName -and $smtpPassword) {
+                try {
+                    $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
+
+                    $credential = New-Object System.Management.Automation.PSCredential($smtpUserName, $securePassword)
+
+                    $mailParams.Credential = $credential
+                }
+                catch {
+                    throw "Failed to create credential: $_"
+                }
+            }
+            elseif ($smtpUserName -or $smtpPassword) {
+                throw "Both 'Settings.SendMail.Smtp.Username' and 'Settings.SendMail.Smtp.Password' are required when authentication is needed."
+            }
+            #endregion
+
+            Send-MailKitMessageHC @mailParams
+        }
+        #endregion
     }
-    #endregion
-}
-catch {
+    catch {
         $systemErrors.Add(
             [PSCustomObject]@{
                 DateTime = Get-Date
