@@ -247,7 +247,6 @@ BeforeAll {
     Mock Test-MatrixSettingHC
     Mock Wait-MaxRunningJobsHC
     Mock Write-EventLog
-    Mock Write-Warning
     Mock Test-FormDataHC
     Mock Get-AdUserPrincipalNameHC
 }

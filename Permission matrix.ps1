@@ -807,19 +807,16 @@ begin {
 
         try {
             if (-not [System.Diagnostics.EventLog]::SourceExists($Source)) {
-                #region Create new Source
-                Write-Verbose "Source '$Source' not found. Creating event log '$LogName' and registering source."
-                New-EventLog -LogName $LogName -Source $Source -ErrorAction Stop
-                #endregion
+                Write-Verbose "Create event log source '$Source' with log name '$LogName'"
+                    
+                New-EventLog -LogName $LogName -Source $Source -EA Stop
             }
             else {
-                #region Test existing Source
-                $ExistingLog = [System.Diagnostics.EventLog]::LogNameFromSource($Source, '.')
-            
-                if ($ExistingLog -ne $LogName) {
-                    throw "The source '$Source' is already registered to the '$ExistingLog' log. It cannot be used for '$LogName'."
+                $existingLog = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
+
+                if ($existingLog -ne $LogName) {
+                    throw "The event log source '$Source' is already registered with event log name '$existingLog', it cannot be used with log name '$LogName'."
                 }
-                #endregion
             }
 
             foreach ($eventItem in $Events) {
