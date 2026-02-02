@@ -2413,6 +2413,36 @@ end {
                     a:hover {
                         color: blue;
                     }
+                    body {
+                        font-family:verdana;
+                        font-size:14px;
+                        background-color:white;
+                    }
+                    h1 {
+                        margin-bottom: 0;
+                    }
+                    h2 {
+                        margin-bottom: 0;
+                    }
+                    h3 {
+                        margin-bottom: 0;
+                    }
+                    p.italic {
+                        font-style: italic;
+                        font-size: 12px;
+                    }
+                    table {
+                        border-collapse:collapse;
+                        border:0px none;
+                        padding:3px;
+                        text-align:left;
+                    }
+                    td, th {
+                        border-collapse:collapse;
+                        border:1px none;
+                        padding:3px;
+                        text-align:left;
+                    }
                     #overviewTable {
                         border-collapse: collapse;
                         border: 1px solid Black;
