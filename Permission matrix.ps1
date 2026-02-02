@@ -3039,16 +3039,6 @@ end {
             )
 
             Write-Warning $systemErrors[-1].Message
-
-            if ($baseLogName -and $isLog.systemErrors) {
-                $params = @{
-                    DataToExport   = $systemErrors[-1]
-                    PartialPath    = "$baseLogName - Errors"
-                    FileExtensions = $logFileExtensions
-                    Append         = $true
-                }
-                $allLogFilePaths += Out-LogFileHC @params -EA Ignore
-            }
         }
         #endregion
 
