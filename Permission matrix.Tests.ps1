@@ -179,10 +179,70 @@ BeforeAll {
             throw "Failure in Test-NewJsonFileHC: $_"
         }
     }
+    function Copy-ObjectHC {
+        <#
+        .SYNOPSIS
+            Make a deep copy of an object using JSON serialization.
+
+        .DESCRIPTION
+            Uses ConvertTo-Json and ConvertFrom-Json to create an independent
+            copy of an object. This method is generally effective for objects
+            that can be represented in JSON format.
+
+        .PARAMETER InputObject
+            The object to copy.
+
+        .EXAMPLE
+            $newArray = Copy-ObjectHC -InputObject $originalArray
+        #>
+        [CmdletBinding()]
+        param (
+            [Parameter(Mandatory)]
+            [Object]$InputObject
+        )
+
+        $jsonString = $InputObject | ConvertTo-Json -Depth 100
+
+        $deepCopy = $jsonString | ConvertFrom-Json
+
+        return $deepCopy
+    }
+    function Send-MailKitMessageHC {
+        param (
+            [parameter(Mandatory)]
+            [string]$MailKitAssemblyPath,
+            [parameter(Mandatory)]
+            [string]$MimeKitAssemblyPath,
+            [parameter(Mandatory)]
+            [string]$SmtpServerName,
+            [parameter(Mandatory)]
+            [ValidateSet(25, 465, 587, 2525)]
+            [int]$SmtpPort,
+            [parameter(Mandatory)]
+            [ValidatePattern('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')]
+            [string]$From,
+            [parameter(Mandatory)]
+            [string]$Body,
+            [parameter(Mandatory)]
+            [string]$Subject,
+            [string[]]$To,
+            [string[]]$Bcc,
+            [int]$MaxAttachmentSize = 20MB,
+            [ValidateSet(
+                'None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable'
+            )]
+            [string]$SmtpConnectionType = 'None',
+            [ValidateSet('Normal', 'Low', 'High')]
+            [string]$Priority = 'Normal',
+            [string[]]$Attachments,
+            [PSCredential]$Credential
+        )
+    }
 
     Mock Invoke-Command
     Mock New-PSSession
     Mock Send-MailHC
+    Mock Send-MailKitMessageHC
     Mock Test-MatrixPermissionsHC
     Mock Test-MatrixSettingHC
     Mock Wait-MaxRunningJobsHC
@@ -316,7 +376,7 @@ Describe 'create an error log file when' {
             }
         }
     }
-} -Tag test
+}
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
