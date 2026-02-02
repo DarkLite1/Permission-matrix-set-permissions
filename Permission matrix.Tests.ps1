@@ -9,18 +9,18 @@ BeforeAll {
             FoldersPerMatrix      = 2
         }
         Matrix                 = @{
-            FolderPath             = New-Item 'TestDrive:/Matrix' -ItemType Directory
-            DefaultsFile           = New-Item 'TestDrive:/Default.xlsx' -ItemType File
+            FolderPath             = (New-Item 'TestDrive:/Matrix' -ItemType Directory).FullName
+            DefaultsFile           = (New-Item 'TestDrive:/Default.xlsx' -ItemType File).FullName
             Archive                = $false
             ExcludedSamAccountName = @()
         }
         Export                 = @{
-            ServiceNowFormDataExcelFile = New-Item 'TestDrive:/snow.xlsx' -ItemType File
-            OverviewHtmlFile            = New-Item 'TestDrive:/overview.html' -ItemType File
-            PermissionsExcelFile        = New-Item 'TestDrive:/permissions.xlsx' -ItemType File
+            ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
+            OverviewHtmlFile            = (New-Item 'TestDrive:/overview.html' -ItemType File).FullName
+            PermissionsExcelFile        = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
         }
         ServiceNow             = @{
-            CredentialsFilePath = New-Item 'TestDrive:/cred.json' -ItemType File
+            CredentialsFilePath = (New-Item 'TestDrive:/cred.json' -ItemType File).FullName
             Environment         = 'Test'
             TableName           = 'roles'
         }
