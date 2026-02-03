@@ -3123,7 +3123,7 @@ end {
 
             $params = @{
                 DataToExport   = $systemErrors
-                PartialPath    = "$baseLogName - System errors"
+                PartialPath    = "$baseLogName - System errors log"
                 FileExtensions = '.json'
             }
             $mailParams.Attachments = Out-LogFileHC @params -EA Ignore
