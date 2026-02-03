@@ -1787,6 +1787,10 @@ end {
     try {
         $settings = $jsonFileContent.Settings
 
+        if (-not $settings) {
+            throw "Property 'Settings' not found. Details missing for sending emails, storing log files or writing to the event log."
+        }
+
         $scriptName = $settings.ScriptName
         $saveInEventLog = $settings.SaveInEventLog
         $sendMail = $settings.SendMail
