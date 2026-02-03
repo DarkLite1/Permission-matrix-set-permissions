@@ -3242,7 +3242,7 @@ end {
             ),
             $(
                 if ($sendMail.Subject) {
-                    ', {1}' -f $sendMail.Subject
+                    ', {0}' -f $sendMail.Subject
                 }
             )
             #endregion
