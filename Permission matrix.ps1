@@ -1806,6 +1806,133 @@ end {
         }
         #endregion
 
+        $html = @{}
+
+        #region HTML style
+        $html.Style = '
+            <style>
+                a {
+                    color: black;
+                    text-decoration: underline;
+                }
+                a:hover {
+                    color: blue;
+                }
+                body {
+                    font-family:verdana;
+                    font-size:14px;
+                    background-color:white;
+                }
+                h1 {
+                    margin-bottom: 0;
+                }
+                h2 {
+                    margin-bottom: 0;
+                }
+                h3 {
+                    margin-bottom: 0;
+                }
+                p.italic {
+                    font-style: italic;
+                    font-size: 12px;
+                }
+                table {
+                    border-collapse:collapse;
+                    border:0px none;
+                    padding:3px;
+                    text-align:left;
+                }
+                td, th {
+                    border-collapse:collapse;
+                    border:1px none;
+                    padding:3px;
+                    text-align:left;
+                }
+                #overviewTable {
+                    border-collapse: collapse;
+                    border: 1px solid Black;
+                    table-layout: fixed;
+                }
+                #overviewTable th {
+                    font-weight: normal;
+                    text-align: left;
+                }
+                #overviewTable td {
+                    text-align: center;
+                }
+                #matrixTable {
+                    border: 1px solid Black;
+                    /* padding-bottom: 60px; */
+                    /* border-spacing: 0.5em; */
+                    border-collapse: separate;
+                    border-spacing: 0px 0.6em;
+                    /* padding: 10px; */
+                    width: 600px;
+                }
+                #matrixTitle {
+                    border: none;
+                    background-color: lightgrey;
+                    text-align: center;
+                    padding: 6px;
+                }
+                #matrixHeader {
+                    font-weight: normal;
+                    letter-spacing: 5pt;
+                    font-style: italic;
+                }
+                #matrixFileInfo {
+                    font-weight: normal;
+                    font-size: 12px;
+                    font-style: italic;
+                    text-align: center;
+                }
+                #LegendTable {
+                    border-collapse: collapse;
+                    border: 1px solid Black;
+                    table-layout: fixed;
+                }
+                #LegendTable td {
+                    text-align: center;
+                }
+                #probTitle {
+                    font-weight: bold;
+                }
+                #probTypeWarning {
+                    background-color: orange;
+                }
+                #probTextWarning {
+                    color: orange;
+                    font-weight: bold;
+                }
+                #probTypeError {
+                    background-color: red;
+                }
+                #probTextError {
+                    color: red;
+                    font-weight: bold;
+                }
+                #probTypeInfo {
+                    background-color: lightgrey;
+                }
+                table tbody tr td a {
+                    display: block;
+                    width: 100%;
+                    height: 100%;
+                }
+                #aboutTable th {
+                    color: rgb(143, 140, 140);
+                    font-weight: normal;
+                }
+                #aboutTable td {
+                    color: rgb(143, 140, 140);
+                    font-weight: normal;
+                }
+                base {
+                    target="_blank"
+                }
+            </style>'
+        #endregion
+
         if ((-not $systemErrors) -and $importedMatrix) {
             $dataToExport = @{
                 AccessList    = @()
@@ -2400,143 +2527,6 @@ end {
             }
             #endregion
 
-            $html = @{}
-
-            #region HTML Style and table legend
-            Write-Verbose 'Format HTML'
-
-            $html.Style = '<style>
-                    a {
-                        color: black;
-                        text-decoration: underline;
-                    }
-                    a:hover {
-                        color: blue;
-                    }
-                    body {
-                        font-family:verdana;
-                        font-size:14px;
-                        background-color:white;
-                    }
-                    h1 {
-                        margin-bottom: 0;
-                    }
-                    h2 {
-                        margin-bottom: 0;
-                    }
-                    h3 {
-                        margin-bottom: 0;
-                    }
-                    p.italic {
-                        font-style: italic;
-                        font-size: 12px;
-                    }
-                    table {
-                        border-collapse:collapse;
-                        border:0px none;
-                        padding:3px;
-                        text-align:left;
-                    }
-                    td, th {
-                        border-collapse:collapse;
-                        border:1px none;
-                        padding:3px;
-                        text-align:left;
-                    }
-                    #overviewTable {
-                        border-collapse: collapse;
-                        border: 1px solid Black;
-                        table-layout: fixed;
-                    }
-                    #overviewTable th {
-                        font-weight: normal;
-                        text-align: left;
-                    }
-                    #overviewTable td {
-                        text-align: center;
-                    }
-                    #matrixTable {
-                        border: 1px solid Black;
-                        /* padding-bottom: 60px; */
-                        /* border-spacing: 0.5em; */
-                        border-collapse: separate;
-                        border-spacing: 0px 0.6em;
-                        /* padding: 10px; */
-                        width: 600px;
-                    }
-                    #matrixTitle {
-                        border: none;
-                        background-color: lightgrey;
-                        text-align: center;
-                        padding: 6px;
-                    }
-                    #matrixHeader {
-                        font-weight: normal;
-                        letter-spacing: 5pt;
-                        font-style: italic;
-                    }
-                    #matrixFileInfo {
-                        font-weight: normal;
-                        font-size: 12px;
-                        font-style: italic;
-                        text-align: center;
-                    }
-                    #LegendTable {
-                        border-collapse: collapse;
-                        border: 1px solid Black;
-                        table-layout: fixed;
-                    }
-                    #LegendTable td {
-                        text-align: center;
-                    }
-                    #probTitle {
-                        font-weight: bold;
-                    }
-                    #probTypeWarning {
-                        background-color: orange;
-                    }
-                    #probTextWarning {
-                        color: orange;
-                        font-weight: bold;
-                    }
-                    #probTypeError {
-                        background-color: red;
-                    }
-                    #probTextError {
-                        color: red;
-                        font-weight: bold;
-                    }
-                    #probTypeInfo {
-                        background-color: lightgrey;
-                    }
-                    table tbody tr td a {
-                        display: block;
-                        width: 100%;
-                        height: 100%;
-                    }
-                    #aboutTable th {
-                        color: rgb(143, 140, 140);
-                        font-weight: normal;
-                    }
-                    #aboutTable td {
-                        color: rgb(143, 140, 140);
-                        font-weight: normal;
-                    }
-                    base {
-                        target="_blank"
-                    }
-                </style>'
-
-            $html.LegendTable = '
-                <table id="LegendTable">
-                    <tr>
-                        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
-                        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
-                        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
-                    </tr>
-                </table>'
-            #endregion
-
             #region HTML Mail overview & Settings detail
             $html.MatrixTables = foreach ($I in $importedMatrix) {
                 #region HTML File
@@ -2821,7 +2811,13 @@ end {
 
                                 </table>
                                 <br>
-                                $($html.LegendTable)
+                                <table id="LegendTable">
+                                    <tr>
+                                        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
+                                        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
+                                        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
+                                    </tr>
+                                </table>
                                     <h2>About</h2>
                                 <table>
                                     <tr>
