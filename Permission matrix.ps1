@@ -3158,10 +3158,71 @@ end {
                 <p>Manage file and folder permissions.</p>'
             }
 
+            if ($mailParams.Attachments) {
+                $mailParams.Body += '<p><i>* Check the attachment(s) for details</i></p>'
+            }
+
+            #region About table
+            $mailParams.Body += @"
+                <hr size="2" color="#06cc7a">
+                <table id="aboutTable">
+                    $(
+                        if ($scriptStartTime) {
+                            '<tr>
+                                <th>Start time</th>
+                                <td>{0:00}/{1:00}/{2:00} {3:00}:{4:00} ({5})</td>
+                            </tr>' -f
+                            $scriptStartTime.Day,
+                            $scriptStartTime.Month,
+                            $scriptStartTime.Year,
+                            $scriptStartTime.Hour,
+                            $scriptStartTime.Minute,
+                            $scriptStartTime.DayOfWeek
+                        }
+                    )
+                    $(
+                        if ($scriptStartTime) {
+                            $runTime = New-TimeSpan -Start $scriptStartTime -End (Get-Date)
+                            '<tr>
+                                <th>Duration</th>
+                                <td>{0:00}:{1:00}:{2:00}</td>
+                            </tr>' -f
+                            $runTime.Hours, $runTime.Minutes, $runTime.Seconds
+                        }
+                    )
+                    $(
+                        if ($logFolder) {
+                            '<tr>
+                                <th>Log files</th>
+                                <td><a href="{0}">Open log folder</a></td>
+                            </tr>' -f $logFolder
+                        }
+                    )
+                    <tr>
+                        <th>Host</th>
+                        <td>$($host.Name)</td>
+                    </tr>
+                    <tr>
+                        <th>PowerShell</th>
+                        <td>$($PSVersionTable.PSVersion.ToString())</td>
+                    </tr>
+                    <tr>
+                        <th>Computer</th>
+                        <td>$env:COMPUTERNAME</td>
+                    </tr>
+                    <tr>
+                        <th>Account</th>
+                        <td>$env:USERDNSDOMAIN\$env:USERNAME</td>
+                    </tr>
+                </table>
+"@
+            #endregion
+
             if ($sendMail.FromDisplayName) {
                 $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
             }
 
+            #region Subject
             $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f 
             $(
                 @($importedMatrix).Count
@@ -3188,6 +3249,7 @@ end {
                     ', {1}' -f $sendMail.Subject
                 }
             )
+            #endregion
 
             if ($sendMail.Bcc) {
                 $mailParams.Bcc = $sendMail.Bcc
