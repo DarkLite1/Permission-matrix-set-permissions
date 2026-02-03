@@ -2528,6 +2528,17 @@ end {
             #endregion
 
             #region HTML Mail overview & Settings detail
+            $html.SettingsHeader = '
+            <th id="matrixHeader" colspan="8">Settings</th>
+            <tr>
+                <td></td>
+                <td>ID</td>
+                <td>ComputerName</td>
+                <td>Path</td>
+                <td>Action</td>
+                <td>Duration</td>
+            </tr>'
+
             $html.MatrixTables = foreach ($I in $importedMatrix) {
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
@@ -2625,26 +2636,15 @@ end {
                 }
                 #endregion
 
-                #region HTML Mail overview Settings table $ Settings detail file
-                $html.Mail = @{}
+                #region HTML Mail overview Settings table
+                $html.SettingsTable = $null
 
                 if (
                     ($I.Settings) -and
                     ($I.File.Check.Type -notcontains 'FatalError') -and
                     ($I.Permissions.Check.Type -notcontains 'FatalError')
                 ) {
-                    $html.Mail.SettingsHeader = '
-                        <th id="matrixHeader" colspan="8">Settings</th>
-                        <tr>
-                            <td></td>
-                            <td>ID</td>
-                            <td>ComputerName</td>
-                            <td>Path</td>
-                            <td>Action</td>
-                            <td>Duration</td>
-                        </tr>'
-
-                    $html.Mail.SettingsTable = $html.Mail.SettingsHeader
+                    $html.SettingsTable = $html.SettingsHeader
 
                     foreach ($S in $I.Settings) {
                         $problem = @{}
@@ -2788,7 +2788,7 @@ end {
                                 <tr>
                                     <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
                                 </tr>
-                                $($html.Mail.SettingsHeader)
+                                $($html.SettingsHeader)
                                 <tr>
                                     <td id="$($problem.Type)"></td>
                                     <td>$($S.ID)</td>
@@ -2865,7 +2865,7 @@ end {
                         Out-File @matrixLogFileParams
                         #endregion
 
-                        $html.Mail.SettingsTable += "
+                        $html.SettingsTable += "
                         <tr>
                             <td id=`"$($problem.Type)`"></td>
                             <td><a href=`"{0}`">$($S.ID)</a></td>
@@ -2896,7 +2896,7 @@ end {
                     $FileCheck
                     $FormDataCheck
                     $PermissionsCheck
-                    $($html.Mail.SettingsTable)
+                    $($html.SettingsTable)
                 </table>
                 <br><br>
 "@
