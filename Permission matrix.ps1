@@ -917,7 +917,8 @@ begin {
 
         try {
             @(
-                'MaxConcurrent', 'Matrix'
+                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 
+                'PSSessionConfiguration', 'Settings'
             ).where(
                 { -not $jsonFileContent.$_ }
             ).foreach(
