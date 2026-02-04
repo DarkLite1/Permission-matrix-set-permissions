@@ -65,6 +65,8 @@ BeforeAll {
         }
     }
 
+    $testLogFolder = $testInputFile.Settings.SaveLogFiles.Where.Folder
+
     $testOutParams = @{
         FilePath = (New-Item 'TestDrive:/Test.json' -ItemType File).FullName
     }
@@ -121,15 +123,17 @@ BeforeAll {
     $testDefaultSettings |
     Export-Excel -Path $testInputFile.Matrix.DefaultsFile -WorksheetName 'Settings'
 
-    $SettingsParams = @{
+    $testSettingsParams = @{
         Path          = Join-Path $testInputFile.Matrix.FolderPath 'Matrix.xlsx'
         WorkSheetName = 'Settings'
     }
-    $PermissionsParams = @{
-        Path          = $SettingsParams.Path
+    $testPermissionsParams = @{
+        Path          = $testSettingsParams.Path
         WorkSheetName = 'Permissions'
         NoHeader      = $true
     }
+
+    $testInputFile | ConvertTo-Json -Depth 7 | Out-File @testOutParams
 
     function Compare-HashTableHC {
         param (
@@ -259,6 +263,11 @@ Describe 'the mandatory parameters are' {
     }
 }
 Describe 'create an error log file when' {
+    AfterAll {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+    
+        Test-NewJsonFileHC
+    }
     It 'the log folder cannot be created' {
         $testNewInputFile = Copy-ObjectHC $testInputFile
         $testNewInputFile.Settings.SaveLogFiles.Where.Folder = 'x:\notExistingLocation'
@@ -474,7 +483,7 @@ Describe 'create an error log file when' {
             Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
         }
     }
-} -Tag test
+}
 Describe 'a sub folder in the log folder' {
     BeforeAll {
         @(
@@ -484,27 +493,27 @@ Describe 'a sub folder in the log folder' {
                 Path         = 'E:\Test'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
             [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
     }
     It "is created for each specific Excel file regardless of its 'Status'" {
-        @(Get-ChildItem -Path $testInputFile.LogFolder -Directory).Count |
+        @(Get-ChildItem -Path $testLogFolder -Directory).Count |
         Should -BeExactly 1
     }
     It 'the Excel file is copied to the log folder' {
-        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
 
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
-}
+} -Tag test
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
@@ -513,14 +522,14 @@ Describe "when 'Matrix.Archive' is true then" {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
             [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         $testInputFile = $testInputFile.Clone()
         $testInputFile.Matrix.Archive = $true
@@ -529,7 +538,7 @@ Describe "when 'Matrix.Archive' is true then" {
         "$($testInputFile.Matrix.FolderPath)\Archive" | Should -Exist
     }
     It 'all matrix files are moved to the archive folder, even disabled ones' {
-        $SettingsParams.Path | Should -Not -Exist
+        $testSettingsParams.Path | Should -Not -Exist
         "$($testInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
     }
     It 'a matrix with the same name is overwritten in the archive folder' {
@@ -542,7 +551,7 @@ Describe "when 'Matrix.Archive' is true then" {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel -Path $testFile -WorksheetName $SettingsParams.WorkSheetName
+        ) | Export-Excel -Path $testFile -WorksheetName $testSettingsParams.WorkSheetName
 
         $testFile | Should -Exist
 
@@ -552,19 +561,19 @@ Describe "when 'Matrix.Archive' is true then" {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
             [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams -Archive
 
         $testFile | Should -Exist
-        $SettingsParams.Path | Should -Not -Exist
+        $testSettingsParams.Path | Should -Not -Exist
         (Import-Excel -Path $testFile -WorksheetName Settings).ComputerName |
         Should -Be 'S2'
     }
@@ -643,14 +652,14 @@ Describe 'do not invoke the script to set permissions when' {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
             [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
 
@@ -660,7 +669,7 @@ Describe 'do not invoke the script to set permissions when' {
 Describe 'a FatalError object is registered' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
         Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
@@ -676,14 +685,14 @@ Describe 'a FatalError object is registered' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
                 [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -703,7 +712,7 @@ Describe 'a FatalError object is registered' {
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -711,7 +720,7 @@ Describe 'a FatalError object is registered' {
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                Value       = "Failed importing the Excel workbook '$($PermissionsParams.Path)' with worksheet 'Settings'*"
+                Value       = "Failed importing the Excel workbook '$($testPermissionsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
                     $ImportedMatrix.File.Check.($_.Key) |
                     Should -BeLike $_.Value
@@ -724,10 +733,10 @@ Describe 'a FatalError object is registered' {
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             #region Add empty worksheet
-            $pkg = New-Object OfficeOpenXml.ExcelPackage (Get-Item -Path $SettingsParams.Path)
+            $pkg = New-Object OfficeOpenXml.ExcelPackage (Get-Item -Path $testSettingsParams.Path)
             $null = $pkg.Workbook.Worksheets.Add('Settings')
             $pkg.Save()
             $pkg.Dispose()
@@ -739,14 +748,14 @@ Describe 'a FatalError object is registered' {
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                Value       = "Failed importing the Excel workbook '$($SettingsParams.Path)' with worksheet 'Settings'*"
+                Value       = "Failed importing the Excel workbook '$($testSettingsParams.Path)' with worksheet 'Settings'*"
             }.GetEnumerator().ForEach( {
                     $ImportedMatrix.File.Check.($_.Key) |
                     Should -BeLike $_.Value
                 })
         } -Skip
         It "the worksheet Permissions is not found when the 'Settings' sheet has 'Status' set to 'Enabled'" {
-            $testSettings | Export-Excel @SettingsParams
+            $testSettings | Export-Excel @testSettingsParams
 
             .$testScript @testParams
 
@@ -760,10 +769,10 @@ Describe 'a FatalError object is registered' {
                 })
         } -Skip
         It "the worksheet Permissions is empty when the 'Settings' sheet has 'Status' set to 'Enabled'" {
-            $testSettings | Export-Excel @SettingsParams
+            $testSettings | Export-Excel @testSettingsParams
 
             #region Add empty worksheet
-            $pkg = New-Object OfficeOpenXml.ExcelPackage (Get-Item -Path $SettingsParams.Path)
+            $pkg = New-Object OfficeOpenXml.ExcelPackage (Get-Item -Path $testSettingsParams.Path)
             $null = $pkg.Workbook.Worksheets.Add('Permissions')
             $pkg.Save()
             $pkg.Dispose()
@@ -793,8 +802,8 @@ Describe 'a FatalError object is registered' {
                 }
             }
 
-            $testSettings | Export-Excel @SettingsParams
-            $testPermissions | Export-Excel @PermissionsParams
+            $testSettings | Export-Excel @testSettingsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -844,9 +853,9 @@ Describe 'a FatalError object is registered' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -876,8 +885,8 @@ Describe 'a FatalError object is registered' {
                 $testProblem
             }
 
-            $testSettings | Export-Excel @SettingsParams
-            $testPermissions | Export-Excel @PermissionsParams
+            $testSettings | Export-Excel @testSettingsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -898,8 +907,8 @@ Describe 'a FatalError object is registered' {
 
             Mock Get-ADObjectDetailHC { $true }
 
-            $testSettings | Export-Excel @SettingsParams
-            $testPermissions | Export-Excel @PermissionsParams
+            $testSettings | Export-Excel @testSettingsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -911,7 +920,7 @@ Describe 'a FatalError object is registered' {
 Describe 'a Warning object is registered' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
         Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
@@ -923,8 +932,8 @@ Describe 'a Warning object is registered' {
                     Path         = 'E:\Reports'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
-            $testPermissions | Export-Excel @PermissionsParams
+            ) | Export-Excel @testSettingsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -971,7 +980,7 @@ Describe "each row in the worksheet 'settings'" {
                 GroupName    = 'E'
                 SiteCode     = 'F'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'bob' }
@@ -979,7 +988,7 @@ Describe "each row in the worksheet 'settings'" {
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams -EA ignore
     }
@@ -1034,7 +1043,7 @@ Describe "the worksheet 'Permissions' is" {
                 GroupName    = 'A'
                 SiteCode     = 'B'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
         @(
             [PSCustomObject]@{P1 = $null      ; P2 = 'bob' }
@@ -1042,7 +1051,7 @@ Describe "the worksheet 'Permissions' is" {
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
     }
@@ -1105,9 +1114,9 @@ Describe 'the script that tests the remote computers for compliance' {
                 Path         = 'E:\Finance'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
-        $testPermissions | Export-Excel @PermissionsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
     }
@@ -1204,9 +1213,9 @@ Describe 'the script that sets the permissions on the remote computers' {
                 Path         = 'E:\Finance'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
-        $testPermissions | Export-Excel @PermissionsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
     }
@@ -1278,9 +1287,9 @@ Describe 'an email is sent to the user in the default settings file' {
                 GroupName    = 'x'
                 SiteCode     = 'x'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
-        $testPermissions | Export-Excel @PermissionsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
     }
@@ -1288,7 +1297,7 @@ Describe 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
             ($Subject -eq '1 matrix file') -and
-            ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
             ($Message -notlike '*Export*') -and
             ($Message -like '*Matrix results per file*') -and
@@ -1406,7 +1415,7 @@ Describe 'export an Excel file with' {
                 GroupName    = 'A'
                 SiteCode     = 'B'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
         @(
             [PSCustomObject]@{
@@ -1424,11 +1433,11 @@ Describe 'export an Excel file with' {
             [PSCustomObject]@{
                 P1 = 'Folder'   ; P2 = 'W'         ; P3 = ''; P4 = '' ; P5 = ''
             }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams -ExcludedSamAccountName 'IgnoreMe'
 
-        $testMatrixFile = Get-ChildItem $testInputFile.logFolder -Filter '*Matrix.xlsx' -Recurse -File
+        $testMatrixFile = Get-ChildItem $testLogFolder -Filter '*Matrix.xlsx' -Recurse -File
     }
     Context "the worksheet 'AccessList'" {
         BeforeAll {
@@ -1554,9 +1563,9 @@ Describe 'when a job fails' {
                     Path         = 'E:\Reports'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
         }
@@ -1597,9 +1606,9 @@ Describe 'when a job fails' {
                     Path         = 'E:\Reports'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
         }
@@ -1640,14 +1649,14 @@ Describe 'internal functions' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
                 [PSCustomObject]@{P1 = 'SiteCode' ; P2 = '' }
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = '' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -1687,14 +1696,14 @@ Describe 'internal functions' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
                 [PSCustomObject]@{P1 = 'SiteCode' ; P2 = '' }
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = '' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = '' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'L' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -1730,14 +1739,14 @@ Describe 'internal functions' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Mike' }
                 [PSCustomObject]@{P1 = 'SiteCode' ; P2 = '' }
                 [PSCustomObject]@{P1 = 'GroupName'; P2 = '' }
                 [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
                 [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-            ) | Export-Excel @PermissionsParams
+            ) | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
 
@@ -1755,7 +1764,7 @@ Describe 'internal functions' {
 Describe 'when a FatalError occurs while executing the matrix' {
     AfterEach {
         $Error.Clear()
-        Remove-Item -Path "$($testInputFile.LogFolder)\*" -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
         Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
     }
     It 'a detailed HTML log file is created for each settings row' {
@@ -1780,12 +1789,12 @@ Describe 'when a FatalError occurs while executing the matrix' {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
-        $testPermissions | Export-Excel @PermissionsParams
+        ) | Export-Excel @testSettingsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -NE '.xlsx').Count | Should -BeExactly 2
     }
     It 'a TXT log file is created for each settings row when there are more than 5 elements in the value array' {
@@ -1814,12 +1823,12 @@ Describe 'when a FatalError occurs while executing the matrix' {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
-        $testPermissions | Export-Excel @PermissionsParams
+        ) | Export-Excel @testSettingsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testInputFile.LogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -EQ '.txt').Count | Should -BeExactly 2
     }
     It 'an e-mail is send' {
@@ -1846,8 +1855,8 @@ Describe 'when a FatalError occurs while executing the matrix' {
                 Path                 = 'E:\Department'
                 Action               = 'Check'
             }
-        ) | Export-Excel @SettingsParams
-        $testPermissions | Export-Excel @PermissionsParams
+        ) | Export-Excel @testSettingsParams
+        $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
 
@@ -1864,9 +1873,9 @@ Describe 'when the argument CherwellFolder is used' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
         }
@@ -1881,7 +1890,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like "*Worksheet 'FormData' not found*") -and
@@ -1910,16 +1919,16 @@ Describe 'when the argument CherwellFolder is used' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
             @(
                 [PSCustomObject]@{
                     MatrixFormStatus = 'Enabled'
                 }
             ) |
-            Export-Excel -Path $SettingsParams.Path -WorksheetName 'FormData'
+            Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
         }
@@ -1934,7 +1943,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
                 ($Message -like '*Errors*Warnings*FormData*') -and
@@ -1961,7 +1970,7 @@ Describe 'when the argument CherwellFolder is used' {
                     Path         = 'E:\Department'
                     Action       = 'Check'
                 }
-            ) | Export-Excel @SettingsParams
+            ) | Export-Excel @testSettingsParams
 
             @(
                 [PSCustomObject]@{
@@ -1969,9 +1978,9 @@ Describe 'when the argument CherwellFolder is used' {
                     MatrixResponsible = 'mike@contoso.com, bob@contoso.com'
                 }
             ) |
-            Export-Excel -Path $SettingsParams.Path -WorksheetName 'FormData'
+            Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
-            $testPermissions | Export-Excel @PermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
         }
@@ -1987,7 +1996,7 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the warning message' {
             Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
+                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
                 ($Subject -eq '1 matrix file, 1 warning') -and
                 ($Priority -eq 'High') -and
                 ($Message -like '*Errors*Warnings*FormData*') -and
@@ -2048,7 +2057,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
             [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
-        ) | Export-Excel @PermissionsParams
+        ) | Export-Excel @testPermissionsParams
 
         @(
             [PSCustomObject]@{
@@ -2059,7 +2068,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 Path         = 'E:\Department'
                 Action       = 'Check'
             }
-        ) | Export-Excel @SettingsParams
+        ) | Export-Excel @testSettingsParams
 
         @(
             [PSCustomObject]@{
@@ -2071,7 +2080,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 MatrixFolderPath        = 'e'
             }
         ) |
-        Export-Excel -Path $SettingsParams.Path -WorksheetName 'FormData'
+        Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
         $testCherwellParams = @{
             CherwellFolder                = $testCherwellFolder.FullName
@@ -2085,7 +2094,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
 
         $testCherwellExport = Get-ChildItem $testCherwellFolder.FullName
 
-        $testLogFolderExport = Get-ChildItem $testInputFile.LogFolder -Recurse -File |
+        $testLogFolderExport = Get-ChildItem $testLogFolder -Recurse -File |
         Where-Object Extension -Match '.xlsx$|.csv$'
 
         $testLogFolder = @{
@@ -2160,7 +2169,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             It '<Name>' -ForEach @(
                 @{ Name = 'MatrixFormStatus'; Value = 'Enabled' }
                 @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                # @{ Name = 'MatrixFilePath'; Value = $SettingsParams.Path }
+                # @{ Name = 'MatrixFilePath'; Value = $testSettingsParams.Path }
                 @{ Name = 'MatrixCategoryName'; Value = 'a' }
                 @{ Name = 'MatrixSubCategoryName'; Value = 'b' }
                 @{ Name = 'MatrixResponsible'; Value = 'bob@contoso.com,mike@contoso.com' }
@@ -2175,13 +2184,13 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             It 'MatrixFilePath' {
                 # scoping issue in Pester
                 $actual.cherwellFolder.FormData.MatrixFilePath |
-                Should -Be $SettingsParams.Path
+                Should -Be $testSettingsParams.Path
                 $actual.cherwellFolder.Excel.MatrixFilePath |
-                Should -Be $SettingsParams.Path
+                Should -Be $testSettingsParams.Path
                 $actual.logFolder.FormData.MatrixFilePath |
-                Should -Be $SettingsParams.Path
+                Should -Be $testSettingsParams.Path
                 $actual.logFolder.Excel.MatrixFilePath |
-                Should -Be $SettingsParams.Path
+                Should -Be $testSettingsParams.Path
             }
         }
     }
@@ -2315,7 +2324,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($To -eq 'Bob@contoso.com') -and
-            ($Save -like "$((Get-Item $testInputFile.LogFolder).FullName)* - Mail - 1 matrix file.html") -and
+            ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
             ($Message -like '*Export to*Export*') -and

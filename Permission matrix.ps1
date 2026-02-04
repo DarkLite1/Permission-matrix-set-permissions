@@ -887,15 +887,14 @@ begin {
         $ServiceNow = $jsonFileContent.ServiceNow
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
+        $Settings = $jsonFileContent.Settings
 
-        $settings = $jsonFileContent.Settings
-
-        if (-not $settings) {
+        if (-not $Settings) {
             throw "Property 'Settings' not found. Details missing for sending emails, storing log files or writing to the event log."
         }
 
-        $DetailedLog = $settings.SaveLogFiles.Detailed
-        $LogFolder = $settings.SaveLogFiles.Where.Folder
+        $DetailedLog = $Settings.SaveLogFiles.Detailed
+        $LogFolder = $Settings.SaveLogFiles.Where.Folder
 
         #region Test path exists
         $scriptPathItem = @{}
@@ -1810,12 +1809,12 @@ process {
 
 end {
     try {
-        if (-not $settings) { return }
+        if (-not $Settings) { return }
 
-        $scriptName = $settings.ScriptName
-        $saveInEventLog = $settings.SaveInEventLog
-        $sendMail = $settings.SendMail
-        $saveLogFiles = $settings.SaveLogFiles
+        $scriptName = $Settings.ScriptName
+        $saveInEventLog = $Settings.SaveInEventLog
+        $sendMail = $Settings.SendMail
+        $saveLogFiles = $Settings.SaveLogFiles
 
         #region Get script name
         if (-not $scriptName) {
