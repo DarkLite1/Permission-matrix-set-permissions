@@ -304,29 +304,12 @@ Describe 'create an error log file when' {
 
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property '$_' not found*"
-            } -Tag test
-            It 'Tasks.Sftp.<_> not found' -ForEach @(
-                'ComputerName', 'Credential'
-            ) {
-                $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Tasks[0].Sftp.$_ = $null
-
-                Test-NewJsonFileHC
-
-                .$testScript @testParams
-
-                $LASTEXITCODE | Should -Be 1
-
-                $testLogFileContent = Test-GetLogFileDataHC
-
-                $testLogFileContent[0].Message |
-                Should -BeLike "*Property 'Tasks.Sftp.$_' not found*"
             }
-            It 'Tasks.Sftp.Credential.<_> not found' -ForEach @(
-                'UserName'
+            It 'MaxConcurrent.<_> not found' -ForEach @(
+                'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Tasks[0].Sftp.Credential.$_ = $null
+                $testNewInputFile.MaxConcurrent.$_ = $null
 
                 Test-NewJsonFileHC
 
@@ -337,13 +320,13 @@ Describe 'create an error log file when' {
                 $testLogFileContent = Test-GetLogFileDataHC
 
                 $testLogFileContent[0].Message |
-                Should -BeLike "*Property 'Tasks.Sftp.Credential.$_' not found*"
+                Should -BeLike "*Property 'MaxConcurrent.$_' not found*"
             }
-            It 'Tasks.Option.<_> not found' -ForEach @(
-                'MatchFileNameRegex'
+            It 'Matrix.<_> not found' -ForEach @(
+                'FolderPath', 'DefaultsFile'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Tasks[0].Option.$_ = $null
+                $testNewInputFile.Matrix.$_ = $null
 
                 Test-NewJsonFileHC
 
@@ -354,24 +337,7 @@ Describe 'create an error log file when' {
                 $testLogFileContent = Test-GetLogFileDataHC
 
                 $testLogFileContent[0].Message |
-                Should -BeLike "*Property 'Tasks.Option.$_' not found*"
-            }
-            It 'Tasks.Actions.<_> not found' -ForEach @(
-                'Paths'
-            ) {
-                $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Tasks[0].Actions[0].$_ = $null
-
-                Test-NewJsonFileHC
-
-                .$testScript @testParams
-
-                $LASTEXITCODE | Should -Be 1
-
-                $testLogFileContent = Test-GetLogFileDataHC
-
-                $testLogFileContent[0].Message |
-                Should -BeLike "*Property 'Tasks.Actions.$_' not found*"
+                Should -BeLike "*Property 'Matrix.$_' not found*"
             }
         }
     }
