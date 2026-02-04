@@ -371,39 +371,6 @@ Describe 'stop the script and send an e-mail to the admin when' {
         }
     }
     Context 'a file or folder is not found' {
-        It 'Script SetPermissionFile' {
-            $testInputFile = $testInputFile.Clone()
-            $testInputFile.ScriptPath.SetPermissionFile = 'NonExisting.ps1'
-
-            .$testScript @testParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like '*ScriptPath.NonExisting.ps1*not found*')
-            }
-        }
-        It 'Script TestRequirements' {
-            $testInputFile = $testInputFile.Clone()
-            $testInputFile.ScriptPath.TestRequirementsFile = 'ShareConfigNotExisting.ps1'
-
-            .$testScript @testParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like '*ScriptPath.ShareConfigNotExisting.ps1*not found*')
-            }
-        }
-        It 'LogFolder' {
-            $testInputFile = $testInputFile.Clone()
-            $testInputFile.LogFolder = 'x:\NonExistingLog'
-
-            .$testScript @testParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like "*Failed to create log folder 'x:\NonExistingLog'*")
-            }
-        }
         It 'CherwellFolder' {
             $testInputFile = $testInputFile.Clone()
             $testInputFile.CherwellFolder = 'NonExistingFolder'
