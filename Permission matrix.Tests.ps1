@@ -203,7 +203,7 @@ BeforeAll {
 
         $jsonString = $InputObject | ConvertTo-Json -Depth 100
 
-        $deepCopy = $jsonString | ConvertFrom-Json
+        $deepCopy = $jsonString | ConvertFrom-Json -AsHashtable
 
         return $deepCopy
     }
@@ -341,7 +341,27 @@ Describe 'create an error log file when' {
             }
         }
     }
-}
+    Context 'script file' {
+        It '<_> is not found' -ForEach @(
+            'TestRequirementsFile', 'SetPermissionFile', 'UpdateServiceNow'
+        ) {
+            $testNewParams = Copy-ObjectHC $testParams
+            $testNewParams.ScriptPath.$_ = 'x:\NotExisting.ps1'
+    
+            $testNewInputFile = Copy-ObjectHC $testInputFile
+            Test-NewJsonFileHC
+    
+            .$testScript @testNewParams
+    
+            $LASTEXITCODE | Should -Be 1
+    
+            $testLogFileContent = Test-GetLogFileDataHC
+    
+            $testLogFileContent[0].Message |
+            Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
+        }
+    }
+} -Tag test
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {

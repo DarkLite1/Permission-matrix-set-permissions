@@ -872,28 +872,6 @@ begin {
                 EventID   = '100'
             }
         )
-        
-        #region Test path exists
-        $scriptPathItem = @{}
-
-        $ScriptPath.GetEnumerator().ForEach(
-            {
-                try {
-                    $key = $_.Key
-                    $value = $_.Value
-
-                    $params = @{
-                        Path        = $value
-                        ErrorAction = 'Stop'
-                    }
-                    $scriptPathItem[$key] = (Get-Item @params).FullName
-                }
-                catch {
-                    throw "ScriptPath.$key '$value' not found"
-                }
-            }
-        )
-        #endregion
 
         #region Import .json file
         Write-Verbose "Import .json file '$ConfigurationJsonFile'"
@@ -918,6 +896,28 @@ begin {
 
         $DetailedLog = $settings.SaveLogFiles.Detailed
         $LogFolder = $settings.SaveLogFiles.Where.Folder
+
+        #region Test path exists
+        $scriptPathItem = @{}
+
+        $ScriptPath.GetEnumerator().ForEach(
+            {
+                try {
+                    $key = $_.Key
+                    $value = $_.Value
+
+                    $params = @{
+                        Path        = $value
+                        ErrorAction = 'Stop'
+                    }
+                    $scriptPathItem[$key] = (Get-Item @params).FullName
+                }
+                catch {
+                    throw "ScriptPath.$key '$value' not found"
+                }
+            }
+        )
+        #endregion
 
         #region Test .json file properties
         Write-Verbose 'Test .json file properties'
