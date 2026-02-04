@@ -909,8 +909,15 @@ begin {
         $ServiceNow = $jsonFileContent.ServiceNow
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
         $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
-        $DetailedLog = $jsonFileContent.Settings.SaveLogFiles.Detailed
-        $LogFolder = $jsonFileContent.Settings.SaveLogFiles.Where.Folder
+
+        $settings = $jsonFileContent.Settings
+
+        if (-not $settings) {
+            throw "Property 'Settings' not found. Details missing for sending emails, storing log files or writing to the event log."
+        }
+
+        $DetailedLog = $settings.SaveLogFiles.Detailed
+        $LogFolder = $settings.SaveLogFiles.Where.Folder
 
         #region Test .json file properties
         Write-Verbose 'Test .json file properties'
@@ -1785,11 +1792,7 @@ process {
 
 end {
     try {
-        $settings = $jsonFileContent.Settings
-
-        if (-not $settings) {
-            throw "Property 'Settings' not found. Details missing for sending emails, storing log files or writing to the event log."
-        }
+        if (-not $settings) { return }
 
         $scriptName = $settings.ScriptName
         $saveInEventLog = $settings.SaveInEventLog
