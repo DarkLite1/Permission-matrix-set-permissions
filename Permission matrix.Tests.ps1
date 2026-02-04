@@ -395,7 +395,7 @@ Describe 'create an error log file when' {
     
             $testLogFileContent[0].Message |
             Should -BeLike "*'$($testNewInputFile.Matrix.DefaultsFile)'* worksheet 'Settings' not found*"
-        } -Tag test
+        }
     
         $TestCases = @(
             @{
@@ -457,20 +457,24 @@ Describe 'create an error log file when' {
         )
     
         It 'is missing <Name>' -ForEach $TestCases {
-            $testNewInputFile = $testInputFile.Clone()
-            $testNewInputFile.Matrix.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
+            $testNewInputFile = Copy-ObjectHC $testInputFile
+            $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
+    
+            Test-NewJsonFileHC
     
             $DefaultsFile | Export-Excel -Path $testNewInputFile.Matrix.DefaultsFile -WorksheetName Settings
     
-            .$testScript @testNewInputFile
+            .$testScript @testParams
+
+            $LASTEXITCODE | Should -Be 1
     
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like "*$($testNewInputFile.DefaultsFile)*$errorMessage*")
-            }
+            $testLogFileContent = Test-GetLogFileDataHC
+    
+            $testLogFileContent[0].Message |
+            Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
         }
     }
-}
+} -Tag test
 Describe 'a sub folder in the log folder' {
     BeforeAll {
         @(
