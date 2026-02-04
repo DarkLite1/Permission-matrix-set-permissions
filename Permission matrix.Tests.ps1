@@ -611,7 +611,7 @@ Describe "when 'Matrix.Archive' is true then" {
         (Get-ChildItem "$($testNewInputFile.Matrix.FolderPath)\Archive" -File).Count |
         Should -BeExactly 5
     }
-} -Tag test
+}
 Describe 'do not invoke the script to set permissions when' {
     It "there's only a default settings file in the 'Matrix.FolderPath' folder" {
         .$testScript @testParams
@@ -674,7 +674,7 @@ Describe 'a FatalError object is registered' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude 'Default.xlsx' -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "building the matrix with 'ConvertTo-MatrixAclHC' fails" {
@@ -705,10 +705,10 @@ Describe 'a FatalError object is registered' {
                 Name        = 'Unknown error'
                 Description = 'While checking the input and generating the matrix an error was reported.'
                 Value       = 'Failed building the matrix'
-            }.GetEnumerator().ForEach( {
-                    $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value
-                })
-        }
+            }.GetEnumerator().ForEach( 
+                { $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value }
+            )
+        } -Tag test
         It 'the worksheet Settings is not found' {
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -925,7 +925,7 @@ Describe 'a Warning object is registered' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude 'Default.xlsx' -Recurse -Force -EA Ignore
     }
     Context "for the Excel 'File' when" {
         It "the worksheet 'Settings' has no row with status 'Enabled'" {
@@ -1769,7 +1769,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
     AfterEach {
         $Error.Clear()
         Remove-Item -Path "$($testLogFolder)\*" -Recurse -Force -EA Ignore
-        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude $TestDefaultsFileName -Recurse -Force -EA Ignore
+        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\*" -Exclude 'Default.xlsx' -Recurse -Force -EA Ignore
     }
     It 'a detailed HTML log file is created for each settings row' {
         $testProblem = @{

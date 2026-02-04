@@ -1210,15 +1210,15 @@ process {
                         DataOnly    = $true
                         ErrorAction = 'Stop'
                     }
-                    $Settings = @(
+                    $settingsSheet = @(
                         Import-Excel @ImportParams -Sheet 'Settings'
                     ).Where(
                         { $_.Status -eq 'Enabled' }
                     )
                     #endregion
 
-                    if ($Settings) {
-                        foreach ($S in $Settings) {
+                    if ($settingsSheet) {
+                        foreach ($S in $settingsSheet) {
                             $ID++
 
                             $Obj.Settings += [PSCustomObject]@{
