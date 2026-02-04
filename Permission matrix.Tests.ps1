@@ -513,7 +513,7 @@ Describe 'a sub folder in the log folder' {
 
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
-} -Tag test
+}
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
@@ -531,18 +531,22 @@ Describe "when 'Matrix.Archive' is true then" {
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
         ) | Export-Excel @testPermissionsParams
 
-        $testInputFile = $testInputFile.Clone()
-        $testInputFile.Matrix.Archive = $true
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Matrix.Archive = $true
+
+        Test-NewJsonFileHC
+
+        .$testScript @testParams
     }
     It "a sub folder in the 'Matrix.FolderPath' named 'Archive' is created" {
-        "$($testInputFile.Matrix.FolderPath)\Archive" | Should -Exist
+        "$($testNewInputFile.Matrix.FolderPath)\Archive" | Should -Exist
     }
     It 'all matrix files are moved to the archive folder, even disabled ones' {
         $testSettingsParams.Path | Should -Not -Exist
-        "$($testInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
+        "$($testNewInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx" | Should -Exist
     }
     It 'a matrix with the same name is overwritten in the archive folder' {
-        $testFile = "$($testInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx"
+        $testFile = "$($testNewInputFile.Matrix.FolderPath)\Archive\Matrix.xlsx"
         $testFile | Remove-Item -Force -EA Ignore
 
         @(
@@ -570,7 +574,7 @@ Describe "when 'Matrix.Archive' is true then" {
             [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
         ) | Export-Excel @testPermissionsParams
 
-        .$testScript @testParams -Archive
+        .$testScript @testParams
 
         $testFile | Should -Exist
         $testSettingsParams.Path | Should -Not -Exist
@@ -578,9 +582,9 @@ Describe "when 'Matrix.Archive' is true then" {
         Should -Be 'S2'
     }
     It 'multiple matrix files are moved to the archive folder' {
-        Remove-Item -Path "$($testInputFile.Matrix.FolderPath)\Archive" -Recurse -EA Ignore
+        Remove-Item -Path "$($testNewInputFile.Matrix.FolderPath)\Archive" -Recurse -EA Ignore
         1..5 | ForEach-Object {
-            $FileName = "$($testInputFile.Matrix.FolderPath)\Matrix $_.xlsx"
+            $FileName = "$($testNewInputFile.Matrix.FolderPath)\Matrix $_.xlsx"
             @(
                 [PSCustomObject]@{
                     Status       = 'Enabled'
@@ -601,13 +605,13 @@ Describe "when 'Matrix.Archive' is true then" {
             ) | Export-Excel -Path $FileName -WorksheetName Permissions -NoHeader
         }
 
-        .$testScript @testParams -Archive
+        .$testScript @testParams
 
-        (Get-ChildItem "$($testInputFile.Matrix.FolderPath)\Matrix*" -File).Count | Should -BeExactly 0
-        (Get-ChildItem "$($testInputFile.Matrix.FolderPath)\Archive" -File).Count |
+        (Get-ChildItem "$($testNewInputFile.Matrix.FolderPath)\Matrix*" -File).Count | Should -BeExactly 0
+        (Get-ChildItem "$($testNewInputFile.Matrix.FolderPath)\Archive" -File).Count |
         Should -BeExactly 5
     }
-}
+} -Tag test
 Describe 'do not invoke the script to set permissions when' {
     It "there's only a default settings file in the 'Matrix.FolderPath' folder" {
         .$testScript @testParams
