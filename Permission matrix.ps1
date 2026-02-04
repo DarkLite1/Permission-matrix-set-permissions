@@ -886,7 +886,7 @@ begin {
         $Export = $jsonFileContent.Export
         $ServiceNow = $jsonFileContent.ServiceNow
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
-        $ExcludedSamAccountName = $jsonFileContent.Matrix.ExcludedSamAccountName
+        $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
 
         $settings = $jsonFileContent.Settings
 
@@ -935,7 +935,7 @@ begin {
             @(
                 'FolderPath', 'DefaultsFile'
             ).where(
-                { -not $jsonFileContent.Matrix.$_ }
+                { -not $Matrix.$_ }
             ).foreach(
                 { throw "Property 'Matrix.$_' not found" }
             )
@@ -964,7 +964,7 @@ begin {
                 )
             ) {
                 try {
-                    $null = [Boolean]::Parse($jsonFileContent.Matrix.$boolean)
+                    $null = [Boolean]::Parse($Matrix.$boolean)
                 }
                 catch {
                     throw "Property 'Matrix.$boolean' is not a boolean value"
@@ -980,7 +980,7 @@ begin {
             #endregion
 
             #region Test array
-            if (-not ($jsonFileContent.Matrix.ExcludedSamAccountName -is [Array])) {
+            if (-not ($Matrix.ExcludedSamAccountName -is [Array])) {
                 throw "Property 'Matrix.ExcludedSamAccountName' needs to be array"
             }
             #endregion
@@ -1009,26 +1009,37 @@ begin {
 
         #region Map share with Excel files
         if (-not (Test-Path -LiteralPath MatrixFolderPath:)) {
-            $RetryCount = 0; $Completed = $false
-            while (-not $Completed) {
+            $retryCount = 0; $isDriveMapped = $false
+            while (-not $isDriveMapped) {
                 try {
-                    $null = New-PSDrive -Name MatrixFolderPath -PSProvider FileSystem -Root $Matrix.FolderPath -EA Stop
-                    $Completed = $true
+                    $params = @{
+                        Root        = $Matrix.FolderPath 
+                        Name        = 'MatrixFolderPath'
+                        PSProvider  = 'FileSystem' 
+                        ErrorAction = 'Stop'
+                    }
+                    $null = New-PSDrive @params
+                    $isDriveMapped = $true
                 }
                 catch {
-                    if ($RetryCount -ge '240') {
+                    if ($retryCount -ge '240') {
                         throw "Drive mapping failed for '$($Matrix.FolderPath)': $_"
                     }
                     else {
                         Start-Sleep -Seconds 30
-                        $RetryCount++
+                        $retryCount++
                         $Error.Clear()
                     }
                 }
             }
         }
 
-        $Matrix.FolderPath = Get-Item $Matrix.FolderPath -EA Stop
+        try {
+            $Matrix.FolderPath = Get-Item $Matrix.FolderPath -EA Stop
+        }
+        catch {
+            throw "Failed to get Matrix.FolderPath '$($Matrix.FolderPath)': $_"
+        }
         #endregion
 
         #region Default settings file

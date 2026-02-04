@@ -339,9 +339,24 @@ Describe 'create an error log file when' {
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property 'Matrix.$_' not found*"
             }
+            It 'Matrix.FolderPath does not exist' {
+                $testNewInputFile = Copy-ObjectHC $testInputFile
+                $testNewInputFile.Matrix.FolderPath = 'x:\NotExisting'
+
+                Test-NewJsonFileHC
+
+                .$testScript @testParams
+
+                $LASTEXITCODE | Should -Be 1
+
+                $testLogFileContent = Test-GetLogFileDataHC
+
+                $testLogFileContent[0].Message |
+                Should -BeLike "*Failed to get Matrix.FolderPath 'x:\NotExisting': *"
+            } -Tag test
         }
     }
-    Context 'script file' {
+    Context 'a script file' {
         It '<_> is not found' -ForEach @(
             'TestRequirementsFile', 'SetPermissionFile', 'UpdateServiceNow'
         ) {
@@ -361,26 +376,13 @@ Describe 'create an error log file when' {
             Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
         }
     }
-} -Tag test
+}
 Describe 'stop the script and send an e-mail to the admin when' {
     BeforeAll {
         $MailAdminParams = {
             ($To -eq $testInputFile.Settings.SendMail.To) -and
             ($Priority -eq 'High') -and
             ($Subject -eq 'FAILURE')
-        }
-    }
-    Context 'a file or folder is not found' {
-        It 'CherwellFolder' {
-            $testInputFile = $testInputFile.Clone()
-            $testInputFile.CherwellFolder = 'NonExistingFolder'
-
-            .$testScript @testParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like '*NonExistingFolder*not found*')
-            }
         }
     }
     Context 'the default settings file' {
