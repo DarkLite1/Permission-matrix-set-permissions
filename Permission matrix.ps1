@@ -1038,14 +1038,19 @@ begin {
             $Matrix.FolderPath = Get-Item $Matrix.FolderPath -EA Stop
         }
         catch {
-            throw "Failed to get Matrix.FolderPath '$($Matrix.FolderPath)': $_"
+            throw "Matrix.FolderPath '$($Matrix.FolderPath)' not found: $_"
         }
         #endregion
 
         #region Default settings file
         try {
             #region Get the defaults
-            $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -EA Stop
+            try {
+                $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -EA Stop
+            }
+            catch {
+                throw "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' not found: $_"
+            }
 
             try {
                 $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'

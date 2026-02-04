@@ -339,9 +339,11 @@ Describe 'create an error log file when' {
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property 'Matrix.$_' not found*"
             }
-            It 'Matrix.FolderPath does not exist' {
+            It 'Matrix.<_> not existing' -ForEach @(
+                'FolderPath', 'DefaultsFile'
+            ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
-                $testNewInputFile.Matrix.FolderPath = 'x:\NotExisting'
+                $testNewInputFile.Matrix.$_ = 'x:\NotExisting'
 
                 Test-NewJsonFileHC
 
@@ -352,8 +354,8 @@ Describe 'create an error log file when' {
                 $testLogFileContent = Test-GetLogFileDataHC
 
                 $testLogFileContent[0].Message |
-                Should -BeLike "*Failed to get Matrix.FolderPath 'x:\NotExisting': *"
-            } -Tag test
+                Should -BeLike "*Matrix.$_ 'x:\NotExisting' not found: *"
+            }
         }
     }
     Context 'a script file' {
