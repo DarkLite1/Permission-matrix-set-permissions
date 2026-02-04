@@ -1608,25 +1608,25 @@ process {
                 $scriptBlock = {
                     try {
                         #region Declare variables for parallel execution
-                        if (-not $MaxConcurrentComputers) {
+                        if (-not $MaxConcurrent) {
                             $scriptPathItem = $using:scriptPathItem
                             $PSSessionConfiguration = $using:PSSessionConfiguration
                             $eventLogData = $using:eventLogData
                         }
                         #endregion
 
-                        $matrix = $_.Group
+                        $matrixGroup = $_.Group
                         $computerName = $_.Name
 
                         $params = @{
                             FilePath          = $scriptPathItem.TestRequirementsFile
-                            ArgumentList      = $matrix.Import.Path, $true
+                            ArgumentList      = $matrixGroup.Import.Path, $true
                             ConfigurationName = $PSSessionConfiguration
                             ComputerName      = $computerName
                             ErrorAction       = 'Stop'
                         }
                         if ($result = Invoke-Command @params) {
-                            $matrix | ForEach-Object { $_.Check += $result }
+                            $matrixGroup | ForEach-Object { $_.Check += $result }
                         }
                     }
                     catch {
@@ -1637,7 +1637,7 @@ process {
                             Description = "Failed checking the computer for the minimal requirements with the 'Test requirements' script."
                         }
                         $Error.RemoveAt(0)
-                        $matrix | ForEach-Object { $_.Check += $problem }
+                        $matrixGroup | ForEach-Object { $_.Check += $problem }
                     }
                 }
 
@@ -1718,7 +1718,7 @@ process {
                         try {
                             # $VerbosePreference = 'Continue'
 
-                            $matrix = $_
+                            $matrixFile = $_
 
                             #region Declare variables for parallel execution
                             if (-not $MaxConcurrent) {
@@ -1730,17 +1730,17 @@ process {
                             }
                             #endregion
 
-                            $matrix.JobTime.Start = Get-Date
+                            $matrixFile.JobTime.Start = Get-Date
 
                             $params = @{
                                 FilePath          = $scriptPathItem.SetPermissionFile
-                                ArgumentList      = $matrix.Import.Path, $matrix.Import.Action, $matrix.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
+                                ArgumentList      = $matrixFile.Import.Path, $matrixFile.Import.Action, $matrixFile.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
                                 ConfigurationName = $PSSessionConfiguration
-                                ComputerName      = $matrix.Import.ComputerName
+                                ComputerName      = $matrixFile.Import.ComputerName
                                 ErrorAction       = 'Stop'
                             }
                             if ($result = Invoke-Command @params) {
-                                $matrix.Check += $result
+                                $matrixFile.Check += $result
                             }
                         }
                         catch {
@@ -1748,14 +1748,14 @@ process {
                                 Type        = 'FatalError'
                                 Name        = 'Set permissions'
                                 Value       = $_
-                                Description = "Failed applying action '$($matrix.Import.Action)' with the 'Set permissions' script."
+                                Description = "Failed applying action '$($matrixFile.Import.Action)' with the 'Set permissions' script."
                             }
                             $Error.RemoveAt(0)
-                            $matrix.Check += $problem
+                            $matrixFile.Check += $problem
                         }
                         finally {
-                            $matrix.JobTime.End = Get-Date
-                            $matrix.JobTime.Duration = New-TimeSpan -Start $matrix.JobTime.Start -End $matrix.JobTime.End
+                            $matrixFile.JobTime.End = Get-Date
+                            $matrixFile.JobTime.Duration = New-TimeSpan -Start $matrixFile.JobTime.Start -End $matrixFile.JobTime.End
                         }
                     }
 

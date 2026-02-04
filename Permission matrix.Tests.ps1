@@ -19,7 +19,7 @@ BeforeAll {
             OverviewHtmlFile            = $null
             PermissionsExcelFile        = $null
         }
-        ExportOldToRemove      = @{
+        ToRemove               = @{
             ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
             OverviewHtmlFile            = (New-Item 'TestDrive:/overview.html' -ItemType File).FullName
             PermissionsExcelFile        = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
@@ -1088,14 +1088,14 @@ Describe 'the script that tests the remote computers for compliance' {
         } -ParameterFilter {
             ($ComputerName -eq 'PC1') -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptTestRequirements)
+            ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile)
         }
         Mock Invoke-Command {
             'B'
         } -ParameterFilter {
             ($ComputerName -eq 'PC2') -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptTestRequirements)
+            ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile)
         }
 
         @(
@@ -1131,19 +1131,19 @@ Describe 'the script that tests the remote computers for compliance' {
     }
     It "is not called for rows in the 'Settings' worksheets where Status is not Enabled" {
         Should -Not -Invoke Invoke-Command -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testInputFile.ScriptTestRequirements) -and
+            ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile) -and
             ($ComputerName -eq 'ignoredPc')
         }
     }
     It "is only called for unique ComputerNames in the 'Settings' worksheets" {
         Should -Invoke Invoke-Command -Times 2 -Exactly -Scope Describe -ParameterFilter {
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptTestRequirements)
+            ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile)
         }
         @('PC1', 'PC2') | ForEach-Object {
             Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
                 ($ConfigurationName) -and
-                ($FilePath -eq $testInputFile.ScriptTestRequirements) -and
+                ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile) -and
                 ($ComputerName -eq $_)
             }
         }
@@ -1176,7 +1176,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
         Mock Invoke-Command { 2 } -ParameterFilter {
             ($ComputerName -eq 'PC1') -and
@@ -1185,7 +1185,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
         Mock Invoke-Command { 3 } -ParameterFilter {
             ($ComputerName -eq 'PC2') -and
@@ -1194,7 +1194,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2]) -and
             ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
             ($ConfigurationName) -and
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
 
         @(
@@ -1235,10 +1235,10 @@ Describe 'the script that sets the permissions on the remote computers' {
     }
     It "is called for each row in the 'Settings' worksheets with Status Enabled" {
         Should -Invoke Invoke-Command -Times 3 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile) -and
             ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
@@ -1246,7 +1246,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile) -and
             ($ComputerName -eq 'PC1') -and
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
@@ -1254,7 +1254,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[3] -ne $null)
         }
         Should -Invoke Invoke-Command -Times 1 -Exactly -Scope Describe -ParameterFilter {
-            ($FilePath -eq $testInputFile.ScriptSetPermissionFile) -and
+            ($FilePath -eq $testParams.ScriptPath.SetPermissionFile) -and
             ($ComputerName -eq 'PC2') -and
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
@@ -1551,12 +1551,12 @@ Describe 'when a job fails' {
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ComputerName -eq 'PC1') -and
                 ($ConfigurationName) -and
-                ($FilePath -eq $testInputFile.ScriptTestRequirements)
+                ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile)
             }
             Mock Invoke-Command { 'B' } -ParameterFilter {
                 ($ComputerName -eq 'PC2') -and
                 ($ConfigurationName) -and
-                ($FilePath -eq $testInputFile.ScriptTestRequirements)
+                ($FilePath -eq $testParams.ScriptPath.TestRequirementsFile)
             }
 
             @(
@@ -1594,12 +1594,12 @@ Describe 'when a job fails' {
             Mock Invoke-Command { 1 } -ParameterFilter {
                 ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Department') -and
-                ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+                ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
             }
             Mock Invoke-Command { throw 'failure' } -ParameterFilter {
                 ($ConfigurationName) -and
                 ($ArgumentList[0] -eq 'E:\Reports') -and
-                ($FilePath -eq $testInputFile.ScriptSetPermissionFile)
+                ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
             }
 
             @(
