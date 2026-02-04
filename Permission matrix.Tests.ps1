@@ -1147,7 +1147,7 @@ Describe 'the script that tests the remote computers for compliance' {
                 ($ComputerName -eq $_)
             }
         }
-    } -Tag test
+    }
     It 'saves the job result in Settings for each matrix' {
         @($ImportedMatrix.Settings.Where(
                 {
@@ -1174,7 +1174,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Department') -and
             ($ArgumentList[1] -eq 'New') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrent.FoldersPerMatrix) -and
             ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
@@ -1183,7 +1183,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Reports') -and
             ($ArgumentList[1] -eq 'Fix') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrent.FoldersPerMatrix) -and
             ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
@@ -1192,7 +1192,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[0] -eq 'E:\Finance') -and
             ($ArgumentList[1] -eq 'Check') -and
             ($ArgumentList[2]) -and
-            ($ArgumentList[3] -eq $testInputFile.MaxConcurrentFoldersPerMatrix) -and
+            ($ArgumentList[3] -eq $testInputFile.MaxConcurrent.FoldersPerMatrix) -and
             ($ConfigurationName) -and
             ($FilePath -eq $testParams.ScriptPath.SetPermissionFile)
         }
@@ -1318,7 +1318,7 @@ Describe 'an email is sent to the user in the default settings file' {
             ($Message -like '*Error*Warning*Information*')
         }
     }
-}
+} -Tag test
 Describe 'export an Excel file with' {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
