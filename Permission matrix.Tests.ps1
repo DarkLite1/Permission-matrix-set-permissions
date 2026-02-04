@@ -378,41 +378,25 @@ Describe 'create an error log file when' {
             Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
         }
     }
-}
-Describe 'stop the script and send an e-mail to the admin when' {
-    BeforeAll {
-        $MailAdminParams = {
-            ($To -eq $testInputFile.Settings.SendMail.To) -and
-            ($Priority -eq 'High') -and
-            ($Subject -eq 'FAILURE')
-        }
-    }
     Context 'the default settings file' {
-        It 'is not found' {
-            $clonedParams = $testInputFile.Clone()
-            $clonedParams.DefaultsFile = 'notExisting'
+        It "is missing worksheet 'Settings'" {
+            $testNewInputFile = Copy-ObjectHC $testInputFile
+            $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
+    
+            Test-NewJsonFileHC
 
-            .$testScript @clonedParams
+            '1' | Export-Excel -Path $testNewInputFile.Matrix.DefaultsFile -WorksheetName 'Sheet1'
+    
+            .$testScript @testParams
 
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like "*$($clonedParams.DefaultsFile)*Cannot find*")
-            }
-        }
-        It "does not have the worksheet 'Settings'" {
-            $clonedParams = $testInputFile.Clone()
-            $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
-
-            '1' | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Sheet1
-
-            .$testScript @clonedParams
-
-            Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
-                (&$MailAdminParams) -and
-                ($Message -like "*'$($clonedParams.DefaultsFile)'* worksheet 'Settings' not found*")
-            }
-        }
-
+            $LASTEXITCODE | Should -Be 1
+    
+            $testLogFileContent = Test-GetLogFileDataHC
+    
+            $testLogFileContent[0].Message |
+            Should -BeLike "*'$($testNewInputFile.Matrix.DefaultsFile)'* worksheet 'Settings' not found*"
+        } -Tag test
+    
         $TestCases = @(
             @{
                 Name         = "column header 'MailTo'"
@@ -471,18 +455,18 @@ Describe 'stop the script and send an e-mail to the admin when' {
                 errorMessage = 'No mail addresses found'
             }
         )
-
+    
         It 'is missing <Name>' -ForEach $TestCases {
-            $clonedParams = $testInputFile.Clone()
-            $clonedParams.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
-
-            $DefaultsFile | Export-Excel -Path $clonedParams.DefaultsFile -WorksheetName Settings
-
-            .$testScript @clonedParams
-
+            $testNewInputFile = $testInputFile.Clone()
+            $testNewInputFile.Matrix.DefaultsFile = New-Item 'TestDrive:/Folder/Default.xlsx' -ItemType File -Force
+    
+            $DefaultsFile | Export-Excel -Path $testNewInputFile.Matrix.DefaultsFile -WorksheetName Settings
+    
+            .$testScript @testNewInputFile
+    
             Should -Invoke Send-MailHC -Exactly 1 -ParameterFilter {
                 (&$MailAdminParams) -and
-                ($Message -like "*$($clonedParams.DefaultsFile)*$errorMessage*")
+                ($Message -like "*$($testNewInputFile.DefaultsFile)*$errorMessage*")
             }
         }
     }

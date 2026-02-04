@@ -1053,6 +1053,8 @@ begin {
             }
 
             try {
+                Write-Verbose "Import matrix defaults file '$($Matrix.DefaultsFile)'"
+
                 $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'
             }
             catch {
@@ -1085,7 +1087,7 @@ begin {
             #endregion
         }
         catch {
-            throw "Defaults file '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
+            throw "Matrix defaults file '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
         }
         #endregion
 
