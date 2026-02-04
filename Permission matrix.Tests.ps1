@@ -15,6 +15,11 @@ BeforeAll {
             ExcludedSamAccountName = @()
         }
         Export                 = @{
+            ServiceNowFormDataExcelFile = $null
+            OverviewHtmlFile            = $null
+            PermissionsExcelFile        = $null
+        }
+        ExportOldToRemove      = @{
             ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
             OverviewHtmlFile            = (New-Item 'TestDrive:/overview.html' -ItemType File).FullName
             PermissionsExcelFile        = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
@@ -708,7 +713,7 @@ Describe 'a FatalError object is registered' {
             }.GetEnumerator().ForEach( 
                 { $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value }
             )
-        } -Tag test
+        }
         It 'the worksheet Settings is not found' {
             @(
                 [PSCustomObject]@{P1 = $null      ; P2 = 'Manager' }
@@ -1142,7 +1147,7 @@ Describe 'the script that tests the remote computers for compliance' {
                 ($ComputerName -eq $_)
             }
         }
-    }
+    } -Tag test
     It 'saves the job result in Settings for each matrix' {
         @($ImportedMatrix.Settings.Where(
                 {
