@@ -2152,7 +2152,7 @@ end {
                     $excelParams.WorksheetName = 'AdObjects'
                     $excelParams.TableName = 'AdObjects'
                         
-                    $AdObjects | Export-Excel @ExportParams
+                    $AdObjects | Export-Excel @excelParams
                     #endregion
 
                     #region Add to export

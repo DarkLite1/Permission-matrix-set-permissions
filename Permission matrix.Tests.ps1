@@ -52,14 +52,8 @@ BeforeAll {
             }
             SaveLogFiles   = @{
                 Detailed            = $true
-                What                = @{
-                    SystemErrors     = $true
-                    AllActions       = $true
-                    OnlyActionErrors = $false
-                }
                 Where               = @{
-                    Folder         = (New-Item 'TestDrive:/log' -ItemType Directory).FullName
-                    FileExtensions = @('.json')
+                    Folder = (New-Item 'TestDrive:/log' -ItemType Directory).FullName
                 }
                 deleteLogsAfterDays = 30
             }
