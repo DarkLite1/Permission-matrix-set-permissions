@@ -2986,7 +2986,7 @@ end {
             )
             #endregion
 
-            $html.ExportFiles = if ($exportedFiles.Count) {
+            $html.ExportFilesList = if ($exportedFiles.Count) {
                 '<p><b>Exported {0} files:</b></p>
                     <ul>{1}</ul>' -f 
                 $($exportedFiles.Count), 
@@ -3038,7 +3038,7 @@ end {
             </head>
             <body>
                 $($html.ErrorWarningTable)
-                $($html.ExportFiles)
+                $($html.ExportFilesList)
                 <p><b>Matrix results per file:</b></p>
                 $($html.MatrixTables)
             </body>
