@@ -250,7 +250,6 @@ BeforeAll {
 
     Mock Invoke-Command
     Mock New-PSSession
-    Mock Send-MailHC
     Mock Send-MailKitMessageHC
     Mock Test-MatrixPermissionsHC
     Mock Test-MatrixSettingHC
@@ -1303,19 +1302,22 @@ Describe 'an email is sent to the user in the default settings file' {
         .$testScript @testParams
     }
     It 'containing a summary per Settings row for executed matrixes' {
-        Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
-            ($To -eq 'Bob@contoso.com') -and
+        Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
+            ($From -eq 'm@example.com') -and
+            ($To -eq '007@example.com') -and
+            ($SmtpPort -eq 25) -and
+            ($SmtpServerName -eq 'SMTP_SERVER') -and
+            ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file') -and
-            ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file.html") -and
             ($Priority -eq 'Normal') -and
-            ($Message -notlike '*Export*') -and
-            ($Message -like '*Matrix results per file*') -and
-            ($Message -like '*Matrix.xlsx*') -and
-            ($Message -like '*Settings*') -and
-            ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like '*1*PC1*E:\Reports*Check*') -and
-            ($Message -like '*2*PC2*E:\Finance*New*') -and
-            ($Message -like '*Error*Warning*Information*')
+            ($Body -notlike '*Export*') -and
+            ($Body -like '*Matrix results per file*') -and
+            ($Body -like '*Matrix.xlsx*') -and
+            ($Body -like '*Settings*') -and
+            ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
+            ($Body -like '*1*PC1*E:\Reports*Check*') -and
+            ($Body -like '*2*PC2*E:\Finance*New*') -and
+            ($Body -like '*Error*Warning*Information*')
         }
     }
 } -Tag test
@@ -1869,7 +1871,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        Should -Invoke Send-MailHC -Scope it -Times 1 -Exactly
+        Should -Invoke Send-MailKitMessageHC -Scope it -Times 1 -Exactly
     }
 }
 Describe 'when the argument CherwellFolder is used' {
@@ -1897,13 +1899,16 @@ Describe 'when the argument CherwellFolder is used' {
             Should -Not -Invoke Invoke-Command
         }
         It 'an email is sent to the user with the error' {
-            Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
-                ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+            Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
+                ($From -eq 'm@example.com') -and
+                ($To -eq '007@example.com') -and
+                ($SmtpPort -eq 25) -and
+                ($SmtpServerName -eq 'SMTP_SERVER') -and
+                ($SmtpConnectionType -eq 'StartTls') -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
-                ($Message -like "*Worksheet 'FormData' not found*") -and
-                ($Message -notlike '*Check the*overview*for details*')
+                ($Body -like "*Worksheet 'FormData' not found*") -and
+                ($Body -notlike '*Check the*overview*for details*')
             }
         }
     }
@@ -1950,14 +1955,17 @@ Describe 'when the argument CherwellFolder is used' {
             Should -Not -Invoke Invoke-Command
         }
         It 'an email is sent to the user with the error' {
-            Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
-                ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 error.html") -and
+            Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
+                ($From -eq 'm@example.com') -and
+                ($To -eq '007@example.com') -and
+                ($SmtpPort -eq 25) -and
+                ($SmtpServerName -eq 'SMTP_SERVER') -and
+                ($SmtpConnectionType -eq 'StartTls') -and
                 ($Subject -eq '1 matrix file, 1 error') -and
                 ($Priority -eq 'High') -and
-                ($Message -like '*Errors*Warnings*FormData*') -and
-                ($Message -like '*FormData*incorrect data*') -and
-                ($Message -notlike '*Check the*overview*for details*')
+                ($Body -like '*Errors*Warnings*FormData*') -and
+                ($Body -like '*FormData*incorrect data*') -and
+                ($Body -notlike '*Check the*overview*for details*')
             }
         }
     }
@@ -2003,14 +2011,17 @@ Describe 'when the argument CherwellFolder is used' {
             Should -Not -Invoke Invoke-Command
         }
         It 'an email is sent to the user with the warning message' {
-            Should -Invoke Send-MailHC -Exactly 1 -Scope Context -ParameterFilter {
-                ($To -eq 'Bob@contoso.com') -and
-                ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file, 1 warning.html") -and
+            Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
+                ($From -eq 'm@example.com') -and
+                ($To -eq '007@example.com') -and
+                ($SmtpPort -eq 25) -and
+                ($SmtpServerName -eq 'SMTP_SERVER') -and
+                ($SmtpConnectionType -eq 'StartTls') -and
                 ($Subject -eq '1 matrix file, 1 warning') -and
                 ($Priority -eq 'High') -and
-                ($Message -like '*Errors*Warnings*FormData*') -and
-                ($Message -like '*FormData*AD object not found*') -and
-                ($Message -like '*Check the*overview*for details*')
+                ($Body -like '*Errors*Warnings*FormData*') -and
+                ($Body -like '*FormData*AD object not found*') -and
+                ($Body -like '*Check the*overview*for details*')
             }
         }
     }
@@ -2331,23 +2342,26 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     It 'an email is sent to the user in the default settings file' {
-        Should -Invoke Send-MailHC -Exactly 1 -Scope Describe -ParameterFilter {
-            ($To -eq 'Bob@contoso.com') -and
-            ($Save -like "$((Get-Item $testLogFolder).FullName)* - Mail - 1 matrix file.html") -and
+        Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
+            ($From -eq 'm@example.com') -and
+            ($To -eq '007@example.com') -and
+            ($SmtpPort -eq 25) -and
+            ($SmtpServerName -eq 'SMTP_SERVER') -and
+            ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file') -and
             ($Priority -eq 'Normal') -and
-            ($Message -like '*Export to*Export*') -and
-            ($Message -like '*Check the*overview*for details*') -and
-            ($Message -like '*Access list*1*') -and
-            ($Message -like '*AD objects*2*') -and
-            ($Message -like '*Group managers*1*') -and
-            ($Message -like '*Form data*1*') -and
-            ($Message -like '*Matrix results per file*') -and
-            ($Message -like '*Matrix.xlsx*') -and
-            ($Message -like '*Settings*') -and
-            ($Message -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Message -like '*1*SERVER1*E:\Department*Check*') -and
-            ($Message -like '*Error*Warning*Information*')
+            ($Body -like '*Export to*Export*') -and
+            ($Body -like '*Check the*overview*for details*') -and
+            ($Body -like '*Access list*1*') -and
+            ($Body -like '*AD objects*2*') -and
+            ($Body -like '*Group managers*1*') -and
+            ($Body -like '*Form data*1*') -and
+            ($Body -like '*Matrix results per file*') -and
+            ($Body -like '*Matrix.xlsx*') -and
+            ($Body -like '*Settings*') -and
+            ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
+            ($Body -like '*1*SERVER1*E:\Department*Check*') -and
+            ($Body -like '*Error*Warning*Information*')
         }
     }
 }
