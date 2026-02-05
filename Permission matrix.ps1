@@ -3029,20 +3029,12 @@ end {
                     }
                 )
             }               
-                
-            $mailParams.Body = "
-            <!DOCTYPE html>
-            <html>
-            <head>
-                $($html.Style)
-            </head>
-            <body>
-                $($html.ErrorWarningTable)
-                $($html.ExportFilesList)
+
+            if ($html.MatrixTables) {
+                $html.MatrixTables = "
                 <p><b>Matrix results per file:</b></p>
-                $($html.MatrixTables)
-            </body>
-            </html>"
+                $($html.MatrixTables)"
+            }
         
             #endregion
         }
@@ -3166,84 +3158,99 @@ end {
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
                 To                  = @(
-                    $sendMail.To,  $mailToDefaultsFile).Where({ $_ })
+                    $sendMail.To, $mailToDefaultsFile).Where({ $_ })
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
                 SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
                 MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
                 MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
             }
+            
+            #region Body
+            $mailParams.Body = @"
+    <!DOCTYPE html>
+    <html>
+    <head>
+        $($html.Style)
+    </head>
+    <body>
+    <table>
+        <h1>$scriptName</h1>
+        <hr size="2" color="#06cc7a">
 
+        $($sendMail.Body)
+        $(
             if ($systemErrors) {
-                $mailParams.Body = '
-                <p>Found <b>{0} system errors</b>.</p>
+                '<p>Found <b>{0} system errors</b>.</p>
                 <p><i>Please check the attachment for details.</i></p>
                 {1}' -f
                 $systemErrors.Count, $mailParams.Body 
             }
+        )
+        $($html.ErrorWarningTable)
+        $($html.ExportFilesList)
+        $($html.MatrixTables)
 
-            if (-not $mailParams.Body) {
-                $mailParams.Body = '
-                <p>Manage file and folder permissions.</p>'
-            }
-
+        $(
             if ($mailParams.Attachments) {
-                $mailParams.Body += '<p><i>* Check the attachment(s) for details</i></p>'
+                '<p><i>* Check the attachment(s) for details</i></p>'
             }
-
-            #region About table
-            $mailParams.Body += @"
-                <hr size="2" color="#06cc7a">
-                <table id="aboutTable">
-                    $(
-                        if ($scriptStartTime) {
-                            '<tr>
-                                <th>Start time</th>
-                                <td>{0:00}/{1:00}/{2:00} {3:00}:{4:00} ({5})</td>
-                            </tr>' -f
-                            $scriptStartTime.Day,
-                            $scriptStartTime.Month,
-                            $scriptStartTime.Year,
-                            $scriptStartTime.Hour,
-                            $scriptStartTime.Minute,
-                            $scriptStartTime.DayOfWeek
-                        }
-                    )
-                    $(
-                        if ($scriptStartTime) {
-                            $runTime = New-TimeSpan -Start $scriptStartTime -End (Get-Date)
-                            '<tr>
-                                <th>Duration</th>
-                                <td>{0:00}:{1:00}:{2:00}</td>
-                            </tr>' -f
-                            $runTime.Hours, $runTime.Minutes, $runTime.Seconds
-                        }
-                    )
-                    $(
-                        if ($logFolder) {
-                            '<tr>
-                                <th>Log files</th>
-                                <td><a href="{0}">Open log folder</a></td>
-                            </tr>' -f $logFolder
-                        }
-                    )
-                    <tr>
-                        <th>Host</th>
-                        <td>$($host.Name)</td>
-                    </tr>
-                    <tr>
-                        <th>PowerShell</th>
-                        <td>$($PSVersionTable.PSVersion.ToString())</td>
-                    </tr>
-                    <tr>
-                        <th>Computer</th>
-                        <td>$env:COMPUTERNAME</td>
-                    </tr>
-                    <tr>
-                        <th>Account</th>
-                        <td>$env:USERDNSDOMAIN\$env:USERNAME</td>
-                    </tr>
-                </table>
+        )
+    
+        <hr size="2" color="#06cc7a">
+        <table id="aboutTable">
+            $(
+                if ($scriptStartTime) {
+                    '<tr>
+                        <th>Start time</th>
+                        <td>{0:00}/{1:00}/{2:00} {3:00}:{4:00} ({5})</td>
+                    </tr>' -f
+                    $scriptStartTime.Day,
+                    $scriptStartTime.Month,
+                    $scriptStartTime.Year,
+                    $scriptStartTime.Hour,
+                    $scriptStartTime.Minute,
+                    $scriptStartTime.DayOfWeek
+                }
+            )
+            $(
+                if ($scriptStartTime) {
+                    $runTime = New-TimeSpan -Start $scriptStartTime -End (Get-Date)
+                    '<tr>
+                        <th>Duration</th>
+                        <td>{0:00}:{1:00}:{2:00}</td>
+                    </tr>' -f
+                    $runTime.Hours, $runTime.Minutes, $runTime.Seconds
+                }
+            )
+            $(
+                if ($logFolder) {
+                    '<tr>
+                        <th>Log files</th>
+                        <td><a href="{0}">Open log folder</a></td>
+                    </tr>' -f $logFolder
+                }
+            )
+            <tr>
+                <th>Host</th>
+                <td>$($host.Name)</td>
+            </tr>
+            <tr>
+                <th>PowerShell</th>
+                <td>$($PSVersionTable.PSVersion.ToString())</td>
+            </tr>
+            <tr>
+                <th>Computer</th>
+                <td>$env:COMPUTERNAME</td>
+            </tr>
+            <tr>
+                <th>Account</th>
+                <td>$env:USERDNSDOMAIN\$env:USERNAME</td>
+            </tr>
+        </table>
+        </table>
+        </body>
+    </html>
 "@
             #endregion
 
