@@ -1304,16 +1304,13 @@ Describe 'an email is sent to the user in the default settings file' {
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
-            ($Body -like '*<style>*</style>*
-            **')
-            # ($Body -notlike '*Export*') -and
-            # ($Body -like '*Matrix results per file*') -and
-            # ($Body -like '*Matrix.xlsx*') -and
-            # ($Body -like '*Settings*') -and
-            # ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
-            # ($Body -like '*1*PC1*E:\Reports*Check*') -and
-            # ($Body -like '*2*PC2*E:\Finance*New*') -and
-            # ($Body -like '*Error*Warning*Information*')
+            ($Body -like (
+                '*<style type="text/css">*</style>
+            <body>
+            <h1>Test (Brecht)</h1>
+            </body>*'
+                ) -replace '[\r\n]+', '*'
+            )
         }
     }
 } -Tag test
@@ -1898,7 +1895,7 @@ Describe 'when the argument CherwellFolder is used' {
             Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($From -eq 'm@example.com') -and
                 ($To[0] -eq '007@example.com') -and
-            ($To[1] -eq 'bob@contoso.com') -and
+                ($To[1] -eq 'bob@contoso.com') -and
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
@@ -1955,7 +1952,7 @@ Describe 'when the argument CherwellFolder is used' {
             Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($From -eq 'm@example.com') -and
                 ($To[0] -eq '007@example.com') -and
-            ($To[1] -eq 'bob@contoso.com') -and
+                ($To[1] -eq 'bob@contoso.com') -and
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
