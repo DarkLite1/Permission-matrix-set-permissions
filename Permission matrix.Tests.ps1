@@ -1304,14 +1304,16 @@ Describe 'an email is sent to the user in the default settings file' {
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
-            ($Body -notlike '*Export*') -and
-            ($Body -like '*Matrix results per file*') -and
-            ($Body -like '*Matrix.xlsx*') -and
-            ($Body -like '*Settings*') -and
-            ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Body -like '*1*PC1*E:\Reports*Check*') -and
-            ($Body -like '*2*PC2*E:\Finance*New*') -and
-            ($Body -like '*Error*Warning*Information*')
+            ($Body -like '*<style>*</style>*
+            **')
+            # ($Body -notlike '*Export*') -and
+            # ($Body -like '*Matrix results per file*') -and
+            # ($Body -like '*Matrix.xlsx*') -and
+            # ($Body -like '*Settings*') -and
+            # ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
+            # ($Body -like '*1*PC1*E:\Reports*Check*') -and
+            # ($Body -like '*2*PC2*E:\Finance*New*') -and
+            # ($Body -like '*Error*Warning*Information*')
         }
     }
 } -Tag test

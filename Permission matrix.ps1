@@ -1835,7 +1835,7 @@ end {
 
         #region HTML style
         $html.Style = '
-            <style>
+            <style type="text/css">
                 a {
                     color: black;
                     text-decoration: underline;
@@ -2356,7 +2356,7 @@ end {
                     #region Export FormData to HTML file
                     try {
                         $htmlFileContent = @(
-                            '<style>
+                            '<style type="text/css">
                                     body {
                                         background-color: #f0f0f0;
                                         color: #004e2b;
@@ -2733,8 +2733,8 @@ end {
                         #endregion
 
                         #region HTML Settings Create file
-                        $html.MatrixLogFile.Table =
-                        '<!DOCTYPE html>
+                        $html.MatrixLogFile.Table = @"
+                        <!DOCTYPE html>
                             <html>
                             <head>
                                 <style type="text/css">
@@ -2804,9 +2804,7 @@ end {
                                         target="_blank"
                                     }
                                 </style>
-                            </head>'
-
-                        $html.MatrixLogFile.Table += @"
+                            </head>
                             <body>
                                 $($html.Style)
                                 <table id="matrixTable">
