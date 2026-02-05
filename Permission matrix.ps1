@@ -2689,6 +2689,8 @@ end {
                         #region HTML Settings Create tables
                         $html.MatrixLogFile = @{}
 
+                        $html.TableHeader = ''
+
                         $html.MatrixLogFile.FatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
                             $htmlValue = ConvertTo-HtmlValueHC
                             @"
@@ -3029,11 +3031,18 @@ end {
             }               
                 
             $mailParams.Body = "
+            <!DOCTYPE html>
+            <html>
+            <head>
                 $($html.Style)
+            </head>
+            <body>
                 $($html.ErrorWarningTable)
                 $($html.ExportFiles)
                 <p><b>Matrix results per file:</b></p>
-                $($html.MatrixTables)"
+                $($html.MatrixTables)
+            </body>
+            </html>"
         
             #endregion
         }
