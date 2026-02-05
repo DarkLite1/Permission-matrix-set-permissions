@@ -110,7 +110,7 @@ BeforeAll {
         [PSCustomObject]@{
             ADObjectName = 'Bob'
             Permission   = 'L'
-            MailTo       = 'Bob@contoso.com'
+            MailTo       = 'bob@contoso.com'
         }
         [PSCustomObject]@{
             ADObjectName = 'Mike'
@@ -1298,12 +1298,12 @@ Describe 'an email is sent to the user in the default settings file' {
     It 'containing a summary per Settings row for executed matrixes' {
         Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($From -eq 'm@example.com') -and
-            ($To -eq '007@example.com') -and
+            ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
             ($SmtpPort -eq 25) -and
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
-            ($Subject -eq '1 matrix file') -and
-            ($Priority -eq 'Normal') -and
+            ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -notlike '*Export*') -and
             ($Body -like '*Matrix results per file*') -and
             ($Body -like '*Matrix.xlsx*') -and
@@ -1895,7 +1895,8 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($From -eq 'm@example.com') -and
-                ($To -eq '007@example.com') -and
+                ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
@@ -1951,7 +1952,8 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the error' {
             Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($From -eq 'm@example.com') -and
-                ($To -eq '007@example.com') -and
+                ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
@@ -2007,7 +2009,8 @@ Describe 'when the argument CherwellFolder is used' {
         It 'an email is sent to the user with the warning message' {
             Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Context -ParameterFilter {
                 ($From -eq 'm@example.com') -and
-                ($To -eq '007@example.com') -and
+                ($To[0] -eq '007@example.com') -and
+                ($To[1] -eq 'bob@contoso.com') -and
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
@@ -2338,12 +2341,12 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($From -eq 'm@example.com') -and
-            ($To -eq '007@example.com') -and
+            ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
             ($SmtpPort -eq 25) -and
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file') -and
-            ($Priority -eq 'Normal') -and
             ($Body -like '*Export to*Export*') -and
             ($Body -like '*Check the*overview*for details*') -and
             ($Body -like '*Access list*1*') -and

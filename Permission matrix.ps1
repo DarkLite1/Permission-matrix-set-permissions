@@ -1074,13 +1074,13 @@ begin {
             $DefaultAcl = Get-DefaultAclHC -Sheet $DefaultsImport
 
             #region Get MailTo
-            $MailTo = $DefaultsImport.ForEach( {
+            $mailToDefaultsFile = $DefaultsImport.ForEach( {
                     $_.PSObject.Properties.Where( { ($_.Name -eq 'MailTo') -and ($_.Value) }).Foreach( {
                             $_.Value.ToString().Trim()
                         })
                 })
 
-            if (-not $MailTo) {
+            if (-not $mailToDefaultsFile) {
                 throw "No mail addresses found under column header 'MailTo'"
             }
             #endregion
@@ -3158,7 +3158,8 @@ end {
         #region Send email
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
-                To                  = @($sendMail.To + $MailTo).Where({ $_ })
+                To                  = @(
+                    $sendMail.To,  $mailToDefaultsFile).Where({ $_ })
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
                 SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
