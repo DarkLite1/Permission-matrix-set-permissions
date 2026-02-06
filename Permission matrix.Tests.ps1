@@ -1543,7 +1543,7 @@ Describe 'export an Excel file with' {
             }
         }
     }
-} -Tag test
+}
 Describe 'when a job fails' {
     Context 'the test requirements script' {
         BeforeAll {
@@ -1586,7 +1586,7 @@ Describe 'when a job fails' {
             $actual = $ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })
             $actual.Check.Type | Should -Not -Be 'FatalError'
             $actual.Check.Value | Should -Not -Be 'failure'
-        }
+        } -Tag test
     }
     Context 'the set permissions script' {
         BeforeAll {
