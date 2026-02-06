@@ -1910,7 +1910,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($Body -like "*Worksheet 'FormData' not found*")
             }
         }
-    } -Tag test
+    }
     Context 'but the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC
@@ -1961,14 +1961,14 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
-                ($Subject -eq '1 matrix file, 1 error') -and
+                ($Subject -eq '1 matrix file, 1 error, Email subject') -and
                 ($Priority -eq 'High') -and
                 ($Body -like '*Errors*Warnings*FormData*') -and
                 ($Body -like '*FormData*incorrect data*') -and
                 ($Body -notlike '*Check the*overview*for details*')
             }
         }
-    } -Tag test
+    }
     Context 'but the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
@@ -2018,13 +2018,13 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
-                ($Subject -eq '1 matrix file, 1 warning') -and
+                ($Subject -eq '1 matrix file, 1 warning, Email subject') -and
                 ($Priority -eq 'High') -and
                 ($Body -like '*Errors*Warnings*FormData*') -and
                 ($Body -like '*FormData*AD object not found*') -and
                 ($Body -like '*Check the*overview*for details*')
             }
-        }
+        } -Tag test
     }
 }
 Describe 'when the argument CherwellFolder is used on a successful run' {
@@ -2350,7 +2350,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             ($SmtpPort -eq 25) -and
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
-            ($Subject -eq '1 matrix file') -and
+            ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -like '*Export to*Export*') -and
             ($Body -like '*Check the*overview*for details*') -and
             ($Body -like '*Access list*1*') -and

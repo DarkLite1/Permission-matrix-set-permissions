@@ -2987,9 +2987,10 @@ end {
             #endregion
 
             $html.ExportFilesList = if ($exportedFiles.Count) {
-                '<p><b>Exported {0} files:</b></p>
-                    <ul>{1}</ul>' -f 
-                $($exportedFiles.Count), 
+                '<p><b>Exported {0} file{1}:</b></p>
+                    <ul>{2}</ul>' -f 
+                $($exportedFiles.Count),
+                $(if ($exportedFiles.Count -ne 1) {'s'}),
                 $(
                     $exportedFiles.GetEnumerator() | ForEach-Object {
                         "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
