@@ -1309,11 +1309,11 @@ Describe 'an email is sent to the user in the default settings file' {
             <body>
             <h1>Test (Brecht)</h1>
             </body>*'
-                ) -replace '[\r\n]+', '*'
+            ) -replace '[\r\n]+', '*'
             )
         }
     }
-} -Tag test
+}
 Describe 'export an Excel file with' {
     BeforeAll {
         Mock Get-ADObjectDetailHC {
@@ -1439,7 +1439,12 @@ Describe 'export an Excel file with' {
             }
         ) | Export-Excel @testPermissionsParams
 
-        .$testScript @testParams -ExcludedSamAccountName 'IgnoreMe'
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Matrix.ExcludedSamAccountName = @('IgnoreMe')
+
+        Test-NewJsonFileHC
+
+        .$testScript @testParams
 
         $testMatrixFile = Get-ChildItem $testLogFolder -Filter '*Matrix.xlsx' -Recurse -File
     }
@@ -1538,7 +1543,7 @@ Describe 'export an Excel file with' {
             }
         }
     }
-}
+} -Tag test
 Describe 'when a job fails' {
     Context 'the test requirements script' {
         BeforeAll {
