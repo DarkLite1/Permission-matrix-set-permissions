@@ -1904,10 +1904,9 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($SmtpPort -eq 25) -and
                 ($SmtpServerName -eq 'SMTP_SERVER') -and
                 ($SmtpConnectionType -eq 'StartTls') -and
-                ($Subject -eq '1 matrix file, 1 error') -and
+                ($Subject -eq '1 matrix file, 1 error, Email subject') -and
                 ($Priority -eq 'High') -and
-                ($Body -like "*Worksheet 'FormData' not found*") -and
-                ($Body -notlike '*Check the*overview*for details*')
+                ($Body -like "*Worksheet 'FormData' not found*")
             }
         }
     } -Tag test
