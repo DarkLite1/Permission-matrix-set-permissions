@@ -2308,6 +2308,8 @@ end {
                         FreezeTopRow  = $true
                     }
 
+                    Write-Verbose "Export $($serviceNowFormData.Count) objects to '$($params.Path)'"
+
                     $serviceNowFormData | Export-Excel @params
                     #endregion
 

@@ -2149,14 +2149,12 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
                 }
             }
             It '<Name>' -ForEach @(
-                @{ Name = 'MatrixFormStatus'; Value = 'Enabled' }
-                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                # @{ Name = 'MatrixFilePath'; Value = $testSettingsParams.Path }
-                @{ Name = 'MatrixCategoryName'; Value = 'a' }
-                @{ Name = 'MatrixSubCategoryName'; Value = 'b' }
-                @{ Name = 'MatrixResponsible'; Value = 'bob@contoso.com,mike@contoso.com' }
-                @{ Name = 'MatrixFolderDisplayName'; Value = 'd' }
-                @{ Name = 'MatrixFolderPath'; Value = 'e' }
+                @{ Name = 'u_adobjectname'; Value = 'A B C' }
+                @{ Name = 'u_matrixresponsible'; Value = 'bob@contoso.com,mike@contoso.com' }
+                @{ Name = 'u_matrixsubcategoryname'; Value = 'b' }
+                @{ Name = 'u_matrixfolderpath'; Value = 'e' }
+                @{ Name = 'u_matrixfilename'; Value = 'Matrix' }
+                @{ Name = 'u_matrixcategoryname'; Value = 'a' }
             ) {
                 $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
