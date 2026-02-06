@@ -1868,6 +1868,12 @@ Describe 'when a FatalError occurs while executing the matrix' {
     }
 }
 Describe 'when Export.ServiceNowFormDataExcelFile is used' {
+    BeforeAll {
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
+
+        Test-NewJsonFileHC
+    }
     Context 'but the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
@@ -1880,11 +1886,6 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ) | Export-Excel @testSettingsParams
 
             $testPermissions | Export-Excel @testPermissionsParams
-
-            $testNewInputFile = Copy-ObjectHC $testInputFile
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
-
-            Test-NewJsonFileHC
 
             .$testScript @testParams
         }
@@ -1940,9 +1941,9 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ) |
             Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
-            $testPermissions | Export-Excel @testPermissionsParams
+            $testPermissions | Export-Excel @testPermissionsParams            
 
-            .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
+            .$testScript @testParams
         }
         It 'a FatalError is registered for the FormData sheet' {
             $actual = $ImportedMatrix.FormData.Check
@@ -1967,7 +1968,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($Body -notlike '*Check the*overview*for details*')
             }
         }
-    }
+    } -Tag test
     Context 'but the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
@@ -1998,7 +1999,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
 
             $testPermissions | Export-Excel @testPermissionsParams
 
-            .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
+            .$testScript @testParams
         }
         It 'a Warning is registered for the FormData sheet' {
             $actual = $ImportedMatrix.FormData.Check
