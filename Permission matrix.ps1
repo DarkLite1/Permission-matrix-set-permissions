@@ -2301,9 +2301,11 @@ end {
 
                     #region Export to Excel
                     $params = @{
-                        Path         = $Export.ServiceNowFormDataExcelFile
-                        AutoSize     = $true
-                        FreezeTopRow = $true
+                        Path          = $Export.ServiceNowFormDataExcelFile
+                        WorksheetName = 'SnowFormData'
+                        TableName     = 'SnowFormData'
+                        AutoSize      = $true
+                        FreezeTopRow  = $true
                     }
 
                     $serviceNowFormData | Export-Excel @params

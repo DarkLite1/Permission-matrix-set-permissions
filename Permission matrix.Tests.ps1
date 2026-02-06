@@ -2141,10 +2141,10 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
             BeforeAll {
                 $actual = @{
                     logFolder    = @{
-                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'FormData'
+                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'SnowFormData'
                     }
                     exportFolder = @{
-                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'FormData'
+                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'SnowFormData'
                     }
                 }
             }
