@@ -2028,10 +2028,10 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                     <ul><li>bob@contoso.com</li></ul>*') -replace '[\r\n]+', '*'
                 )
             }
-        } -Tag test
+        }
     }
 }
-Describe 'when the argument CherwellFolder is used on a successful run' {
+Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Get-AdUserPrincipalNameHC {
@@ -2107,46 +2107,12 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         ) |
         Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
-        $testCherwellParams = @{
-            CherwellFolder                = $testCherwellFolder.FullName
-            CherwellAdObjectsFileName     = 'AD object names.csv'
-            CherwellFormDataFileName      = 'Form data.csv'
-            CherwellGroupManagersFileName = 'GroupManagers.csv'
-            CherwellAccessListFileName    = 'AccessList.csv'
-            CherwellExcelOverviewFileName = 'Overview.xlsx'
-        }
-        .$testScript @testParams @testCherwellParams
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
 
-        $testCherwellExport = Get-ChildItem $testCherwellFolder.FullName
-
-        $testLogFolderExport = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object Extension -Match '.xlsx$|.csv$'
-
-        $testLogFolder = @{
-            ExcelFile            = $testLogFolderExport |
-            Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile      = $testLogFolderExport |
-            Where-Object Name -Like '*Form data.csv'
-            AdObjectsCsvFile     = $testLogFolderExport |
-            Where-Object Name -Like '*AD object names.csv'
-            GroupManagersCsvFile = $testLogFolderExport |
-            Where-Object Name -Like '*GroupManagers.csv'
-            AccessListCsvFile    = $testLogFolderExport |
-            Where-Object Name -Like '*AccessList.csv'
-        }
-
-        $testCherwellFolder = @{
-            ExcelFile            = $testCherwellExport |
-            Where-Object Name -Like '*Overview.xlsx'
-            FormDataCsvFile      = $testCherwellExport |
-            Where-Object Name -EQ 'Form data.csv'
-            AdObjectsCsvFile     = $testCherwellExport |
-            Where-Object Name -EQ 'AD object names.csv'
-            GroupManagersCsvFile = $testCherwellExport |
-            Where-Object Name -Like '*GroupManagers.csv'
-            AccessListCsvFile    = $testCherwellExport |
-            Where-Object Name -Like '*AccessList.csv'
-        }
+        Test-NewJsonFileHC
+        
+        .$testScript @testParams
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -2161,19 +2127,8 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         }
     }
     Context 'the FormData is exported' {
-        It 'to a CSV file in the Export folder' {
-            $testCherwellFolder.FormDataCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to a CSV file in the log folder' {
-            $testLogFolder.FormDataCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
         It 'to an Excel file in the Export folder' {
-            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
-        }
-        It 'to an HTML file in the Export folder' {
-            $testCherwellFolder.ExcelFile.FullName.Replace('.xlsx', '.html') | Should -Exist
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
@@ -2181,13 +2136,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
-                    logFolder      = @{
-                        Excel    = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'FormData'
-                        FormData = Import-Csv -Path $testLogFolder.FormDataCsvFile.FullName
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'FormData'
                     }
-                    cherwellFolder = @{
-                        Excel    = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'FormData'
-                        FormData = Import-Csv -Path $testCherwellFolder.FormDataCsvFile.FullName
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'FormData'
                     }
                 }
             }
@@ -2201,24 +2154,18 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'MatrixFolderDisplayName'; Value = 'd' }
                 @{ Name = 'MatrixFolderPath'; Value = 'e' }
             ) {
-                $actual.cherwellFolder.FormData.$Name | Should -Be $Value
-                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.FormData.$Name | Should -Be $Value
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
             It 'MatrixFilePath' {
                 # scoping issue in Pester
-                $actual.cherwellFolder.FormData.MatrixFilePath |
-                Should -Be $testSettingsParams.Path
-                $actual.cherwellFolder.Excel.MatrixFilePath |
-                Should -Be $testSettingsParams.Path
-                $actual.logFolder.FormData.MatrixFilePath |
+                $actual.exportFolder.Excel.MatrixFilePath |
                 Should -Be $testSettingsParams.Path
                 $actual.logFolder.Excel.MatrixFilePath |
                 Should -Be $testSettingsParams.Path
             }
         }
-    }
+    } -Tag test
     Context 'the AD object names are exported' {
         It 'to a CSV file in the Export folder' {
             $testCherwellFolder.AdObjectsCsvFile.FullName |
@@ -2229,7 +2176,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Export folder' {
-            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
@@ -2237,13 +2184,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
-                    logFolder      = @{
-                        Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
-                        AdObjectNames = Import-Csv -Path $testLogFolder.AdObjectsCsvFile.FullName
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
                     }
-                    cherwellFolder = @{
-                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
-                        AdObjectNames = Import-Csv -Path $testCherwellFolder.AdObjectsCsvFile.FullName
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AdObjectNames'
                     }
                 }
             }
@@ -2254,9 +2199,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'SiteCode'; Value = 'B' }
                 @{ Name = 'Name'; Value = 'C' }
             ) {
-                $actual.cherwellFolder.AdObjectNames.$Name | Should -Be $Value
-                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.AdObjectNames.$Name | Should -Be $Value
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
@@ -2271,7 +2214,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Export folder' {
-            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
@@ -2279,13 +2222,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
-                    logFolder      = @{
-                        Excel         = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
-                        GroupManagers = Import-Csv -Path $testLogFolder.GroupManagersCsvFile.FullName
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
                     }
-                    cherwellFolder = @{
-                        Excel         = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
-                        GroupManagers = Import-Csv -Path $testCherwellFolder.GroupManagersCsvFile.FullName
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'GroupManagers'
                     }
                 }
             }
@@ -2296,9 +2237,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'ManagerType'; Value = 'group' }
                 @{ Name = 'ManagerMemberName'; Value = 'Admiral Pike' }
             ) {
-                $actual.cherwellFolder.GroupManagers.$Name | Should -Be $Value
-                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.GroupManagers.$Name | Should -Be $Value
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
@@ -2313,7 +2252,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the Export folder' {
-            $testCherwellFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
             $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
@@ -2321,13 +2260,11 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
-                    logFolder      = @{
-                        Excel      = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
-                        AccessList = Import-Csv -Path $testLogFolder.AccessListCsvFile.FullName
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
                     }
-                    cherwellFolder = @{
-                        Excel      = Import-Excel -Path $testCherwellFolder.ExcelFile.FullName -WorksheetName 'AccessList'
-                        AccessList = Import-Csv -Path $testCherwellFolder.AccessListCsvFile.FullName
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AccessList'
                     }
                 }
             }
@@ -2339,9 +2276,7 @@ Describe 'when the argument CherwellFolder is used on a successful run' {
                 @{ Name = 'MemberName'; Value = 'Jean Luc Picard' }
                 @{ Name = 'MemberSamAccountName'; Value = 'picard' }
             ) {
-                $actual.cherwellFolder.AccessList.$Name | Should -Be $Value
-                $actual.cherwellFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.AccessList.$Name | Should -Be $Value
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
