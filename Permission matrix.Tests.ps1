@@ -19,11 +19,6 @@ BeforeAll {
             OverviewHtmlFile            = $null
             PermissionsExcelFile        = $null
         }
-        ToRemove               = @{
-            ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
-            OverviewHtmlFile            = (New-Item 'TestDrive:/overview.html' -ItemType File).FullName
-            PermissionsExcelFile        = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
-        }
         ServiceNow             = @{
             CredentialsFilePath = (New-Item 'TestDrive:/cred.json' -ItemType File).FullName
             Environment         = 'Test'
@@ -1586,7 +1581,7 @@ Describe 'when a job fails' {
             $actual = $ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })
             $actual.Check.Type | Should -Not -Be 'FatalError'
             $actual.Check.Value | Should -Not -Be 'failure'
-        } -Tag test
+        }
     }
     Context 'the set permissions script' {
         BeforeAll {
@@ -1872,7 +1867,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
         Should -Invoke Send-MailKitMessageHC -Scope it -Times 1 -Exactly
     }
 }
-Describe 'when the argument CherwellFolder is used' {
+Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     Context 'but the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
@@ -1886,7 +1881,12 @@ Describe 'when the argument CherwellFolder is used' {
 
             $testPermissions | Export-Excel @testPermissionsParams
 
-            .$testScript @testParams -CherwellFolder $testCherwellFolder.FullName
+            $testNewInputFile = Copy-ObjectHC $testInputFile
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
+
+            Test-NewJsonFileHC
+
+            .$testScript @testParams
         }
         It 'a FatalError is registered for the file' {
             $actual = $ImportedMatrix.File.Check
@@ -1910,7 +1910,7 @@ Describe 'when the argument CherwellFolder is used' {
                 ($Body -notlike '*Check the*overview*for details*')
             }
         }
-    }
+    } -Tag test
     Context 'but the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC
