@@ -2020,9 +2020,13 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
                 ($SmtpConnectionType -eq 'StartTls') -and
                 ($Subject -eq '1 matrix file, 1 warning, Email subject') -and
                 ($Priority -eq 'High') -and
-                ($Body -like '*Errors*Warnings*FormData*') -and
-                ($Body -like '*FormData*AD object not found*') -and
-                ($Body -like '*Check the*overview*for details*')
+                ($Body -like (
+                    '*<th id="matrixHeader" colspan="8">FormData</th> <tr>
+                    <td id="probTypeWarning"></td>
+                    <p id="probTitle">AD object not found</p>
+                    <p>The email address or SamAccountName is not found in the active directory. Multiple entries are supported with the comma ', ' separator.</p>*
+                    <ul><li>bob@contoso.com</li></ul>*') -replace '[\r\n]+', '*'
+                )
             }
         } -Tag test
     }
