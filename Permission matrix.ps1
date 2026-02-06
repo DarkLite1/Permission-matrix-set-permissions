@@ -2573,9 +2573,8 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( { "<li>$_</li>" })
-                                '</ul>'
+                                '<ul>{0}</ul>' -f 
+                                $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
                             Description = $F.Description
@@ -2605,9 +2604,8 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( { "<li>$_</li>" })
-                                '</ul>'
+                                '<ul>{0}</ul>' -f 
+                                $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
                             Description = $F.Description
@@ -2637,9 +2635,8 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>'
-                                @($F.Value).ForEach( { "<li>$_</li>" })
-                                '</ul>'
+                                '<ul>{0}</ul>' -f 
+                                $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
                             Description = $F.Description
