@@ -2177,7 +2177,7 @@ end {
 
                 #region Create Permissions file in log folder
                 $permissionsExcelLogFileParams = @{
-                    Path         = "$matrixLogFileBasePath - AllMatrix - Permissions.xlsx"
+                    Path         = "$matrixLogFileBasePath - Export - Permissions.xlsx"
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
@@ -2307,6 +2307,37 @@ end {
                     }
 
                     $serviceNowFormData | Export-Excel @params
+                    #endregion
+
+                    #region Export to log folder
+                    try {
+                        $copyParams = @{
+                            LiteralPath = $params.Path
+                            Destination = "$matrixLogFileBasePath - Export - ServiceNowFormData.xlsx"
+                        }
+
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
+                        Write-Verbose $eventLogData[-1].Message
+
+                        Copy-Item @copyParams       
+                    }
+                    catch {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                            }
+                        )
+                                
+                        Write-Warning $systemErrors[-1].Message
+                    }
                     #endregion
 
                     $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
@@ -2987,7 +3018,7 @@ end {
                 '<p><b>Exported {0} file{1}:</b></p>
                     <ul>{2}</ul>' -f 
                 $($exportedFiles.Count),
-                $(if ($exportedFiles.Count -ne 1) {'s'}),
+                $(if ($exportedFiles.Count -ne 1) { 's' }),
                 $(
                     $exportedFiles.GetEnumerator() | ForEach-Object {
                         "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"

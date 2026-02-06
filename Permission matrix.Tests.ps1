@@ -2113,6 +2113,9 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
         Test-NewJsonFileHC
         
         .$testScript @testParams
+
+        $testSnowExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
+        Where-Object {$_.Name -like '* - Export - ServiceNowFormData.xlsx'}
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -2128,16 +2131,17 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
     }
     Context 'the FormData is exported' {
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | 
+            Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
-            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
                     logFolder    = @{
-                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'FormData'
+                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'FormData'
                     }
                     exportFolder = @{
                         Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'FormData'
@@ -2179,13 +2183,13 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
             $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
-            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
                     logFolder    = @{
-                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AdObjectNames'
+                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'AdObjectNames'
                     }
                     exportFolder = @{
                         Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AdObjectNames'
@@ -2217,13 +2221,13 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
             $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
-            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
                     logFolder    = @{
-                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'GroupManagers'
+                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'GroupManagers'
                     }
                     exportFolder = @{
                         Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'GroupManagers'
@@ -2255,13 +2259,13 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
             $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
-            $testLogFolder.ExcelFile.FullName | Should -Not -BeNullOrEmpty
+            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
         }
         Context 'with the property' {
             BeforeAll {
                 $actual = @{
                     logFolder    = @{
-                        Excel = Import-Excel -Path $testLogFolder.ExcelFile.FullName -WorksheetName 'AccessList'
+                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'AccessList'
                     }
                     exportFolder = @{
                         Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AccessList'
