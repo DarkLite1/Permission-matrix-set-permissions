@@ -2358,10 +2358,11 @@ end {
                     ) {
                         try {
                             $params = @{
-                                CredentialsFilePath = $ServiceNow.CredentialsFilePath
-                                Environment         = $ServiceNow.Environment
-                                TableName           = $ServiceNow.TableName
-                                FormDataFile        = $params.Path
+                                CredentialsFilePath    = $ServiceNow.CredentialsFilePath
+                                Environment            = $ServiceNow.Environment
+                                TableName              = $ServiceNow.TableName
+                                FormDataExcelFile      = $params.Path
+                                ExcelFileWorksheetName = $params.WorksheetName
                             }
                             & $scriptPathItem.UpdateServiceNow @params
                         }

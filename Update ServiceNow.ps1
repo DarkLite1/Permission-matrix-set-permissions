@@ -4,7 +4,9 @@ param (
     [Parameter(Mandatory)]
     [String]$Environment,
     [Parameter(Mandatory)]
-    [String]$FormDataFile,
+    [String]$FormDataExcelFile,
+    [Parameter(Mandatory)]
+    [String]$ExcelFileWorksheetName,
     [Parameter(Mandatory)]
     [String]$TableName,
     [int]$MaxRetries = 3
@@ -143,7 +145,11 @@ process {
     try {
         Write-Verbose 'Import FormData from .CSV file'
     
-        $recordsToCreate = Import-Csv -LiteralPath $FormDataFile | ForEach-Object {
+        $params = @{
+            Path          = $FormDataExcelFile 
+            WorksheetName = $ExcelFileWorksheetName
+        }
+        $recordsToCreate = Import-Excel @params | ForEach-Object {
             @{
                 u_matrixcategoryname    = $formData.MatrixCategoryName
                 u_matrixsubcategoryname = $formData.MatrixSubCategoryName
@@ -155,7 +161,7 @@ process {
         }
     }
     catch {
-        throw "Failed to import FormData from .CSV file '$FormDataFile': $_"
+        throw "Failed to import FormData from .CSV file '$FormDataExcelFile': $_"
     }
     #endregion
     
