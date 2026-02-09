@@ -2132,7 +2132,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     Context 'the FormData is exported' {
         It 'to an Excel file in the Export folder' {
             $testNewInputFile.Export.ServiceNowFormDataExcelFile | 
-            Should -Not -BeNullOrEmpty
+            Should -Exist
         }
         It 'to an Excel file in the log folder' {
             $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
@@ -2264,7 +2264,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
     Context 'the AD object names are exported' {
         It 'to an Excel file in the Export folder' {
             $testNewInputFile.Export.PermissionsExcelFile | 
-            Should -Not -BeNullOrEmpty
+            Should -Exist
         }
         It 'to an Excel file in the log folder' {
             $testPermissionsExcelLogFile | Should -Not -BeNullOrEmpty
@@ -2453,12 +2453,12 @@ Describe 'when Export.OverviewHtmlFile is used' {
         .$testScript @testParams
 
         $testOverviewHtmlFile = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object { $_.Name -like '* - Export - Permissions.xlsx' }
+        Where-Object { $_.Name -like '* - Export - Overview.html' }
     }
     Context 'the overview html file is exported is created in the' {
         It 'Export folder' {
             $testNewInputFile.Export.OverviewHtmlFile | 
-            Should -Not -BeNullOrEmpty
+            Should -Exist
         }
         It 'log folder' {
             $testOverviewHtmlFile | Should -Not -BeNullOrEmpty
