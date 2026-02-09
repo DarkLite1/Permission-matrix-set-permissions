@@ -2463,7 +2463,7 @@ Describe 'when Export.OverviewHtmlFile is used' {
         It 'log folder' {
             $testOverviewHtmlFile | Should -Not -BeNullOrEmpty
         }
-    } -Tag test
+    }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($From -eq 'm@example.com') -and
