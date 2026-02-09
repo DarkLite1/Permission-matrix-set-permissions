@@ -1,3 +1,6 @@
+#Requires -Version 7
+#Requires -Modules ImportExcel, ServiceNow
+
 <# 
     .SYNOPSIS
         Upload data to ServiceNow
