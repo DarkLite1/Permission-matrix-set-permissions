@@ -2291,7 +2291,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    } -Tag test
+    }
     Context 'the GroupManagers are exported' {
         It 'to an Excel file in the Export folder' {
             $testNewInputFile.Export.PermissionsExcelFile | 
