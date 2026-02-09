@@ -176,31 +176,22 @@ begin {
 }
 
 process {
-    #region Import FormData from .CSV file
+    #region Import records to upload
     try {
-        Write-Verbose 'Import FormData from .CSV file'
+        Write-Verbose 'Import records to upload from .XLSX file'
     
         $params = @{
             Path          = $FormDataExcelFilePath 
             WorksheetName = $ExcelFileWorksheetName
         }
-        $recordsToCreate = Import-Excel @params | ForEach-Object {
-            @{
-                u_matrixcategoryname    = $formData.MatrixCategoryName
-                u_matrixsubcategoryname = $formData.MatrixSubCategoryName
-                u_matrixfilename        = $_.MatrixFileName
-                u_matrixresponsible     = $formData.MatrixResponsible
-                u_matrixfolderpath      = $formData.MatrixFolderPath 
-                u_adobjectname          = $_.SamAccountName
-            }
-        }
+        $recordsToUpload = Import-Excel @params
     }
     catch {
-        throw "Failed to import FormData from .CSV file '$FormDataExcelFilePath': $_"
+        throw "Failed to import records to upload from file '$FormDataExcelFilePath  with worksheet name '$ExcelFileWorksheetName': $_"
     }
     #endregion
     
-    if ($recordsToCreate) {
+    if ($recordsToUpload) {
         #region Create global variable $ServiceNowSession
         $params = @{
             Uri          = Get-StringValueHC -Name $serviceNowEnvironment.Uri
@@ -260,17 +251,17 @@ process {
         #endregion
 
         #region Create new records in the ServiceNow table
-        Write-Verbose "Create $($recordsToCreate.Count) records in the ServiceNow table '$TableName'"
+        Write-Verbose "Create $($recordsToUpload.Count) records in the ServiceNow table '$TableName'"
         
         $currentRecordCount = 0
-        $totalRecordCount = $recordsToCreate.Count
+        $totalRecordCount = $recordsToUpload.Count
 
         $createParams = @{
             Table   = $TableName
             Verbose = $false
         }
 
-        foreach ($record in $recordsToCreate) {
+        foreach ($record in $recordsToUpload) {
             $attempt = 0
             $currentRecordCount++
     

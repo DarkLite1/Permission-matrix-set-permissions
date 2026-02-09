@@ -2291,11 +2291,11 @@ end {
 
                         $adObjectName | ForEach-Object {
                             [PSCustomObject]@{
+                                u_matrixfilename        = $_.MatrixFileName
+                                u_matrixfolderpath      = $formData.MatrixFolderPath 
                                 u_matrixcategoryname    = $formData.MatrixCategoryName
                                 u_matrixsubcategoryname = $formData.MatrixSubCategoryName
-                                u_matrixfilename        = $_.MatrixFileName
                                 u_matrixresponsible     = $formData.MatrixResponsible
-                                u_matrixfolderpath      = $formData.MatrixFolderPath 
                                 u_adobjectname          = $_.SamAccountName
                             }
                         }
