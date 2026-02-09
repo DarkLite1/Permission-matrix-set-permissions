@@ -19,6 +19,10 @@
         - W : Write
         - F : Full Control
         - I : Ignore
+
+    .PARAMETER ConfigurationJsonFile
+        Contains all the parameters used by the script.
+        See 'Example.json' for a detailed explanation of parameters.
 #>
 
 [CmdLetBinding()]
