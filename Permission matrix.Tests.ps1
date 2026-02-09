@@ -2161,37 +2161,6 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             }
         }
     }
-    Context 'the AD object names are exported' {
-        It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | 
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to an Excel file in the log folder' {
-            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
-        }
-        Context 'with the property' {
-            BeforeAll {
-                $actual = @{
-                    logFolder    = @{
-                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'AdObjectNames'
-                    }
-                    exportFolder = @{
-                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AdObjectNames'
-                    }
-                }
-            }
-            It '<Name>' -ForEach @(
-                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                @{ Name = 'SamAccountName'; Value = 'A B C' }
-                @{ Name = 'GroupName'; Value = 'A' }
-                @{ Name = 'SiteCode'; Value = 'B' }
-                @{ Name = 'Name'; Value = 'C' }
-            ) {
-                $actual.exportFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.Excel.$Name | Should -Be $Value
-            }
-        }
-    }
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($From -eq 'm@example.com') -and
@@ -2205,6 +2174,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($Body -like '*Matrix results per file*')
         }
     }
+}
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2291,6 +2261,37 @@ Describe 'when Export.PermissionsExcelFile is used' {
         $testPermissionsExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
         Where-Object { $_.Name -like '* - Export - Permissions.xlsx' }
     }
+    Context 'the AD object names are exported' {
+        It 'to an Excel file in the Export folder' {
+            $testNewInputFile.Export.PermissionsExcelFile | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
+            $testPermissionsExcelLogFile | Should -Not -BeNullOrEmpty
+        }
+        Context 'with the property' {
+            BeforeAll {
+                $actual = @{
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testPermissionsExcelLogFile -WorksheetName 'AdObjects'
+                    }
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.PermissionsExcelFile -WorksheetName 'AdObjects'
+                    }
+                }
+            }
+            It '<Name>' -ForEach @(
+                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
+                @{ Name = 'SamAccountName'; Value = 'A B C' }
+                @{ Name = 'GroupName'; Value = 'A' }
+                @{ Name = 'SiteCode'; Value = 'B' }
+                @{ Name = 'Name'; Value = 'C' }
+            ) {
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
+                $actual.logFolder.Excel.$Name | Should -Be $Value
+            }
+        }
+    } -Tag test
     Context 'the GroupManagers are exported' {
         It 'to an Excel file in the Export folder' {
             $testNewInputFile.Export.PermissionsExcelFile | 
