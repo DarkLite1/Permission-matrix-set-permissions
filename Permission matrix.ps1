@@ -2361,7 +2361,7 @@ end {
                                 CredentialsFilePath    = $ServiceNow.CredentialsFilePath
                                 Environment            = $ServiceNow.Environment
                                 TableName              = $ServiceNow.TableName
-                                FormDataExcelFile      = $params.Path
+                                FormDataExcelFilePath  = $params.Path
                                 ExcelFileWorksheetName = $params.WorksheetName
                             }
                             & $scriptPathItem.UpdateServiceNow @params

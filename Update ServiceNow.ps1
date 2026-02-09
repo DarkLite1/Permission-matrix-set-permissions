@@ -1,10 +1,42 @@
+<# 
+    .SYNOPSIS
+        Upload data to ServiceNow
+
+    .DESCRIPTION
+        Send data to the ServiceNow API that will be used to create the ServiceNow form. This form is used by users to select the correct
+        security group to gain access to the correct files and folders defined
+        in a matrix Excel file.
+        
+        This script will first delete all records in the ServiceNow table and
+        then upload all new records to to table.
+
+    .PARAMETER CredentialsFilePath
+        The .JSON file containing the che logon credentials for ServiceNow.
+
+    .PARAMETER Environment
+        The ServiceNow environment where the data will be send to. This 
+        environment should be available in the CredentialsFilePath.
+
+    .PARAMETER FormDataExcelFilePath
+        The Excel file containing the records to be uploaded.
+
+    .PARAMETER ExcelFileWorksheetName
+        The name of the worksheet used in the FormDataExcelFilePath.
+
+    .PARAMETER TableName
+        The name of the table in ServiceNow where to store the records.
+
+    .PARAMETER MaxRetries
+        How many times to try to upload the data on connection errors.
+#>
+
 param (
     [Parameter(Mandatory)]
     [String]$CredentialsFilePath,
     [Parameter(Mandatory)]
     [String]$Environment,
     [Parameter(Mandatory)]
-    [String]$FormDataExcelFile,
+    [String]$FormDataExcelFilePath,
     [Parameter(Mandatory)]
     [String]$ExcelFileWorksheetName,
     [Parameter(Mandatory)]
@@ -146,7 +178,7 @@ process {
         Write-Verbose 'Import FormData from .CSV file'
     
         $params = @{
-            Path          = $FormDataExcelFile 
+            Path          = $FormDataExcelFilePath 
             WorksheetName = $ExcelFileWorksheetName
         }
         $recordsToCreate = Import-Excel @params | ForEach-Object {
@@ -161,7 +193,7 @@ process {
         }
     }
     catch {
-        throw "Failed to import FormData from .CSV file '$FormDataExcelFile': $_"
+        throw "Failed to import FormData from .CSV file '$FormDataExcelFilePath': $_"
     }
     #endregion
     
