@@ -1870,7 +1870,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
     BeforeAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
+        $testNewInputFile.Export.ServiceNowFormDataExcelFile = 'TestDrive:/snow.xlsx'
 
         Test-NewJsonFileHC
     }
@@ -2030,7 +2030,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
             }
         }
     }
-}
+} 
 Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2108,7 +2108,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
         Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
+        $testNewInputFile.Export.ServiceNowFormDataExcelFile = 'TestDrive:/snow.xlsx'
 
         Test-NewJsonFileHC
         
@@ -2252,7 +2252,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
         Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
         $testNewInputFile = Copy-ObjectHC $testInputFile
-        $testNewInputFile.Export.PermissionsExcelFile = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
+        $testNewInputFile.Export.PermissionsExcelFile = 'TestDrive:/permissions.xlsx'
 
         Test-NewJsonFileHC
         
@@ -2355,6 +2355,115 @@ Describe 'when Export.PermissionsExcelFile is used' {
             }
         }
     }
+    It 'an email is sent to the user in the default settings file' {
+        Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
+            ($From -eq 'm@example.com') -and
+            ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
+            ($SmtpPort -eq 25) -and
+            ($SmtpServerName -eq 'SMTP_SERVER') -and
+            ($SmtpConnectionType -eq 'StartTls') -and
+            ($Subject -eq '1 matrix file, Email subject') -and
+            ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
+            ($Body -like '*Matrix results per file*')
+        }
+    }
+}
+Describe 'when Export.OverviewHtmlFile is used' {
+    BeforeAll {
+        Mock Test-ExpandedMatrixHC
+        Mock Get-AdUserPrincipalNameHC {
+            @{
+                UserPrincipalName = @('bob@contoso.com', 'mike@contoso.com')
+                notFound          = $null
+            }
+        }
+        Mock Test-FormDataHC
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                samAccountName = 'A B C'
+                adObject       = @{
+                    ObjectClass    = 'group'
+                    Name           = 'A B C'
+                    SamAccountName = 'A B c'
+                    ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
+                }
+                adGroupMember  = @(
+                    @{
+                        ObjectClass    = 'user'
+                        Name           = 'Jean Luc Picard'
+                        SamAccountName = 'picard'
+                    }
+                )
+            }
+        } -ParameterFilter { $Type -eq 'SamAccountName' }
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
+                adObject          = @{
+                    ObjectClass = 'group'
+                    Name        = 'Captain Managers'
+                }
+                adGroupMember     = @(
+                    @{
+                        ObjectClass    = 'user'
+                        Name           = 'Admiral Pike'
+                        SamAccountName = 'pike'
+                    }
+                )
+            }
+        } -ParameterFilter { $Type -eq 'DistinguishedName' }
+
+        @(
+            [PSCustomObject]@{P1 = $null      ; P2 = 'C' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
+        ) | Export-Excel @testPermissionsParams
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'SERVER1'
+                GroupName    = 'A'
+                SiteCode     = 'B'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
+        ) | Export-Excel @testSettingsParams
+
+        @(
+            [PSCustomObject]@{
+                MatrixFormStatus        = 'Enabled'
+                MatrixCategoryName      = 'a'
+                MatrixSubCategoryName   = 'b'
+                MatrixResponsible       = 'c'
+                MatrixFolderDisplayName = 'd'
+                MatrixFolderPath        = 'e'
+            }
+        ) |
+        Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
+
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Export.OverviewHtmlFile = 'TestDrive:/permissions.html'
+
+        Test-NewJsonFileHC
+        
+        .$testScript @testParams
+
+        $testOverviewHtmlFile = Get-ChildItem $testLogFolder -Recurse -File |
+        Where-Object { $_.Name -like '* - Export - Permissions.xlsx' }
+    }
+    Context 'the overview html file is exported is created in the' {
+        It 'Export folder' {
+            $testNewInputFile.Export.OverviewHtmlFile | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'log folder' {
+            $testOverviewHtmlFile | Should -Not -BeNullOrEmpty
+        }
+    } -Tag test
     It 'an email is sent to the user in the default settings file' {
         Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
             ($From -eq 'm@example.com') -and
