@@ -2287,7 +2287,7 @@ end {
                         }
 
                         $adObjectName | ForEach-Object {
-                            @{
+                            [PSCustomObject]@{
                                 u_matrixcategoryname    = $formData.MatrixCategoryName
                                 u_matrixsubcategoryname = $formData.MatrixSubCategoryName
                                 u_matrixfilename        = $_.MatrixFileName

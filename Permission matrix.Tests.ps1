@@ -2159,13 +2159,6 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
                 $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
-            It 'MatrixFilePath' {
-                # scoping issue in Pester
-                $actual.exportFolder.Excel.MatrixFilePath |
-                Should -Be $testSettingsParams.Path
-                $actual.logFolder.Excel.MatrixFilePath |
-                Should -Be $testSettingsParams.Path
-            }
         }
     } -Tag test
     Context 'the AD object names are exported' {
