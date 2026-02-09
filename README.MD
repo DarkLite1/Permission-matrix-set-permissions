@@ -25,26 +25,25 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
   Install-Package -Name 'MailKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   Install-Package -Name 'MimeKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   ```
-
-  - **Permissions**: Administrative rights on the target file systems and remote management permissions.
+- **Permissions**: Administrative rights on the target file systems and remote management permissions.
 
 ## ⚙️ Configuration
 
 The script is driven by a ConfigurationJsonFile. Below is a breakdown of the primary configuration blocks:
 
 1. Concurrency (MaxConcurrent)
-Controls the performance impact on the network and remote systems.Computers: Max unique computers to target simultaneously.FoldersPerMatrix: Max folders to iterate within a single job.
+   Controls the performance impact on the network and remote systems.Computers: Max unique computers to target simultaneously.FoldersPerMatrix: Max folders to iterate within a single job.
 2. Matrix Settings (Matrix)
-Defines the source of truth for permissions.FolderPath: Where the individual matrix Excel files are stored.DefaultsFile: General settings and default permissions applied to all matrices.ExcludedSamAccountName: AD accounts (like placeholders) to ignore during group membership checks.
+   Defines the source of truth for permissions.FolderPath: Where the individual matrix Excel files are stored.DefaultsFile: General settings and default permissions applied to all matrices.ExcludedSamAccountName: AD accounts (like placeholders) to ignore during group membership checks.
 3. Permission Codes
-Permissions in the Excel matrix are defined using the following shorthand:
-| Code | Permission | Description
-| --- | --- | ---|
-| L | List | Allows viewing the contents of the folder.|
-| R | Read | Allows reading files and folder attributes.|
-| W | Write | Allows creating and modifying files.|
-| F | Full Control | Grants all permissions, including changing permissions/ownership.|
-| I| Ignore | The script will skip this entry without making changes.| 
+   Permissions in the Excel matrix are defined using the following shorthand:
+   | Code | Permission | Description
+   | --- | --- | ---|
+   | L | List | Allows viewing the contents of the folder.|
+   | R | Read | Allows reading files and folder attributes.|
+   | W | Write | Allows creating and modifying files.|
+   | F | Full Control | Grants all permissions, including changing permissions/ownership.|
+   | I| Ignore | The script will skip this entry without making changes.|
 
 ### 🛠 Usage
 
@@ -57,7 +56,6 @@ Permissions in the Excel matrix are defined using the following shorthand:
 3.  Create your own configuration file (e.g., `MyConfig.json`) based on `Example.json`.
 
 [!TIP] Use the `Detailed` logging setting in the JSON configuration during initial testing to see granular ACL comparisons (current vs. expected).
-
 
 ### 📊 Logging & Monitoring
 
