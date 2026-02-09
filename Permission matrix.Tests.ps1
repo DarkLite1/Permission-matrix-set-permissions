@@ -2201,12 +2201,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($SmtpServerName -eq 'SMTP_SERVER') -and
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
-            ($Body -like '*Export to*Export*') -and
-            ($Body -like '*Check the*overview*for details*') -and
-            ($Body -like '*Access list*1*') -and
-            ($Body -like '*AD objects*2*') -and
-            ($Body -like '*Group managers*1*') -and
-            ($Body -like '*Form data*1*') -and
+            ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
             ($Body -like '*Matrix results per file*') -and
             ($Body -like '*Matrix.xlsx*') -and
             ($Body -like '*Settings*') -and
@@ -2214,7 +2209,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($Body -like '*1*SERVER1*E:\Department*Check*') -and
             ($Body -like '*Error*Warning*Information*')
         }
-    }
+    } -Tag test
 }
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
@@ -2364,5 +2359,5 @@ Describe 'when Export.PermissionsExcelFile is used' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    } -Tag test
+    } 
 }
