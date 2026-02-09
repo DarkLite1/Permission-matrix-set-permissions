@@ -4,13 +4,12 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 
 ## 🌟 Features
 
-- **Configurable Transfers**: Define multiple SFTP tasks and actions in a single JSON configuration file.
-  Action Modes: Supports Check, Fix, and New actions to audit or apply security settings.
+- **Action Modes**: Supports `Check`, `Fix`, and `New` actions to audit or apply security settings.
 - **Multi-Threaded Performance**: Configure concurrent jobs across multiple computers and folders for high-speed execution.
-- **ServiceNow Integration**: Syncs with ServiceNow tables to manage roles and form data.
 - **Comprehensive Reporting**: Generates HTML overviews and Excel reports of the current permission state.
 - **Automated Notifications**: Integrated SMTP support (via MailKit/MimeKit) to send status updates.
 - **Granular Logging**: Detailed logging to XLSX/JSON and the Windows Event Log.
+- **ServiceNow Integration**: Syncs with ServiceNow tables to manage roles and form data.
 
 ## 🚀 Getting Started
 
