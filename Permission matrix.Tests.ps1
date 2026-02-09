@@ -1867,14 +1867,14 @@ Describe 'when a FatalError occurs while executing the matrix' {
         Should -Invoke Send-MailKitMessageHC -Scope it -Times 1 -Exactly
     }
 }
-Describe 'when Export.ServiceNowFormDataExcelFile is used' {
+Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
     BeforeAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
         $testNewInputFile.Export.ServiceNowFormDataExcelFile = (New-Item 'TestDrive:/snow.xlsx' -ItemType File).FullName
 
         Test-NewJsonFileHC
     }
-    Context 'but the Excel file is missing the sheet FormData' {
+    Context 'the Excel file is missing the sheet FormData' {
         BeforeAll {
             @(
                 [PSCustomObject]@{
@@ -1911,7 +1911,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             }
         }
     }
-    Context 'but the worksheet FormData contains incorrect data' {
+    Context 'the worksheet FormData contains incorrect data' {
         AfterAll {
             Mock Test-FormDataHC
             Mock Get-AdUserPrincipalNameHC
@@ -1969,7 +1969,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             }
         }
     }
-    Context 'but the worksheet FormData has a non existing MatrixResponsible' {
+    Context 'the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
             Mock Test-ExpandedMatrixHC
             Mock Test-FormDataHC
@@ -2031,7 +2031,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
         }
     }
 }
-Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
+Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
         Mock Get-AdUserPrincipalNameHC {
@@ -2115,7 +2115,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
         .$testScript @testParams
 
         $testSnowExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object {$_.Name -like '* - Export - ServiceNowFormData.xlsx'}
+        Where-Object { $_.Name -like '* - Export - ServiceNowFormData.xlsx' }
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -2160,18 +2160,11 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    } -Tag test
+    }
     Context 'the AD object names are exported' {
-        It 'to a CSV file in the Export folder' {
-            $testCherwellFolder.AdObjectsCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to a CSV file in the log folder' {
-            $testLogFolder.AdObjectsCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile | 
+            Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
             $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
@@ -2193,83 +2186,6 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
                 @{ Name = 'GroupName'; Value = 'A' }
                 @{ Name = 'SiteCode'; Value = 'B' }
                 @{ Name = 'Name'; Value = 'C' }
-            ) {
-                $actual.exportFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.Excel.$Name | Should -Be $Value
-            }
-        }
-    }
-    Context 'the GroupManagers are exported' {
-        It 'to a CSV file in the Export folder' {
-            $testCherwellFolder.GroupManagersCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to a CSV file in the log folder' {
-            $testLogFolder.GroupManagersCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
-        }
-        It 'to an Excel file in the log folder' {
-            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
-        }
-        Context 'with the property' {
-            BeforeAll {
-                $actual = @{
-                    logFolder    = @{
-                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'GroupManagers'
-                    }
-                    exportFolder = @{
-                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'GroupManagers'
-                    }
-                }
-            }
-            It '<Name>' -ForEach @(
-                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                @{ Name = 'GroupName'; Value = 'A B C' }
-                @{ Name = 'ManagerName'; Value = 'Captain Managers' }
-                @{ Name = 'ManagerType'; Value = 'group' }
-                @{ Name = 'ManagerMemberName'; Value = 'Admiral Pike' }
-            ) {
-                $actual.exportFolder.Excel.$Name | Should -Be $Value
-                $actual.logFolder.Excel.$Name | Should -Be $Value
-            }
-        }
-    }
-    Context 'the AccessList are exported' {
-        It 'to a CSV file in the Export folder' {
-            $testCherwellFolder.AccessListCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to a CSV file in the log folder' {
-            $testLogFolder.AccessListCsvFile.FullName |
-            Should -Not -BeNullOrEmpty
-        }
-        It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | Should -Not -BeNullOrEmpty
-        }
-        It 'to an Excel file in the log folder' {
-            $testSnowExcelLogFile | Should -Not -BeNullOrEmpty
-        }
-        Context 'with the property' {
-            BeforeAll {
-                $actual = @{
-                    logFolder    = @{
-                        Excel = Import-Excel -Path $testSnowExcelLogFile -WorksheetName 'AccessList'
-                    }
-                    exportFolder = @{
-                        Excel = Import-Excel -Path $testNewInputFile.Export.ServiceNowFormDataExcelFile -WorksheetName 'AccessList'
-                    }
-                }
-            }
-            It '<Name>' -ForEach @(
-                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
-                @{ Name = 'SamAccountName'; Value = 'A B C' }
-                @{ Name = 'Name'; Value = 'A B C' }
-                @{ Name = 'Type'; Value = 'group' }
-                @{ Name = 'MemberName'; Value = 'Jean Luc Picard' }
-                @{ Name = 'MemberSamAccountName'; Value = 'picard' }
             ) {
                 $actual.exportFolder.Excel.$Name | Should -Be $Value
                 $actual.logFolder.Excel.$Name | Should -Be $Value
@@ -2299,4 +2215,154 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used on a successful run' {
             ($Body -like '*Error*Warning*Information*')
         }
     }
+}
+Describe 'when Export.PermissionsExcelFile is used' {
+    BeforeAll {
+        Mock Test-ExpandedMatrixHC
+        Mock Get-AdUserPrincipalNameHC {
+            @{
+                UserPrincipalName = @('bob@contoso.com', 'mike@contoso.com')
+                notFound          = $null
+            }
+        }
+        Mock Test-FormDataHC
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                samAccountName = 'A B C'
+                adObject       = @{
+                    ObjectClass    = 'group'
+                    Name           = 'A B C'
+                    SamAccountName = 'A B c'
+                    ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
+                }
+                adGroupMember  = @(
+                    @{
+                        ObjectClass    = 'user'
+                        Name           = 'Jean Luc Picard'
+                        SamAccountName = 'picard'
+                    }
+                )
+            }
+        } -ParameterFilter { $Type -eq 'SamAccountName' }
+        Mock Get-ADObjectDetailHC {
+            [PSCustomObject]@{
+                DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
+                adObject          = @{
+                    ObjectClass = 'group'
+                    Name        = 'Captain Managers'
+                }
+                adGroupMember     = @(
+                    @{
+                        ObjectClass    = 'user'
+                        Name           = 'Admiral Pike'
+                        SamAccountName = 'pike'
+                    }
+                )
+            }
+        } -ParameterFilter { $Type -eq 'DistinguishedName' }
+
+        @(
+            [PSCustomObject]@{P1 = $null      ; P2 = 'C' }
+            [PSCustomObject]@{P1 = 'SiteCode' ; P2 = 'SiteCode' }
+            [PSCustomObject]@{P1 = 'GroupName'; P2 = 'GroupName' }
+            [PSCustomObject]@{P1 = 'Path'     ; P2 = 'L' }
+            [PSCustomObject]@{P1 = 'Folder'   ; P2 = 'W' }
+        ) | Export-Excel @testPermissionsParams
+
+        @(
+            [PSCustomObject]@{
+                Status       = 'Enabled'
+                ComputerName = 'SERVER1'
+                GroupName    = 'A'
+                SiteCode     = 'B'
+                Path         = 'E:\Department'
+                Action       = 'Check'
+            }
+        ) | Export-Excel @testSettingsParams
+
+        @(
+            [PSCustomObject]@{
+                MatrixFormStatus        = 'Enabled'
+                MatrixCategoryName      = 'a'
+                MatrixSubCategoryName   = 'b'
+                MatrixResponsible       = 'c'
+                MatrixFolderDisplayName = 'd'
+                MatrixFolderPath        = 'e'
+            }
+        ) |
+        Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
+
+        $testNewInputFile = Copy-ObjectHC $testInputFile
+        $testNewInputFile.Export.PermissionsExcelFile = (New-Item 'TestDrive:/permissions.xlsx' -ItemType File).FullName
+
+        Test-NewJsonFileHC
+        
+        .$testScript @testParams
+
+        $testPermissionsExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
+        Where-Object { $_.Name -like '* - Export - Permissions.xlsx' }
+    }
+    Context 'the GroupManagers are exported' {
+        It 'to an Excel file in the Export folder' {
+            $testNewInputFile.Export.PermissionsExcelFile | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
+            $testPermissionsExcelLogFile | Should -Not -BeNullOrEmpty
+        }
+        Context 'with the property' {
+            BeforeAll {
+                $actual = @{
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testPermissionsExcelLogFile -WorksheetName 'GroupManagers'
+                    }
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.PermissionsExcelFile -WorksheetName 'GroupManagers'
+                    }
+                }
+            }
+            It '<Name>' -ForEach @(
+                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
+                @{ Name = 'GroupName'; Value = 'A B C' }
+                @{ Name = 'ManagerName'; Value = 'Captain Managers' }
+                @{ Name = 'ManagerType'; Value = 'group' }
+                @{ Name = 'ManagerMemberName'; Value = 'Admiral Pike' }
+            ) {
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
+                $actual.logFolder.Excel.$Name | Should -Be $Value
+            }
+        }
+    }
+    Context 'the AccessList are exported' {
+        It 'to an Excel file in the Export folder' {
+            $testNewInputFile.Export.PermissionsExcelFile | 
+            Should -Not -BeNullOrEmpty
+        }
+        It 'to an Excel file in the log folder' {
+            $testPermissionsExcelLogFile | Should -Not -BeNullOrEmpty
+        }
+        Context 'with the property' {
+            BeforeAll {
+                $actual = @{
+                    logFolder    = @{
+                        Excel = Import-Excel -Path $testPermissionsExcelLogFile -WorksheetName 'AccessList'
+                    }
+                    exportFolder = @{
+                        Excel = Import-Excel -Path $testNewInputFile.Export.PermissionsExcelFile -WorksheetName 'AccessList'
+                    }
+                }
+            }
+            It '<Name>' -ForEach @(
+                @{ Name = 'MatrixFileName'; Value = 'Matrix' }
+                @{ Name = 'SamAccountName'; Value = 'A B C' }
+                @{ Name = 'Name'; Value = 'A B C' }
+                @{ Name = 'Type'; Value = 'group' }
+                @{ Name = 'MemberName'; Value = 'Jean Luc Picard' }
+                @{ Name = 'MemberSamAccountName'; Value = 'picard' }
+            ) {
+                $actual.exportFolder.Excel.$Name | Should -Be $Value
+                $actual.logFolder.Excel.$Name | Should -Be $Value
+            }
+        }
+    } -Tag test
 }
