@@ -31,11 +31,11 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 
 The script is driven by a ConfigurationJsonFile. Below is a breakdown of the primary configuration blocks:
 
-1. Concurrency (MaxConcurrent)
+1. **Concurrency (MaxConcurrent)**
    Controls the performance impact on the network and remote systems.Computers: Max unique computers to target simultaneously.FoldersPerMatrix: Max folders to iterate within a single job.
-2. Matrix Settings (Matrix)
+2. **Matrix Settings (Matrix)**
    Defines the source of truth for permissions.FolderPath: Where the individual matrix Excel files are stored.DefaultsFile: General settings and default permissions applied to all matrices.ExcludedSamAccountName: AD accounts (like placeholders) to ignore during group membership checks.
-3. Permission Codes
+3. **Permission Codes**
    Permissions in the Excel matrix are defined using the following shorthand:
    | Code | Permission | Description
    | --- | --- | ---|
