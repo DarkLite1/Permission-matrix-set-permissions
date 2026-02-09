@@ -1249,7 +1249,10 @@ process {
                         #endregion
 
                         #region Import sheet FormData
-                        if ($Export.ServiceNowFormDataExcelFile) {
+                        if (
+                            $Export.ServiceNowFormDataExcelFile -or 
+                            $Export.OverviewHtmlFile
+                        ) {
                             try {
                                 $eventLogData.Add(
                                     [PSCustomObject]@{
@@ -2578,6 +2581,37 @@ end {
                             }
                         )
 
+                        Write-Warning $systemErrors[-1].Message
+                    }
+                    #endregion
+
+                    #region Export to log folder
+                    try {
+                        $copyParams = @{
+                            LiteralPath = $params.LiteralPath
+                            Destination = "$matrixLogFileBasePath - Export - Overview.html"
+                        }
+
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
+                        Write-Verbose $eventLogData[-1].Message
+
+                        Copy-Item @copyParams       
+                    }
+                    catch {
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                            }
+                        )
+                                
                         Write-Warning $systemErrors[-1].Message
                     }
                     #endregion
