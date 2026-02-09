@@ -3201,17 +3201,17 @@ end {
         #endregion
 
         #region Create system errors log file
+        $baseLogName = Join-Path -Path $logFolder -ChildPath (
+            '{0} - {1} ({2})' -f
+            $scriptStartTime.ToString('yyyy_MM_dd'),
+            $scriptName,
+            $jsonFileItem.BaseName
+        )
+
         if (
             $systemErrors -and
             (Test-Path -Path $LogFolder -PathType Container)
         ) {
-            $baseLogName = Join-Path -Path $logFolder -ChildPath (
-                '{0} - {1} ({2})' -f
-                $scriptStartTime.ToString('yyyy_MM_dd'),
-                $scriptName,
-                $jsonFileItem.BaseName
-            )
-
             $params = @{
                 DataToExport   = $systemErrors
                 PartialPath    = "$baseLogName - System errors log"
@@ -3392,6 +3392,17 @@ end {
             #endregion
 
             Send-MailKitMessageHC @mailParams
+
+            #region Save mail in log folder
+            if (Test-Path -Path $LogFolder -PathType Container) {
+                $params = @{
+                    $params.LiteralPath = "$baseLogName - Mail.html"
+                    Encoding            = 'utf8'
+                    NoClobber           = $true
+                }
+                $mailParams.Body | Out-File @params
+            }
+            #endregion
         }
         #endregion
     }
