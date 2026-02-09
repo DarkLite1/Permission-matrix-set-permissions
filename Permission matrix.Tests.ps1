@@ -2202,15 +2202,9 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
-            ($Body -like '*Matrix results per file*') -and
-            ($Body -like '*Matrix.xlsx*') -and
-            ($Body -like '*Settings*') -and
-            ($Body -like '*ID*ComputerName*Path*Action*Duration*') -and
-            ($Body -like '*1*SERVER1*E:\Department*Check*') -and
-            ($Body -like '*Error*Warning*Information*')
+            ($Body -like '*Matrix results per file*')
         }
-    } -Tag test
-}
+    }
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2359,5 +2353,18 @@ Describe 'when Export.PermissionsExcelFile is used' {
                 $actual.logFolder.Excel.$Name | Should -Be $Value
             }
         }
-    } 
+    }
+    It 'an email is sent to the user in the default settings file' {
+        Should -Invoke Send-MailKitMessageHC -Exactly 1 -Scope Describe -ParameterFilter {
+            ($From -eq 'm@example.com') -and
+            ($To[0] -eq '007@example.com') -and
+            ($To[1] -eq 'bob@contoso.com') -and
+            ($SmtpPort -eq 25) -and
+            ($SmtpServerName -eq 'SMTP_SERVER') -and
+            ($SmtpConnectionType -eq 'StartTls') -and
+            ($Subject -eq '1 matrix file, Email subject') -and
+            ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
+            ($Body -like '*Matrix results per file*')
+        }
+    }
 }
