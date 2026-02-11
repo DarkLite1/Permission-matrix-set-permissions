@@ -28,7 +28,6 @@ BeforeAll {
         Settings               = @{
             ScriptName     = 'Test (Brecht)'
             SendMail       = @{
-                When         = 'Always'
                 From         = 'm@example.com'
                 To           = '007@example.com'
                 Subject      = 'Email subject'
@@ -258,7 +257,7 @@ Describe 'the mandatory parameters are' {
 Describe 'create an error log file when' {
     AfterAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
-    
+
         Test-NewJsonFileHC
     }
     It 'the log folder cannot be created' {
@@ -290,7 +289,7 @@ Describe 'create an error log file when' {
         }
         Context 'property' {
             It '<_> not found' -ForEach @(
-                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 
+                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow',
                 'PSSessionConfiguration'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
@@ -366,16 +365,16 @@ Describe 'create an error log file when' {
         ) {
             $testNewParams = Copy-ObjectHC $testParams
             $testNewParams.ScriptPath.$_ = 'x:\NotExisting.ps1'
-    
+
             $testNewInputFile = Copy-ObjectHC $testInputFile
             Test-NewJsonFileHC
-    
+
             .$testScript @testNewParams
-    
+
             $LASTEXITCODE | Should -Be 1
-    
+
             $testLogFileContent = Test-GetLogFileDataHC
-    
+
             $testLogFileContent[0].Message |
             Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
         }
@@ -384,21 +383,21 @@ Describe 'create an error log file when' {
         It "is missing worksheet 'Settings'" {
             $testNewInputFile = Copy-ObjectHC $testInputFile
             $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
-    
+
             Test-NewJsonFileHC
 
             '1' | Export-Excel -Path $testNewInputFile.Matrix.DefaultsFile -WorksheetName 'Sheet1'
-    
+
             .$testScript @testParams
 
             $LASTEXITCODE | Should -Be 1
-    
+
             $testLogFileContent = Test-GetLogFileDataHC
-    
+
             $testLogFileContent[0].Message |
             Should -BeLike "*'$($testNewInputFile.Matrix.DefaultsFile)'* worksheet 'Settings' not found*"
         }
-    
+
         $TestCases = @(
             @{
                 Name         = "column header 'MailTo'"
@@ -457,21 +456,21 @@ Describe 'create an error log file when' {
                 errorMessage = 'No mail addresses found'
             }
         )
-    
+
         It 'is missing <Name>' -ForEach $TestCases {
             $testNewInputFile = Copy-ObjectHC $testInputFile
             $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
-    
+
             Test-NewJsonFileHC
-    
+
             $DefaultsFile | Export-Excel -Path $testNewInputFile.Matrix.DefaultsFile -WorksheetName Settings
-    
+
             .$testScript @testParams
 
             $LASTEXITCODE | Should -Be 1
-    
+
             $testLogFileContent = Test-GetLogFileDataHC
-    
+
             $testLogFileContent[0].Message |
             Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
         }
@@ -698,7 +697,7 @@ Describe 'a FatalError object is registered' {
                 Name        = 'Unknown error'
                 Description = 'While checking the input and generating the matrix an error was reported.'
                 Value       = 'Failed building the matrix'
-            }.GetEnumerator().ForEach( 
+            }.GetEnumerator().ForEach(
                 { $ImportedMatrix.File.Check.($_.Key) | Should -Be $_.Value }
             )
         }
@@ -1941,7 +1940,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
             ) |
             Export-Excel -Path $testSettingsParams.Path -WorksheetName 'FormData'
 
-            $testPermissions | Export-Excel @testPermissionsParams            
+            $testPermissions | Export-Excel @testPermissionsParams
 
             .$testScript @testParams
         }
@@ -2030,7 +2029,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
             }
         }
     }
-} 
+}
 Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2111,7 +2110,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
         $testNewInputFile.Export.ServiceNowFormDataExcelFile = 'TestDrive:/snow.xlsx'
 
         Test-NewJsonFileHC
-        
+
         .$testScript @testParams
 
         $testSnowExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
@@ -2131,7 +2130,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
     }
     Context 'the FormData is exported' {
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.ServiceNowFormDataExcelFile | 
+            $testNewInputFile.Export.ServiceNowFormDataExcelFile |
             Should -Exist
         }
         It 'to an Excel file in the log folder' {
@@ -2255,7 +2254,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
         $testNewInputFile.Export.PermissionsExcelFile = 'TestDrive:/permissions.xlsx'
 
         Test-NewJsonFileHC
-        
+
         .$testScript @testParams
 
         $testPermissionsExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
@@ -2263,7 +2262,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
     }
     Context 'the AD object names are exported' {
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.PermissionsExcelFile | 
+            $testNewInputFile.Export.PermissionsExcelFile |
             Should -Exist
         }
         It 'to an Excel file in the log folder' {
@@ -2294,7 +2293,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
     }
     Context 'the GroupManagers are exported' {
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.PermissionsExcelFile | 
+            $testNewInputFile.Export.PermissionsExcelFile |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
@@ -2325,7 +2324,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
     }
     Context 'the AccessList are exported' {
         It 'to an Excel file in the Export folder' {
-            $testNewInputFile.Export.PermissionsExcelFile | 
+            $testNewInputFile.Export.PermissionsExcelFile |
             Should -Not -BeNullOrEmpty
         }
         It 'to an Excel file in the log folder' {
@@ -2449,7 +2448,7 @@ Describe 'when Export.OverviewHtmlFile is used' {
         $testNewInputFile.Export.OverviewHtmlFile = 'TestDrive:/permissions.html'
 
         Test-NewJsonFileHC
-        
+
         .$testScript @testParams
 
         $testOverviewHtmlFile = Get-ChildItem $testLogFolder -Recurse -File |
@@ -2457,7 +2456,7 @@ Describe 'when Export.OverviewHtmlFile is used' {
     }
     Context 'the overview html file is exported is created in the' {
         It 'Export folder' {
-            $testNewInputFile.Export.OverviewHtmlFile | 
+            $testNewInputFile.Export.OverviewHtmlFile |
             Should -Exist
         }
         It 'log folder' {
