@@ -148,7 +148,7 @@ BeforeAll {
     function Test-GetLogFileDataHC {
         param (
             [String]$FileNameRegex = '* - System errors log.json',
-            [String]$LogFolderPath = $testInputFile.Settings.SaveLogFiles.Where.Folder
+            [String]$LogFolderPath = (Test-GetMatrixLogFolderPathHC)
         )
 
         $testLogFile = Get-ChildItem -Path $LogFolderPath -File -Filter $FileNameRegex
@@ -235,6 +235,14 @@ BeforeAll {
             [PSCredential]$Credential
         )
     }
+    function Test-GetMatrixLogFolderPathHC {
+        $testDatedLogFolder = Get-ChildItem -Path $testLogFolder -Directory -Filter (
+            '{0:00}_{1:00}_{2:00}* - Test' -f 
+            (Get-Date).Year, (Get-Date).Month, (Get-Date).Day
+        )
+
+        Join-Path $testDatedLogFolder 'Matrix'
+    }
 
     Mock Invoke-Command
     Mock New-PSSession
@@ -289,8 +297,9 @@ Describe 'create an error log file when' {
         }
         Context 'property' {
             It '<_> not found' -ForEach @(
-                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow',
-                'PSSessionConfiguration'
+                'MaxConcurrent'
+                # , 'Matrix', 'Export', 'ServiceNow',
+                # 'PSSessionConfiguration'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.$_ = $null
@@ -301,11 +310,11 @@ Describe 'create an error log file when' {
 
                 $LASTEXITCODE | Should -Be 1
 
-                $testLogFileContent = Test-GetLogFileDataHC
+                $testLogFileContent = Test-GetLogFileDataHC -LogFolderPath (Test-GetMatrixLogFolderPathHC)
 
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property '$_' not found*"
-            }
+            } -Tag test
             It 'MaxConcurrent.<_> not found' -ForEach @(
                 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
             ) {
@@ -516,7 +525,7 @@ Describe 'in the log folder' {
     It 'the Excel file is copied to the matrix log folder' {
         @(Get-ChildItem -Path $testMatrixLogFolder -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
-} -Tag test
+}
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(

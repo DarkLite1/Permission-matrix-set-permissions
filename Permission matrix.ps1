@@ -3428,7 +3428,7 @@ end {
             #region Save mail in log folder
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
-                    $params.LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
+                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
                     Encoding            = 'utf8'
                     NoClobber           = $true
                 }
