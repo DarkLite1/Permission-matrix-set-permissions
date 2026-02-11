@@ -24,7 +24,6 @@
   "Settings": {
     "ScriptName": "Permission matrix",
     "SendMail": {
-      "When": "always",
       "From": "no-reply-bnl-automation@heidelbergmaterials.com",
       "FromDisplayName": "Move file over SFTP (TEST Brecht)",
       "To": ["brecht.gijbels@heidelbergmaterials.com"],
