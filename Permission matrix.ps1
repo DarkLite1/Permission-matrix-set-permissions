@@ -142,6 +142,20 @@ begin {
             return $Name
         }
     }
+    function Get-DatedLogFolderPathHC {
+        try {
+            $datedLogFolder = Join-Path -Path $LogFolder -ChildPath (
+                '{0:00}_{1:00}_{2:00}_{3:00}{4:00}{5:00} - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
+                $scriptStartTime.Day, 
+                $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.Second, $jsonFileItem.BaseName
+            )
+     
+            (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
+        }
+        catch {
+            $LogFolder
+        }
+    }
     function Out-LogFileHC {
         [CmdletBinding()]
         param (
@@ -1132,11 +1146,21 @@ process {
             ErrorAction = 'Stop'
         }
 
-        [Array]$importedMatrix = foreach (
-            $matrixFile in
-            @(Get-ChildItem @getParams).Where(
-                { $_.FullName -ne $DefaultsItem.FullName })
-        ) {
+        #region Get matrix files
+        $matrixFiles = @(Get-ChildItem @getParams).Where(
+            { $_.FullName -ne $DefaultsItem.FullName }
+        )
+
+        Write-Verbose "Found $($matrixFiles.Count) matrix Excel files"
+        #endregion
+
+        #region Create dated log folder
+        if ($matrixFiles) {
+            $datedLogFolderPath = Get-DatedLogFolderPathHC
+        }
+        #endregion
+
+        [Array]$importedMatrix = foreach ($matrixFile in $matrixFiles) {
             try {
                 Write-Verbose "Matrix file '$matrixFile'"
 
@@ -1161,11 +1185,11 @@ process {
 
                 #region Create matrix log folder
                 try {
-                    $matrixLogFolderPath = Join-Path -Path $LogFolder -ChildPath (
-                        '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5}) - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
-                        $scriptStartTime.Day, $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek, $matrixFile.BaseName)
+                    $matrixLogFolderPath = Join-Path -Path $datedLogFolderPath -ChildPath $matrixFile.BaseName
 
                     $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $matrixLogFolderPath -Force -EA Stop).FullName
+
+                    Write-Verbose "Matrix log folder '$($Obj.File.LogFolder)'"
                 }
                 catch {
                     throw "Failed to create log folder '$matrixLogFolderPath': $_"
@@ -1973,12 +1997,21 @@ end {
                 GroupManagers = @()
             }
 
-            #region Get matrix log file name
-            $matrixLogFileBasePath = Join-Path -Path $LogFolder -ChildPath (
-                '{0:00}-{1:00}-{2:00} {3:00}{4:00} ({5})' -f
-                $scriptStartTime.Year, $scriptStartTime.Month, $scriptStartTime.Day,
-                $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek
-            )
+            #region Create export log folder
+            if (
+                $Export.ServiceNowFormDataExcelFile -or 
+                $Export.PermissionsExcelFile -or
+                $Export.OverviewHtmlFile
+            ) {
+                try {
+                    $exportLogFolder = Join-Path -Path (Get-DatedLogFolderPathHC) -ChildPath 'Export'
+
+                    $exportLogFolderPath = (New-Item -ItemType 'Directory' -Path $exportLogFolder -Force -EA Stop).FullName
+                }
+                catch {
+                    throw "Failed to create the export log folder '$exportLogFolder': $_"
+                }
+            }
             #endregion
 
             #region Add sheets to Matrix log files and collect data
@@ -2184,7 +2217,7 @@ end {
 
                 #region Create Permissions file in log folder
                 $permissionsExcelLogFileParams = @{
-                    Path         = "$matrixLogFileBasePath - Export - Permissions.xlsx"
+                    Path         = Join-Path $exportLogFolderPath 'Permissions.xlsx'
                     AutoSize     = $true
                     FreezeTopRow = $true
                 }
@@ -2324,7 +2357,7 @@ end {
                     try {
                         $copyParams = @{
                             LiteralPath = $params.Path
-                            Destination = "$matrixLogFileBasePath - Export - ServiceNowFormData.xlsx"
+                            Destination = Join-Path $exportLogFolderPath 'ServiceNowFormData.xlsx'
                         }
 
                         $eventLogData.Add(
@@ -2594,7 +2627,7 @@ end {
                     try {
                         $copyParams = @{
                             LiteralPath = $params.LiteralPath
-                            Destination = "$matrixLogFileBasePath - Export - Overview.html"
+                            Destination = Join-Path $exportLogFolderPath 'Overview.html'
                         }
 
                         $eventLogData.Add(
@@ -3160,12 +3193,12 @@ end {
         #endregion
 
         #region Remove old log files
-        if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
+        if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $LogFolder) {
             $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
 
-            Write-Verbose "Remove log files older than $cutoffDate from '$logFolder'"
+            Write-Verbose "Remove log files older than $cutoffDate from '$LogFolder'"
 
-            Get-ChildItem -Path $logFolder -Recurse |
+            Get-ChildItem -Path $LogFolder -Recurse |
             Sort-Object 'FullName' -Descending |
             ForEach-Object {
                 $item = $_
@@ -3206,20 +3239,13 @@ end {
         #endregion
 
         #region Create system errors log file
-        $baseLogName = Join-Path -Path $logFolder -ChildPath (
-            '{0} - {1} ({2})' -f
-            $scriptStartTime.ToString('yyyy_MM_dd'),
-            $scriptName,
-            $jsonFileItem.BaseName
-        )
-
         if (
             $systemErrors -and
             (Test-Path -Path $LogFolder -PathType Container)
         ) {
             $params = @{
                 DataToExport   = $systemErrors
-                PartialPath    = "$baseLogName - System errors log"
+                PartialPath    = Join-Path (Get-DatedLogFolderPathHC) 'System errors log'
                 FileExtensions = '.json'
             }
             $mailParams.Attachments = Out-LogFileHC @params -EA Ignore
@@ -3301,11 +3327,11 @@ end {
                 }
             )
             $(
-                if ($logFolder) {
+                if ($LogFolder) {
                     '<tr>
                         <th>Log files</th>
                         <td><a href="{0}">Open log folder</a></td>
-                    </tr>' -f $logFolder
+                    </tr>' -f $LogFolder
                 }
             )
             <tr>
@@ -3402,7 +3428,7 @@ end {
             #region Save mail in log folder
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
-                    $params.LiteralPath = "$baseLogName - Mail.html"
+                    $params.LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
                     Encoding            = 'utf8'
                     NoClobber           = $true
                 }

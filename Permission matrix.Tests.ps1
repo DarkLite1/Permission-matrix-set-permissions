@@ -476,7 +476,7 @@ Describe 'create an error log file when' {
         }
     }
 }
-Describe 'a sub folder in the log folder' {
+Describe 'in the log folder' {
     BeforeAll {
         @(
             [PSCustomObject]@{
@@ -495,17 +495,28 @@ Describe 'a sub folder in the log folder' {
         ) | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
-    }
-    It "is created for each specific Excel file regardless of its 'Status'" {
-        @(Get-ChildItem -Path $testLogFolder -Directory).Count |
-        Should -BeExactly 1
-    }
-    It 'the Excel file is copied to the log folder' {
-        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
 
-        @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File -Filter '*.xlsx').Count | Should -BeExactly 1
+        $testDatedLogFolder = Get-ChildItem -Path $testLogFolder -Directory -Filter (
+            '{0:00}_{1:00}_{2:00}* - Test' -f 
+            (Get-Date).Year, (Get-Date).Month, (Get-Date).Day
+        )
+
+        $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
     }
-}
+    It 'a date stamped log folder is created with the name of the input file' {
+        $testDatedLogFolder | Should -Not -BeNullOrEmpty
+    }
+    It 'a matrix log folder is created in the date stamped log folder' {
+        $testItemsInFolder = Get-ChildItem -Path $testDatedLogFolder
+
+        $testItemsInFolder.Count | Should -BeExactly 1
+        $testItemsInFolder.PSIsContainer | Should -BeTrue
+        $testItemsInFolder.Name | Should -Be 'Matrix'
+    }
+    It 'the Excel file is copied to the matrix log folder' {
+        @(Get-ChildItem -Path $testMatrixLogFolder -File -Filter '*.xlsx').Count | Should -BeExactly 1
+    }
+} -Tag test
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
