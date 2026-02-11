@@ -489,7 +489,7 @@ Describe 'create an error log file when' {
             Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
         }
     }
-} -Tag test
+}
 Describe 'in the log folder' {
     BeforeAll {
         @(
@@ -527,7 +527,7 @@ Describe 'in the log folder' {
 
         @(Get-ChildItem -Path $testMatrixLogFolder -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
-}
+} -Tag test
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
