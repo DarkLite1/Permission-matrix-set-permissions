@@ -9,8 +9,8 @@
     .DESCRIPTION
         Read an input file that contains all the parameters for this script.
 
-        This script applies NTFS and SMB permissions to files and folders. It 
-        reads an Excel file as input and performs the request actions (Check, 
+        This script applies NTFS and SMB permissions to files and folders. It
+        reads an Excel file as input and performs the request actions (Check,
         Fix, New).
 
         Permissions in the Excel file are defined as:
@@ -286,7 +286,7 @@ begin {
             [parameter(Mandatory)]
             [string]$FilePath
         )
-                
+
         if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
             Write-Verbose "Remove file '$FilePath'"
             Remove-Item -Path $FilePath -ErrorAction Ignore
@@ -812,14 +812,14 @@ begin {
         try {
             if ([System.Diagnostics.EventLog]::SourceExists($Source)) {
                 $existingLogName = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
-    
+
                 if ($existingLogName -ne $LogName) {
                     throw "The event log source '$Source' is already registered with event log name '$existingLogName', it cannot be used with log name '$LogName'."
                 }
             }
             else {
                 Write-Verbose "Create event log source '$Source' with log name '$LogName'"
-                    
+
                 New-EventLog -LogName $LogName -Source $Source -EA Stop
             }
 
@@ -927,7 +927,7 @@ begin {
 
         try {
             @(
-                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 
+                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow',
                 'PSSessionConfiguration', 'Settings'
             ).where(
                 { -not $jsonFileContent.$_ }
@@ -948,7 +948,7 @@ begin {
             ).foreach(
                 {
                     if (-not $jsonFileContent.MaxConcurrent.$_) {
-                        throw "Property 'MaxConcurrent.$_' not found" 
+                        throw "Property 'MaxConcurrent.$_' not found"
                     }
                     try {
                         $null = [int]$jsonFileContent.MaxConcurrent.$_
@@ -973,7 +973,7 @@ begin {
                     throw "Property 'Matrix.$boolean' is not a boolean value"
                 }
             }
-            
+
             try {
                 $null = [Boolean]::Parse($jsonFileContent.Settings.SaveLogFiles.Detailed)
             }
@@ -1016,9 +1016,9 @@ begin {
             while (-not $isDriveMapped) {
                 try {
                     $params = @{
-                        Root        = $Matrix.FolderPath 
+                        Root        = $Matrix.FolderPath
                         Name        = 'MatrixFolderPath'
-                        PSProvider  = 'FileSystem' 
+                        PSProvider  = 'FileSystem'
                         ErrorAction = 'Stop'
                     }
                     $null = New-PSDrive @params
@@ -1254,7 +1254,7 @@ process {
 
                         #region Import sheet FormData
                         if (
-                            $Export.ServiceNowFormDataExcelFile -or 
+                            $Export.ServiceNowFormDataExcelFile -or
                             $Export.OverviewHtmlFile
                         ) {
                             try {
@@ -1267,7 +1267,7 @@ process {
                                     }
                                 )
                                 Write-Verbose $eventLogData[-1].Message
-                        
+
                                 $formData = Import-Excel @ImportParams -Sheet 'FormData' -ErrorVariable importFail
 
                                 $Obj.FormData.Check += Test-FormDataHC $formData
@@ -1777,7 +1777,7 @@ process {
                     else {
                         @{
                             Process = $innerScriptBlock
-                        }    
+                        }
                     }
 
                     $matrixes | ForEach-Object @innerForeachParams
@@ -1990,7 +1990,7 @@ end {
                     FreezeTopRow       = $true
                     NoNumberConversion = '*'
                 }
-                
+
                 #region Get SamAccountNames for rows Settings sheet
                 $matrixSamAccountNames = $i.Settings.AdObjects.Values.SamAccountName |
                 Select-Object -Property @{
@@ -2042,7 +2042,7 @@ end {
                     #region Export to Excel
                     $excelParams.WorksheetName = 'AccessList'
                     $excelParams.TableName = 'AccessList'
-              
+
                     $eventLogData.Add(
                         [PSCustomObject]@{
                             Message   = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
@@ -2052,7 +2052,7 @@ end {
                         }
                     )
                     Write-Verbose $eventLogData[-1].Message
-                        
+
                     $accessListToExport | Export-Excel @excelParams
                     #endregion
 
@@ -2158,7 +2158,7 @@ end {
                     #region Export to Excel
                     $excelParams.WorksheetName = 'AdObjects'
                     $excelParams.TableName = 'AdObjects'
-                        
+
                     $AdObjects | Export-Excel @excelParams
                     #endregion
 
@@ -2171,7 +2171,7 @@ end {
                 #endregion
 
                 #region FormData
-                $dataToExport['FormData'] += $I.FormData.Import                    
+                $dataToExport['FormData'] += $I.FormData.Import
                 #endregion
             }
             #endregion
@@ -2190,8 +2190,8 @@ end {
                 }
 
                 foreach (
-                    $property in    
-                    $dataToExport.GetEnumerator() | Where-Object { 
+                    $property in
+                    $dataToExport.GetEnumerator() | Where-Object {
                         $_.Value
                     }
                 ) {
@@ -2211,7 +2211,7 @@ end {
                             }
                         )
                         Write-Verbose $eventLogData[-1].Message
-                   
+
                         $data | Export-Excel @permissionsExcelLogFileParams
                     }
                     catch {
@@ -2221,12 +2221,12 @@ end {
                                 Message  = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
                             }
                         )
-                                
+
                         Write-Warning $systemErrors[-1].Message
                     }
                 }
                 #endregion
-                        
+
                 #region Copy Permissions file from log to prod folder
                 if (
                     $Export.PermissionsExcelFile -and
@@ -2248,7 +2248,7 @@ end {
                         )
                         Write-Verbose $eventLogData[-1].Message
 
-                        Copy-Item @copyParams       
+                        Copy-Item @copyParams
                     }
                     catch {
                         $systemErrors.Add(
@@ -2257,7 +2257,7 @@ end {
                                 Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
                             }
                         )
-                                
+
                         Write-Warning $systemErrors[-1].Message
                     }
                 }
@@ -2279,16 +2279,16 @@ end {
                     Write-Verbose 'Create objects for ServiceNow form'
 
                     $serviceNowFormData = foreach (
-                        $adObjectName in 
+                        $adObjectName in
                         $dataToExport.AdObjects
                     ) {
-    
+
                         $formData = $dataToExport.FormData.Where(
-                            { 
+                            {
                                 $adObjectName.MatrixFileName -eq $_.MatrixFileName
                             }, 'first'
                         )
-    
+
                         if ((-not $formData) -or ($formData.MatrixFormStatus -ne 'Enabled')) {
                             continue
                         }
@@ -2296,7 +2296,7 @@ end {
                         $adObjectName | ForEach-Object {
                             [PSCustomObject]@{
                                 u_matrixfilename        = $_.MatrixFileName
-                                u_matrixfolderpath      = $formData.MatrixFolderPath 
+                                u_matrixfolderpath      = $formData.MatrixFolderPath
                                 u_matrixcategoryname    = $formData.MatrixCategoryName
                                 u_matrixsubcategoryname = $formData.MatrixSubCategoryName
                                 u_matrixresponsible     = $formData.MatrixResponsible
@@ -2337,7 +2337,7 @@ end {
                         )
                         Write-Verbose $eventLogData[-1].Message
 
-                        Copy-Item @copyParams       
+                        Copy-Item @copyParams
                     }
                     catch {
                         $systemErrors.Add(
@@ -2346,13 +2346,13 @@ end {
                                 Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
                             }
                         )
-                                
+
                         Write-Warning $systemErrors[-1].Message
                     }
                     #endregion
 
                     $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
-              
+
                     #region Start ServiceNow FormData upload
                     if (
                         $ServiceNow.CredentialsFilePath -and
@@ -2395,7 +2395,7 @@ end {
                 }
                 if ($Export.OverviewHtmlFile) {
                     Remove-FileHC -FilePath $Export.OverviewHtmlFile
-                
+
                     #region Export FormData to HTML file
                     try {
                         $htmlFileContent = @(
@@ -2537,10 +2537,10 @@ end {
                                     </tr>'
                         )
 
-                        $htmlFileContent += $dataToExport['FormData'] | 
-                        Sort-Object -Property 'MatrixCategoryName', 
-                        'MatrixSubCategoryName', 
-                        'MatrixFolderDisplayName' | 
+                        $htmlFileContent += $dataToExport['FormData'] |
+                        Sort-Object -Property 'MatrixCategoryName',
+                        'MatrixSubCategoryName',
+                        'MatrixFolderDisplayName' |
                         ForEach-Object {
                             $emailsMatrixResponsible = foreach (
                                 $email in
@@ -2561,7 +2561,7 @@ end {
                         $htmlFileContent += '</table>'
 
                         $params = @{
-                            LiteralPath = $Export.OverviewHtmlFile 
+                            LiteralPath = $Export.OverviewHtmlFile
                             Encoding    = 'utf8'
                             Force       = $true
                         }
@@ -2607,7 +2607,7 @@ end {
                         )
                         Write-Verbose $eventLogData[-1].Message
 
-                        Copy-Item @copyParams       
+                        Copy-Item @copyParams
                     }
                     catch {
                         $systemErrors.Add(
@@ -2616,7 +2616,7 @@ end {
                                 Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
                             }
                         )
-                                
+
                         Write-Warning $systemErrors[-1].Message
                     }
                     #endregion
@@ -2647,7 +2647,7 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>{0}</ul>' -f 
+                                '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
@@ -2661,10 +2661,10 @@ end {
                                     <p>{2}</p>
                                     {3}
                                 </td>
-                            </tr>' -f 
-                        $($problem.Type), 
-                        $($problem.Name), 
-                        $($problem.Description), 
+                            </tr>' -f
+                        $($problem.Type),
+                        $($problem.Name),
+                        $($problem.Description),
                         $($problem.Details)
                     }
                 }
@@ -2678,7 +2678,7 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>{0}</ul>' -f 
+                                '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
@@ -2692,10 +2692,10 @@ end {
                                     <p>{2}</p>
                                     {3}
                                 </td>
-                            </tr>' -f 
-                        $($problem.Type), 
-                        $($problem.Name), 
-                        $($problem.Description), 
+                            </tr>' -f
+                        $($problem.Type),
+                        $($problem.Name),
+                        $($problem.Description),
                         $($problem.Details)
                     }
                 }
@@ -2709,7 +2709,7 @@ end {
                         $problem = @{
                             Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
-                                '<ul>{0}</ul>' -f 
+                                '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
                             }
                             Name        = $F.Name
@@ -2723,10 +2723,10 @@ end {
                                     <p>{2}</p>
                                     {3}
                                 </td>
-                            </tr>' -f 
-                        $($problem.Type), 
-                        $($problem.Name), 
-                        $($problem.Description), 
+                            </tr>' -f
+                        $($problem.Type),
+                        $($problem.Name),
+                        $($problem.Description),
                         $($problem.Details)
                     }
                 }
@@ -2893,7 +2893,7 @@ end {
                                     <td>$($S.Import.Action)</td>
                                     <td>$(
                                         if($D = $S.JobTime.Duration) {
-                                            '{0:00}:{1:00}:{2:00}' -f 
+                                            '{0:00}:{1:00}:{2:00}' -f
                                             $D.Hours, $D.Minutes, $D.Seconds
                                         }
                                         else{'NA'}
@@ -2957,7 +2957,7 @@ end {
                             FilePath = Join-Path -Path $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
                             Encoding = 'utf8'
                         }
-                        $html.MatrixLogFile.Table | 
+                        $html.MatrixLogFile.Table |
                         Out-File @matrixLogFileParams
                         #endregion
 
@@ -2969,8 +2969,8 @@ end {
                             <td><a href=`"{0}`">$($S.Import.Path)</a></td>
                             <td><a href=`"{0}`">$($S.Import.Action)</a></td>
                             <td><a href=`"{0}`">{1}</a></td>
-                        </tr>" -f 
-                        $($matrixLogFileParams.FilePath), 
+                        </tr>" -f
+                        $($matrixLogFileParams.FilePath),
                         $(
                             if ($D = $S.JobTime.Duration) {
                                 '{0:00}:{1:00}:{2:00}' -f
@@ -3059,7 +3059,7 @@ end {
 
             $html.ExportFilesList = if ($exportedFiles.Count) {
                 '<p><b>Exported {0} file{1}:</b></p>
-                    <ul>{2}</ul>' -f 
+                    <ul>{2}</ul>' -f
                 $($exportedFiles.Count),
                 $(if ($exportedFiles.Count -ne 1) { 's' }),
                 $(
@@ -3068,7 +3068,7 @@ end {
                     }
                 )
             }
-        
+
             $html.ErrorWarningTable = if (
                 $counter.Total.Errors + $counter.Total.Warnings
             ) {
@@ -3082,7 +3082,7 @@ end {
                         {0}
                     </table>
                     <p><i>* Check the matrix results below for details.</i></p>
-                    <hr style="width:50%;text-align:left;margin-left:0">' -f 
+                    <hr style="width:50%;text-align:left;margin-left:0">' -f
                 $(
                     foreach ($item in ($counter.GetEnumerator())) {
                         if ($item.Value.Error + $item.Value.Warning) {
@@ -3090,24 +3090,24 @@ end {
                                     <th>$($item.Key)</th>
                                     <td{0}>$($item.Value.Error)</td>
                                     <td{1}>$($item.Value.Warning)</td>
-                                </tr>" -f 
+                                </tr>" -f
                             $(
-                                if ($item.Value.Error) 
+                                if ($item.Value.Error)
                                 { ' id="probTextError"' }),
                             $(
-                                if ($item.Value.Warning) 
+                                if ($item.Value.Warning)
                                 { ' id="probTextWarning"' })
                         }
                     }
                 )
-            }               
+            }
 
             if ($html.MatrixTables) {
                 $html.MatrixTables = "
                 <p><b>Matrix results per file:</b></p>
                 $($html.MatrixTables)"
             }
-        
+
             #endregion
         }
 
@@ -3165,7 +3165,7 @@ end {
 
             Write-Verbose "Remove log files older than $cutoffDate from '$logFolder'"
 
-            Get-ChildItem -Path $logFolder -Recurse | 
+            Get-ChildItem -Path $logFolder -Recurse |
             Sort-Object 'FullName' -Descending |
             ForEach-Object {
                 $item = $_
@@ -3173,13 +3173,13 @@ end {
                     $shouldDelete = $false
 
                     if (-not $item.PSIsContainer) {
-                        if ($item.LastWriteTime -lt $cutoffDate) { 
-                            $shouldDelete = $true 
+                        if ($item.LastWriteTime -lt $cutoffDate) {
+                            $shouldDelete = $true
                         }
-                    } 
+                    }
                     else {
                         if (
-                            ($item.GetFiles().Count -eq 0) -and 
+                            ($item.GetFiles().Count -eq 0) -and
                             ($item.GetDirectories().Count -eq 0)
                         ) {
                             $shouldDelete = $true
@@ -3230,14 +3230,19 @@ end {
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
                 To                  = @(
-                    $sendMail.To, $mailToDefaultsFile).Where({ $_ })
+                    $sendMail.To, $mailToDefaultsFile
+                ).Where({ $_ }).Trim() | Sort-Object -Unique
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
                 SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
                 MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
                 MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
             }
-            
+
+            if ($sendMail.Bcc) {
+                $mailParams.Bcc = $sendMail.Bcc
+            }
+
             #region Body
             $mailParams.Body = @"
     <!DOCTYPE html>
@@ -3256,7 +3261,7 @@ end {
                 '<p>Found <b>{0} system errors</b>.</p>
                 <p><i>Please check the attachment for details.</i></p>
                 {1}' -f
-                $systemErrors.Count, $mailParams.Body 
+                $systemErrors.Count, $mailParams.Body
             }
         )
         $($html.ErrorWarningTable)
@@ -3268,7 +3273,7 @@ end {
                 '<p><i>* Check the attachment(s) for details</i></p>'
             }
         )
-    
+
         <hr size="2" color="#06cc7a">
         <table id="aboutTable">
             $(
@@ -3331,7 +3336,7 @@ end {
             }
 
             #region Subject
-            $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f 
+            $mailParams.Subject = '{0} matrix file{1}{2}{3}{4}' -f
             $(
                 @($importedMatrix).Count
             ),
@@ -3359,13 +3364,9 @@ end {
             )
             #endregion
 
-            if ($sendMail.Bcc) {
-                $mailParams.Bcc = $sendMail.Bcc
-            }
-
             if (
                 $systemErrors -or
-                $counter.Total.Errors -or 
+                $counter.Total.Errors -or
                 $counter.Total.Warnings
             ) {
                 $mailParams.Priority = 'High'
