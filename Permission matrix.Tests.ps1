@@ -266,6 +266,9 @@ Describe 'the mandatory parameters are' {
     }
 }
 Describe 'create an error log file when' {
+    BeforeEach {
+        Remove-Item "$testLogFolder/*" -Recurse -Force -Confirm:$False -EA Ignore 
+    }
     AfterAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
 
@@ -389,12 +392,8 @@ Describe 'create an error log file when' {
             $testLogFileContent[0].Message |
             Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
         }
-    }
+    } 
     Context 'the default settings file' {
-        BeforeEach {
-            Remove-Item "$testLogFolder/*" -Recurse -Force -Confirm:$False -EA Ignore 
-        }
-
         It "is missing worksheet 'Settings'" {
             $testNewInputFile = Copy-ObjectHC $testInputFile
             $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
@@ -488,9 +487,9 @@ Describe 'create an error log file when' {
 
             $testLogFileContent[0].Message |
             Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
-        } -Tag test
+        }
     }
-}
+} -Tag test
 Describe 'in the log folder' {
     BeforeAll {
         @(
