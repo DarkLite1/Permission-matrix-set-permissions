@@ -301,7 +301,7 @@ Describe 'create an error log file when' {
         Context 'property' {
             It '<_> not found' -ForEach @(
                 'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow',
-                 'PSSessionConfiguration'
+                'PSSessionConfiguration'
             ) {
                 $testNewInputFile = Copy-ObjectHC $testInputFile
                 $testNewInputFile.$_ = $null
@@ -316,7 +316,7 @@ Describe 'create an error log file when' {
 
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property '$_' not found*"
-            } -Tag test
+            }
             It 'MaxConcurrent.<_> not found' -ForEach @(
                 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
             ) {
@@ -391,6 +391,10 @@ Describe 'create an error log file when' {
         }
     }
     Context 'the default settings file' {
+        BeforeEach {
+            Remove-Item "$testLogFolder/*" -Recurse -Force -Confirm:$False -EA Ignore 
+        }
+
         It "is missing worksheet 'Settings'" {
             $testNewInputFile = Copy-ObjectHC $testInputFile
             $testNewInputFile.Matrix.DefaultsFile = (New-Item 'TestDrive:/Folder/DefaultWrong.xlsx' -ItemType File -Force).FullName
@@ -484,7 +488,7 @@ Describe 'create an error log file when' {
 
             $testLogFileContent[0].Message |
             Should -BeLike "*$($testNewInputFile.DefaultsFile)*$errorMessage*"
-        }
+        } -Tag test
     }
 }
 Describe 'in the log folder' {
