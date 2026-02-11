@@ -24,14 +24,14 @@
   "Settings": {
     "ScriptName": "Permission matrix",
     "SendMail": {
-      "From": "no-reply-bnl-automation@heidelbergmaterials.com",
-      "FromDisplayName": "Move file over SFTP (TEST Brecht)",
-      "To": ["brecht.gijbels@heidelbergmaterials.com"],
+      "From": "no-reply-bnl-automation@example.com",
+      "FromDisplayName": "Permission matrix",
+      "To": ["bob@example.com"],
       "Bcc": [],
-      "Subject": "TEST Brecht",
-      "Body": "Transfer files using SFTP from a source to a destination folder.",
+      "Subject": "",
+      "Body": "Set permissions on files and folders based on an Excel input file.",
       "Smtp": {
-        "ServerName": "DEUNonAuthSMTP.GROUPHC.NET",
+        "ServerName": "SERVER1.EXAMPLE.COM",
         "Port": 25,
         "ConnectionType": "None",
         "UserName": "",
@@ -45,13 +45,13 @@
     "SaveLogFiles": {
       "Detailed": true,
       "Where": {
-        "Folder": "\\\\BELSGFRANIT07\\Log\\File or folder\\Permission matrix\\Permission matrix (BNL)"
+        "Folder": "C:\\Log\\File or folder\\Permission matrix"
       },
       "DeleteLogsAfterDays": 30
     },
     "SaveInEventLog": {
       "Save": true,
-      "LogName": "HCScripts"
+      "LogName": "Scripts"
     }
   },
   "?": {
