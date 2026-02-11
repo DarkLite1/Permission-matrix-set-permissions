@@ -518,9 +518,15 @@ Describe 'in the log folder' {
     It 'a matrix log folder is created in the date stamped log folder' {
         $testItemsInFolder = Get-ChildItem -Path $testDatedLogFolder
 
-        $testItemsInFolder.Count | Should -BeExactly 1
-        $testItemsInFolder.PSIsContainer | Should -BeTrue
-        $testItemsInFolder.Name | Should -Be 'Matrix'
+        $testItemsInFolder.Count | Should -BeExactly 2
+
+        $testItemsInFolder.where(
+            {$_.PSIsContainer -and $_.Name -eq 'Matrix'}
+        ) | Should -BeTrue
+
+        $testItemsInFolder.where(
+            {(-not $_.PSIsContainer) -and $_.Name -eq 'Mail.html'}
+        ) | Should -BeTrue
     }
     It 'the Excel file is copied to the matrix log folder' {
         $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
