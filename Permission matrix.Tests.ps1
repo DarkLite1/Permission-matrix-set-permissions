@@ -147,8 +147,8 @@ BeforeAll {
     }
     function Test-GetLogFileDataHC {
         param (
-            [String]$FileNameRegex = '* - System errors log.json',
-            [String]$LogFolderPath = (Test-GetMatrixLogFolderPathHC)
+            [String]$FileNameRegex = 'System errors log.json',
+            [String]$LogFolderPath = (Test-GetDatedLogFolderPathHC)
         )
 
         $testLogFile = Get-ChildItem -Path $LogFolderPath -File -Filter $FileNameRegex
@@ -235,11 +235,14 @@ BeforeAll {
             [PSCredential]$Credential
         )
     }
-    function Test-GetMatrixLogFolderPathHC {
-        $testDatedLogFolder = Get-ChildItem -Path $testLogFolder -Directory -Filter (
+    function Test-GetDatedLogFolderPathHC {
+        Get-ChildItem -Path $testLogFolder -Directory -Filter (
             '{0:00}_{1:00}_{2:00}* - Test' -f 
             (Get-Date).Year, (Get-Date).Month, (Get-Date).Day
         )
+    }
+    function Test-GetMatrixLogFolderPathHC {
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
         Join-Path $testDatedLogFolder 'Matrix'
     }
@@ -310,7 +313,7 @@ Describe 'create an error log file when' {
 
                 $LASTEXITCODE | Should -Be 1
 
-                $testLogFileContent = Test-GetLogFileDataHC -LogFolderPath (Test-GetMatrixLogFolderPathHC)
+                $testLogFileContent = Test-GetLogFileDataHC
 
                 $testLogFileContent[0].Message |
                 Should -BeLike "*Property '$_' not found*"
@@ -505,12 +508,7 @@ Describe 'in the log folder' {
 
         .$testScript @testParams
 
-        $testDatedLogFolder = Get-ChildItem -Path $testLogFolder -Directory -Filter (
-            '{0:00}_{1:00}_{2:00}* - Test' -f 
-            (Get-Date).Year, (Get-Date).Month, (Get-Date).Day
-        )
-
-        $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
     }
     It 'a date stamped log folder is created with the name of the input file' {
         $testDatedLogFolder | Should -Not -BeNullOrEmpty
@@ -523,6 +521,8 @@ Describe 'in the log folder' {
         $testItemsInFolder.Name | Should -Be 'Matrix'
     }
     It 'the Excel file is copied to the matrix log folder' {
+        $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
+
         @(Get-ChildItem -Path $testMatrixLogFolder -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
 }
