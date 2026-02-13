@@ -2402,7 +2402,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
             ($Body -like '*Matrix results per file*')
         }
     }
-} -Tag test
+}
 Describe 'when Export.OverviewHtmlFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2486,8 +2486,9 @@ Describe 'when Export.OverviewHtmlFile is used' {
 
         .$testScript @testParams
 
-        $testOverviewHtmlFile = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object { $_.Name -like '* - Export - Overview.html' }
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
+
+        $testOverviewHtmlFile = Get-ChildItem "$testDatedLogFolder\Export" -File -Filter 'Overview.html'
     }
     Context 'the overview html file is exported is created in the' {
         It 'Export folder' {
