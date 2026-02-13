@@ -2148,8 +2148,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
 
         $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
-        $testSnowExcelLogFile = Get-ChildItem "$testDatedLogFolder\Export" -Recurse -File |
-        Where-Object { $_.Name -eq 'ServiceNowFormData.xlsx' }
+        $testSnowExcelLogFile = Get-ChildItem "$testDatedLogFolder\Export" -File -Filter 'ServiceNowFormData.xlsx'
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -2208,7 +2207,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($Body -like '*Matrix results per file*')
         }
     }
-} -Tag test
+}
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
@@ -2292,8 +2291,9 @@ Describe 'when Export.PermissionsExcelFile is used' {
 
         .$testScript @testParams
 
-        $testPermissionsExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object { $_.Name -like '* - Export - Permissions.xlsx' }
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
+
+        $testPermissionsExcelLogFile = Get-ChildItem "$testDatedLogFolder\Export" -File -Filter 'Permissions.xlsx'
     }
     Context 'the AD object names are exported' {
         It 'to an Excel file in the Export folder' {
@@ -2402,7 +2402,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
             ($Body -like '*Matrix results per file*')
         }
     }
-}
+} -Tag test
 Describe 'when Export.OverviewHtmlFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
