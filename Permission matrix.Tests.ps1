@@ -1860,7 +1860,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
         $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
-        
+
         $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
         $testMatrixLogFolder = Get-ChildItem -Path $testDatedLogFolder -Directory
@@ -1898,7 +1898,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         Should -Invoke Send-MailKitMessageHC -Scope it -Times 1 -Exactly
     }
-} -Tag test
+}
 Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
     BeforeAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
@@ -2146,8 +2146,10 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
 
         .$testScript @testParams
 
-        $testSnowExcelLogFile = Get-ChildItem $testLogFolder -Recurse -File |
-        Where-Object { $_.Name -like '* - Export - ServiceNowFormData.xlsx' }
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
+
+        $testSnowExcelLogFile = Get-ChildItem "$testDatedLogFolder\Export" -Recurse -File |
+        Where-Object { $_.Name -eq 'ServiceNowFormData.xlsx' }
     }
     Context 'the data in worksheet FormData' {
         It 'is verified to be correct' {
@@ -2206,7 +2208,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($Body -like '*Matrix results per file*')
         }
     }
-}
+} -Tag test
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
         Mock Test-ExpandedMatrixHC
