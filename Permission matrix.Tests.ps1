@@ -533,7 +533,7 @@ Describe 'in the log folder' {
 
         @(Get-ChildItem -Path $testMatrixLogFolder -File -Filter '*.xlsx').Count | Should -BeExactly 1
     }
-} -Tag test
+}
 Describe "when 'Matrix.Archive' is true then" {
     BeforeAll {
         @(
@@ -1825,7 +1825,9 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         .$testScript @testParams
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
+
+        $testMatrixLogFolder = Get-ChildItem -Path $testDatedLogFolder -Directory
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -NE '.xlsx').Count | Should -BeExactly 2
     }
     It 'a TXT log file is created for each settings row when there are more than 5 elements in the value array' {
@@ -1858,8 +1860,11 @@ Describe 'when a FatalError occurs while executing the matrix' {
         $testPermissions | Export-Excel @testPermissionsParams
 
         .$testScript @testParams
+        
+        $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
-        $testMatrixLogFolder = Get-ChildItem -Path $testLogFolder -Directory
+        $testMatrixLogFolder = Get-ChildItem -Path $testDatedLogFolder -Directory
+        
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -EQ '.txt').Count | Should -BeExactly 2
     }
     It 'an e-mail is send' {
@@ -1893,7 +1898,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
 
         Should -Invoke Send-MailKitMessageHC -Scope it -Times 1 -Exactly
     }
-}
+} -Tag test
 Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
     BeforeAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
