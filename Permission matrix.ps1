@@ -2418,7 +2418,7 @@ end {
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = 'Parameter missing to upload data to ServiceNow'
+                                Message  = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
                             }
                         )
 
@@ -3429,8 +3429,8 @@ end {
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
                     LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
-                    Encoding            = 'utf8'
-                    NoClobber           = $true
+                    Encoding    = 'utf8'
+                    NoClobber   = $true
                 }
                 $mailParams.Body | Out-File @params
             }
