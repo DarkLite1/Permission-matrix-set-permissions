@@ -1898,7 +1898,7 @@ end {
                     padding:3px;
                     text-align:left;
                 }
-                td, th {
+                td, /th {
                     border-collapse:collapse;
                     border:1px none;
                     padding:3px;
@@ -1909,7 +1909,7 @@ end {
                     border: 1px solid Black;
                     table-layout: fixed;
                 }
-                #overviewTable th {
+                #overviewTable /th {
                     font-weight: normal;
                     text-align: left;
                 }
@@ -1975,7 +1975,7 @@ end {
                     width: 100%;
                     height: 100%;
                 }
-                #aboutTable th {
+                #aboutTable /th {
                     color: rgb(143, 140, 140);
                     font-weight: normal;
                 }
@@ -2472,7 +2472,7 @@ end {
                                         border: none;
                                     }
 
-                                    table th {
+                                    table /th {
                                         background-color: #004e2b;
                                         color: #ffffff;
                                         text-align: left;
@@ -2483,14 +2483,14 @@ end {
                                         font-size: 0.9em;
                                     }
 
-                                    table thead tr:first-child th:first-child {
+                                    table thead tr:first-child /th:first-child {
                                         border-top-left-radius: 8px;
                                     }
-                                    table thead tr:first-child th:last-child {
+                                    table thead tr:first-child /th:last-child {
                                         border-top-right-radius: 8px;
                                     }
 
-                                    table th:nth-child(3) {
+                                    table /th:nth-child(3) {
                                         text-align: left;
                                         word-break: normal;
                                     }
@@ -2562,11 +2562,11 @@ end {
                             '<h1>Matrix files overview</h1>',
                             '<table>
                                     <tr>
-                                        <th>Category</th>
-                                        <th>Subcategory</th>
-                                        <th>Folder</th>
-                                        <th>Link to the matrix</th>
-                                        <th>Responsible</th>
+                                        </th>Category<//th>
+                                        </th>Subcategory<//th>
+                                        </th>Folder<//th>
+                                        </th>Link to the matrix<//th>
+                                        </th>Responsible<//th>
                                     </tr>'
                         )
 
@@ -2661,7 +2661,7 @@ end {
 
             #region HTML Mail overview & Settings detail
             $html.SettingsHeader = '
-            <th id="matrixHeader" colspan="8">Settings</th>
+            </th id="matrixHeader" colspan="8">Settings<//th>
             <tr>
                 <td></td>
                 <td>ID</td>
@@ -2674,7 +2674,7 @@ end {
             $html.MatrixTables = foreach ($I in $importedMatrix) {
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
-                    '<th id="matrixHeader" colspan="8">File</th>'
+                    '</th id="matrixHeader" colspan="8">File<//th>'
 
                     foreach ($F in $I.File.Check) {
                         $problem = @{
@@ -2705,7 +2705,7 @@ end {
 
                 #region HTML FormData
                 $FormDataCheck = if ($I.FormData.Check) {
-                    '<th id="matrixHeader" colspan="8">FormData</th>'
+                    '</th id="matrixHeader" colspan="8">FormData<//th>'
 
                     foreach ($F in $I.FormData.Check) {
                         $problem = @{
@@ -2736,7 +2736,7 @@ end {
 
                 #region HTML Permissions
                 $PermissionsCheck = if ($I.Permissions.Check) {
-                    '<th id="matrixHeader" colspan="8">Permissions</th>'
+                    '</th id="matrixHeader" colspan="8">Permissions<//th>'
 
                     foreach ($F in $I.Permissions.Check) {
                         $problem = @{
@@ -2893,7 +2893,7 @@ end {
                                     }
 
                                     td,
-                                    th {
+                                    /th {
                                         font-size: 14px;
                                         border-collapse: collapse;
                                         border: 1px none;
@@ -2915,7 +2915,7 @@ end {
                                 $($html.Style)
                                 <table id="matrixTable">
                                 <tr>
-                                    <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
+                                    </th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a><//th>
                                 </tr>
                                 $($html.SettingsHeader)
                                 <tr>
@@ -2934,9 +2934,9 @@ end {
                                     </td>
                                 </tr>
 
-                                $(if ($html.MatrixLogFile.FatalError) {'<th id="matrixHeader" colspan="8">Error</th>' + $html.MatrixLogFile.FatalError})
-                                $(if ($html.MatrixLogFile.Warning) {'<th id="matrixHeader" colspan="8">Warning</th>' + $html.MatrixLogFile.Warning})
-                                $(if ($html.MatrixLogFile.Info) {'<th id="matrixHeader" colspan="8">Information</th>' + $html.MatrixLogFile.Info})
+                                $(if ($html.MatrixLogFile.FatalError) {'</th id="matrixHeader" colspan="8">Error<//th>' + $html.MatrixLogFile.FatalError})
+                                $(if ($html.MatrixLogFile.Warning) {'</th id="matrixHeader" colspan="8">Warning<//th>' + $html.MatrixLogFile.Warning})
+                                $(if ($html.MatrixLogFile.Info) {'</th id="matrixHeader" colspan="8">Information<//th>' + $html.MatrixLogFile.Info})
 
                                 </table>
                                 <br>
@@ -2950,15 +2950,15 @@ end {
                                     <h2>About</h2>
                                 <table>
                                     <tr>
-                                        <th>GroupName</th>
+                                        </th>GroupName<//th>
                                         <td>$($S.Import.GroupName)</td>
                                     </tr>
                                     <tr>
-                                        <th>SiteCode</th>
+                                        </th>SiteCode<//th>
                                         <td>$($S.Import.SiteCode)</td>
                                     </tr>
                                     <tr>
-                                        <th>Start time</th>
+                                        </th>Start time<//th>
                                         <td>$(
                                             if ($D = $S.JobTime.Start) {
                                                 $D.ToString('dd/MM/yyyy HH:mm:ss (dddd)')
@@ -2970,7 +2970,7 @@ end {
                                         </td>
                                     </tr>
                                     <tr>
-                                        <th>End time</th>
+                                        </th>End time<//th>
                                         <td>$(
                                             if ($D = $S.JobTime.End) {
                                                 $D.ToString('dd/MM/yyyy HH:mm:ss (dddd)')
@@ -3017,10 +3017,10 @@ end {
                 @"
                 <table id="matrixTable">
                     <tr>
-                        <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
+                        </th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a><//th>
                     </tr>
                     <tr>
-                        <th id="matrixFileInfo" colspan="8">Last change: $($I.File.ExcelInfo.LastModifiedBy) @ $($I.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))</th>
+                        </th id="matrixFileInfo" colspan="8">Last change: $($I.File.ExcelInfo.LastModifiedBy) @ $($I.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))<//th>
                     </tr>
                     $FileCheck
                     $FormDataCheck
@@ -3032,62 +3032,87 @@ end {
             }
 
             #region FatalError and warning count
-            $counter = @{
+            $counterData = @{
                 FormData    = @{
                     Error   = @(
                         $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Permissions = @{
                     Error   = @(
                         $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Settings    = @{
                     Error   = @(
                         $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 File        = @{
                     Error   = @(
                         $importedMatrix.File.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.File.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Total       = @{
-                    Errors   = 0
-                    Warnings = 0
+                    Errors   = @()
+                    Warnings = @()
                 }
             }
 
-            $counter.Total.Errors = (
-                $counter.FormData.error + $counter.Permissions.error +
-                $counter.Settings.error + $counter.File.error +
-                $systemErrors.Count
+            $counterData.Total.Errors = @(
+                $counterData.FormData.Error, $counterData.Permissions.Error,
+                $counterData.Settings.Error, $counterData.File.Error
             )
-            $counter.Total.Warnings = (
-                $counter.FormData.warning + $counter.Permissions.warning +
-                $counter.Settings.warning + $counter.File.warning
+
+            $counterData.Total.Warnings = @(
+                $counterData.FormData.Warning, $counterData.Permissions.Warning,
+                $counterData.Settings.Warning, $counterData.File.Warning
             )
+
+            $counter = @{
+                FormData    = @{
+                    Error   = $counterData.FormData.Error.Count
+                    Warning = $counterData.FormData.Warning.Count
+                }
+                Permissions = @{
+                    Error   = $counterData.Permissions.Error.Count
+                    Warning = $counterData.Permissions.Warning.Count
+                }
+                Settings    = @{
+                    Error   = $counterData.Settings.Error.Count
+                    Warning = $counterData.Settings.Warning.Count
+                }
+                File        = @{
+                    Error   = $counterData.File.Error.Count
+                    Warning = $counterData.File.Warning.Count
+                }
+                Total       = @{
+                    Errors   = (
+                        $counterData.Total.Errors.Count + $systemErrors.Count
+                    )
+                    Warnings = $counterData.Total.Warnings.Count
+                }
+            }
             #endregion
 
             $html.ExportFilesList = if ($exportedFiles.Count) {
@@ -3102,38 +3127,42 @@ end {
                 )
             }
 
-            $html.ErrorWarningTable = if (
-                $counter.Total.Errors + $counter.Total.Warnings
-            ) {
+            #region Create HTML error warning table
+            $errorRows = @()
+
+            if ($systemErrors.Count) {
+                $errorRows += '
+                <tr>
+                    <th>System errors</th>
+                    <td>{0}</td>
+                </tr>' -f $systemErrors.Count
+            }
+
+            if ($counterData.Total.Errors.Count) {
+                $errorRows += '
+                <tr>
+                    <th>Matrix errors</th>
+                    <td>{0}</td>
+                </tr>' -f $counterData.Total.Errors.Count
+            }
+
+            if ($counter.Total.Warnings) {
+                $errorRows += '
+                <tr>
+                    <th>Matrix warnings</th>
+                    <td>{0}</td>
+                </tr>' -f $counter.Total.Warnings
+            }
+
+            $html.ErrorWarningTable = if ($errorRows) {
                 '<p><b>Detected issues:</b></p>
                     <table id="overviewTable">
-                    <tr>
-                        <td></td>
-                        <td>Errors</td>
-                        <td>Warnings</td>
-                    </tr>
                         {0}
                     </table>
-                    <p><i>* Check the matrix results below for details.</i></p>
                     <hr style="width:50%;text-align:left;margin-left:0">' -f
-                $(
-                    foreach ($item in ($counter.GetEnumerator())) {
-                        if ($item.Value.Error + $item.Value.Warning) {
-                            "<tr>
-                                    <th>$($item.Key)</th>
-                                    <td{0}>$($item.Value.Error)</td>
-                                    <td{1}>$($item.Value.Warning)</td>
-                                </tr>" -f
-                            $(
-                                if ($item.Value.Error)
-                                { ' id="probTextError"' }),
-                            $(
-                                if ($item.Value.Warning)
-                                { ' id="probTextWarning"' })
-                        }
-                    }
-                )
+                $errorRows -join ''
             }
+            #endregion
 
             if ($html.MatrixTables) {
                 $html.MatrixTables = "
@@ -3282,16 +3311,6 @@ end {
         <hr size="2" color="#06cc7a">
 
         $($sendMail.Body)
-        $(
-            if ($systemErrors) {
-                '<p>Found <b>{0} system error{1}</b>.</p>
-                <p><i>Please check the attachment for details.</i></p>
-                {2}' -f
-                $systemErrors.Count,
-                $(if ($systemErrors.Count -ne 1) {'s'}),
-                $mailParams.Body
-            }
-        )
         $($html.ErrorWarningTable)
         $($html.ExportFilesList)
         $($html.MatrixTables)
@@ -3307,7 +3326,7 @@ end {
             $(
                 if ($scriptStartTime) {
                     '<tr>
-                        <th>Start time</th>
+                        </th>Start time<//th>
                         <td>{0:00}/{1:00}/{2:00} {3:00}:{4:00} ({5})</td>
                     </tr>' -f
                     $scriptStartTime.Day,
@@ -3322,7 +3341,7 @@ end {
                 if ($scriptStartTime) {
                     $runTime = New-TimeSpan -Start $scriptStartTime -End (Get-Date)
                     '<tr>
-                        <th>Duration</th>
+                        </th>Duration<//th>
                         <td>{0:00}:{1:00}:{2:00}</td>
                     </tr>' -f
                     $runTime.Hours, $runTime.Minutes, $runTime.Seconds
@@ -3331,25 +3350,25 @@ end {
             $(
                 if ($LogFolder) {
                     '<tr>
-                        <th>Log files</th>
+                        </th>Log files<//th>
                         <td><a href="{0}">Open log folder</a></td>
                     </tr>' -f $LogFolder
                 }
             )
             <tr>
-                <th>Host</th>
+                </th>Host<//th>
                 <td>$($host.Name)</td>
             </tr>
             <tr>
-                <th>PowerShell</th>
+                </th>PowerShell<//th>
                 <td>$($PSVersionTable.PSVersion.ToString())</td>
             </tr>
             <tr>
-                <th>Computer</th>
+                </th>Computer<//th>
                 <td>$env:COMPUTERNAME</td>
             </tr>
             <tr>
-                <th>Account</th>
+                </th>Account<//th>
                 <td>$env:USERDNSDOMAIN\$env:USERNAME</td>
             </tr>
         </table>
