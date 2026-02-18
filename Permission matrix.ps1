@@ -3121,9 +3121,9 @@ end {
                 $($exportedFiles.Count),
                 $(if ($exportedFiles.Count -ne 1) { 's' }),
                 $(
-                    $exportedFiles.GetEnumerator() | ForEach-Object {
+                    ($exportedFiles.GetEnumerator() | ForEach-Object {
                         "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
-                    }
+                    }) -join ''
                 )
             }
 
