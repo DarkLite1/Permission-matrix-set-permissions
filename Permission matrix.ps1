@@ -3146,8 +3146,7 @@ end {
                 '<p><b>Detected issues:</b></p>
                     <table>
                         {0}
-                    </table>
-                    <hr style="width:50%;text-align:left;margin-left:0">' -f
+                    </table>' -f
                 $errorRows -join ''
             }
             #endregion
