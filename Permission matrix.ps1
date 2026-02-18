@@ -3152,8 +3152,15 @@ end {
             #endregion
 
             if ($html.MatrixTables) {
+                try {
+                    $matrixFolderPathName = Split-Path $Matrix.FolderPath -Leaf
+                }
+                catch {
+                    # ignore error, because -EA ignore does not work
+                }
+
                 $html.MatrixTables = "
-                <p><b>Matrix results per file:</b></p>
+                <p><b>Processed files in the folder '<a href=`"$($Matrix.FolderPath)`">$matrixFolderPathName</a>':</b></p>
                 $($html.MatrixTables)"
             }
 
