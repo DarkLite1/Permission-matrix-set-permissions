@@ -237,7 +237,7 @@ BeforeAll {
     }
     function Test-GetDatedLogFolderPathHC {
         Get-ChildItem -Path $testLogFolder -Directory -Filter (
-            '{0:00}_{1:00}_{2:00}* - Test' -f 
+            '{0:00}_{1:00}_{2:00}* (Test)' -f
             (Get-Date).Year, (Get-Date).Month, (Get-Date).Day
         )
     }
@@ -267,7 +267,7 @@ Describe 'the mandatory parameters are' {
 }
 Describe 'create an error log file when' {
     BeforeEach {
-        Remove-Item "$testLogFolder/*" -Recurse -Force -Confirm:$False -EA Ignore 
+        Remove-Item "$testLogFolder/*" -Recurse -Force -Confirm:$False -EA Ignore
     }
     AfterAll {
         $testNewInputFile = Copy-ObjectHC $testInputFile
@@ -392,7 +392,7 @@ Describe 'create an error log file when' {
             $testLogFileContent[0].Message |
             Should -BeLike "*ScriptPath.$_ 'x:\NotExisting.ps1' not found*"
         }
-    } 
+    }
     Context 'the default settings file' {
         It "is missing worksheet 'Settings'" {
             $testNewInputFile = Copy-ObjectHC $testInputFile
@@ -1864,7 +1864,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
         $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
         $testMatrixLogFolder = Get-ChildItem -Path $testDatedLogFolder -Directory
-        
+
         @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -EQ '.txt').Count | Should -BeExactly 2
     }
     It 'an e-mail is send' {

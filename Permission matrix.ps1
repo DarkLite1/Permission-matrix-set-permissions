@@ -145,11 +145,11 @@ begin {
     function Get-DatedLogFolderPathHC {
         try {
             $datedLogFolder = Join-Path -Path $LogFolder -ChildPath (
-                '{0:00}_{1:00}_{2:00}_{3:00}{4:00}{5:00} - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
-                $scriptStartTime.Day, 
+                '{0:00}_{1:00}_{2:00}_{3:00}{4:00}{5:00} ({6})' -f $scriptStartTime.Year, $scriptStartTime.Month,
+                $scriptStartTime.Day,
                 $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.Second, $jsonFileItem.BaseName
             )
-     
+
             (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
         }
         catch {
@@ -1999,7 +1999,7 @@ end {
 
             #region Create export log folder
             if (
-                $Export.ServiceNowFormDataExcelFile -or 
+                $Export.ServiceNowFormDataExcelFile -or
                 $Export.PermissionsExcelFile -or
                 $Export.OverviewHtmlFile
             ) {
