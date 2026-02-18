@@ -3070,12 +3070,12 @@ end {
             $counterData.Total.Errors = @(
                 $counterData.FormData.Error, $counterData.Permissions.Error,
                 $counterData.Settings.Error, $counterData.File.Error
-            ).Where({$_})
+            ).Where({ $_ })
 
             $counterData.Total.Warnings = @(
                 $counterData.FormData.Warning, $counterData.Permissions.Warning,
                 $counterData.Settings.Warning, $counterData.File.Warning
-            ).Where({$_})
+            ).Where({ $_ })
 
             $counter = @{
                 FormData    = @{
@@ -3436,7 +3436,9 @@ end {
             #region Save mail in log folder
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
-                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
+                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) (
+                        'Mail - {0}.html' -f $mailParams.Subject
+                    )
                     Encoding    = 'utf8'
                     NoClobber   = $true
                 }
