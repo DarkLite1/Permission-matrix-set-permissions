@@ -3132,7 +3132,7 @@ end {
 
             if ($systemErrors.Count) {
                 $errorRows += '
-                <tr>
+                <tr id="probTextError">
                     <th>System errors</th>
                     <td>{0}</td>
                 </tr>' -f $systemErrors.Count
@@ -3140,7 +3140,7 @@ end {
 
             if ($counterData.Total.Errors.Count) {
                 $errorRows += '
-                <tr>
+                <tr id="probTextError">
                     <th>Matrix errors</th>
                     <td>{0}</td>
                 </tr>' -f $counterData.Total.Errors.Count
@@ -3148,7 +3148,7 @@ end {
 
             if ($counter.Total.Warnings) {
                 $errorRows += '
-                <tr>
+                <tr id="probTextWarning">
                     <th>Matrix warnings</th>
                     <td>{0}</td>
                 </tr>' -f $counter.Total.Warnings
