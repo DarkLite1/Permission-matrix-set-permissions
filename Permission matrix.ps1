@@ -3284,10 +3284,12 @@ end {
         $($sendMail.Body)
         $(
             if ($systemErrors) {
-                '<p>Found <b>{0} system errors</b>.</p>
+                '<p>Found <b>{0} system error{1}</b>.</p>
                 <p><i>Please check the attachment for details.</i></p>
-                {1}' -f
-                $systemErrors.Count, $mailParams.Body
+                {2}' -f
+                $systemErrors.Count,
+                $(if ($systemErrors.Count -ne 1) {'s'}),
+                $mailParams.Body
             }
         )
         $($html.ErrorWarningTable)
