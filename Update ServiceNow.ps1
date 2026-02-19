@@ -1,7 +1,7 @@
 #Requires -Version 7
 #Requires -Modules ImportExcel, ServiceNow
 
-<# 
+<#
     .SYNOPSIS
         Upload data to ServiceNow
 
@@ -9,7 +9,7 @@
         Send data to the ServiceNow API that will be used to create the ServiceNow form. This form is used by users to select the correct
         security group to gain access to the correct files and folders defined
         in a matrix Excel file.
-        
+
         This script will first delete all records in the ServiceNow table and
         then upload all new records to to table.
 
@@ -17,7 +17,7 @@
         The .JSON file containing the che logon credentials for ServiceNow.
 
     .PARAMETER Environment
-        The ServiceNow environment where the data will be send to. This 
+        The ServiceNow environment where the data will be send to. This
         environment should be available in the CredentialsFilePath.
 
     .PARAMETER FormDataExcelFilePath
@@ -154,17 +154,17 @@ begin {
         Write-Verbose 'Test .json file properties'
 
         $serviceNowEnvironment = $serviceNowJsonFileContent.($Environment)
-    
+
         if (-not $serviceNowEnvironment) {
             throw "Failed to find environment '$($Environment)' in the ServiceNow environment file '$($CredentialsFilePath)'"
         }
-    
+
         @(
             'Uri', 'UserName', 'Password', 'ClientId', 'ClientSecret'
         ).where(
             { -not $serviceNowEnvironment.$_ }
         ).foreach(
-            { 
+            {
                 throw "Property '$_' not found for environment '$($Environment)' in file '$($CredentialsFilePath)'"
             }
         )
@@ -179,9 +179,9 @@ process {
     #region Import records to upload
     try {
         Write-Verbose 'Import records to upload from .XLSX file'
-    
+
         $params = @{
-            Path          = $FormDataExcelFilePath 
+            Path          = $FormDataExcelFilePath
             WorksheetName = $ExcelFileWorksheetName
         }
         $recordsToUpload = Import-Excel @params
@@ -190,7 +190,7 @@ process {
         throw "Failed to import records to upload from file '$FormDataExcelFilePath  with worksheet name '$ExcelFileWorksheetName': $_"
     }
     #endregion
-    
+
     if ($recordsToUpload) {
         #region Create global variable $ServiceNowSession
         $params = @{
@@ -229,10 +229,10 @@ process {
             foreach ($tableRecord in $allTableRecords) {
                 $attempt = 0
                 $currentRecordCount++
-    
+
                 while ($attempt -lt $MaxRetries) {
                     $attempt++
-                
+
                     try {
                         Write-Verbose "($currentRecordCount/$totalRecordCount) Remove record '$($tableRecord.sys_id)' $(if($attempt -gt 1) {' - Retry'})"
 
@@ -242,7 +242,7 @@ process {
                     }
                     catch {
                         Write-Warning "Failed to remove record '$($tableRecord.sys_id)': $_"
-                        
+
                         Start-Sleep -Seconds 3
                     }
                 }
@@ -252,7 +252,7 @@ process {
 
         #region Create new records in the ServiceNow table
         Write-Verbose "Create $($recordsToUpload.Count) records in the ServiceNow table '$TableName'"
-        
+
         $currentRecordCount = 0
         $totalRecordCount = $recordsToUpload.Count
 
@@ -261,13 +261,16 @@ process {
             Verbose = $false
         }
 
-        foreach ($record in $recordsToUpload) {
+        $recordsToUploadHashTable = $recordsToUpload |
+        ConvertTo-Json | ConvertFrom-Json -AsHashtable
+
+        foreach ($record in $recordsToUploadHashTable) {
             $attempt = 0
             $currentRecordCount++
-    
+
             while ($attempt -lt $MaxRetries) {
                 $attempt++
-                
+
                 try {
                     Write-Verbose "($currentRecordCount/$totalRecordCount) Create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)' $(if($attempt -gt 1) {' - Retry'})"
 
@@ -276,8 +279,12 @@ process {
                     break
                 }
                 catch {
-                    Write-Warning "Failed to create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)': $_"
-                        
+                    if ($attempt -ge $MaxRetries) {
+                        throw "CRITICAL FAILURE: Could not create record for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)' after $MaxRetries attempts. Last error: $_"
+                    }
+
+                    Write-Warning "Attempt $attempt of $MaxRetries failed for matrix '$($record.u_matrixfilename)' AD object '$($record.u_adobjectname)'. Retrying in 3 seconds... Error: $_"
+
                     Start-Sleep -Seconds 3
                 }
             }
