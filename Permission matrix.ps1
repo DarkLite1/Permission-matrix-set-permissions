@@ -3068,13 +3068,17 @@ end {
             }
 
             $counterData.Total.Errors = @(
-                $counterData.FormData.Error, $counterData.Permissions.Error,
-                $counterData.Settings.Error, $counterData.File.Error
+                $counterData.FormData.Error +
+                $counterData.Permissions.Error +
+                $counterData.Settings.Error +
+                $counterData.File.Error
             ).Where({ $_ })
 
             $counterData.Total.Warnings = @(
-                $counterData.FormData.Warning, $counterData.Permissions.Warning,
-                $counterData.Settings.Warning, $counterData.File.Warning
+                $counterData.FormData.Warning +
+                $counterData.Permissions.Warning +
+                $counterData.Settings.Warning +
+                $counterData.File.Warning
             ).Where({ $_ })
 
             $counter = @{

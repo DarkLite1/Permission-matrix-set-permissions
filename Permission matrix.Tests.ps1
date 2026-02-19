@@ -521,13 +521,16 @@ Describe 'in the log folder' {
         $testItemsInFolder.Count | Should -BeExactly 2
 
         $testItemsInFolder.where(
-            {$_.PSIsContainer -and $_.Name -eq 'Matrix'}
+            { $_.PSIsContainer -and $_.Name -eq 'Matrix' }
         ) | Should -BeTrue
 
         $testItemsInFolder.where(
-            {(-not $_.PSIsContainer) -and $_.Name -eq 'Mail.html'}
+            {
+                (-not $_.PSIsContainer) -and
+                ($_.Name -eq 'Mail - 1 matrix file, 1 warning, Email subject.html')
+            }
         ) | Should -BeTrue
-    }
+    } -Tag test
     It 'the Excel file is copied to the matrix log folder' {
         $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
 
