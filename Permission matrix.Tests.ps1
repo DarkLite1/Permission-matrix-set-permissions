@@ -530,7 +530,7 @@ Describe 'in the log folder' {
                 ($_.Name -eq 'Mail - 1 matrix file, 1 warning, Email subject.html')
             }
         ) | Should -BeTrue
-    } -Tag test
+    }
     It 'the Excel file is copied to the matrix log folder' {
         $testMatrixLogFolder = Join-Path $testDatedLogFolder 'Matrix'
 
