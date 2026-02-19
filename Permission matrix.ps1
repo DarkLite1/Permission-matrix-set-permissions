@@ -3283,7 +3283,7 @@ end {
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
                 To                  = @(
-                    $sendMail.To, $mailToDefaultsFile
+                    @($sendMail.To) + @($mailToDefaultsFile)
                 ).Where({ $_ }).Trim() | Sort-Object -Unique
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
