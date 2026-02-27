@@ -145,11 +145,11 @@ begin {
     function Get-DatedLogFolderPathHC {
         try {
             $datedLogFolder = Join-Path -Path $LogFolder -ChildPath (
-                '{0:00}_{1:00}_{2:00}_{3:00}{4:00}{5:00} - {6}' -f $scriptStartTime.Year, $scriptStartTime.Month,
-                $scriptStartTime.Day, 
+                '{0:00}_{1:00}_{2:00}_{3:00}{4:00}{5:00} ({6})' -f $scriptStartTime.Year, $scriptStartTime.Month,
+                $scriptStartTime.Day,
                 $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.Second, $jsonFileItem.BaseName
             )
-     
+
             (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
         }
         catch {
@@ -1108,8 +1108,6 @@ begin {
         }
         #endregion
 
-        $ArchiveItem = $null
-        
         if ($Matrix.Archive) {
             try {
                 $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
@@ -1921,18 +1919,6 @@ end {
                     padding:3px;
                     text-align:left;
                 }
-                #overviewTable {
-                    border-collapse: collapse;
-                    border: 1px solid Black;
-                    table-layout: fixed;
-                }
-                #overviewTable th {
-                    font-weight: normal;
-                    text-align: left;
-                }
-                #overviewTable td {
-                    text-align: center;
-                }
                 #matrixTable {
                     border: 1px solid Black;
                     /* padding-bottom: 60px; */
@@ -2016,7 +2002,7 @@ end {
 
             #region Create export log folder
             if (
-                $Export.ServiceNowFormDataExcelFile -or 
+                $Export.ServiceNowFormDataExcelFile -or
                 $Export.PermissionsExcelFile -or
                 $Export.OverviewHtmlFile
             ) {
@@ -2435,7 +2421,7 @@ end {
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = 'Parameter missing to upload data to ServiceNow'
+                                Message  = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
                             }
                         )
 
@@ -3049,62 +3035,91 @@ end {
             }
 
             #region FatalError and warning count
-            $counter = @{
+            $counterData = @{
                 FormData    = @{
                     Error   = @(
                         $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.FormData.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Permissions = @{
                     Error   = @(
                         $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.Permissions.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Settings    = @{
                     Error   = @(
                         $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.Settings.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 File        = @{
                     Error   = @(
                         $importedMatrix.File.Check |
                         Where-Object Type -EQ 'FatalError'
-                    ).count
+                    )
                     Warning = @(
                         $importedMatrix.File.Check |
                         Where-Object Type -EQ 'Warning'
-                    ).count
+                    )
                 }
                 Total       = @{
-                    Errors   = 0
-                    Warnings = 0
+                    Errors   = @()
+                    Warnings = @()
                 }
             }
 
-            $counter.Total.Errors = (
-                $counter.FormData.error + $counter.Permissions.error +
-                $counter.Settings.error + $counter.File.error +
-                $systemErrors.Count
-            )
-            $counter.Total.Warnings = (
-                $counter.FormData.warning + $counter.Permissions.warning +
-                $counter.Settings.warning + $counter.File.warning
-            )
+            $counterData.Total.Errors = @(
+                $counterData.FormData.Error +
+                $counterData.Permissions.Error +
+                $counterData.Settings.Error +
+                $counterData.File.Error
+            ).Where({ $_ })
+
+            $counterData.Total.Warnings = @(
+                $counterData.FormData.Warning +
+                $counterData.Permissions.Warning +
+                $counterData.Settings.Warning +
+                $counterData.File.Warning
+            ).Where({ $_ })
+
+            $counter = @{
+                FormData    = @{
+                    Error   = $counterData.FormData.Error.Count
+                    Warning = $counterData.FormData.Warning.Count
+                }
+                Permissions = @{
+                    Error   = $counterData.Permissions.Error.Count
+                    Warning = $counterData.Permissions.Warning.Count
+                }
+                Settings    = @{
+                    Error   = $counterData.Settings.Error.Count
+                    Warning = $counterData.Settings.Warning.Count
+                }
+                File        = @{
+                    Error   = $counterData.File.Error.Count
+                    Warning = $counterData.File.Warning.Count
+                }
+                Total       = @{
+                    Errors   = (
+                        $counterData.Total.Errors.Count + $systemErrors.Count
+                    )
+                    Warnings = $counterData.Total.Warnings.Count
+                }
+            }
             #endregion
 
             $html.ExportFilesList = if ($exportedFiles.Count) {
@@ -3113,48 +3128,58 @@ end {
                 $($exportedFiles.Count),
                 $(if ($exportedFiles.Count -ne 1) { 's' }),
                 $(
-                    $exportedFiles.GetEnumerator() | ForEach-Object {
+                    ($exportedFiles.GetEnumerator() | ForEach-Object {
                         "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>"
-                    }
+                    }) -join ''
                 )
             }
 
-            $html.ErrorWarningTable = if (
-                $counter.Total.Errors + $counter.Total.Warnings
-            ) {
-                '<p><b>Detected issues:</b></p>
-                    <table id="overviewTable">
-                    <tr>
-                        <td></td>
-                        <td>Errors</td>
-                        <td>Warnings</td>
-                    </tr>
-                        {0}
-                    </table>
-                    <p><i>* Check the matrix results below for details.</i></p>
-                    <hr style="width:50%;text-align:left;margin-left:0">' -f
-                $(
-                    foreach ($item in ($counter.GetEnumerator())) {
-                        if ($item.Value.Error + $item.Value.Warning) {
-                            "<tr>
-                                    <th>$($item.Key)</th>
-                                    <td{0}>$($item.Value.Error)</td>
-                                    <td{1}>$($item.Value.Warning)</td>
-                                </tr>" -f
-                            $(
-                                if ($item.Value.Error)
-                                { ' id="probTextError"' }),
-                            $(
-                                if ($item.Value.Warning)
-                                { ' id="probTextWarning"' })
-                        }
-                    }
-                )
+            #region Create HTML error warning table
+            $errorRows = @()
+
+            if ($systemErrors.Count) {
+                $errorRows += '
+                <tr id="probTextError">
+                    <th>System errors</th>
+                    <td>{0}</td>
+                </tr>' -f $systemErrors.Count
             }
+
+            if ($counterData.Total.Errors.Count) {
+                $errorRows += '
+                <tr id="probTextError">
+                    <th>Matrix errors</th>
+                    <td>{0}</td>
+                </tr>' -f $counterData.Total.Errors.Count
+            }
+
+            if ($counter.Total.Warnings) {
+                $errorRows += '
+                <tr id="probTextWarning">
+                    <th>Matrix warnings</th>
+                    <td>{0}</td>
+                </tr>' -f $counter.Total.Warnings
+            }
+
+            $html.ErrorWarningTable = if ($errorRows) {
+                '<p><b>Detected issues:</b></p>
+                    <table>
+                        {0}
+                    </table>' -f
+                $errorRows -join ''
+            }
+            #endregion
 
             if ($html.MatrixTables) {
+                try {
+                    $matrixFolderPathName = Split-Path $Matrix.FolderPath -Leaf
+                }
+                catch {
+                    # ignore error, because -EA ignore does not work
+                }
+
                 $html.MatrixTables = "
-                <p><b>Matrix results per file:</b></p>
+                <p><b>Processed files in the folder '<a href=`"$($Matrix.FolderPath)`">$matrixFolderPathName</a>':</b></p>
                 $($html.MatrixTables)"
             }
 
@@ -3273,7 +3298,7 @@ end {
         if ($systemErrors -or $importedMatrix) {
             $mailParams += @{
                 To                  = @(
-                    $sendMail.To, $mailToDefaultsFile
+                    @($sendMail.To) + @($mailToDefaultsFile)
                 ).Where({ $_ }).Trim() | Sort-Object -Unique
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
@@ -3299,14 +3324,6 @@ end {
         <hr size="2" color="#06cc7a">
 
         $($sendMail.Body)
-        $(
-            if ($systemErrors) {
-                '<p>Found <b>{0} system errors</b>.</p>
-                <p><i>Please check the attachment for details.</i></p>
-                {1}' -f
-                $systemErrors.Count, $mailParams.Body
-            }
-        )
         $($html.ErrorWarningTable)
         $($html.ExportFilesList)
         $($html.MatrixTables)
@@ -3445,7 +3462,9 @@ end {
             #region Save mail in log folder
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
-                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
+                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) (
+                        'Mail - {0}.html' -f $mailParams.Subject
+                    )
                     Encoding    = 'utf8'
                     NoClobber   = $true
                 }
