@@ -1108,6 +1108,8 @@ begin {
         }
         #endregion
 
+        $ArchiveItem = $null
+        
         if ($Matrix.Archive) {
             try {
                 $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
@@ -1160,9 +1162,24 @@ process {
         }
         #endregion
 
-        [Array]$importedMatrix = foreach ($matrixFile in $matrixFiles) {
+        [Array]$importedMatrix = $matrixFiles | 
+        ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
             try {
+                $matrixFile = $_
+
                 Write-Verbose "Matrix file '$matrixFile'"
+
+                #region Declare variables for parallel execution
+                if (-not $Matrix) {
+                    $Export = $using:Export
+                    $Matrix = $using:Matrix
+                    $ArchiveItem = $using:ArchiveItem 
+                    $datedLogFolderPath = $using:datedLogFolderPath
+                    $eventLogData = $using:eventLogData
+                    $VerbosePreference = $using:VerbosePreference
+                    $ErrorActionPreference = $using:ErrorActionPreference
+                }
+                #endregion
 
                 $Obj = [PSCustomObject]@{
                     File        = @{
@@ -3429,8 +3446,8 @@ end {
             if (Test-Path -Path $LogFolder -PathType Container) {
                 $params = @{
                     LiteralPath = Join-Path (Get-DatedLogFolderPathHC) 'Mail.html'
-                    Encoding            = 'utf8'
-                    NoClobber           = $true
+                    Encoding    = 'utf8'
+                    NoClobber   = $true
                 }
                 $mailParams.Body | Out-File @params
             }
