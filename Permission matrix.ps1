@@ -1108,6 +1108,8 @@ begin {
         }
         #endregion
 
+        $ArchiveItem = $null
+        
         if ($Matrix.Archive) {
             try {
                 $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
