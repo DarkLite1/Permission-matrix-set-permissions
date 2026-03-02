@@ -1108,8 +1108,9 @@ begin {
         }
         #endregion
 
+        #region Archive
         $ArchiveItem = $null
-        
+
         if ($Matrix.Archive) {
             try {
                 $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
@@ -1120,6 +1121,7 @@ begin {
                 throw "Failed to create archive folder '$archivePath': $_"
             }
         }
+        #endregion
     }
     catch {
         $systemErrors.Add(
