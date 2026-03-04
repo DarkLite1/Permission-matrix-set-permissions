@@ -1650,7 +1650,6 @@ process {
             #region Test duplicate ComputerName/Path combination
             Write-Verbose 'Check duplicate ComputerName/Path combination'
 
-            # Group by multiple properties natively instead of building strings
             $duplicateSettings = $importedMatrix.Settings | 
             Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
             Where-Object Count -GE 2
@@ -1677,29 +1676,36 @@ process {
             #region Test expanded matrix and get AD object details
             Write-Verbose 'Check expanded matrix'
 
-            $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys
+            $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys | 
+            Sort-Object -Unique
 
-            if ($AdObjects.count -ne 0) {
-                Write-Verbose 'Get AD object details'
+            if ($AdObjects.Count -gt 0) {
+                Write-Verbose "Get AD object details for $($AdObjects.Count) unique objects"
+    
                 $params = @{
-                    ADObjectName = $AdObjects | Sort-Object -Unique
+                    ADObjectName = $AdObjects
                     Type         = 'SamAccountName'
                 }
                 $ADObjectDetails = @(Get-ADObjectDetailHC @params)
 
-                @($importedMatrix.Settings).Where( { $_.Matrix }).Foreach(
-                    {
-                        Write-Verbose "Test expanded matrix for Settings row ComputerName '$($_.Import.ComputerName)' Path '$($_.Import.Path)' SiteName '$($_.Import.SiteName)' SiteCode '$($_.Import.SiteCode)' GroupName '$($_.Import.GroupName)'"
+                foreach ($S in $importedMatrix.Settings) {
+                    if (-not $S.Matrix) { continue }
 
-                        $params = @{
-                            Matrix                 = $_.Matrix
-                            ADObject               = $ADObjectDetails
-                            DefaultAcl             = $DefaultAcl
-                            ExcludedSamAccountName = $ExcludedSamAccountName
-                        }
-                        $_.Check += Test-ExpandedMatrixHC @params
+                    Write-Verbose "Test expanded matrix for Settings row ComputerName '$($S.Import.ComputerName)' Path '$($S.Import.Path)' SiteName '$($S.Import.SiteName)' SiteCode '$($S.Import.SiteCode)' GroupName '$($S.Import.GroupName)'"
+
+                    $params = @{
+                        Matrix                 = $S.Matrix
+                        ADObject               = $ADObjectDetails
+                        DefaultAcl             = $DefaultAcl
+                        ExcludedSamAccountName = $ExcludedSamAccountName
                     }
-                )
+        
+                    $expandedCheck = Test-ExpandedMatrixHC @params
+        
+                    if ($expandedCheck) {
+                        $S.Check += $expandedCheck
+                    }
+                }
             }
             #endregion
 
