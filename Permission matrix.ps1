@@ -1744,18 +1744,17 @@ process {
                 Write-Verbose $verboseMessage
 
                 $scriptBlock = {
+                    param (
+                        $matrixGroup,
+                        $computerName,
+                        $scriptPathItem,
+                        $PSSessionConfiguration,
+                        $eventLogData,
+                        $VerbosePreference,
+                        $ErrorActionPreference
+                    )
+
                     try {
-                        #region Declare variables for parallel execution
-                        if (-not $MaxConcurrent) {
-                            $scriptPathItem = $using:scriptPathItem
-                            $PSSessionConfiguration = $using:PSSessionConfiguration
-                            $eventLogData = $using:eventLogData
-                        }
-                        #endregion
-
-                        $matrixGroup = $_.Group
-                        $computerName = $_.Name
-
                         $params = @{
                             FilePath          = $scriptPathItem.TestRequirementsFile
                             ArgumentList      = $matrixGroup.Import.Path, $true
@@ -1780,22 +1779,39 @@ process {
                 }
 
                 #region Run code serial or parallel
-                $foreachParams = if ($MaxConcurrent.Computers -eq 1) {
-                    @{
-                        Process = $scriptBlock
+                $matrixGroups = $executableMatrix |
+                Group-Object -Property { $_.Import.ComputerName } 
+
+                if ($MaxConcurrent.Computers -eq 1) {
+                    $matrixGroups | ForEach-Object {
+                        $params = @{
+                            matrixGroup            = $_.Group
+                            computerName           = $_.Name
+                            scriptPathItem         = $scriptPathItem
+                            PSSessionConfiguration = $PSSessionConfiguration
+                            eventLogData           = $eventLogData
+                            VerbosePreference      = $VerbosePreference 
+                            ErrorActionPreference  = $ErrorActionPreference
+                        }
+                        & $scriptBlock @params
                     }
                 }
                 else {
-                    @{
-                        Parallel      = $scriptBlock
-                        ThrottleLimit = $MaxConcurrent.Computers
-                    }
+                    $matrixGroups | 
+                    ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                        $params = @{
+                            matrixGroup            = $_.Group
+                            computerName           = $_.Name
+                            scriptPathItem         = $using:scriptPathItem
+                            PSSessionConfiguration = $using:PSSessionConfiguration
+                            eventLogData           = $using:eventLogData
+                            VerbosePreference      = $using:VerbosePreference 
+                            ErrorActionPreference  = $using:ErrorActionPreference
+                        }
+                        & $using:scriptBlock @params
+                    } 
                 }
                 #endregion
-
-                $executableMatrix |
-                Group-Object -Property { $_.Import.ComputerName } |
-                ForEach-Object @foreachParams
             }
             #endregion
 
