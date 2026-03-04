@@ -38,26 +38,34 @@ param (
 
 begin {
     function ConvertTo-HtmlValueHC {
-        if (-not $E.Value) {
-            $null
+        param(
+            [Parameter(Mandatory)]
+            $ErrorObj,
+            [Parameter(Mandatory)]
+            $SettingId,
+            [Parameter(Mandatory)]
+            [string]$LogFolderPath
+        )
+
+        if (-not $ErrorObj.Value) {
+            return $null
         }
-        elseif (($E.Value.Count -le 5) -and (-not ($E.Value -is [HashTable]))) {
-            '<ul>{0}</ul>' -f $(@($E.Value).ForEach({ "<li>$_</li>" }))
+        elseif (($ErrorObj.Value.Count -le 5) -and (-not ($ErrorObj.Value -is [hashtable]))) {
+            return '<ul>{0}</ul>' -f $(@($ErrorObj.Value).ForEach({ "<li>$_</li>" }))
         }
         else {
-            $fileName = "ID $($S.ID) - $($E.Type) - $($E.Name).txt".Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
+            $safeName = "ID $SettingId - $($ErrorObj.Type) - $($ErrorObj.Name).txt".Split([IO.Path]::GetInvalidFileNameChars()) -join '_'
 
             $OutParams = @{
-                LiteralPath = Join-Path -Path $I.File.LogFolder -ChildPath $fileName
+                LiteralPath = Join-Path -Path $LogFolderPath -ChildPath $safeName
                 Encoding    = 'utf8'
                 NoClobber   = $true
             }
-            $E | ConvertTo-Json -Depth 100 | ForEach-Object {
+            $ErrorObj | ConvertTo-Json -Depth 100 | ForEach-Object {
                 [System.Text.RegularExpressions.Regex]::Unescape($_)
             } | Out-File @OutParams
-            '<ul>
-                <li><a href="{0}">{1} items</a></li>
-            </ul>' -f $($OutParams.LiteralPath), $($E.Value.Count)
+
+            return '<ul><li><a href="{0}">{1} items</a></li></ul>' -f $OutParams.LiteralPath, $ErrorObj.Value.Count
         }
     }
     function Get-HTNLidTagProbTypeHC {
@@ -2817,8 +2825,17 @@ end {
 
                         $html.TableHeader = ''
 
-                        $html.MatrixLogFile.FatalError = foreach ($E in @($S.Check).Where( { $_.Type -eq 'FatalError' })) {
-                            $htmlValue = ConvertTo-HtmlValueHC
+                        $html.MatrixLogFile.FatalError = foreach (
+                            $E in 
+                            @($S.Check).Where( { $_.Type -eq 'FatalError' })
+                        ) {
+                            $params = @{
+                                LogFolderPath = $I.File.LogFolder 
+                                ErrorObj      = $E 
+                                SettingId     = $S.ID
+                            }
+                            $htmlValue = ConvertTo-HtmlValueHC @params
+                            
                             @"
                             <tr>
                                 <td id="probTypeError"></td>
@@ -2831,8 +2848,17 @@ end {
 "@
                         }
 
-                        $html.MatrixLogFile.Warning = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Warning' })) {
-                            $htmlValue = ConvertTo-HtmlValueHC
+                        $html.MatrixLogFile.Warning = foreach (
+                            $E in 
+                            @($S.Check).Where( { $_.Type -eq 'Warning' })
+                        ) {
+                            $params = @{
+                                LogFolderPath = $I.File.LogFolder 
+                                ErrorObj      = $E 
+                                SettingId     = $S.ID
+                            }
+                            $htmlValue = ConvertTo-HtmlValueHC @params
+
                             @"
                             <tr>
                                 <td id="probTypeWarning"></td>
@@ -2845,8 +2871,17 @@ end {
 "@
                         }
 
-                        $html.MatrixLogFile.Info = foreach ($E in @($S.Check).Where( { $_.Type -eq 'Information' })) {
-                            $htmlValue = ConvertTo-HtmlValueHC
+                        $html.MatrixLogFile.Info = foreach (
+                            $E in 
+                            @($S.Check).Where( { $_.Type -eq 'Information' })
+                        ) {
+                            $params = @{
+                                LogFolderPath = $I.File.LogFolder 
+                                ErrorObj      = $E 
+                                SettingId     = $S.ID
+                            }
+                            $htmlValue = ConvertTo-HtmlValueHC @params
+
                             @"
                             <tr>
                                 <td id="probTypeInfo"></td>
