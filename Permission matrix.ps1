@@ -911,23 +911,16 @@ begin {
         #region Test path exists
         $scriptPathItem = @{}
 
-        $ScriptPath.GetEnumerator().ForEach(
-            {
-                try {
-                    $key = $_.Key
-                    $value = $_.Value
+        foreach ($Key in $ScriptPath.Keys) {
+            $Value = $ScriptPath[$Key]
 
-                    $params = @{
-                        Path        = $value
-                        ErrorAction = 'Stop'
-                    }
-                    $scriptPathItem[$key] = (Get-Item @params).FullName
-                }
-                catch {
-                    throw "ScriptPath.$key '$value' not found"
-                }
+            try {
+                $scriptPathItem[$Key] = (Get-Item -LiteralPath $Value -ErrorAction Stop).FullName
             }
-        )
+            catch {
+                throw "ScriptPath.$Key '$Value' not found: $_"
+            }
+        }
         #endregion
 
         #region Test .json file properties
