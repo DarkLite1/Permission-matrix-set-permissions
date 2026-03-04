@@ -1011,10 +1011,12 @@ begin {
 
         #region Create log folder
         try {
-            $LogFolder = (New-Item -ItemType 'Directory' -Path $LogFolder -Force -EA Stop).FullName
+            if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+                $null = New-Item -ItemType 'Directory' -Path $LogFolder -ErrorAction Stop
+            }
         }
         catch {
-            throw "Failed to create log folder '$LogFolder': $_"
+            throw "Failed to create or resolve log folder '$LogFolder': $_"
         }
         #endregion
 
@@ -3290,7 +3292,7 @@ end {
 
             Write-Verbose "Remove log files older than $cutoffDate from '$LogFolder'"
 
-            Get-ChildItem -Path $LogFolder -Recurse |
+            Get-ChildItem -literalPath $LogFolder -Recurse |
             Sort-Object 'FullName' -Descending |
             ForEach-Object {
                 $item = $_
@@ -3333,7 +3335,7 @@ end {
         #region Create system errors log file
         if (
             $systemErrors -and
-            (Test-Path -Path $LogFolder -PathType Container)
+            (Test-Path -literalPath $LogFolder -PathType Container)
         ) {
             $params = @{
                 DataToExport   = $systemErrors
@@ -3510,7 +3512,7 @@ end {
             Send-MailKitMessageHC @mailParams
 
             #region Save mail in log folder
-            if (Test-Path -Path $LogFolder -PathType Container) {
+            if (Test-Path -LiteralPath $LogFolder -PathType Container) {
                 $params = @{
                     LiteralPath = Join-Path (Get-DatedLogFolderPathHC) (
                         'Mail - {0}.html' -f $mailParams.Subject
