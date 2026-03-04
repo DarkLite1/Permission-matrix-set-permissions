@@ -1650,24 +1650,28 @@ process {
             #region Test duplicate ComputerName/Path combination
             Write-Verbose 'Check duplicate ComputerName/Path combination'
 
-            (
-                @($importedMatrix.Settings | Group-Object @{
-                        Expression = {
-                            $_.Import.ComputerName + ' - ' + $_.Import.Path }
-                    }
-                ).Where( { $_.Count -ge 2 })
-            ).Group.Foreach(
-                {
-                    $_.Check += [PSCustomObject]@{
+            # Group by multiple properties natively instead of building strings
+            $duplicateSettings = $importedMatrix.Settings | 
+            Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
+            Where-Object Count -GE 2
+
+            foreach ($DupGroup in $duplicateSettings) {
+                foreach ($Setting in $DupGroup.Group) {
+        
+                    # Because these objects crossed a runspace boundary, 
+                    # Check might be an Object[] array now
+                    # We must use += or cast it safely to add elements.
+                    $Setting.Check += [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Duplicate ComputerName/Path combination'
                         Description = "Every 'ComputerName' combined with a 'Path' needs to be unique over all the 'Settings' worksheets found in all the active matrix files."
                         Value       = @{
-                            $_.Import.ComputerName = $_.Import.Path
+                            ComputerName = $Setting.Import.ComputerName
+                            Path         = $Setting.Import.Path
                         }
                     }
                 }
-            )
+            }
             #endregion
 
             #region Test expanded matrix and get AD object details
