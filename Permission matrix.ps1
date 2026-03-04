@@ -1551,7 +1551,10 @@ process {
 
                 Import-Module -Name Toolbox.PermissionMatrix -ErrorAction Stop
 
-                if (($I.File.Check.Type -contains 'FatalError') -or (-not $I.Settings)) {
+                if (
+                    ($I.File.Check.Type -contains 'FatalError') -or
+                    (-not $I.Settings)
+                ) {
                     return $I
                 }
 
@@ -1559,12 +1562,12 @@ process {
                     Write-Verbose "Test matrix permissions for '$($I.File.Item.BaseName)'"
 
                     $permCheck = Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
-                    if ($permCheck) { $I.Permissions.Check += $permCheck }
+                    if ($permCheck) { $I.Permissions.Check.Add($permCheck) }
 
                     if ($I.Permissions.Check.Type -notcontains 'FatalError') {
                         foreach ($S in $I.Settings) {
                             $settingCheck = Test-MatrixSettingHC -Setting $S.Import
-                            if ($settingCheck) { $S.Check += $settingCheck }
+                            if ($settingCheck) { $S.Check.Add($settingCheck) }
 
                             #region Create AD object names
                             Write-Verbose "Create AD object names for '$($I.File.Item.BaseName)'"
@@ -1579,7 +1582,7 @@ process {
                             Write-Verbose "Test AD objects for '$($I.File.Item.BaseName)'"
 
                             $adCheck = Test-AdObjectsHC -ADObjects $adObjects
-                            if ($adCheck) { $S.Check += $adCheck }
+                            if ($adCheck) { $S.Check.Add($adCheck) }
                             #endregion
 
                             #region Create matrix for each settings line
@@ -1594,19 +1597,21 @@ process {
                                 }
 
                                 $aclMatrix = ConvertTo-MatrixAclHC @params
-                                if ($aclMatrix) { $S.Matrix += $aclMatrix }
+                                if ($aclMatrix) { $S.Matrix.Add($aclMatrix) }
                             }
                             #endregion
                         }
                     }
                 }
                 catch {
-                    $I.File.Check += [PSCustomObject]@{
-                        Type        = 'FatalError'
-                        Name        = 'Unknown error'
-                        Description = 'While checking the input and generating the matrix an error was reported.'
-                        Value       = @($_)
-                    }
+                    $I.File.Check.Add(
+                        [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Unknown error'
+                            Description = 'While checking the input and generating the matrix an error was reported.'
+                            Value       = @($_)
+                        }
+                    )
                 }
 
                 return $I
