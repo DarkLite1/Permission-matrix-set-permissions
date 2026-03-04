@@ -1737,17 +1737,16 @@ process {
 
             #region Remove group members that are in the ExcludedSamAccountName
             if ($ExcludedSamAccountName) {
-                foreach ($adObject in $ADObjectDetails) {
-                    $adObject.adGroupMember = $adObject.adGroupMember |
-                    Where-Object {
-                        $ExcludedSamAccountName -notcontains $_.SamAccountName
-                    }
-                }
-                foreach ($adObject in $groupManagersAdDetails) {
-                    $adObject.adGroupMember = $adObject.adGroupMember |
-                    Where-Object {
-                        $ExcludedSamAccountName -notcontains $_.SamAccountName
-                    }
+                $allAdObjects = @($ADObjectDetails) + @($groupManagersAdDetails)
+
+                foreach ($adObject in $allAdObjects) {
+                    if (-not $adObject.adGroupMember) { continue }
+
+                    $adObject.adGroupMember = @(
+                        $adObject.adGroupMember.Where(
+                            { $_.SamAccountName -notin $ExcludedSamAccountName }
+                        )
+                    )
                 }
             }
             #endregion
