@@ -1,5 +1,5 @@
 #Requires -Version 7
-#Requires -Modules ImportExcel, Toolbox.Remoting
+#Requires -Modules ImportExcel
 #Requires -Modules Toolbox.PermissionMatrix, Toolbox.ActiveDirectory
 
 <#
