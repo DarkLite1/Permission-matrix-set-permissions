@@ -1521,54 +1521,59 @@ process {
                     EventID   = '2'
                 }
             )
+                
             Write-Verbose $verboseMessage
 
-            foreach (
-                $I in
-                $importedMatrix.Where(
-                    {
-                        ($_.File.Check.Type -notcontains 'FatalError' ) -and
-                        ($_.Settings)
-                    }
-                )
-            ) {
-                try {
-                    Write-Verbose 'Test matrix permissions'
+            foreach ($I in $importedMatrix) {
+                if (
+                    ($I.File.Check.Type -contains 'FatalError') -or 
+                    (-not $I.Settings)
+                ) {
+                    continue
+                }
 
-                    $I.Permissions.Check += Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
+                try {
+                    Write-Verbose "Test matrix permissions for '$($I.File.Item.BaseName)'"
+
+                    $permCheck = Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
+                    
+                    if ($permCheck) { $I.Permissions.Check += $permCheck }
 
                     if ($I.Permissions.Check.Type -notcontains 'FatalError') {
                         foreach ($S in $I.Settings) {
-                            $S.Check += Test-MatrixSettingHC -Setting $S.Import
+                            $settingCheck = Test-MatrixSettingHC -Setting $S.Import
+
+                            if ($settingCheck) { $S.Check += $settingCheck }
 
                             #region Create AD object names
-                            Write-Verbose 'Create AD object names'
+                            Write-Verbose "Create AD object names for '$($I.File.Item.BaseName)'"
 
                             $params = @{
                                 Begin         = $S.Import.GroupName
                                 Middle        = $S.Import.SiteCode
-                                ColumnHeaders = $I.Permissions.Import |
-                                Select-Object -First 3
+                                ColumnHeaders = $I.Permissions.Import | Select-Object -First 3
                             }
                             $adObjects = ConvertTo-MatrixADNamesHC @params
 
-                            Write-Verbose 'Test AD objects'
+                            Write-Verbose "Test AD objects for '$($I.File.Item.BaseName)'"
 
-                            $S.Check += Test-AdObjectsHC $adObjects
+                            $adCheck = Test-AdObjectsHC -ADObjects $adObjects
+                            if ($adCheck) { $S.Check += $adCheck }
                             #endregion
 
                             #region Create matrix for each settings line
                             if ($S.Check.Type -notcontains 'FatalError') {
-                                Write-Verbose 'Create matrix for each settings line'
+                                Write-Verbose "Create matrix for each settings line in '$($I.File.Item.BaseName)'"
 
                                 $S.AdObjects = $adObjects
 
                                 $params = @{
-                                    NonHeaderRows = $I.Permissions.Import |
-                                    Select-Object -Skip 3
+                                    NonHeaderRows = $I.Permissions.Import | Select-Object -Skip 3
                                     ADObjects     = $adObjects
                                 }
-                                $S.Matrix += ConvertTo-MatrixAclHC @params
+                    
+                                $aclMatrix = ConvertTo-MatrixAclHC @params
+                                if ($aclMatrix) { $S.Matrix += $aclMatrix }
                             }
                             #endregion
                         }
@@ -1579,9 +1584,8 @@ process {
                         Type        = 'FatalError'
                         Name        = 'Unknown error'
                         Description = 'While checking the input and generating the matrix an error was reported.'
-                        Value       = $_
+                        Value       = @($_)
                     }
-                    $Error.RemoveAt(0)
                 }
             }
             #endregion
