@@ -177,12 +177,9 @@ begin {
             $FileExtensions | Sort-Object -Unique
         ) {
             try {
-                $logFilePath = "$PartialPath{0}" -f $fileExtension
+                $logFilePath = "$PartialPath$fileExtension"
 
-                $M = "Export {0} object{1} to '$logFilePath'" -f
-                $DataToExport.Count,
-                $(if ($DataToExport.Count -ne 1) { 's' })
-                Write-Verbose $M
+                Write-Verbose "Export $($DataToExport.Count) object(s) to '$logFilePath'"
 
                 switch ($fileExtension) {
                     '.csv' {
