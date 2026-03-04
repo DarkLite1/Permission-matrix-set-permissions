@@ -1752,29 +1752,25 @@ process {
             #endregion
 
             #region Test server requirements
-            if (
-                $executableMatrix = @(
-                    Get-ExecutableMatrixHC -From $importedMatrix)
-            ) {
+            $executableMatrix = @(Get-ExecutableMatrixHC -From $importedMatrix)
+
+            if ($executableMatrix.Count -gt 0) {
                 $verboseMessage = 'Test server requirements'
 
-                $eventLogData.Add(
-                    [PSCustomObject]@{
+                $eventLogData.Add([PSCustomObject]@{
                         Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
-                    }
-                )
+                    })
                 Write-Verbose $verboseMessage
 
-                $scriptBlock = {
+                $testRequirementsBlock = {
                     param (
-                        $matrixGroup,
                         $computerName,
+                        $pathsToCheck,
                         $scriptPathItem,
                         $PSSessionConfiguration,
-                        $eventLogData,
                         $VerbosePreference,
                         $ErrorActionPreference
                     )
@@ -1782,56 +1778,59 @@ process {
                     try {
                         $params = @{
                             FilePath          = $scriptPathItem.TestRequirementsFile
-                            ArgumentList      = $matrixGroup.Import.Path, $true
+                            ArgumentList      = $pathsToCheck, $true
                             ConfigurationName = $PSSessionConfiguration
                             ComputerName      = $computerName
                             ErrorAction       = 'Stop'
                         }
-                        if ($result = Invoke-Command @params) {
-                            $matrixGroup | ForEach-Object { $_.Check += $result }
+            
+                        $result = Invoke-Command @params
+            
+                        return [PSCustomObject]@{
+                            ComputerName = $computerName
+                            Result       = $result
                         }
                     }
                     catch {
                         $problem = [PSCustomObject]@{
                             Type        = 'FatalError'
                             Name        = 'Computer requirements'
-                            Value       = $_
+                            Value       = @($_)
                             Description = "Failed checking the computer for the minimal requirements with the 'Test requirements' script."
                         }
-                        $Error.RemoveAt(0)
-                        $matrixGroup | ForEach-Object { $_.Check += $problem }
+                        return [PSCustomObject]@{
+                            ComputerName = $computerName
+                            Result       = $problem
+                        }
                     }
                 }
 
-                #region Run code serial or parallel
-                $matrixGroups = $executableMatrix |
+                $matrixGroups = $executableMatrix | 
                 Group-Object -Property { $_.Import.ComputerName }
 
-                if ($MaxConcurrent.Computers -eq 1) {
+                #region Run code serial or parallel
+                $runspaceOutput = if ($MaxConcurrent.Computers -eq 1) {
                     $matrixGroups | ForEach-Object {
                         $params = @{
-                            matrixGroup            = $_.Group
                             computerName           = $_.Name
+                            pathsToCheck           = $_.Group.Import.Path
                             scriptPathItem         = $scriptPathItem
                             PSSessionConfiguration = $PSSessionConfiguration
-                            eventLogData           = $eventLogData
                             VerbosePreference      = $VerbosePreference
                             ErrorActionPreference  = $ErrorActionPreference
                         }
-                        & $scriptBlock @params
+                        & $testRequirementsBlock @params
                     }
                 }
                 else {
-                    $processScriptBlockString = $scriptBlock.ToString()
+                    $processScriptBlockString = $testRequirementsBlock.ToString()
 
-                    $matrixGroups |
-                    ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                    $matrixGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                         $params = @{
-                            matrixGroup            = $_.Group
                             computerName           = $_.Name
+                            pathsToCheck           = $_.Group.Import.Path
                             scriptPathItem         = $using:scriptPathItem
                             PSSessionConfiguration = $using:PSSessionConfiguration
-                            eventLogData           = $using:eventLogData
                             VerbosePreference      = $using:VerbosePreference
                             ErrorActionPreference  = $using:ErrorActionPreference
                         }
@@ -1842,6 +1841,17 @@ process {
                     }
                 }
                 #endregion
+
+                foreach ($output in $runspaceOutput) {
+                    if ($output.Result) {
+                        $targetGroup = $matrixGroups | 
+                        Where-Object { $_.Name -eq $output.ComputerName }
+            
+                        foreach ($matrix in $targetGroup.Group) {
+                            $matrix.Check += $output.Result
+                        }
+                    }
+                }
             }
             #endregion
 
