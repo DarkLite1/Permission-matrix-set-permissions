@@ -1998,11 +1998,10 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
                 ($SmtpConnectionType -eq 'StartTls') -and
                 ($Subject -eq '1 matrix file, 1 error, Email subject') -and
                 ($Priority -eq 'High') -and
-                ($Body -like '*Errors*Warnings*FormData*') -and
-                ($Body -like '*FormData*incorrect data*') -and
-                ($Body -notlike '*Check the*overview*for details*')
+                ($Body -like '*<p><b>Detected issues:</b></p>*') -and
+                ($Body -like '*<th>Matrix errors</th>*1*')
             }
-        }
+        }  -Tag test
     }
     Context 'the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
@@ -2209,7 +2208,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
             ($Body -like '*<p><b>Processed files in the folder *<a href="*\Matrix">Matrix</a>*')
         }
-    } -Tag test
+    }
 }
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
