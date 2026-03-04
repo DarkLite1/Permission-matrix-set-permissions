@@ -68,7 +68,7 @@ begin {
             return '<ul><li><a href="{0}">{1} items</a></li></ul>' -f $OutParams.LiteralPath, $ErrorObj.Value.Count
         }
     }
-    function Get-HTNLidTagProbTypeHC {
+    function Get-HtmlIdTagProbTypeHC {
         [OutputType([String])]
         param (
             [Parameter(Mandatory)]
@@ -2708,7 +2708,7 @@ end {
 
                     foreach ($F in $I.File.Check) {
                         $problem = @{
-                            Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
                                 '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
@@ -2739,7 +2739,7 @@ end {
 
                     foreach ($F in $I.FormData.Check) {
                         $problem = @{
-                            Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
                                 '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
@@ -2770,7 +2770,7 @@ end {
 
                     foreach ($F in $I.Permissions.Check) {
                         $problem = @{
-                            Type        = Get-HTNLidTagProbTypeHC -Name $F.Type
+                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
                             Details     = if ($F.Value) {
                                 '<ul>{0}</ul>' -f
                                 $(@($F.Value).ForEach( { "<li>$_</li>" }))
@@ -2810,13 +2810,13 @@ end {
 
                         #region Get problem color
                         $problem.Type = if ($S.Check.Type -contains 'FatalError') {
-                            Get-HTNLidTagProbTypeHC -Name 'FatalError'
+                            Get-HtmlIdTagProbTypeHC -Name 'FatalError'
                         }
                         elseif ($S.Check.Type -contains 'Warning') {
-                            Get-HTNLidTagProbTypeHC -Name 'Warning'
+                            Get-HtmlIdTagProbTypeHC -Name 'Warning'
                         }
                         elseif ($S.Check.Type -contains 'Information') {
-                            Get-HTNLidTagProbTypeHC -Name 'Information'
+                            Get-HtmlIdTagProbTypeHC -Name 'Information'
                         }
                         #endregion
 
