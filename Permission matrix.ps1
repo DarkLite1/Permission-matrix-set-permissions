@@ -869,8 +869,8 @@ begin {
 
     $ErrorActionPreference = 'stop'
 
-    $eventLogData = [System.Collections.Generic.List[PSObject]]::new()
-    $systemErrors = [System.Collections.Generic.List[PSObject]]::new()
+    $eventLogData = [System.Collections.Concurrent.ConcurrentBag[PSObject]]::new()
+    $systemErrors = [System.Collections.Concurrent.ConcurrentBag[PSObject]]::new()
     $scriptStartTime = Get-Date
 
     try {
@@ -1112,21 +1112,23 @@ begin {
         #endregion
     }
     catch {
+        $verboseMessage = "Input file '$ConfigurationJsonFile': $_"
+
         $systemErrors.Add(
             [PSCustomObject]@{
                 DateTime = Get-Date
-                Message  = "Input file '$ConfigurationJsonFile': $_"
+                Message  = $verboseMessage
             }
         )
 
-        Write-Warning $systemErrors[-1].Message
+        Write-Warning $verboseMessage
 
         return
     }
 }
 
 process {
-    if ($systemErrors) { return }
+    if ($systemErrors.Count -ne 0) { return }
 
     try {
         $ID = 0
@@ -1158,7 +1160,7 @@ process {
             try {
                 $matrixFile = $_
 
-                Write-Verbose "Matrix file '$matrixFile'"
+                Write-Verbose "Matrix file '$($matrixFile.Name)'"
 
                 #region Declare variables for parallel execution
                 if (-not $MaxConcurrent) {
@@ -1178,16 +1180,16 @@ process {
                         SaveFullName = $matrixFile.FullName
                         ExcelInfo    = $null
                         LogFolder    = $null
-                        Check        = @()
+                        Check        = [System.Collections.Generic.List[PSCustomObject]]::new()
                     }
-                    Settings    = @()
+                    Settings    = [System.Collections.Generic.List[PSCustomObject]]::new()
                     Permissions = @{
                         Import = @()
-                        Check  = @()
+                        Check  = [System.Collections.Generic.List[PSCustomObject]]::new()
                     }
                     FormData    = @{
                         Import = $null
-                        Check  = @()
+                        Check  = [System.Collections.Generic.List[PSCustomObject]]::new()
                     }
                 }
 
@@ -1195,7 +1197,13 @@ process {
                 try {
                     $matrixLogFolderPath = Join-Path -Path $datedLogFolderPath -ChildPath $matrixFile.BaseName
 
-                    $Obj.File.LogFolder = (New-Item -ItemType 'Directory' -Path $matrixLogFolderPath -Force -EA Stop).FullName
+                    if (-not 
+                        (Test-Path -LiteralPath $matrixLogFolderPath -PathType Container)
+                    ) {
+                        $null = New-Item -ItemType 'Directory' -Path $matrixLogFolderPath -ErrorAction Stop
+                    }
+            
+                    $Obj.File.LogFolder = $matrixLogFolderPath
 
                     Write-Verbose "Matrix log folder '$($Obj.File.LogFolder)'"
                 }
@@ -1223,7 +1231,7 @@ process {
                 #endregion
 
                 #region Get Excel file details
-                $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile.FullName -ErrorAction 'Stop'
+                $Obj.File.ExcelInfo = Get-ExcelWorkbookInfo -Path $matrixFile.FullName -ErrorAction Stop
 
                 Write-Verbose "File '$($matrixFile.Name)': LastModifiedBy '$($Obj.File.ExcelInfo.LastModifiedBy)' LastModifiedDate '$($Obj.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))'"
                 #endregion
@@ -1231,23 +1239,26 @@ process {
                 #region Import sheets Settings, Permissions, FormData
                 try {
                     #region Import sheet Settings
+                    $verboseMessage = "File '$($matrixFile.Name)': Import worksheet 'Settings'"
+
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "File '$($matrixFile.Name)': Import worksheet 'Settings'"
+                            Message   = $verboseMessage
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '2'
                         }
                     )
-                    Write-Verbose $eventLogData[-1].Message
+                    Write-Verbose $verboseMessage
 
-                    $ImportParams = @{
+                    $importParams = @{
                         Path        = $matrixFile.FullName
                         DataOnly    = $true
                         ErrorAction = 'Stop'
                     }
+            
                     $settingsSheet = @(
-                        Import-Excel @ImportParams -Sheet 'Settings'
+                        Import-Excel @importParams -Sheet 'Settings'
                     ).Where(
                         { $_.Status -eq 'Enabled' }
                     )
@@ -1257,160 +1268,164 @@ process {
                         foreach ($S in $settingsSheet) {
                             $ID++
 
-                            $Obj.Settings += [PSCustomObject]@{
-                                ID        = $ID
-                                Import    = Format-SettingStringsHC -Settings $S
-                                Check     = @()
-                                Matrix    = @()
-                                AdObjects = @{}
-                                JobTime   = @{}
-                            }
+                            $Obj.Settings.Add(
+                                [PSCustomObject]@{
+                                    ID        = $ID
+                                    Import    = Format-SettingStringsHC -Settings $S
+                                    Check     = [System.Collections.Generic.List[PSCustomObject]]::new()
+                                    Matrix    = [System.Collections.Generic.List[PSCustomObject]]::new()
+                                    AdObjects = @{}
+                                    JobTime   = @{}
+                                }
+                            )
                         }
 
                         #region Import sheet Permissions
-                        $eventLogData.Add(
-                            [PSCustomObject]@{
-                                Message   = "File '$($matrixFile.Name)': Import worksheet 'Permissions'"
+                        $verboseMessage = "File '$($matrixFile.Name)': Import worksheet 'Permissions'"
+
+                        $eventLogData.Add([PSCustomObject]@{
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
-                            }
-                        )
-                        Write-Verbose $eventLogData[-1].Message
+                            })
+                        Write-Verbose $verboseMessage
 
                         $Obj.Permissions.Import = @(
-                            Import-Excel @ImportParams -Sheet 'Permissions' -NoHeader |
-                            Format-PermissionsStringsHC
+                            Import-Excel @importParams -Sheet 'Permissions' -NoHeader | Format-PermissionsStringsHC
                         )
                         #endregion
 
                         #region Import sheet FormData
                         if (
-                            $Export.ServiceNowFormDataExcelFile -or
+                            $Export.ServiceNowFormDataExcelFile -or 
                             $Export.OverviewHtmlFile
                         ) {
                             try {
-                                $eventLogData.Add(
-                                    [PSCustomObject]@{
-                                        Message   = "File '$($matrixFile.Name)': Import worksheet 'FormData'"
+                                $verboseMessage = "File '$($matrixFile.Name)': Import worksheet 'FormData'"
+
+                                $eventLogData.Add([PSCustomObject]@{
+                                        Message   = $verboseMessage
                                         DateTime  = Get-Date
                                         EntryType = 'Information'
                                         EventID   = '2'
-                                    }
-                                )
-                                Write-Verbose $eventLogData[-1].Message
+                                    })
+                                Write-Verbose $verboseMessage
 
-                                $formData = Import-Excel @ImportParams -Sheet 'FormData' -ErrorVariable importFail
+                                $formData = Import-Excel @importParams -Sheet 'FormData' -ErrorVariable importFail
 
-                                $Obj.FormData.Check += Test-FormDataHC $formData
-
-                                if (-not $Obj.FormData.Check) {
-                                    $Obj.FormData.Import = $formData
+                                $formDataValidation = Test-FormDataHC $formData
+                                if ($formDataValidation) {
+                                    $Obj.FormData.Check.Add($formDataValidation)
+                                }
+                                else {
+                                    $Obj.FormData.Import = $formData[0]
                                 }
                             }
                             catch {
-                                $Obj.File.Check += [PSCustomObject]@{
-                                    Type        = 'FatalError'
-                                    Name        = "Worksheet 'FormData' not found"
-                                    Description = "When the argument 'Export.ServiceNowFormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
-                                    Value       = @($_)
-                                }
-                                # remove multiple errors from Import-Excel
-                                $importFail | ForEach-Object {
-                                    $Error.Remove($_)
-                                }
+                                $Obj.File.Check.Add([PSCustomObject]@{
+                                        Type        = 'FatalError'
+                                        Name        = "Worksheet 'FormData' not found"
+                                        Description = "When the argument 'Export.ServiceNowFormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
+                                        Value       = @($_)
+                                    })
                             }
                         }
                         #endregion
                     }
                     else {
-                        $Obj.File.Check += [PSCustomObject]@{
-                            Type        = 'Warning'
-                            Name        = 'Matrix disabled'
-                            Description = 'Every Excel file needs at least one enabled matrix.'
-                            Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
-                        }
+                        $Obj.File.Check.Add(
+                            [PSCustomObject]@{
+                                Type        = 'Warning'
+                                Name        = 'Matrix disabled'
+                                Description = 'Every Excel file needs at least one enabled matrix.'
+                                Value       = "The worksheet 'Settings' does not contain a row with 'Status' set to 'Enabled'."
+                            }
+                        )
+
+                        $verboseMessage = "File '$($matrixFile.Name)': No lines found with status 'Enabled' in the worksheet 'Settings'"
 
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "File '$($matrixFile.Name)': No lines found with status 'Enabled' in the worksheet 'Settings'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
                             }
                         )
-                        Write-Warning $eventLogData[-1].Message
+                        Write-Warning $verboseMessage
                     }
                 }
                 catch {
                     $errorMessage = switch -Wildcard ($_) {
-                        "*Worksheet 'Settings' not found*" {
-                            "Worksheet 'Settings' not found"; break
+                        "*Worksheet 'Settings' not found*" { 
+                            "Worksheet 'Settings' not found"; break 
                         }
-                        "*worksheet 'Settings': No column headers found on top row '1'*" {
-                            "Worksheet 'Settings' is empty"; break
+                        "*worksheet 'Settings': No column headers found on top row '1'*" { 
+                            "Worksheet 'Settings' is empty"; break 
                         }
-                        "*Worksheet 'Permissions' not found*" {
-                            "Worksheet 'Permissions' not found"; break
+                        "*Worksheet 'Permissions' not found*" { 
+                            "Worksheet 'Permissions' not found"; break 
                         }
-                        "*worksheet 'Permissions': No column headers found on top row '1'*" {
-                            "Worksheet 'Permissions' is empty"; break
+                        "*worksheet 'Permissions': No column headers found on top row '1'*" { 
+                            "Worksheet 'Permissions' is empty"; break 
                         }
-                        default {
-                            throw "Failed importing the Excel file '$($matrixFile.FullName)': $_"
+                        default { 
+                            "Failed importing the Excel file '$($matrixFile.FullName)': $_" 
                         }
                     }
-                    $Obj.File.Check += [PSCustomObject]@{
-                        Type        = 'FatalError'
-                        Name        = 'Excel file incorrect'
-                        Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
-                        Value       = $errorMessage
-                    }
-
-                    try { $Error.RemoveRange(0, 2) }
-                    catch { throw 'Import-Excel throws 2 errors normally' }
+                    $Obj.File.Check.Add(
+                        [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Excel file incorrect'
+                            Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
+                            Value       = $errorMessage
+                        }
+                    )
                 }
                 #endregion
 
                 if ($archivePath) {
                     try {
+                        $verboseMessage = "File '$($matrixFile.Name)': Move file to archive folder '$archivePath'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "File '$($matrixFile.Name)': Move file to archive folder '$archivePath'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
-                        Move-Item -LiteralPath $matrixFile -Destination $archivePath -Force -EA Stop
+                        Move-Item -LiteralPath $matrixFile -Destination $archivePath -Force -ErrorAction Stop
                     }
                     catch {
-                        $Obj.File.Check += [PSCustomObject]@{
-                            Type        = 'Warning'
-                            Name        = 'Archiving failed'
-                            Description = "When the '-Archive' switch is used the file is moved to the archive folder.In case a file is still in use, the move operation might fail."
-                            Value       = @($_)
-                        }
-
-                        $Error.RemoveAt(0)
+                        $Obj.File.Check.Add(
+                            [PSCustomObject]@{
+                                Type        = 'Warning'
+                                Name        = 'Archiving failed'
+                                Description = "When the '-Archive' switch is used the file is moved to the archive folder. In case a file is still in use, the move operation might fail."
+                                Value       = @($_)
+                            }
+                        )
                     }
                 }
 
                 $Obj
             }
             catch {
+                $verboseMessage = "File '$($matrixFile.Name)': $_"
+
                 $systemErrors.Add(
                     [PSCustomObject]@{
                         DateTime = Get-Date
-                        Message  = "File '$($matrixFile.Name)': $_"
+                        Message  = $verboseMessage
                     }
                 )
-
-                Write-Warning $systemErrors[-1].Message
-
-                return
+                
+                Write-Warning $verboseMessage
             }
         }
 
@@ -1480,15 +1495,17 @@ process {
             #endregion
 
             #region Build the matrix and check for incorrect input
+            $verboseMessage = 'Build the matrix and check for incorrect input'
+
             $eventLogData.Add(
                 [PSCustomObject]@{
-                    Message   = 'Build the matrix and check for incorrect input'
+                    Message   = $verboseMessage
                     DateTime  = Get-Date
                     EntryType = 'Information'
                     EventID   = '2'
                 }
             )
-            Write-Verbose $eventLogData[-1].Message
+            Write-Verbose $verboseMessage
 
             foreach (
                 $I in
@@ -1610,15 +1627,17 @@ process {
                 $groupManagers = $ADObjectDetails.ADObject.ManagedBy |
                 Sort-Object -Unique
             ) {
+                $verboseMessage = "Retrieve AD object details for $($groupManagers.Count) group managers"
+
                 $eventLogData.Add(
                     [PSCustomObject]@{
-                        Message   = "Retrieve AD object details for $($groupManagers.Count) group managers"
+                        Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
                     }
                 )
-                Write-Verbose $eventLogData[-1].Message
+                Write-Verbose $verboseMessage
 
                 $params = @{
                     ADObjectName = $groupManagers
@@ -1650,15 +1669,17 @@ process {
                 $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
+                $verboseMessage = 'Test server requirements'
+
                 $eventLogData.Add(
                     [PSCustomObject]@{
-                        Message   = 'Test server requirements'
+                        Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
                     }
                 )
-                Write-Verbose $eventLogData[-1].Message
+                Write-Verbose $verboseMessage
 
                 $scriptBlock = {
                     try {
@@ -1721,15 +1742,17 @@ process {
                 $executableMatrix = @(
                     Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
+                $verboseMessage = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
+
                 $eventLogData.Add(
                     [PSCustomObject]@{
-                        Message   = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
+                        Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
                     }
                 )
-                Write-Verbose $eventLogData[-1].Message
+                Write-Verbose $verboseMessage
 
                 #region Add default permissions
                 <#
@@ -1858,7 +1881,7 @@ process {
             }
         )
 
-        Write-Warning $systemErrors[-1].Message
+        Write-Warning $_
     }
 }
 
@@ -1873,14 +1896,16 @@ end {
 
         #region Get script name
         if (-not $scriptName) {
+            $verboseMessage = "Input file '$ConfigurationJsonFile': No 'Settings.ScriptName' found."
+
             $systemErrors.Add(
                 [PSCustomObject]@{
                     DateTime = Get-Date
-                    Message  = "Input file '$ConfigurationJsonFile': No 'Settings.ScriptName' found."
+                    Message  = $verboseMessage
                 }
             )
 
-            Write-Warning $systemErrors[-1].Message
+            Write-Warning $verboseMessage
 
             $scriptName = 'Default script name'
         }
@@ -2001,7 +2026,7 @@ end {
             </style>'
         #endregion
 
-        if ((-not $systemErrors) -and $importedMatrix) {
+        if (($systemErrors.Count -eq 0) -and $importedMatrix) {
             $dataToExport = @{
                 AccessList    = @()
                 AdObjects     = @()
@@ -2054,15 +2079,17 @@ end {
                     Where-Object { $S -eq $_.samAccountName }
 
                     if (-not $adData.adObject) {
+                        $verboseMessage = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Matrix '$($i.File.Item.Name)' SamAccountName '$s' not found in AD"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
                             }
                         )
-                        Write-Warning $eventLogData[-1].Message
+                        Write-Warning $verboseMessage
                     }
                     elseif (-not $adData.adGroupMember) {
                         $adData | Select-Object -Property SamAccountName,
@@ -2088,15 +2115,17 @@ end {
                     $excelParams.WorksheetName = 'AccessList'
                     $excelParams.TableName = 'AccessList'
 
+                    $verboseMessage = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                            Message   = $verboseMessage
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
                         }
                     )
-                    Write-Verbose $eventLogData[-1].Message
+                    Write-Verbose $verboseMessage
 
                     $accessListToExport | Export-Excel @excelParams
                     #endregion
@@ -2160,15 +2189,17 @@ end {
                     $excelParams.WorksheetName = 'GroupManagers'
                     $excelParams.TableName = 'GroupManagers'
 
+                    $verboseMessage = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+
                     $eventLogData.Add(
                         [PSCustomObject]@{
-                            Message   = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+                            Message   = $verboseMessage
                             DateTime  = Get-Date
                             EntryType = 'Information'
                             EventID   = '1'
                         }
                     )
-                    Write-Verbose $eventLogData[-1].Message
+                    Write-Verbose $verboseMessage
 
                     $groupManagersToExport | Export-Excel @excelParams
                     #endregion
@@ -2247,27 +2278,31 @@ end {
                         $permissionsExcelLogFileParams.WorksheetName = $name
                         $permissionsExcelLogFileParams.TableName = $name
 
+                        $verboseMessage = "Export $($data.Count) $Name objects to '$($permissionsExcelLogFileParams.Path)'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Export $($data.Count) $Name objects to '$($permissionsExcelLogFileParams.Path)'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
                         $data | Export-Excel @permissionsExcelLogFileParams
                     }
                     catch {
+                        $verboseMessage = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                 }
                 #endregion
@@ -2283,27 +2318,31 @@ end {
                             Destination = $Export.PermissionsExcelFile
                         }
 
+                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
                         Copy-Item @copyParams
                     }
                     catch {
+                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                 }
                 #endregion
@@ -2372,27 +2411,31 @@ end {
                             Destination = Join-Path $exportLogFolderPath 'ServiceNowFormData.xlsx'
                         }
 
+                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
                         Copy-Item @copyParams
                     }
                     catch {
+                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                     #endregion
 
@@ -2416,25 +2459,29 @@ end {
                             & $scriptPathItem.UpdateServiceNow @params
                         }
                         catch {
+                            $verboseMessage = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+
                             $systemErrors.Add(
                                 [PSCustomObject]@{
                                     DateTime = Get-Date
-                                    Message  = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                                    Message  = $verboseMessage
                                 }
                             )
 
-                            Write-Warning $systemErrors[-1].Message
+                            Write-Warning $verboseMessage
                         }
                     }
                     else {
+                        $verboseMessage = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                     #endregion
                 }
@@ -2611,27 +2658,31 @@ end {
                             Force       = $true
                         }
 
+                        $verboseMessage = "Export FormData to '$($params.LiteralPath)'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Export FormData to '$($params.LiteralPath)'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
                         $htmlFileContent | Out-File @params
                     }
                     catch {
+                        $verboseMessage = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                     #endregion
 
@@ -2642,27 +2693,31 @@ end {
                             Destination = Join-Path $exportLogFolderPath 'Overview.html'
                         }
 
+                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                                Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '1'
                             }
                         )
-                        Write-Verbose $eventLogData[-1].Message
+                        Write-Verbose $verboseMessage
 
                         Copy-Item @copyParams
                     }
                     catch {
+                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+
                         $systemErrors.Add(
                             [PSCustomObject]@{
                                 DateTime = Get-Date
-                                Message  = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                                Message  = $verboseMessage
                             }
                         )
 
-                        Write-Warning $systemErrors[-1].Message
+                        Write-Warning $verboseMessage
                     }
                     #endregion
 
@@ -3173,7 +3228,7 @@ end {
             #region Create HTML error warning table
             $errorRows = @()
 
-            if ($systemErrors.Count) {
+            if ($systemErrors.Count -ne 0) {
                 $errorRows += '
                 <tr id="probTextError">
                     <th>System errors</th>
@@ -3259,14 +3314,16 @@ end {
             }
         }
         catch {
+            $verboseMessage = "Failed writing events to event log: $_"
+
             $systemErrors.Add(
                 [PSCustomObject]@{
                     DateTime = Get-Date
-                    Message  = "Failed writing events to event log: $_"
+                    Message  = $verboseMessage
                 }
             )
 
-            Write-Warning $systemErrors[-1].Message
+            Write-Warning $verboseMessage
         }
         #endregion
 
@@ -3303,14 +3360,16 @@ end {
                     }
                 }
                 catch {
+                    $verboseMessage = "Failed to remove file '$($item.FullName)': $_"
+
                     $systemErrors.Add(
                         [PSCustomObject]@{
                             DateTime = Get-Date
-                            Message  = "Failed to remove file '$($item.FullName)': $_"
+                            Message  = $verboseMessage
                         }
                     )
 
-                    Write-Warning $systemErrors[-1].Message
+                    Write-Warning $verboseMessage
                 }
             }
         }
@@ -3318,7 +3377,7 @@ end {
 
         #region Create system errors log file
         if (
-            $systemErrors -and
+            ($systemErrors.Count -ne 0) -and
             (Test-Path -LiteralPath $LogFolder -PathType Container)
         ) {
             $params = @{
@@ -3331,7 +3390,7 @@ end {
         #endregion
 
         #region Send email
-        if ($systemErrors -or $importedMatrix) {
+        if (($systemErrors.Count -ne 0) -or $importedMatrix) {
             $mailParams += @{
                 To                  = @(
                     @($sendMail.To) + @($mailToDefaultsFile)
@@ -3461,7 +3520,7 @@ end {
             #endregion
 
             if (
-                $systemErrors -or
+                ($systemErrors.Count -ne 0) -or
                 $counter.Total.Errors -or
                 $counter.Total.Warnings
             ) {
@@ -3518,12 +3577,12 @@ end {
             }
         )
 
-        Write-Warning $systemErrors[-1].Message
+        Write-Warning $_
     }
     finally {
         Remove-PSDrive MatrixFolderPath -EA Ignore
 
-        if ($systemErrors) {
+        if ($systemErrors.Count -ne 0) {
             $M = 'Found {0} system error{1}' -f
             $systemErrors.Count,
             $(if ($systemErrors.Count -ne 1) { 's' })
