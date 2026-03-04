@@ -147,10 +147,10 @@ begin {
                 $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.Second, $jsonFileItem.BaseName
             )
 
-            (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
+            return (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
         }
         catch {
-            $LogFolder
+            return $LogFolder
         }
     }
     function Out-LogFileHC {
