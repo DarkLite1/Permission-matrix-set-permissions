@@ -934,56 +934,46 @@ begin {
         Write-Verbose 'Test .json file properties'
 
         try {
-            @(
-                'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow',
-                'PSSessionConfiguration', 'Settings'
-            ).where(
-                { -not $jsonFileContent.$_ }
-            ).foreach(
-                { throw "Property '$_' not found" }
-            )
-
-            @(
-                'FolderPath', 'DefaultsFile'
-            ).where(
-                { -not $Matrix.$_ }
-            ).foreach(
-                { throw "Property 'Matrix.$_' not found" }
-            )
-
-            @(
-                'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
-            ).foreach(
-                {
-                    if (-not $jsonFileContent.MaxConcurrent.$_) {
-                        throw "Property 'MaxConcurrent.$_' not found"
-                    }
-                    try {
-                        $null = [int]$jsonFileContent.MaxConcurrent.$_
-                    }
-                    catch {
-                        throw "Property 'MaxConcurrent.$_' needs to be a number, the value '$($jsonFileContent.MaxConcurrent.$_)' is not supported."
-                    }
+            foreach ($Prop in 'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 'PSSessionConfiguration', 'Settings') {
+                # Use $null -eq instead of -not so boolean $false or integer 0 aren't flagged as missing
+                if ($null -eq $jsonFileContent.$Prop) { 
+                    throw "Property '$Prop' not found" 
                 }
-            )
+            }
 
-            #region Test boolean values
-            foreach (
-                $boolean in
-                @(
-                    'Archive'
-                )
-            ) {
+            foreach ($Prop in 'FolderPath', 'DefaultsFile') {
+                if ($null -eq $Matrix.$Prop) { 
+                    throw "Property 'Matrix.$Prop' not found" 
+                }
+            }
+
+            foreach ($Prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
+                $Val = $jsonFileContent.MaxConcurrent.$Prop
+        
+                if ($null -eq $Val) {
+                    throw "Property 'MaxConcurrent.$Prop' not found"
+                }
+        
                 try {
-                    $null = [Boolean]::Parse($Matrix.$boolean)
+                    $null = [int]$Val
                 }
                 catch {
-                    throw "Property 'Matrix.$boolean' is not a boolean value"
+                    throw "Property 'MaxConcurrent.$Prop' needs to be a number, the value '$Val' is not supported."
+                }
+            }
+
+            #region Test boolean values
+            foreach ($Prop in @('Archive')) {
+                try {
+                    $null = [bool]::Parse($Matrix.$Prop)
+                }
+                catch {
+                    throw "Property 'Matrix.$Prop' is not a boolean value"
                 }
             }
 
             try {
-                $null = [Boolean]::Parse($jsonFileContent.Settings.SaveLogFiles.Detailed)
+                $null = [bool]::Parse($jsonFileContent.Settings.SaveLogFiles.Detailed)
             }
             catch {
                 throw "Property 'Settings.SaveLogFiles.Detailed' is not a boolean value"
@@ -991,8 +981,8 @@ begin {
             #endregion
 
             #region Test array
-            if (-not ($Matrix.ExcludedSamAccountName -is [Array])) {
-                throw "Property 'Matrix.ExcludedSamAccountName' needs to be array"
+            if (-not ($Matrix.ExcludedSamAccountName -is [array])) {
+                throw "Property 'Matrix.ExcludedSamAccountName' needs to be an array"
             }
             #endregion
         }
@@ -3292,7 +3282,7 @@ end {
 
             Write-Verbose "Remove log files older than $cutoffDate from '$LogFolder'"
 
-            Get-ChildItem -literalPath $LogFolder -Recurse |
+            Get-ChildItem -LiteralPath $LogFolder -Recurse |
             Sort-Object 'FullName' -Descending |
             ForEach-Object {
                 $item = $_
@@ -3335,7 +3325,7 @@ end {
         #region Create system errors log file
         if (
             $systemErrors -and
-            (Test-Path -literalPath $LogFolder -PathType Container)
+            (Test-Path -LiteralPath $LogFolder -PathType Container)
         ) {
             $params = @{
                 DataToExport   = $systemErrors
