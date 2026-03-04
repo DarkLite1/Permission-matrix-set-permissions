@@ -1513,36 +1513,37 @@ process {
             #region Build the matrix and check for incorrect input
             $verboseMessage = 'Build the matrix and check for incorrect input'
 
-            $eventLogData.Add(
-                [PSCustomObject]@{
+            $eventLogData.Add([PSCustomObject]@{
                     Message   = $verboseMessage
                     DateTime  = Get-Date
                     EntryType = 'Information'
                     EventID   = '2'
-                }
-            )
-                
+                })
             Write-Verbose $verboseMessage
 
-            foreach ($I in $importedMatrix) {
-                if (
-                    ($I.File.Check.Type -contains 'FatalError') -or 
-                    (-not $I.Settings)
-                ) {
-                    continue
+            $processMatrixBlock = {
+                param (
+                    $I,
+                    $eventLogData,
+                    $VerbosePreference,
+                    $ErrorActionPreference
+                )
+
+                Import-Module -Name Toolbox.PermissionMatrix -ErrorAction Stop
+
+                if (($I.File.Check.Type -contains 'FatalError') -or (-not $I.Settings)) {
+                    return $I 
                 }
 
                 try {
                     Write-Verbose "Test matrix permissions for '$($I.File.Item.BaseName)'"
-
+        
                     $permCheck = Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
-                    
                     if ($permCheck) { $I.Permissions.Check += $permCheck }
 
                     if ($I.Permissions.Check.Type -notcontains 'FatalError') {
                         foreach ($S in $I.Settings) {
                             $settingCheck = Test-MatrixSettingHC -Setting $S.Import
-
                             if ($settingCheck) { $S.Check += $settingCheck }
 
                             #region Create AD object names
@@ -1587,7 +1588,33 @@ process {
                         Value       = @($_)
                     }
                 }
+
+                return $I
             }
+
+            #region Run code serial or parallel
+            if ($MaxConcurrent.Computers -eq 1) {
+                $importedMatrix = $importedMatrix | ForEach-Object {
+                    $params = @{
+                        I                     = $_ 
+                        VerbosePreference     = $VerbosePreference 
+                        ErrorActionPreference = $ErrorActionPreference
+                    }
+                    & $processMatrixBlock @params
+                }
+            }
+            else {
+                $importedMatrix = $importedMatrix | 
+                ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                    $params = @{
+                        I                     = $_ 
+                        VerbosePreference     = $using:VerbosePreference 
+                        ErrorActionPreference = $using:ErrorActionPreference
+                    }
+                    & $using:processMatrixBlock @params
+                } 
+            }
+            #endregion
             #endregion
 
             #region Test duplicate ComputerName/Path combination
