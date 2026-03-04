@@ -1103,13 +1103,17 @@ begin {
         #endregion
 
         #region Archive
-        $ArchiveItem = $null
+        $archivePath = $null
 
         if ($Matrix.Archive) {
-            try {
-                $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
+            $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
 
-                $ArchiveItem = (New-Item -ItemType 'Directory' -Path $archivePath -Force -EA Stop).FullName
+            try {
+                if (-not (
+                        Test-Path -LiteralPath $archivePath -PathType Container)
+                ) {
+                    $null = New-Item -ItemType 'Directory' -Path $archivePath -ErrorAction Stop
+                }
             }
             catch {
                 throw "Failed to create archive folder '$archivePath': $_"
@@ -1168,7 +1172,7 @@ process {
                 if (-not $MaxConcurrent) {
                     $Export = $using:Export
                     $Matrix = $using:Matrix
-                    $ArchiveItem = $using:ArchiveItem 
+                    $archivePath = $using:archivePath
                     $datedLogFolderPath = $using:datedLogFolderPath
                     $eventLogData = $using:eventLogData
                     $VerbosePreference = $using:VerbosePreference
@@ -1376,11 +1380,11 @@ process {
                 }
                 #endregion
 
-                if ($Matrix.Archive) {
+                if ($archivePath) {
                     try {
                         $eventLogData.Add(
                             [PSCustomObject]@{
-                                Message   = "File '$($matrixFile.Name)': Move file to archive folder '$($ArchiveItem.FullName)'"
+                                Message   = "File '$($matrixFile.Name)': Move file to archive folder '$archivePath'"
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
@@ -1388,7 +1392,7 @@ process {
                         )
                         Write-Verbose $eventLogData[-1].Message
 
-                        Move-Item -LiteralPath $matrixFile -Destination $ArchiveItem -Force -EA Stop
+                        Move-Item -LiteralPath $matrixFile -Destination $archivePath -Force -EA Stop
                     }
                     catch {
                         $Obj.File.Check += [PSCustomObject]@{
@@ -1461,7 +1465,7 @@ process {
 
                     #region Add MatrixFilePath and MatrixFileName
                     $property.MatrixFilePath = if ($Matrix.Archive) {
-                        Join-Path $ArchiveItem $I.File.Item.Name
+                        Join-Path $archivePath $I.File.Item.Name
                     }
                     else {
                         $I.File.Item.FullName
