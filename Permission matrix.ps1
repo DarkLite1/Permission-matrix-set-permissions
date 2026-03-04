@@ -1157,22 +1157,19 @@ process {
         #endregion
 
         $scriptBlock = {
+            param (
+                $matrixFile,
+                $Matrix,
+                $Export,
+                $archivePath,
+                $eventLogData,
+                $datedLogFolderPath,
+                $VerbosePreference,
+                $ErrorActionPreference
+            )
+    
             try {
-                $matrixFile = $_
-
                 Write-Verbose "Matrix file '$($matrixFile.Name)'"
-
-                #region Declare variables for parallel execution
-                if (-not $MaxConcurrent) {
-                    $Export = $using:Export
-                    $Matrix = $using:Matrix
-                    $archivePath = $using:archivePath
-                    $datedLogFolderPath = $using:datedLogFolderPath
-                    $eventLogData = $using:eventLogData
-                    $VerbosePreference = $using:VerbosePreference
-                    $ErrorActionPreference = $using:ErrorActionPreference
-                }
-                #endregion
 
                 $Obj = [PSCustomObject]@{
                     File        = @{
@@ -1430,20 +1427,38 @@ process {
         }
 
         #region Run code serial or parallel
-        $foreachParams = if ($MaxConcurrent.Computers -eq 1) {
-            @{
-                Process = $scriptBlock
+        $importedMatrix = if ($MaxConcurrent.Computers -eq 1) {
+            $matrixFiles | ForEach-Object {
+                $params = @{
+                    matrixFile            = $_
+                    Matrix                = $Matrix
+                    Export                = $Export
+                    archivePath           = $archivePath
+                    eventLogData          = $eventLogData
+                    datedLogFolderPath    = $datedLogFolderPath
+                    VerbosePreference     = $VerbosePreference 
+                    ErrorActionPreference = $ErrorActionPreference
+                }
+                & $scriptBlock @params
             }
         }
         else {
-            @{
-                Parallel      = $scriptBlock
-                ThrottleLimit = $MaxConcurrent.Computers
-            }
+            $matrixFiles | 
+            ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                $params = @{
+                    matrixFile            = $_
+                    Matrix                = $using:Matrix
+                    Export                = $using:Export
+                    archivePath           = $using:archivePath
+                    eventLogData          = $using:eventLogData
+                    datedLogFolderPath    = $using:datedLogFolderPath
+                    VerbosePreference     = $using:VerbosePreference 
+                    ErrorActionPreference = $using:ErrorActionPreference
+                }
+                & $using:scriptBlock @params
+            } 
         }
         #endregion
-
-        [Array]$importedMatrix = $matrixFiles | ForEach-Object @foreachParams
 
         if ($importedMatrix) {
             #region Build FormData for Export folder
@@ -1593,8 +1608,8 @@ process {
             }
 
             #region Run code serial or parallel
-            if ($MaxConcurrent.Computers -eq 1) {
-                $importedMatrix = $importedMatrix | ForEach-Object {
+            $importedMatrix = if ($MaxConcurrent.Computers -eq 1) {
+                $importedMatrix | ForEach-Object {
                     $params = @{
                         I                     = $_ 
                         VerbosePreference     = $VerbosePreference 
@@ -1604,7 +1619,7 @@ process {
                 }
             }
             else {
-                $importedMatrix = $importedMatrix | 
+                $importedMatrix | 
                 ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                     $params = @{
                         I                     = $_ 
