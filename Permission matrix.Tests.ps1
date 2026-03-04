@@ -2001,7 +2001,7 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used but' {
                 ($Body -like '*<p><b>Detected issues:</b></p>*') -and
                 ($Body -like '*<th>Matrix errors</th>*1*')
             }
-        }  -Tag test
+        }
     }
     Context 'the worksheet FormData has a non existing MatrixResponsible' {
         BeforeAll {
