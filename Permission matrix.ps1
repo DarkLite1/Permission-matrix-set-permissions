@@ -1034,7 +1034,6 @@ begin {
         }
 
         try {
-            # Convert string path to a DirectoryInfo object safely
             $Matrix.FolderPath = Get-Item -LiteralPath $Matrix.FolderPath -ErrorAction Stop
         }
         catch {
