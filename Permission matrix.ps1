@@ -1857,136 +1857,153 @@ process {
 
             #region Set permissions
             if (
-                $executableMatrix = @(
-                    Get-ExecutableMatrixHC -From $importedMatrix)
+                $executableMatrix = @(Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
                 $verboseMessage = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
 
-                $eventLogData.Add(
-                    [PSCustomObject]@{
+                $eventLogData.Add([PSCustomObject]@{
                         Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
-                    }
-                )
+                    })
                 Write-Verbose $verboseMessage
 
                 #region Add default permissions
-                <#
-                    In case of conflict the acl in the matrix will win
-                    over the acl in the Matrix.DefaultsFile.
-                #>
                 if ($DefaultAcl.Count -ne 0) {
-                    foreach (
-                        $acl in
-                        @($executableMatrix.Matrix.ACL).Where(
-                            { $_.Count -ne 0 }
-                        )
-                    ) {
-                        $DefaultAcl.GetEnumerator().Where(
-                            { -not $acl.ContainsKey($_.Key) }
-                        ).Foreach(
-                            { $acl.Add($_.Key, $_.Value) }
-                        )
+                    foreach ($acl in @($executableMatrix.Matrix.ACL).Where({ $_.Count -ne 0 })) {
+                        $DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).Foreach({ 
+                                $acl.Add($_.Key, $_.Value) 
+                            })
                     }
                 }
                 #endregion
 
-                $matrixes = $null
+                # 1. INNER BLOCK: The pure worker. Returns the result payload.
+                $innerScriptBlock = {
+                    param (
+                        $matrixFile,
+                        $scriptPathItem,
+                        $PSSessionConfiguration,
+                        $MaxConcurrent,
+                        $DetailedLog
+                    )
+                    try {
+                        $startTime = Get-Date
 
-                $outerScriptBlock = {
-                    # $VerbosePreference = 'Continue'
-
-                    $matrixes = $_.Group
-
-                    #region Declare variables for parallel execution
-                    if (-not $MaxConcurrent) {
-                        $MaxConcurrent = $using:MaxConcurrent
-                        $scriptPathItem = $using:scriptPathItem
-                        $PSSessionConfiguration = $using:PSSessionConfiguration
-                        $DetailedLog = $using:DetailedLog
-                        $eventLogData = $using:eventLogData
-                    }
-                    #endregion
-
-                    $innerScriptBlock = {
-                        try {
-                            # $VerbosePreference = 'Continue'
-
-                            $matrixFile = $_
-
-                            #region Declare variables for parallel execution
-                            if (-not $MaxConcurrent) {
-                                $MaxConcurrent = $using:MaxConcurrent
-                                $scriptPathItem = $using:scriptPathItem
-                                $PSSessionConfiguration = $using:PSSessionConfiguration
-                                $DetailedLog = $using:DetailedLog
-                                $eventLogData = $using:eventLogData
-                            }
-                            #endregion
-
-                            $matrixFile.JobTime.Start = Get-Date
-
-                            $params = @{
-                                FilePath          = $scriptPathItem.SetPermissionFile
-                                ArgumentList      = $matrixFile.Import.Path, $matrixFile.Import.Action, $matrixFile.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
-                                ConfigurationName = $PSSessionConfiguration
-                                ComputerName      = $matrixFile.Import.ComputerName
-                                ErrorAction       = 'Stop'
-                            }
-                            if ($result = Invoke-Command @params) {
-                                $matrixFile.Check += $result
-                            }
+                        $params = @{
+                            FilePath          = $scriptPathItem.SetPermissionFile
+                            ArgumentList      = $matrixFile.Import.Path, $matrixFile.Import.Action, $matrixFile.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
+                            ConfigurationName = $PSSessionConfiguration
+                            ComputerName      = $matrixFile.Import.ComputerName
+                            ErrorAction       = 'Stop'
                         }
-                        catch {
-                            $problem = [PSCustomObject]@{
+            
+                        $result = Invoke-Command @params
+
+                        $endTime = Get-Date
+                        return [PSCustomObject]@{
+                            ID       = $matrixFile.ID # Use ID to map it back later!
+                            Result   = $result
+                            JobStart = $startTime
+                            JobEnd   = $endTime
+                        }
+                    }
+                    catch {
+                        return [PSCustomObject]@{
+                            ID       = $matrixFile.ID
+                            Result   = [PSCustomObject]@{
                                 Type        = 'FatalError'
                                 Name        = 'Set permissions'
-                                Value       = $_
+                                Value       = @($_)
                                 Description = "Failed applying action '$($matrixFile.Import.Action)' with the 'Set permissions' script."
                             }
-                            $Error.RemoveAt(0)
-                            $matrixFile.Check += $problem
-                        }
-                        finally {
-                            $matrixFile.JobTime.End = Get-Date
-                            $matrixFile.JobTime.Duration = New-TimeSpan -Start $matrixFile.JobTime.Start -End $matrixFile.JobTime.End
+                            JobStart = $startTime
+                            JobEnd   = Get-Date
                         }
                     }
+                }
 
-                    $innerForeachParams = if (
-                        $MaxConcurrent.JobsPerRemoteComputer -gt 1
+                $innerScriptBlockString = $innerScriptBlock.ToString()
+
+                # 2. OUTER BLOCK: Routes matrices to the inner block
+                $outerScriptBlock = {
+                    param (
+                        $ComputerGroup,
+                        $scriptPathItem,
+                        $PSSessionConfiguration,
+                        $MaxConcurrent,
+                        $DetailedLog,
+                        $innerScriptBlockString,
+                        $innerScriptBlock
+                    )
+
+                    $matrixes = $ComputerGroup.Group
+
+                    $innerResults = if (
+                        $MaxConcurrent.JobsPerRemoteComputer -eq 1
                     ) {
-                        @{
-                            Parallel      = $innerScriptBlock
-                            ThrottleLimit = $MaxConcurrent.JobsPerRemoteComputer
+                        $matrixes | ForEach-Object {
+                            & $innerScriptBlock -matrixFile $_ `
+                                -scriptPathItem $scriptPathItem `
+                                -PSSessionConfiguration $PSSessionConfiguration `
+                                -MaxConcurrent $MaxConcurrent `
+                                -DetailedLog $DetailedLog
                         }
                     }
                     else {
-                        @{
-                            Process = $innerScriptBlock
+                        $matrixes | ForEach-Object -ThrottleLimit $MaxConcurrent.JobsPerRemoteComputer -Parallel {
+                            & [scriptblock]::Create($using:innerScriptBlockString) -matrixFile $_ `
+                                -scriptPathItem ($using:scriptPathItem) `
+                                -PSSessionConfiguration ($using:PSSessionConfiguration) `
+                                -MaxConcurrent ($using:MaxConcurrent) `
+                                -DetailedLog ($using:DetailedLog)
                         }
                     }
 
-                    $matrixes | ForEach-Object @innerForeachParams
+                    return $innerResults
                 }
 
-                $foreachParams = if ($MaxConcurrent.Computers -gt 1) {
-                    @{
-                        Parallel      = $outerScriptBlock
-                        ThrottleLimit = $MaxConcurrent.Computers
+                $outerScriptBlockString = $outerScriptBlock.ToString()
+
+                # 3. KICKOFF: Execute the outer block
+                $computerGroups = $executableMatrix | Group-Object -Property { $_.Import.ComputerName }
+
+                $allJobResults = if ($MaxConcurrent.Computers -eq 1) {
+                    $computerGroups | ForEach-Object {
+                        & $outerScriptBlock -ComputerGroup $_ `
+                            -scriptPathItem $scriptPathItem `
+                            -PSSessionConfiguration $PSSessionConfiguration `
+                            -MaxConcurrent $MaxConcurrent `
+                            -DetailedLog $DetailedLog `
+                            -innerScriptBlockString $innerScriptBlockString `
+                            -innerScriptBlock $innerScriptBlock
                     }
                 }
                 else {
-                    @{
-                        Process = $outerScriptBlock
+                    $computerGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                        & [scriptblock]::Create($using:outerScriptBlockString) -ComputerGroup $_ `
+                            -scriptPathItem ($using:scriptPathItem) `
+                            -PSSessionConfiguration ($using:PSSessionConfiguration) `
+                            -MaxConcurrent ($using:MaxConcurrent) `
+                            -DetailedLog ($using:DetailedLog) `
+                            -innerScriptBlockString ($using:innerScriptBlockString)
                     }
                 }
 
-                $executableMatrix |
-                Group-Object -Property { $_.Import.ComputerName } |
-                ForEach-Object @foreachParams -Verbose
+                foreach ($payload in $allJobResults) {
+                    $liveMatrix = $executableMatrix | 
+                    Where-Object {$_.ID -EQ $payload.ID}
+
+                    if ($liveMatrix) {
+                        if ($payload.Result) {
+                            $liveMatrix.Check += $payload.Result
+                        }
+                        $liveMatrix.JobTime.Start = $payload.JobStart
+                        $liveMatrix.JobTime.End = $payload.JobEnd
+                        $liveMatrix.JobTime.Duration = New-TimeSpan -Start $payload.JobStart -End $payload.JobEnd
+                    }
+                }
             }
             #endregion
         }

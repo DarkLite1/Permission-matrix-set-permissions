@@ -1279,7 +1279,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2] -ne $null) -and
             ($ArgumentList[3] -ne $null)
         }
-    }
+    } -Tag test
     It 'saves the start/end/duration times for each job in the settings' {
         $ImportedMatrix.Settings.JobTime.Start | Should -HaveCount 3
         $ImportedMatrix.Settings.JobTime.End | Should -HaveCount 3
