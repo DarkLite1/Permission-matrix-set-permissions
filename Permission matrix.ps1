@@ -1620,7 +1620,7 @@ process {
                         VerbosePreference     = $VerbosePreference
                         ErrorActionPreference = $ErrorActionPreference
                     }
-                    & $processMatrixBlock @params
+                    & $scriptBlock @params
                 }
             }
             else {
