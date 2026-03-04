@@ -1710,10 +1710,11 @@ process {
             #endregion
 
             #region Get AD object details for group managers
-            if (
-                $groupManagers = $ADObjectDetails.ADObject.ManagedBy |
-                Sort-Object -Unique
-            ) {
+            $groupManagers = $ADObjectDetails.ADObject.ManagedBy | 
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | 
+            Sort-Object -Unique
+
+            if ($groupManagers.Count -gt 0) {
                 $verboseMessage = "Retrieve AD object details for $($groupManagers.Count) group managers"
 
                 $eventLogData.Add(
@@ -1730,7 +1731,7 @@ process {
                     ADObjectName = $groupManagers
                     Type         = 'DistinguishedName'
                 }
-                $groupManagersAdDetails = Get-ADObjectDetailHC @params
+                $groupManagersAdDetails = @(Get-ADObjectDetailHC @params)
             }
             #endregion
 
