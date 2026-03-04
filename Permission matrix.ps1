@@ -1057,16 +1057,16 @@ begin {
         try {
             #region Get the defaults
             try {
-                $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -EA Stop
+                $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -ErrorAction Stop
             }
             catch {
-                throw "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' not found: $_"
+                throw "File not found: $_"
             }
 
             try {
                 Write-Verbose "Import matrix defaults file '$($Matrix.DefaultsFile)'"
 
-                $DefaultsImport = Import-Excel -Path $DefaultsItem -Sheet 'Settings' -DataOnly -ErrorAction 'Stop'
+                $DefaultsImport = Import-Excel -Path $DefaultsItem.FullName -Sheet 'Settings' -DataOnly -ErrorAction Stop
             }
             catch {
                 throw "worksheet 'Settings' not found*"
@@ -1074,31 +1074,33 @@ begin {
             #endregion
 
             #region Verify mandatory column headers
-            $propDefault = $DefaultsImport.ForEach( {
-                    $_.PSObject.Properties.Name
-                })
+            $propDefault = $DefaultsImport[0].PSObject.Properties.Name
 
-            @('MailTo', 'ADObjectName', 'Permission').Where( { $propDefault -notcontains $_ }).ForEach( {
-                    throw "Column header '$_' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
-                })
+            foreach ($Column in @('MailTo', 'ADObjectName', 'Permission')) {
+                if ($Column -notin $propDefault) {
+                    throw "Column header '$Column' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
+                }
+            }
             #endregion
 
             $DefaultAcl = Get-DefaultAclHC -Sheet $DefaultsImport
 
             #region Get MailTo
-            $mailToDefaultsFile = $DefaultsImport.ForEach( {
-                    $_.PSObject.Properties.Where( { ($_.Name -eq 'MailTo') -and ($_.Value) }).Foreach( {
-                            $_.Value.ToString().Trim()
-                        })
-                })
+            $mailToDefaultsFile = [System.Collections.Generic.List[string]]::new()
+    
+            foreach ($Row in $DefaultsImport) {
+                if (-not [string]::IsNullOrWhiteSpace($Row.MailTo)) {
+                    $mailToDefaultsFile.Add($Row.MailTo.ToString().Trim())
+                }
+            }
 
-            if (-not $mailToDefaultsFile) {
-                throw "No mail addresses found under column header 'MailTo'"
+            if ($mailToDefaultsFile.Count -eq 0) {
+                throw "No valid mail addresses found under column header 'MailTo'."
             }
             #endregion
         }
         catch {
-            throw "Matrix defaults file '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
+            throw "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
         }
         #endregion
 

@@ -369,7 +369,7 @@ Describe 'create an error log file when' {
                 $testLogFileContent = Test-GetLogFileDataHC
 
                 $testLogFileContent[0].Message |
-                Should -BeLike "*Matrix.$_ 'x:\NotExisting' not found: *"
+                Should -BeLike "*Matrix.$_ 'x:\NotExisting'* not found*"
             }
         }
     }
@@ -467,7 +467,7 @@ Describe 'create an error log file when' {
                         MailTo       = ' '
                     }
                 )
-                errorMessage = 'No mail addresses found'
+                errorMessage = "No valid mail addresses found under column header 'MailTo'"
             }
         )
 
