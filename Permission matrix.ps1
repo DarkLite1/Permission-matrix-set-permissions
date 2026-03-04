@@ -1447,13 +1447,26 @@ process {
 
         if ($importedMatrix) {
             #region Build FormData for Export folder
-            foreach ($I in ($importedMatrix.Where( { $_.FormData.Import }))) {
+            foreach ($I in $importedMatrix) {
+                if (-not $I.FormData.Import) { continue }
+
                 try {
                     $property = @{}
 
                     #region Convert MatrixResponsible to UserPrincipalName
+                    $responsibleRaw = $I.FormData.Import.MatrixResponsible
+        
+                    $namesToProcess = if (
+                        -not [string]::IsNullOrWhiteSpace($responsibleRaw)
+                    ) {
+                        $responsibleRaw.Split(',').Trim()
+                    }
+                    else {
+                        @()
+                    }
+
                     $params = @{
-                        Name                  = $I.FormData.Import.MatrixResponsible.Split(',').Trim()
+                        Name                  = $namesToProcess
                         ExcludeSamAccountName = $ExcludedSamAccountName
                     }
                     $result = Get-AdUserPrincipalNameHC @params
@@ -1461,18 +1474,18 @@ process {
                     $property.MatrixResponsible = $result.userPrincipalName -join ','
 
                     if ($result.notFound) {
-                        $I.FormData.Check += [PSCustomObject]@{
-                            Type        = 'Warning'
-                            Name        = 'AD object not found'
-                            Description = "The email address or SamAccountName is not found in the active directory. Multiple entries are supported with the comma ',' separator."
-                            Value       = $result.notFound
-                        }
+                        $I.FormData.Check.Add([PSCustomObject]@{
+                                Type        = 'Warning'
+                                Name        = 'AD object not found'
+                                Description = "The email address or SamAccountName is not found in the active directory. Multiple entries are supported with the comma ',' separator."
+                                Value       = $result.notFound
+                            })
                     }
                     #endregion
 
                     #region Add MatrixFilePath and MatrixFileName
                     $property.MatrixFilePath = if ($Matrix.Archive) {
-                        Join-Path $archivePath $I.File.Item.Name
+                        Join-Path -Path $archivePath -ChildPath $I.File.Item.Name
                     }
                     else {
                         $I.File.Item.FullName
@@ -1481,15 +1494,18 @@ process {
                     $property.MatrixFileName = $I.File.Item.BaseName
                     #endregion
 
-                    $I.FormData.Import | Add-Member -NotePropertyMembers $property -Force
+                    $I.FormData.Import | 
+                    Add-Member -NotePropertyMembers $property -Force
                 }
                 catch {
-                    $I.FormData.Check += [PSCustomObject]@{
-                        Type        = 'FatalError'
-                        Name        = 'Failed adding property'
-                        Description = "The worksheet 'FormData' could not be updated correctly."
-                        Value       = @($_)
-                    }
+                    $I.FormData.Check.Add(
+                        [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Failed adding property'
+                            Description = "The worksheet 'FormData' could not be updated correctly."
+                            Value       = @($_)
+                        }
+                    )
                 }
             }
             #endregion
