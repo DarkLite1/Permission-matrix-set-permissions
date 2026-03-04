@@ -1164,15 +1164,14 @@ process {
         }
         #endregion
 
-        [Array]$importedMatrix = $matrixFiles | 
-        ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+        $scriptBlock = {
             try {
                 $matrixFile = $_
 
                 Write-Verbose "Matrix file '$matrixFile'"
 
                 #region Declare variables for parallel execution
-                if (-not $Matrix) {
+                if (-not $MaxConcurrent) {
                     $Export = $using:Export
                     $Matrix = $using:Matrix
                     $ArchiveItem = $using:ArchiveItem 
@@ -1424,6 +1423,22 @@ process {
                 return
             }
         }
+
+        #region Run code serial or parallel
+        $foreachParams = if ($MaxConcurrent.Computers -eq 1) {
+            @{
+                Process = $scriptBlock
+            }
+        }
+        else {
+            @{
+                Parallel      = $scriptBlock
+                ThrottleLimit = $MaxConcurrent.Computers
+            }
+        }
+        #endregion
+
+        [Array]$importedMatrix = $matrixFiles | ForEach-Object @foreachParams
 
         if ($importedMatrix) {
             #region Build FormData for Export folder

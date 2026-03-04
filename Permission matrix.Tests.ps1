@@ -2207,9 +2207,9 @@ Describe 'when Export.ServiceNowFormDataExcelFile is used' {
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
-            ($Body -like '*Matrix results per file*')
+            ($Body -like '*<p><b>Processed files in the folder *<a href="*\Matrix">Matrix</a>*')
         }
-    }
+    } -Tag test
 }
 Describe 'when Export.PermissionsExcelFile is used' {
     BeforeAll {
@@ -2402,7 +2402,7 @@ Describe 'when Export.PermissionsExcelFile is used' {
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
-            ($Body -like '*Matrix results per file*')
+            ($Body -like '*<p><b>Processed files in the folder *<a href="*\Matrix">Matrix</a>*')
         }
     }
 }
@@ -2512,7 +2512,7 @@ Describe 'when Export.OverviewHtmlFile is used' {
             ($SmtpConnectionType -eq 'StartTls') -and
             ($Subject -eq '1 matrix file, Email subject') -and
             ($Body -like '*<p><b>Exported 1 file:</b></p>*') -and
-            ($Body -like '*Matrix results per file*')
+            ($Body -like '*<p><b>Processed files in the folder *<a href="*\Matrix">Matrix</a>*')
         }
     }
 }
