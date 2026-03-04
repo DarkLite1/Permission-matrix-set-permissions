@@ -929,24 +929,24 @@ begin {
         try {
             foreach ($Prop in 'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 'PSSessionConfiguration', 'Settings') {
                 # Use $null -eq instead of -not so boolean $false or integer 0 aren't flagged as missing
-                if ($null -eq $jsonFileContent.$Prop) { 
-                    throw "Property '$Prop' not found" 
+                if ($null -eq $jsonFileContent.$Prop) {
+                    throw "Property '$Prop' not found"
                 }
             }
 
             foreach ($Prop in 'FolderPath', 'DefaultsFile') {
-                if ($null -eq $Matrix.$Prop) { 
-                    throw "Property 'Matrix.$Prop' not found" 
+                if ($null -eq $Matrix.$Prop) {
+                    throw "Property 'Matrix.$Prop' not found"
                 }
             }
 
             foreach ($Prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
                 $Val = $jsonFileContent.MaxConcurrent.$Prop
-        
+
                 if ($null -eq $Val) {
                     throw "Property 'MaxConcurrent.$Prop' not found"
                 }
-        
+
                 try {
                     $null = [int]$Val
                 }
@@ -1008,7 +1008,7 @@ begin {
             $retryCount = 0
             $maxRetries = 240
             $isDriveMapped = $false
-    
+
             while (-not $isDriveMapped) {
                 try {
                     $params = @{
@@ -1024,7 +1024,7 @@ begin {
                     if ($retryCount -ge $maxRetries) {
                         throw "Drive mapping failed for '$($Matrix.FolderPath)' after $maxRetries attempts: $_"
                     }
-            
+
                     Write-Verbose "Drive mapping failed for '$($Matrix.FolderPath)'. Retrying in 30 seconds... ($retryCount/$maxRetries)"
                     Start-Sleep -Seconds 30
                     $retryCount++
@@ -1075,7 +1075,7 @@ begin {
 
             #region Get MailTo
             $mailToDefaultsFile = [System.Collections.Generic.List[string]]::new()
-    
+
             foreach ($Row in $DefaultsImport) {
                 if (-not [string]::IsNullOrWhiteSpace($Row.MailTo)) {
                     $mailToDefaultsFile.Add($Row.MailTo.ToString().Trim())
@@ -1167,7 +1167,7 @@ process {
                 $VerbosePreference,
                 $ErrorActionPreference
             )
-    
+
             try {
                 Write-Verbose "Matrix file '$($matrixFile.Name)'"
 
@@ -1194,12 +1194,12 @@ process {
                 try {
                     $matrixLogFolderPath = Join-Path -Path $datedLogFolderPath -ChildPath $matrixFile.BaseName
 
-                    if (-not 
+                    if (-not
                         (Test-Path -LiteralPath $matrixLogFolderPath -PathType Container)
                     ) {
                         $null = New-Item -ItemType 'Directory' -Path $matrixLogFolderPath -ErrorAction Stop
                     }
-            
+
                     $Obj.File.LogFolder = $matrixLogFolderPath
 
                     Write-Verbose "Matrix log folder '$($Obj.File.LogFolder)'"
@@ -1253,7 +1253,7 @@ process {
                         DataOnly    = $true
                         ErrorAction = 'Stop'
                     }
-            
+
                     $settingsSheet = @(
                         Import-Excel @importParams -Sheet 'Settings'
                     ).Where(
@@ -1295,7 +1295,7 @@ process {
 
                         #region Import sheet FormData
                         if (
-                            $Export.ServiceNowFormDataExcelFile -or 
+                            $Export.ServiceNowFormDataExcelFile -or
                             $Export.OverviewHtmlFile
                         ) {
                             try {
@@ -1355,20 +1355,20 @@ process {
                 }
                 catch {
                     $errorMessage = switch -Wildcard ($_) {
-                        "*Worksheet 'Settings' not found*" { 
-                            "Worksheet 'Settings' not found"; break 
+                        "*Worksheet 'Settings' not found*" {
+                            "Worksheet 'Settings' not found"; break
                         }
-                        "*worksheet 'Settings': No column headers found on top row '1'*" { 
-                            "Worksheet 'Settings' is empty"; break 
+                        "*worksheet 'Settings': No column headers found on top row '1'*" {
+                            "Worksheet 'Settings' is empty"; break
                         }
-                        "*Worksheet 'Permissions' not found*" { 
-                            "Worksheet 'Permissions' not found"; break 
+                        "*Worksheet 'Permissions' not found*" {
+                            "Worksheet 'Permissions' not found"; break
                         }
-                        "*worksheet 'Permissions': No column headers found on top row '1'*" { 
-                            "Worksheet 'Permissions' is empty"; break 
+                        "*worksheet 'Permissions': No column headers found on top row '1'*" {
+                            "Worksheet 'Permissions' is empty"; break
                         }
-                        default { 
-                            "Failed importing the Excel file '$($matrixFile.FullName)': $_" 
+                        default {
+                            "Failed importing the Excel file '$($matrixFile.FullName)': $_"
                         }
                     }
                     $Obj.File.Check.Add(
@@ -1421,7 +1421,7 @@ process {
                         Message  = $verboseMessage
                     }
                 )
-                
+
                 Write-Warning $verboseMessage
             }
         }
@@ -1436,14 +1436,16 @@ process {
                     archivePath           = $archivePath
                     eventLogData          = $eventLogData
                     datedLogFolderPath    = $datedLogFolderPath
-                    VerbosePreference     = $VerbosePreference 
+                    VerbosePreference     = $VerbosePreference
                     ErrorActionPreference = $ErrorActionPreference
                 }
                 & $scriptBlock @params
             }
         }
         else {
-            $matrixFiles | 
+            $processScriptBlockString = $scriptBlock.ToString()
+
+            $matrixFiles |
             ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                 $params = @{
                     matrixFile            = $_
@@ -1452,11 +1454,14 @@ process {
                     archivePath           = $using:archivePath
                     eventLogData          = $using:eventLogData
                     datedLogFolderPath    = $using:datedLogFolderPath
-                    VerbosePreference     = $using:VerbosePreference 
+                    VerbosePreference     = $using:VerbosePreference
                     ErrorActionPreference = $using:ErrorActionPreference
                 }
-                & $using:scriptBlock @params
-            } 
+
+                $rehydratedBlock = [scriptblock]::Create($using:processScriptBlockString)
+
+                & $rehydratedBlock @params
+            }
         }
         #endregion
 
@@ -1470,7 +1475,7 @@ process {
 
                     #region Convert MatrixResponsible to UserPrincipalName
                     $responsibleRaw = $I.FormData.Import.MatrixResponsible
-        
+
                     $namesToProcess = if (
                         -not [string]::IsNullOrWhiteSpace($responsibleRaw)
                     ) {
@@ -1509,7 +1514,7 @@ process {
                     $property.MatrixFileName = $I.File.Item.BaseName
                     #endregion
 
-                    $I.FormData.Import | 
+                    $I.FormData.Import |
                     Add-Member -NotePropertyMembers $property -Force
                 }
                 catch {
@@ -1536,7 +1541,7 @@ process {
                 })
             Write-Verbose $verboseMessage
 
-            $processMatrixBlock = {
+            $scriptBlock = {
                 param (
                     $I,
                     $eventLogData,
@@ -1547,12 +1552,12 @@ process {
                 Import-Module -Name Toolbox.PermissionMatrix -ErrorAction Stop
 
                 if (($I.File.Check.Type -contains 'FatalError') -or (-not $I.Settings)) {
-                    return $I 
+                    return $I
                 }
 
                 try {
                     Write-Verbose "Test matrix permissions for '$($I.File.Item.BaseName)'"
-        
+
                     $permCheck = Test-MatrixPermissionsHC -Permissions $I.Permissions.Import
                     if ($permCheck) { $I.Permissions.Check += $permCheck }
 
@@ -1587,7 +1592,7 @@ process {
                                     NonHeaderRows = $I.Permissions.Import | Select-Object -Skip 3
                                     ADObjects     = $adObjects
                                 }
-                    
+
                                 $aclMatrix = ConvertTo-MatrixAclHC @params
                                 if ($aclMatrix) { $S.Matrix += $aclMatrix }
                             }
@@ -1611,23 +1616,28 @@ process {
             $importedMatrix = if ($MaxConcurrent.Computers -eq 1) {
                 $importedMatrix | ForEach-Object {
                     $params = @{
-                        I                     = $_ 
-                        VerbosePreference     = $VerbosePreference 
+                        I                     = $_
+                        VerbosePreference     = $VerbosePreference
                         ErrorActionPreference = $ErrorActionPreference
                     }
                     & $processMatrixBlock @params
                 }
             }
             else {
-                $importedMatrix | 
+                $processScriptBlockString = $scriptBlock.ToString()
+
+                $importedMatrix |
                 ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                     $params = @{
-                        I                     = $_ 
-                        VerbosePreference     = $using:VerbosePreference 
+                        I                     = $_
+                        VerbosePreference     = $using:VerbosePreference
                         ErrorActionPreference = $using:ErrorActionPreference
                     }
-                    & $using:processMatrixBlock @params
-                } 
+
+                    $rehydratedBlock = [scriptblock]::Create($using:processScriptBlockString)
+
+                    & $rehydratedBlock @params
+                }
             }
             #endregion
             #endregion
@@ -1780,7 +1790,7 @@ process {
 
                 #region Run code serial or parallel
                 $matrixGroups = $executableMatrix |
-                Group-Object -Property { $_.Import.ComputerName } 
+                Group-Object -Property { $_.Import.ComputerName }
 
                 if ($MaxConcurrent.Computers -eq 1) {
                     $matrixGroups | ForEach-Object {
@@ -1790,14 +1800,16 @@ process {
                             scriptPathItem         = $scriptPathItem
                             PSSessionConfiguration = $PSSessionConfiguration
                             eventLogData           = $eventLogData
-                            VerbosePreference      = $VerbosePreference 
+                            VerbosePreference      = $VerbosePreference
                             ErrorActionPreference  = $ErrorActionPreference
                         }
                         & $scriptBlock @params
                     }
                 }
                 else {
-                    $matrixGroups | 
+                    $processScriptBlockString = $scriptBlock.ToString()
+
+                    $matrixGroups |
                     ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                         $params = @{
                             matrixGroup            = $_.Group
@@ -1805,11 +1817,14 @@ process {
                             scriptPathItem         = $using:scriptPathItem
                             PSSessionConfiguration = $using:PSSessionConfiguration
                             eventLogData           = $using:eventLogData
-                            VerbosePreference      = $using:VerbosePreference 
+                            VerbosePreference      = $using:VerbosePreference
                             ErrorActionPreference  = $using:ErrorActionPreference
                         }
-                        & $using:scriptBlock @params
-                    } 
+
+                        $rehydratedBlock = [scriptblock]::Create($using:processScriptBlockString)
+
+                        & $rehydratedBlock @params
+                    }
                 }
                 #endregion
             }
@@ -2941,16 +2956,16 @@ end {
                         $html.TableHeader = ''
 
                         $html.MatrixLogFile.FatalError = foreach (
-                            $E in 
+                            $E in
                             @($S.Check).Where( { $_.Type -eq 'FatalError' })
                         ) {
                             $params = @{
-                                LogFolderPath = $I.File.LogFolder 
-                                ErrorObj      = $E 
+                                LogFolderPath = $I.File.LogFolder
+                                ErrorObj      = $E
                                 SettingId     = $S.ID
                             }
                             $htmlValue = ConvertTo-HtmlValueHC @params
-                            
+
                             @"
                             <tr>
                                 <td id="probTypeError"></td>
@@ -2964,12 +2979,12 @@ end {
                         }
 
                         $html.MatrixLogFile.Warning = foreach (
-                            $E in 
+                            $E in
                             @($S.Check).Where( { $_.Type -eq 'Warning' })
                         ) {
                             $params = @{
-                                LogFolderPath = $I.File.LogFolder 
-                                ErrorObj      = $E 
+                                LogFolderPath = $I.File.LogFolder
+                                ErrorObj      = $E
                                 SettingId     = $S.ID
                             }
                             $htmlValue = ConvertTo-HtmlValueHC @params
@@ -2987,12 +3002,12 @@ end {
                         }
 
                         $html.MatrixLogFile.Info = foreach (
-                            $E in 
+                            $E in
                             @($S.Check).Where( { $_.Type -eq 'Information' })
                         ) {
                             $params = @{
-                                LogFolderPath = $I.File.LogFolder 
-                                ErrorObj      = $E 
+                                LogFolderPath = $I.File.LogFolder
+                                ErrorObj      = $E
                                 SettingId     = $S.ID
                             }
                             $htmlValue = ConvertTo-HtmlValueHC @params
