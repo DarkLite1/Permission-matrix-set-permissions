@@ -1148,6 +1148,8 @@ process {
         #endregion
 
         #region Create dated log folder
+        $datedLogFolderPath = $null
+
         if ($matrixFiles) {
             $datedLogFolderPath = Get-DatedLogFolderPathHC
         }
