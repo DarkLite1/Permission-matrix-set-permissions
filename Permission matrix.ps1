@@ -1019,8 +1019,11 @@ begin {
         #endregion
 
         #region Map share with Excel files
-        if (-not (Test-Path -LiteralPath MatrixFolderPath:)) {
-            $retryCount = 0; $isDriveMapped = $false
+        if (-not (Test-Path -LiteralPath 'MatrixFolderPath:\')) {
+            $retryCount = 0
+            $maxRetries = 240
+            $isDriveMapped = $false
+    
             while (-not $isDriveMapped) {
                 try {
                     $params = @{
@@ -1033,20 +1036,21 @@ begin {
                     $isDriveMapped = $true
                 }
                 catch {
-                    if ($retryCount -ge '240') {
-                        throw "Drive mapping failed for '$($Matrix.FolderPath)': $_"
+                    if ($retryCount -ge $maxRetries) {
+                        throw "Drive mapping failed for '$($Matrix.FolderPath)' after $maxRetries attempts: $_"
                     }
-                    else {
-                        Start-Sleep -Seconds 30
-                        $retryCount++
-                        $Error.Clear()
-                    }
+            
+                    Write-Verbose "Drive mapping failed for '$($Matrix.FolderPath)'. Retrying in 30 seconds... ($retryCount/$maxRetries)"
+                    Start-Sleep -Seconds 30
+                    $retryCount++
+                    $Error.Clear()
                 }
             }
         }
 
         try {
-            $Matrix.FolderPath = Get-Item $Matrix.FolderPath -EA Stop
+            # Convert string path to a DirectoryInfo object safely
+            $Matrix.FolderPath = Get-Item -LiteralPath $Matrix.FolderPath -ErrorAction Stop
         }
         catch {
             throw "Matrix.FolderPath '$($Matrix.FolderPath)' not found: $_"
