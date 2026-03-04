@@ -77,21 +77,10 @@ begin {
 
         try {
             switch ($Name) {
-                'FatalError' {
-                    'probTypeError'
-                    break
-                }
-                'Warning' {
-                    'probTypeWarning'
-                    break
-                }
-                'Information' {
-                    'probTypeInfo'
-                    break
-                }
-                default {
-                    throw "Type '$_' is unknown"
-                }
+                'FatalError' { return 'probTypeError' }
+                'Warning' { return 'probTypeWarning' }
+                'Information' { return 'probTypeInfo' }
+                default { throw "Type '$_' is unknown" }
             }
         }
         catch {
