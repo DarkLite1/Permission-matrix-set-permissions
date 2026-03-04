@@ -469,6 +469,7 @@ begin {
                 )
 
                 $attachmentList = New-Object System.Collections.ArrayList($null)
+                $totalSizeAttachments = 0
 
                 foreach (
                     $attachmentPath in
@@ -491,7 +492,6 @@ begin {
                         #endregion
 
                         $totalSizeAttachments += $attachmentItem.Length
-
                         $null = $attachmentList.Add($attachmentItem)
 
                         #region Check size of attachments
