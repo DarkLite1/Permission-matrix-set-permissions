@@ -1149,6 +1149,8 @@ process {
         #endregion
 
         if ($matrixFiles.Count -eq 0) {
+            Write-Verbose 'No matrix Excel files found'
+
             return
         }
 
