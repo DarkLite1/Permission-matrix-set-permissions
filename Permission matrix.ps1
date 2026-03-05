@@ -3273,23 +3273,32 @@ end {
                 $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
             }
 
-            #region Subject (Cleaned up)
-            $matrixCount = @($importedMatrix).Count
-            $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
-
-            $errorString = if ($counter.Total.Errors) {
-                ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })"
+            #region Subject
+            if (($systemErrors.Count -ne 0) -and (-not $importedMatrix)) {
+                $customSubject = if ($sendMail.Subject) {
+                     ", $($sendMail.Subject)" } else { '' }
+                $sysErrPlural = if ($systemErrors.Count -ne 1) { 's' } else { '' }
+                $mailParams.Subject = "System Error$($sysErrPlural): $($systemErrors.Count) critical failure$sysErrPlural$customSubject"
             }
-            else { '' }
+            else {
+                # Original logic for when matrices are processed
+                $matrixCount = @($importedMatrix).Count
+                $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
 
-            $warningString = if ($counter.Total.Warnings) {
-                ", $($counter.Total.Warnings) warning$(if ($counter.Total.Warnings -ne 1) { 's' })"
+                $errorString = if ($counter.Total.Errors) {
+                    ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })"
+                }
+                else { '' }
+
+                $warningString = if ($counter.Total.Warnings) {
+                    ", $($counter.Total.Warnings) warning$(if ($counter.Total.Warnings -ne 1) { 's' })"
+                }
+                else { '' }
+
+                $customSubject = if ($sendMail.Subject) { ", $($sendMail.Subject)" } else { '' }
+
+                $mailParams.Subject = "$matrixCount matrix file$matrixPlural$errorString$warningString$customSubject"
             }
-            else { '' }
-
-            $customSubject = if ($sendMail.Subject) { ", $($sendMail.Subject)" } else { '' }
-
-            $mailParams.Subject = "$matrixCount matrix file$matrixPlural$errorString$warningString$customSubject"
             #endregion
 
             if (($systemErrors.Count -ne 0) -or $counter.Total.Errors -or $counter.Total.Warnings) {
@@ -3360,7 +3369,6 @@ end {
             Write-Verbose 'Script finished successfully'
         }
     }
-
 
     #     try {
     #         if (-not $Settings) { return }
