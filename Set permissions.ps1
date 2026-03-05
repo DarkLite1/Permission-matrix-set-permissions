@@ -46,13 +46,6 @@ param (
 
 begin {
     function New-AceHC {
-        <#
-        .SYNOPSIS
-            Convert an AD Object name and a permission character to a valid ACE.
-
-        .DESCRIPTION
-            Convert an AD Object name and a permission character to a valid Access Control List Entry.
-        #>
         [CmdLetBinding()]
         param (
             [Parameter(Mandatory)]
@@ -67,18 +60,15 @@ begin {
             [String]$Type
         )
 
-        # 1. Define the static properties used by EVERY rule
         $identity = "$env:USERDOMAIN\$Name"
         $allow = [System.Security.AccessControl.AccessControlType]::Allow
         $rules = [System.Collections.Generic.List[System.Security.AccessControl.FileSystemAccessRule]]::new()
 
-        # 2. Helper to instantly stamp out rules
         $createRule = {
             param($rights, $inheritance, $propagation)
             $rules.Add([System.Security.AccessControl.FileSystemAccessRule]::new($identity, $rights, $inheritance, $propagation, $allow))
         }
 
-        # 3. Matrix logic
         switch ($Access) {
             'L' {
                 if ($Type -in 'Folder', 'InheritedFolder') {
@@ -87,7 +77,6 @@ begin {
             }
             'W' {
                 if ($Type -eq 'Folder') {
-                    # Write on the root folder creates two distinct rules
                     &$createRule 'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize' 'None' 'InheritOnly'
                     &$createRule 'DeleteSubdirectoriesAndFiles, Modify, Synchronize' 'ContainerInherit, ObjectInherit' 'InheritOnly'
                 }
@@ -99,7 +88,6 @@ begin {
                 }
             }
             default {
-                # Maps R, F, and M which all share identical inheritance logic
                 $rights = switch ($Access) {
                     'R' { 'ReadAndExecute' }
                     'F' { 'FullControl' }
@@ -114,28 +102,18 @@ begin {
                 }
             }
         }
-
-        # Return the generated rules (unwrapped safely if there's multiple)
         return $rules.ToArray()
     }
 
+    # Main Thread AclEqual
     function Test-AclEqualHC {
-        <#
-        .SYNOPSIS
-            Compare two Access Control Entries.
-
-        .DESCRIPTION
-            Checks if two ACE's are matching. Returns True if both ACE lists are equal and
-            False when they don't.
-        #>
-
         [OutputType([Boolean])]
         param (
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
             [System.Object[]]$ReferenceAce = @(),
-            
+                
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
@@ -143,61 +121,22 @@ begin {
         )
 
         try {
-            # 1. High-speed early exit: If the number of ACEs don't match, they aren't equal
-            if ($ReferenceAce.Count -ne $DifferenceAce.Count) { 
-                return $false 
-            }
+            if ($ReferenceAce.Count -ne $DifferenceAce.Count) { return $false }
 
-            # 2. Iterate through and fail instantly on the first mismatch
             foreach ($D in $DifferenceAce) {
                 $aclMatch = $ReferenceAce.Where({
-                        ($D.FileSystemRights -eq $_.FileSystemRights) -and
-                        ($D.AccessControlType -eq $_.AccessControlType) -and
-                        ($D.IdentityReference -eq $_.IdentityReference) -and
-                        ($D.InheritanceFlags -eq $_.InheritanceFlags) 
-                        # ($D.PropagationFlags -eq $_.PropagationFlags) # NTFS alters this on files natively
+                        ("$($D.FileSystemRights)" -eq "$($_.FileSystemRights)") -and
+                        ("$($D.AccessControlType)" -eq "$($_.AccessControlType)") -and
+                        ("$($D.IdentityReference)" -eq "$($_.IdentityReference)") -and
+                        ("$($D.InheritanceFlags)" -eq "$($_.InheritanceFlags)")
                     }, 'First')
 
-                # If no exact match was found for this specific rule, the ACLs are not equal
-                if (-not $aclMatch) { 
-                    return $false 
-                }
+                if (-not $aclMatch) { return $false }
             }
-
-            # If we made it through the entire loop, every ACE perfectly matched!
             return $true
         }
         catch {
             throw "Failed testing the ACL for equality: $_"
-        }
-    }
-    
-    function Wait-MaxRunningJobsHC {
-        <#
-        .SYNOPSIS
-            Limit how many jobs can run at the same time
-        #>
-        [CmdletBinding()]
-        param (
-            [Parameter(Mandatory)]
-            [System.Management.Automation.Job[]]$Name,
-            
-            [Parameter(Mandatory)]
-            [Int]$MaxThreads,
-            
-            [Int]$MaxAllowedCpuLoadPercentage = 80
-        )
-
-        process {
-            # 1. High-speed check: Wait for a job slot to open up FIRST
-            while (@($Name).Where({ $_.State -eq 'Running' }).Count -ge $MaxThreads) {
-                $null = Wait-Job -Job $Name -Any
-            }
-
-            # 2. Once a slot is open, ensure CPU isn't overwhelmed before launching the next one
-            while ((Get-Counter '\Processor(_Total)\% Processor Time' -ErrorAction Ignore).CounterSamples.CookedValue -gt $MaxAllowedCpuLoadPercentage) {
-                Start-Sleep -Milliseconds 500
-            }
         }
     }
 
@@ -210,10 +149,17 @@ begin {
             [Parameter(Mandatory)]
             [ValidateSet('Check', 'Fix')]
             [String]$Action,
+
             [Parameter(Mandatory)]
-            [System.Collections.ArrayList]$FolderAclAccessList,
+            [AllowNull()]
+            [AllowEmptyCollection()]
+            [System.Object[]]$FolderAclAccessList = @(),
+            
             [Parameter(Mandatory)]
-            [System.Collections.ArrayList]$FileAclAccessList,
+            [AllowNull()]
+            [AllowEmptyCollection()]
+            [System.Object[]]$FileAclAccessList = @(),
+
             [Parameter(Mandatory)]
             [HashTable]$IgnoredFolderPaths,
             [Parameter(Mandatory)]
@@ -223,15 +169,9 @@ begin {
 
         $ErrorActionPreference = 'Stop'
 
-        #region Import library for .NET calls
-        try {
-            Import-Module -Name 'Microsoft.PowerShell.Security'
-        }
-        catch {
-            throw "Failed loading .NET library: $_"
-        }
-        #endregion
+        try { Import-Module -Name 'Microsoft.PowerShell.Security' } catch { throw "Failed loading .NET library: $_" }
 
+        # Parallel Thread AclEqual
         function Test-AclEqualHC {
             [OutputType([Boolean])]
             param (
@@ -251,10 +191,10 @@ begin {
 
                 foreach ($D in $DifferenceAce) {
                     $aclMatch = $ReferenceAce.Where({
-                            ($D.FileSystemRights -eq $_.FileSystemRights) -and
-                            ($D.AccessControlType -eq $_.AccessControlType) -and
-                            ($D.IdentityReference -eq $_.IdentityReference) -and
-                            ($D.InheritanceFlags -eq $_.InheritanceFlags)
+                            ("$($D.FileSystemRights)" -eq $_.FileSystemRights) -and
+                            ("$($D.AccessControlType)" -eq $_.AccessControlType) -and
+                            ("$($D.IdentityReference)" -eq $_.IdentityReference) -and
+                            ("$($D.InheritanceFlags)" -eq $_.InheritanceFlags)
                         }, 'First')
 
                     if (-not $aclMatch) { return $false }
@@ -274,9 +214,7 @@ begin {
 
             try {
                 Write-Verbose "Get content of folder '$Path'"
-                $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where(
-                    { -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) }
-                )
+                $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where({ -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) })
             }
             catch {
                 throw "Failed retrieving the folder content of '$Path': $_"
@@ -285,15 +223,7 @@ begin {
             foreach ($child in $childItems) {
                 $accessDenied = $false
                 try {
-                    # Explicit casting prevents ambiguous overload errors!
-                    $info = if ($child.PSIsContainer) {
-                        [System.IO.DirectoryInfo]::new($child.FullName)
-                    }
-                    else { 
-                        [System.IO.FileInfo]::new($child.FullName) 
-                    }
-
-                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($info)
+                    $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
@@ -311,10 +241,8 @@ begin {
                     continue
                 }
 
-                # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
 
-                # Safely get difference ACE or default to empty array
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
                 if ($child.PSIsContainer) {
@@ -322,7 +250,6 @@ begin {
                         & $incorrectAclInheritedOnly
                     }
 
-                    # If we had access natively, OR if we just forced a fix, recurse into it!
                     if ((-not $accessDenied) -or ($Action -eq 'Fix')) {
                         Get-FolderContentHC -Path $child.FullName
                     }
@@ -338,77 +265,57 @@ begin {
         $incorrectAclInheritedOnly = {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
             
-            #region Log
             if ($DetailedLog) {
                 $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
             }
             else {
                 $incorrectInheritedAcl.Add($child.FullName)
             }
-            #endregion
 
-            #region Set permissions
             if ($Action -eq 'Fix') {
                 Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
                 if ($child.PSIsContainer) {
                     $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
+                    if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
                     
-                    # Break-in logic bypassing Set-Acl
-                    if ($accessDenied) {
-                        Write-Verbose "Access denied. Taking ownership of '$($child.FullName)'"
-                        $takeOwnAcl = [System.Security.AccessControl.DirectorySecurity]::new()
-                        $takeOwnAcl.SetOwner($builtinAdmin)
-                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$takeOwnAcl)
+                    try {
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
                     }
-                    # Apply final matrix logic
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$inheritedDirAcl)
+                    catch [System.UnauthorizedAccessException] {
+                        [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
+                    }
                 }
                 else {
                     $fileInfo = [System.IO.FileInfo]::new($child.FullName)
+                    if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
                     
-                    # Break-in logic bypassing Set-Acl
-                    if ($accessDenied) {
-                        Write-Verbose "Access denied. Taking ownership of '$($child.FullName)'"
-                        $takeOwnAcl = [System.Security.AccessControl.FileSecurity]::new()
-                        $takeOwnAcl.SetOwner($builtinAdmin)
-                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.FileInfo]$fileInfo, [System.Security.AccessControl.FileSecurity]$takeOwnAcl)
+                    try {
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
                     }
-                    # Apply final matrix logic
-                    [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.FileInfo]$fileInfo, [System.Security.AccessControl.FileSecurity]$inheritedFileAcl)
+                    catch [System.UnauthorizedAccessException] {
+                        [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
+                    }
                 }
             }
-            #endregion
         }
 
         try {
-            #region Logging
             $testedInheritedFilesAndFolders = @{ }
+            if ($DetailedLog) { $incorrectInheritedAcl = @{ } } else { $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New() }
 
-            if ($DetailedLog) {
-                $incorrectInheritedAcl = @{ }
-            }
-            else {
-                $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
-            }
-            #endregion
-
-            #region Get super powers
             try {
                 Write-Verbose 'Get super powers'
-                Add-Type $TokenPrivileges
+                if (-not ('TokenManipulator' -as [type])) { Add-Type $TokenPrivileges }
                 [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
             }
-            catch {
-                throw "Failed getting super powers: $_"
-            }
-            #endregion
+            catch { throw "Failed getting super powers: $_" }
 
-            #region Create inherited folder and file acl
             Write-Verbose 'Inherited permissions'
-
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
 
             $inheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
@@ -418,98 +325,110 @@ begin {
             $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
             $inheritedFileAcl.SetOwner($builtinAdmin)
             $inheritedFileAcl.SetAccessRuleProtection($false, $false)
-            #endregion
 
-            #region Check or fix folder and file permissions
-            try {
-                Get-FolderContentHC -Path $Path
-            }
-            catch {
-                throw "Failed checking or setting the inheritance in folder '$Path': $_"
-            }
-            #endregion
+            try { Get-FolderContentHC -Path $Path } catch { throw "Failed checking or setting the inheritance in folder '$Path': $_" }
         }
-        catch {
-            throw "Failed setting permissions for '$Path': $_"
-        }
+        catch { throw "Failed setting permissions for '$Path': $_" }
         finally {
-            [PSCustomObject]@{
-                testedInheritedFilesAndFolders = $testedInheritedFilesAndFolders
-                IncorrectInheritedAcl          = $incorrectInheritedAcl
-            }
+            [PSCustomObject]@{ testedInheritedFilesAndFolders = $testedInheritedFilesAndFolders; IncorrectInheritedAcl = $incorrectInheritedAcl }
         }
     }
 
     $tokenPrivileges = @'
 using System;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 public class TokenManipulator
 {
-[DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,
-ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
-[DllImport("kernel32.dll", ExactSpelling = true)]
-internal static extern IntPtr GetCurrentProcess();
-[DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
-internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr
-phtok);
-[DllImport("advapi32.dll", SetLastError = true)]
-internal static extern bool LookupPrivilegeValue(string host, string name,
-ref long pluid);
-[StructLayout(LayoutKind.Sequential, Pack = 1)]
-internal struct TokPriv1Luid
-{
-public int Count;
-public long Luid;
-public int Attr;
-}
-internal const int SE_PRIVILEGE_DISABLED = 0x00000000;
-internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
-internal const int TOKEN_QUERY = 0x00000008;
-internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
-public static bool AddPrivilege(string privilege)
-{
-try
-{
-bool retVal;
-TokPriv1Luid tp;
-IntPtr hproc = GetCurrentProcess();
-IntPtr htok = IntPtr.Zero;
-retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-tp.Count = 1;
-tp.Luid = 0;
-tp.Attr = SE_PRIVILEGE_ENABLED;
-retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-return retVal;
-}
-catch (Exception ex)
-{
-throw ex;
-}
-}
-public static bool RemovePrivilege(string privilege)
-{
-try
-{
-bool retVal;
-TokPriv1Luid tp;
-IntPtr hproc = GetCurrentProcess();
-IntPtr htok = IntPtr.Zero;
-retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-tp.Count = 1;
-tp.Luid = 0;
-tp.Attr = SE_PRIVILEGE_DISABLED;
-retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-return retVal;
-}
-catch (Exception ex)
-{
-throw ex;
-}
-}
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
+    
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    internal static extern IntPtr GetCurrentProcess();
+    
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);
+    
+    [DllImport("advapi32.dll", SetLastError = true)]
+    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    internal static extern uint SetNamedSecurityInfo(string pObjectName, int objectType, uint securityInfo, byte[] psidOwner, byte[] psidGroup, IntPtr pDacl, IntPtr pSacl);
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal struct TokPriv1Luid
+    {
+        public int Count;
+        public long Luid;
+        public int Attr;
+    }
+
+    internal const int SE_PRIVILEGE_DISABLED = 0x00000000;
+    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
+    internal const int TOKEN_QUERY = 0x00000008;
+    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
+    
+    internal const uint OWNER_SECURITY_INFORMATION = 0x00000001;
+    internal const int SE_FILE_OBJECT = 1;
+
+    public static bool AddPrivilege(string privilege)
+    {
+        try
+        {
+            bool retVal;
+            TokPriv1Luid tp;
+            IntPtr hproc = GetCurrentProcess();
+            IntPtr htok = IntPtr.Zero;
+            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
+            tp.Count = 1;
+            tp.Luid = 0;
+            tp.Attr = SE_PRIVILEGE_ENABLED;
+            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
+            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+            return retVal;
+        }
+        catch (Exception ex)
+        {
+            throw ex;
+        }
+    }
+
+    public static bool RemovePrivilege(string privilege)
+    {
+        try
+        {
+            bool retVal;
+            TokPriv1Luid tp;
+            IntPtr hproc = GetCurrentProcess();
+            IntPtr htok = IntPtr.Zero;
+            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
+            tp.Count = 1;
+            tp.Luid = 0;
+            tp.Attr = SE_PRIVILEGE_DISABLED;
+            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
+            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+            return retVal;
+        }
+        catch (Exception ex)
+        {
+            throw ex;
+        }
+    }
+
+    public static void SetOwner(string path, string accountName)
+    {
+        NTAccount account = new NTAccount(accountName);
+        SecurityIdentifier sid = (SecurityIdentifier)account.Translate(typeof(SecurityIdentifier));
+        byte[] sidBytes = new byte[sid.BinaryLength];
+        sid.GetBinaryForm(sidBytes, 0);
+
+        uint result = SetNamedSecurityInfo(path, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, sidBytes, null, IntPtr.Zero, IntPtr.Zero);
+        if (result != 0)
+        {
+            throw new System.ComponentModel.Win32Exception((int)result);
+        }
+    }
 }
 '@
 }
@@ -517,29 +436,27 @@ throw ex;
 process {
     try {
         $ErrorActionPreference = 'Stop'
+        
+        # 1. Establish the missing folders list globally in the process block
+        $missingFolders = [System.Collections.Generic.List[String]]::New()
 
-        #region Rehydrate Deserialized ACLs
-        # When passed over PS Remoting, Hashtables are stripped of their type and become flat PSCustomObjects.
-        # This converts them safely back into native Hashtables
+        # 2. Pre-process the Matrix to guarantee missing properties exist to prevent Strict Mode failures
         if ($Matrix) {
             foreach ($M in $Matrix) {
-                if (
-                    ($null -ne $M.ACL) -and
-                    ($M.ACL -isnot [System.Collections.IDictionary])
-                ) {
+                # Safeguard: Inject Missing Properties
+                if (-not $M.PSObject.Properties.Match('Parent').Count) { $M | Add-Member -NotePropertyName 'Parent' -NotePropertyValue $false }
+                if (-not $M.PSObject.Properties.Match('Ignore').Count) { $M | Add-Member -NotePropertyName 'Ignore' -NotePropertyValue $false }
+
+                if (($null -ne $M.ACL) -and ($M.ACL -isnot [System.Collections.IDictionary])) {
                     $realHash = @{}
                     foreach ($prop in $M.ACL.PSObject.Properties) {
-                        if ($prop.MemberType -match 'NoteProperty') {
-                            $realHash[$prop.Name] = $prop.Value
-                        }
+                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
                     }
                     $M.ACL = $realHash
                 }
             }
         }
-        #endregion
 
-        #region Logging
         $testedInheritedFilesAndFolders = @{ }
 
         if ($DetailedLog) {
@@ -550,38 +467,21 @@ process {
             $incorrectAclNonInheritedFolders = [System.Collections.Generic.List[String]]::New()
             $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
         }
-        #endregion
 
-        #region Get super powers
         try {
             Write-Verbose 'Get super powers'
-            Add-Type $tokenPrivileges
+            if (-not ('TokenManipulator' -as [type])) { Add-Type $tokenPrivileges }
             [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
             [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
             [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
         }
-        catch {
-            throw "Failed getting super powers: $_"
-        }
-        #endregion
+        catch { throw "Failed getting super powers: $_" }
 
-        #region Import library for .NET calls
+        try { Import-Module -Name 'Microsoft.PowerShell.Security' -Force } catch { throw "Failed loading .NET library: $_" }
+
         try {
-            Import-Module -Name 'Microsoft.PowerShell.Security' -Force
-        }
-        catch {
-            throw "Failed loading .NET library: $_"
-        }
-        #endregion
-
-        #region Create the parent folder when action is New
-        try {
-            $missingFolders = [System.Collections.Generic.List[String]]::New()
-
             if ($Action -eq 'New') {
-                try {
-                    $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName)
-                }
+                try { $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName) }
                 catch {
                     $Error.RemoveAt(0)
                     return [PSCustomObject]@{
@@ -603,31 +503,21 @@ process {
 
             Write-Verbose "Parent folder '$Path'"
         }
-        catch {
-            throw "Failed checking the existence of the parent folder: $_"
-        }
-        #endregion
+        catch { throw "Failed checking the existence of the parent folder: $_" }
 
-        #region Add the FullName for each path
         foreach ($M in $Matrix) {
-            $tmpPath = if ($M.Parent) { $Path }
-            else { Join-Path -Path $Path -ChildPath $M.Path }
-
+            $tmpPath = if ($M.Parent) { $Path } else { Join-Path -Path $Path -ChildPath $M.Path }
             $M.Path = $tmpPath
         }
-        #endregion
 
-        #region Remove ignored folders from the matrix
         $ignoredFolders, $Matrix = $Matrix.Where( { $_.Ignore }, 'Split')
         $ignoredFolderPaths = @{}
 
         if ($ignoredFolders) {
-            $IgnoredFolders.Path.ForEach(
-                {
+            $IgnoredFolders.Path.ForEach({
                     Write-Verbose "Ignored folder '$_'"
                     $ignoredFolderPaths[$_] = $true
-                }
-            )
+                })
 
             [PSCustomObject]@{
                 Type        = 'Information'
@@ -636,56 +526,25 @@ process {
                 Value       = $IgnoredFolders.Path
             }
         }
-        #endregion
 
-        #region Inaccessible files
-        $FoldersListOnlyAclRegex = $Matrix.Where(
-            {
-                (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and
-                ($_.ACL.Count -ne 0)
-            }
-        ).ForEach( {
-                [Regex]::Escape("$_")
-            }) -join '|'
+        $FoldersListOnlyAclRegex = $Matrix.Where({ (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and ($_.ACL.Count -ne 0) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
+        $FoldersWithPermissionsRegex = $Matrix.Where( { ($_.Acl.Values.Where( { $_ -ne 'L' })) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
 
-        $FoldersWithPermissionsRegex = $Matrix.Where( {
-                ($_.Acl.Values.Where( { $_ -ne 'L' }))
-            }).ForEach( {
-                [Regex]::Escape("$_")
-            }) -join '|'
-        #endregion
-
-        #region Create file and folder ACL for each path in the matrix
         try {
             Write-Verbose "Create ACE 'BUILTIN\Administrators' : 'FullControl'"
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
 
             $adminFullControlAce = @{
-                Folder = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                    $builtinAdmin,
-                    [System.Security.AccessControl.FileSystemRights]::FullControl,
-                    [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
-                    [System.Security.AccessControl.PropagationFlags]::None,
-                    [System.Security.AccessControl.AccessControlType]::Allow
-                )
-                File   = New-Object System.Security.AccessControl.FileSystemAccessRule(
-                    $builtinAdmin,
-                    [System.Security.AccessControl.FileSystemRights]::FullControl,
-                    [System.Security.AccessControl.AccessControlType]::Allow
-                )
+                Folder = New-Object System.Security.AccessControl.FileSystemAccessRule($builtinAdmin, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit', [System.Security.AccessControl.PropagationFlags]::None, [System.Security.AccessControl.AccessControlType]::Allow)
+                File   = New-Object System.Security.AccessControl.FileSystemAccessRule($builtinAdmin, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow)
             }
 
             foreach ($M in $Matrix) {
-                $M | Add-Member -NotePropertyMembers @{
-                    FolderAcl          = $null
-                    InheritedFileAcl   = $null
-                    InheritedFolderAcl = $null
-                }
+                $M | Add-Member -NotePropertyMembers @{ FolderAcl = $null; InheritedFileAcl = $null; InheritedFolderAcl = $null }
             }
 
             $Matrix.Where( { $_.ACL.Count -eq 0 }).ForEach( { $_.ACL = $null })
 
-            #region Create the folder ACL's
             $aceCache = @{ }
 
             foreach ($M in $Matrix.Where( { $_.ACL })) {
@@ -706,45 +565,25 @@ process {
                 $acl.InheritedFile.SetAccessRuleProtection($false, $false)
                 $acl.InheritedFile.SetOwner($builtinAdmin)
 
-                $M.ACL.GetEnumerator().Foreach(
-                    {
+                $M.ACL.GetEnumerator().Foreach({
                         try {
                             $ID = "$($_.Key)@$($_.Value)"
 
                             if (-not $aceCache.ContainsKey($ID)) {
-                                $param = @{
-                                    Access = $_.Value
-                                    Name   = $_.Key
-                                }
-
+                                $param = @{ Access = $_.Value; Name = $_.Key }
                                 $aceCache[$ID] = @{
-                                    Folder          = @(
-                                        New-AceHC @param -Type 'Folder'
-                                    )
-                                    InheritedFolder = @(
-                                        New-AceHC @param -Type 'InheritedFolder'
-                                    )
-                                    InheritedFile   = @(
-                                        New-AceHC @param -Type 'InheritedFile'
-                                    )
+                                    Folder          = @( New-AceHC @param -Type 'Folder' )
+                                    InheritedFolder = @( New-AceHC @param -Type 'InheritedFolder' )
+                                    InheritedFile   = @( New-AceHC @param -Type 'InheritedFile' )
                                 }
                             }
 
-                            $aceCache[$ID]['Folder'].ForEach(
-                                { $acl.Folder.AddAccessRule($_) }
-                            )
-                            $aceCache[$ID]['InheritedFolder'].ForEach(
-                                { $acl.InheritedFolder.AddAccessRule($_) }
-                            )
-                            $aceCache[$ID]['InheritedFile'].ForEach(
-                                { $acl.InheritedFile.AddAccessRule($_) }
-                            )
+                            $aceCache[$ID]['Folder'].ForEach({ $acl.Folder.AddAccessRule($_) })
+                            $aceCache[$ID]['InheritedFolder'].ForEach({ $acl.InheritedFolder.AddAccessRule($_) })
+                            $aceCache[$ID]['InheritedFile'].ForEach({ $acl.InheritedFile.AddAccessRule($_) })
                         }
-                        catch {
-                            throw "AD object '$($ID.split('@')[0])' with permission character '$($ID.split('@')[1])' probably doesn't exist in AD: $_"
-                        }
-                    }
-                )
+                        catch { throw "AD object '$($ID.split('@')[0])' with permission character '$($ID.split('@')[1])' probably doesn't exist in AD: $_" }
+                    })
 
                 $acl.Folder.AddAccessRule($adminFullControlAce.Folder)
                 $acl.InheritedFolder.AddAccessRule($adminFullControlAce.Folder)
@@ -754,28 +593,33 @@ process {
                 $M.inheritedFolderAcl = $acl.InheritedFolder
                 $M.inheritedFileAcl = $acl.InheritedFile
             }
-            #endregion
         }
-        catch {
-            throw "Failed creating the AccessControlList: $_"
-        }
-        #endregion
+        catch { throw "Failed creating the AccessControlList: $_" }
 
         #region Missing folders
         try {
-            foreach (
-                $nonExistingPath in
-                ($Matrix.Where( { (-not (Test-Path -LiteralPath $_.Path -PathType Container)) -and (-not $_.Parent) })).Path) {
+            # FIX: Safely aggregate paths to create without relying on tricky .Where() array unrolling
+            $pathsToCreate = @()
+            foreach ($M in $Matrix) {
+                if (($M.Parent -eq $false) -and (-not (Test-Path -LiteralPath $M.Path -PathType Container))) {
+                    $pathsToCreate += $M.Path
+                }
+            }
 
+            foreach ($nonExistingPath in $pathsToCreate) {
                 if ($Action -eq 'Check') {
                     Write-Verbose "Missing folder '$nonExistingPath'"
                     $missingFolders.Add($nonExistingPath)
-                    $Matrix = $Matrix.Where( { $_.Path -ne $nonExistingPath })
                 }
                 else {
                     Write-Verbose "Create missing folder '$nonExistingPath'"
                     $missingFolders.Add((New-Item -Path $nonExistingPath -ItemType Directory -Force -EA Stop).FullName)
                 }
+            }
+
+            # Safely filter the array after extraction
+            if ($Action -eq 'Check' -and $missingFolders.Count -gt 0) {
+                $Matrix = $Matrix.Where({ $_.Path -notin $missingFolders })
             }
 
             if ($missingFolders.Count -ne 0) {
@@ -787,72 +631,45 @@ process {
                 }
 
                 switch ($Action) {
-                    'New' {
-                        $Obj.Name = 'Child folder created'
-                        $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."
-                        break
-                    }
-                    'Fix' {
-                        $Obj.Name = 'Child folder created'
-                        $Obj.Description = 'The missing folders underneath the parent folder have been created.'
-                        break
-                    }
-                    'Check' {
-                        $Obj.Name = 'Child folder missing'
-                        $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."
-                        break
-                    }
-                    default {
-                        throw "Action '$_' is not supported."
-                    }
+                    'New' { $Obj.Name = 'Child folder created'; $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."; break }
+                    'Fix' { $Obj.Name = 'Child folder created'; $Obj.Description = 'The missing folders underneath the parent folder have been created.'; break }
+                    'Check' { $Obj.Name = 'Child folder missing'; $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."; break }
+                    default { throw "Action '$_' is not supported." }
                 }
 
                 $Obj
             }
-            else {
-                Write-Verbose 'All folders present, no missing folders'
-            }
+            else { Write-Verbose 'All folders present, no missing folders' }
         }
-        catch {
-            throw "Failed checking/creating the missing child folders: $_"
-        }
+        catch { throw "Failed checking/creating the missing child folders: $_" }
         #endregion
 
-        #region Non inherited folder permissions
         $testedNonInheritedFolders = @{}
-
         Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
-        [array]$foldersWithAcl = $Matrix.Where(
-            { ($_.FolderAcl) -and (-not $_.ignore) }
-        ) | Sort-Object -Property 'Path'
+        [array]$foldersWithAcl = $Matrix.Where({ ($_.FolderAcl) -and (-not $_.ignore) }) | Sort-Object -Property 'Path'
 
         foreach ($folder in $foldersWithAcl) {
             try {
                 $ignoredFolderPaths[$folder.Path] = $true
-
                 Write-Verbose "Matrix ACL folder '$($folder.Path)'"
                 
                 $dirInfo = [System.IO.DirectoryInfo]::new($folder.Path)
-
-                # Only for Pester testing:
                 $testedNonInheritedFolders[$folder.Path] = $folder
 
                 $accessDenied = $false
                 try {
-                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl([System.IO.DirectoryInfo]$dirInfo)
+                    $acl = Get-Acl -LiteralPath $folder.Path -ErrorAction Stop
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
                 }
 
-                # Safely get difference ACE or default to empty array
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
                 if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
                     
-                    #region Log
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             $incorrectAclNonInheritedFolders[$folder.Path] = @{
@@ -864,29 +681,30 @@ process {
                             $incorrectAclNonInheritedFolders.Add($folder.Path)
                         }
                     }
-                    #endregion
 
-                    #region Set permissions
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
 
-                        # BREAK-IN LOGIC using strongly typed .NET 
-                        if ($accessDenied) {
-                            Write-Verbose "Access denied. Taking ownership of '$($folder.Path)'"
-                            $takeOwnAcl = [System.Security.AccessControl.DirectorySecurity]::new()
-                            $takeOwnAcl.SetOwner($builtinAdmin)
-                            [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$takeOwnAcl)
+                        if ($accessDenied) { [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators') }
+
+                        $newAcl = [System.Security.AccessControl.DirectorySecurity]::new()
+                        $newAcl.SetOwner($builtinAdmin)
+                        $newAcl.SetAccessRuleProtection($true, $false)
+                        foreach ($rule in $folder.FolderAcl.Access) { $newAcl.AddAccessRule($rule) }
+                        
+                        try {
+                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
+                        }
+                        catch [System.UnauthorizedAccessException] {
+                            [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators')
+                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
                         }
 
-                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$folder.FolderAcl)
                         Write-Verbose 'ACL corrected'
                     }
-                    #endregion
                 }
             }
-            catch {
-                throw "Failed checking/setting the permissions on non inherited folder '$($folder.Path)': $_"
-            }
+            catch { throw "Failed checking/setting the permissions on non inherited folder '$($folder.Path)': $_" }
         }
 
         if ($incorrectAclNonInheritedFolders.Count -ne 0) {
@@ -894,83 +712,81 @@ process {
                 Type        = 'Warning'
                 Name        = 'Non inherited folder incorrect permissions'
                 Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
-                Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders }
-                else { $incorrectAclNonInheritedFolders.ToArray() }
+                Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders } else { $incorrectAclNonInheritedFolders.ToArray() }
             }
         }
-        #endregion
-
-        #region Inherited folder and file permissions
+        
         try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
-                $jobs = @()
-
-                foreach ($folder in $foldersWithAcl) {
-                    $InvokeParams = @{
-                        ScriptBlock  = $inheritedPermissionsScriptBlock
-                        ArgumentList = $folder.Path, $Action, @($folder.InheritedFolderAcl.Access), @($folder.InheritedFileAcl.Access), $ignoredFolderPaths, $tokenPrivileges, $DetailedLog
-                    }
-                    # $testArg = $InvokeParams.ArgumentList
-                    # & $InvokeParams.ScriptBlock @testArg -Verbose
-
-                    # <#
-                    $jobs += Start-Job @InvokeParams
-
-                    #region Wait for max running jobs
-                    $waitParams = @{
-                        Name       = $jobs | Where-Object { $_ }
-                        MaxThreads = $JobThrottleLimit
-                    }
-                    Wait-MaxRunningJobsHC @waitParams
-                    #endregion #>
-                }
 
                 $ErrorActionPreference = 'Continue'
+                $scriptBlockString = $inheritedPermissionsScriptBlock.ToString()
 
-                $jobResults = $jobs | Wait-Job | Receive-Job
+                $safeFolders = foreach ($folder in $foldersWithAcl) {
+                    $extractRules = {
+                        param($acl)
+                        if (-not $acl) { return @() }
+                        $arr = @()
+                        foreach ($r in $acl.Access) {
+                            $arr += [PSCustomObject]@{
+                                FileSystemRights  = "$($r.FileSystemRights)"
+                                AccessControlType = "$($r.AccessControlType)"
+                                IdentityReference = "$($r.IdentityReference)"
+                                InheritanceFlags  = "$($r.InheritanceFlags)"
+                            }
+                        }
+                        return $arr
+                    }
 
-                #region Combine results of jobs into one object
+                    [PSCustomObject]@{
+                        Path        = $folder.Path
+                        FolderRules = &$extractRules $folder.InheritedFolderAcl
+                        FileRules   = &$extractRules $folder.InheritedFileAcl
+                    }
+                }
+
+                $jobResults = $safeFolders | ForEach-Object -Parallel {
+                    $folderDto = $_
+
+                    $params = @{
+                        Path                = $folderDto.Path
+                        Action              = $using:Action
+                        FolderAclAccessList = $folderDto.FolderRules
+                        FileAclAccessList   = $folderDto.FileRules
+                        IgnoredFolderPaths  = $using:ignoredFolderPaths
+                        TokenPrivileges     = $using:tokenPrivileges
+                        DetailedLog         = $using:DetailedLog
+                    }
+                    
+                    $rehydratedBlock = [scriptblock]::Create($using:scriptBlockString)
+                    & $rehydratedBlock @params
+
+                } -ThrottleLimit $JobThrottleLimit
+
                 foreach ($jobResult in $jobResults) {
                     foreach ($j in $jobResult.testedInheritedFilesAndFolders) {
-                        foreach ($i in $j.GetEnumerator()) {
-                            $testedInheritedFilesAndFolders[$i.Key] = $i.Value
-                        }
+                        foreach ($i in $j.GetEnumerator()) { $testedInheritedFilesAndFolders[$i.Key] = $i.Value }
                     }
                     foreach ($j in $jobResult.IncorrectInheritedAcl) {
                         if ($DetailedLog) {
-                            foreach ($i in $j.GetEnumerator()) {
-                                $IncorrectInheritedAcl[$i.Key] = $i.Value
-                            }
+                            foreach ($i in $j.GetEnumerator()) { $IncorrectInheritedAcl[$i.Key] = $i.Value }
                         }
-                        else {
-                            $IncorrectInheritedAcl.Add($j)
-                        }
+                        else { $IncorrectInheritedAcl.Add($j) }
                     }
                 }
-                #endregion
 
                 if ($IncorrectInheritedAcl.Count -ne 0) {
                     [PSCustomObject]@{
                         Type        = 'Warning'
                         Name        = 'Inherited permissions incorrect'
                         Description = "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
-                        Value       = if ($DetailedLog) {
-                            $IncorrectInheritedAcl
-                        }
-                        else {
-                            $IncorrectInheritedAcl.ToArray()
-                        }
+                        Value       = if ($DetailedLog) { $IncorrectInheritedAcl } else { $IncorrectInheritedAcl.ToArray() }
                     }
                 }
             }
         }
-        catch {
-            throw "Failed checking/setting the inheritance on folders and files: $_"
-        }
-        #endregion
+        catch { throw "Failed checking/setting the inheritance on folders and files: $_" }
     }
-    catch {
-        throw "Failed setting the permissions: $_"
-    }
+    catch { throw "Failed setting the permissions: $_" }
 }
