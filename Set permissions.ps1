@@ -121,129 +121,82 @@ begin {
 
     function Test-AclEqualHC {
         <#
-	    .SYNOPSIS
-		    Compare two Access Control Entries.
+        .SYNOPSIS
+            Compare two Access Control Entries.
 
-	    .DESCRIPTION
-		    Checks if two ACE's are matching. Returns True if both ACE lists are equal and
+        .DESCRIPTION
+            Checks if two ACE's are matching. Returns True if both ACE lists are equal and
             False when they don't.
-
-        .PARAMETER ReferenceAce
-            Reference collection of Access Control Entries of the first list
-
-        .PARAMETER DifferenceAce
-            Difference collection of Access Control Entries of the second list
-#>
+        #>
 
         [OutputType([Boolean])]
         param (
             [Parameter(Mandatory)]
-            [System.Object[]]$ReferenceAce,
-            [System.Object[]]$DifferenceAce
+            [AllowNull()]
+            [AllowEmptyCollection()]
+            [System.Object[]]$ReferenceAce = @(),
+            
+            [Parameter(Mandatory)]
+            [AllowNull()]
+            [AllowEmptyCollection()]
+            [System.Object[]]$DifferenceAce = @()
         )
 
         try {
-            $aclMatchCount = 0
+            # 1. High-speed early exit: If the number of ACEs don't match, they aren't equal
+            if ($ReferenceAce.Count -ne $DifferenceAce.Count) { 
+                return $false 
+            }
 
+            # 2. Iterate through and fail instantly on the first mismatch
             foreach ($D in $DifferenceAce) {
-                $aclMatch = $ReferenceAce.Where(
-                    {
+                $aclMatch = $ReferenceAce.Where({
                         ($D.FileSystemRights -eq $_.FileSystemRights) -and
                         ($D.AccessControlType -eq $_.AccessControlType) -and
                         ($D.IdentityReference -eq $_.IdentityReference) -and
-                        ($D.InheritanceFlags -eq $_.InheritanceFlags) #-and
-                        # ($D.PropagationFlags -eq $_.PropagationFlags) # <<<< issue
-                    }, 'First'
-                )
+                        ($D.InheritanceFlags -eq $_.InheritanceFlags) 
+                        # ($D.PropagationFlags -eq $_.PropagationFlags) # NTFS alters this on files natively
+                    }, 'First')
 
-                if ($aclMatch) {
-                    $aclMatchCount++
-                }
-                else {
-                    # Write-Verbose "ACL equal 'false'"
-                    return $False
+                # If no exact match was found for this specific rule, the ACLs are not equal
+                if (-not $aclMatch) { 
+                    return $false 
                 }
             }
 
-            if ($aclMatchCount -ne $ReferenceAce.Count) {
-                # Write-Verbose "ACL equal 'false'"
-                return $False
-            }
-
-            # Write-Verbose "ACL equal 'true'"
-            return $True
+            # If we made it through the entire loop, every ACE perfectly matched!
+            return $true
         }
         catch {
             throw "Failed testing the ACL for equality: $_"
         }
     }
-
+    
     function Wait-MaxRunningJobsHC {
         <#
         .SYNOPSIS
             Limit how many jobs can run at the same time
-
-        .DESCRIPTION
-            Only allow a specific quantity of jobs to run at the same time.
-            Also wait for launching new jobs when there is not enough free
-            memory.
-
-        .PARAMETER Name
-            Name of the variable holding the jobs returned by 'Start-Job' or
-            'Invoke-Command -AsJob'.
-
-        .PARAMETER MaxThreads
-            The number of jobs that are allowed to run at the same time.
-
-        .PARAMETER MaxAllowedCpuLoadPercentage
-            The CPU load must be below this percentage before we exit the
-            function to start a new job.
-
-        .EXAMPLE
-            $jobs = @()
-
-            $scriptBlock = {
-                Write-Output 'do work'
-                Start-Sleep -Seconds 30
-            }
-
-            foreach ($i in 1..20) {
-                Write-Verbose "Start job $i"
-                $jobs += Start-Job -ScriptBlock $ScriptBlock
-                Wait-MaxRunningJobsHC -Name $jobs -MaxThreads 3
-            }
-
-            Only allow 3 jobs to run at the same time. Wait to launch the next
-            job until one is finished.
         #>
-
         [CmdletBinding()]
         param (
             [Parameter(Mandatory)]
             [System.Management.Automation.Job[]]$Name,
+            
             [Parameter(Mandatory)]
             [Int]$MaxThreads,
+            
             [Int]$MaxAllowedCpuLoadPercentage = 80
         )
 
-        begin {
-            function Get-CPUloadHC {
-                (
-                    Get-Counter '\Processor(_Total)\% Processor Time'
-                ).CounterSamples.CookedValue
-            }
-            function Get-RunningJobsHC {
-                @($Name).Where( { $_.State -eq 'Running' })
-            }
-        }
-
         process {
-            while ((Get-CPUloadHC) -gt $MaxAllowedCpuLoadPercentage) {
-                Start-Sleep -Milliseconds 500
+            # 1. High-speed check: Wait for a job slot to open up FIRST
+            while (@($Name).Where({ $_.State -eq 'Running' }).Count -ge $MaxThreads) {
+                $null = Wait-Job -Job $Name -Any
             }
 
-            while ((Get-RunningJobsHC).Count -ge $MaxThreads) {
-                $null = Wait-Job -Job $Name -Any
+            # 2. Once a slot is open, ensure CPU isn't overwhelmed before launching the next one
+            while ((Get-Counter '\Processor(_Total)\% Processor Time' -ErrorAction Ignore).CounterSamples.CookedValue -gt $MaxAllowedCpuLoadPercentage) {
+                Start-Sleep -Milliseconds 500
             }
         }
     }
@@ -280,57 +233,33 @@ begin {
         #endregion
 
         function Test-AclEqualHC {
-            <#
-            .SYNOPSIS
-                Compare two Access Control Entries.
-
-            .DESCRIPTION
-                Checks if two ACE's are matching. Returns True if both ACE lists are equal and
-                False when they don't.
-
-            .PARAMETER ReferenceAce
-                Reference collection of Access Control Entries of the first list
-
-            .PARAMETER DifferenceAce
-                Difference collection of Access Control Entries of the second list
-    #>
-
             [OutputType([Boolean])]
             param (
                 [Parameter(Mandatory)]
-                [System.Object[]]$ReferenceAce,
-                [System.Object[]]$DifferenceAce
+                [AllowNull()]
+                [AllowEmptyCollection()]
+                [System.Object[]]$ReferenceAce = @(),
+                
+                [Parameter(Mandatory)]
+                [AllowNull()]
+                [AllowEmptyCollection()]
+                [System.Object[]]$DifferenceAce = @()
             )
 
             try {
-                $aclMatchCount = 0
+                if ($ReferenceAce.Count -ne $DifferenceAce.Count) { return $false }
 
                 foreach ($D in $DifferenceAce) {
-                    $aclMatch = $ReferenceAce.Where(
-                        {
+                    $aclMatch = $ReferenceAce.Where({
                             ($D.FileSystemRights -eq $_.FileSystemRights) -and
                             ($D.AccessControlType -eq $_.AccessControlType) -and
                             ($D.IdentityReference -eq $_.IdentityReference) -and
                             ($D.InheritanceFlags -eq $_.InheritanceFlags)
-                        }, 'First'
-                    )
+                        }, 'First')
 
-                    if ($aclMatch) {
-                        $aclMatchCount++
-                    }
-                    else {
-                        # Write-Verbose "ACL equal 'false'"
-                        return $False
-                    }
+                    if (-not $aclMatch) { return $false }
                 }
-
-                if ($aclMatchCount -ne $ReferenceAce.Count) {
-                    # Write-Verbose "ACL equal 'false'"
-                    return $False
-                }
-
-                # Write-Verbose "ACL equal 'true'"
-                return $True
+                return $true
             }
             catch {
                 throw "Failed testing the ACL for equality: $_"
@@ -345,7 +274,6 @@ begin {
 
             try {
                 Write-Verbose "Get content of folder '$Path'"
-
                 $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where(
                     { -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) }
                 )
@@ -355,14 +283,20 @@ begin {
             }
 
             foreach ($child in $childItems) {
+                $accessDenied = $false
                 try {
-                    # Write-Verbose "Get ACL of '$child'"
+                    # Explicit casting prevents ambiguous overload errors!
+                    $info = if ($child.PSIsContainer) {
+                        [System.IO.DirectoryInfo]::new($child.FullName)
+                    }
+                    else { 
+                        [System.IO.FileInfo]::new($child.FullName) 
+                    }
 
-                    # below is faster than: $acl = Get-Acl -Path $child
-
-                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                        [System.IO.DirectoryInfo]::new($child)
-                    )
+                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($info)
+                }
+                catch [System.UnauthorizedAccessException] {
+                    $accessDenied = $true
                 }
                 catch {
                     if (-not (Test-Path -LiteralPath $child.FullName)) {
@@ -370,55 +304,31 @@ begin {
                         $Error.RemoveAt(0)
                     }
                     else {
-                        $errorMessage = $_; $Error.RemoveAt(0)
-
-                        #region Test file in use by another process
-                        if (-not $child.PSIsContainer) {
-                            try {
-                                $fileInfo = New-Object System.IO.FileInfo $child
-
-                                $fileStream = $fileInfo.Open(
-                                    [System.IO.FileMode]::Open,
-                                    [System.IO.FileAccess]::ReadWrite,
-                                    [System.IO.FileShare]::None
-                                )
-                                if ($fileStream) {
-                                    $fileStream.Close()
-                                }
-                            }
-                            catch {
-                                $errorMessage = 'File in use by another process'
-                                $Error.RemoveAt(0)
-                            }
-                        }
-                        #endregion
-
                         $ErrorActionPreference = 'Continue'
-
-                        Write-Error "Failed retrieving the ACL of '$child': $errorMessage"
-
+                        Write-Error "Failed retrieving the ACL of '$child': $_"
                         $ErrorActionPreference = 'Stop'
                     }
-
                     continue
                 }
 
                 # Only for Pester testing:
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
 
+                # Safely get difference ACE or default to empty array
+                $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
+
                 if ($child.PSIsContainer) {
-                    if (
-                        -not (Test-AclEqualHC -ReferenceAce $FolderAclAccessList -DifferenceAce $acl.Access)
-                    ) {
+                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceAce $FolderAclAccessList -DifferenceAce $diffAce))) {
                         & $incorrectAclInheritedOnly
                     }
 
-                    Get-FolderContentHC -Path $child.FullName
+                    # If we had access natively, OR if we just forced a fix, recurse into it!
+                    if ((-not $accessDenied) -or ($Action -eq 'Fix')) {
+                        Get-FolderContentHC -Path $child.FullName
+                    }
                 }
                 else {
-                    if (
-                        -not (Test-AclEqualHC -ReferenceAce $FileAclAccessList -DifferenceAce $acl.Access)
-                    ) {
+                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceAce $FileAclAccessList -DifferenceAce $diffAce))) {
                         & $incorrectAclInheritedOnly
                     }
                 }
@@ -426,10 +336,11 @@ begin {
         }
 
         $incorrectAclInheritedOnly = {
-            Write-Warning "Incorrect ACL '$child'"
+            Write-Warning "Incorrect ACL '$($child.FullName)'"
+            
             #region Log
             if ($DetailedLog) {
-                $incorrectInheritedAcl.($child.FullName) = $acl.AccessToString
+                $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
             }
             else {
                 $incorrectInheritedAcl.Add($child.FullName)
@@ -438,18 +349,33 @@ begin {
 
             #region Set permissions
             if ($Action -eq 'Fix') {
-                Write-Verbose "Set ACL to inherited only '$child'"
-
-                # Workaround for non inherited permissions
-                # $acl.Access | ForEach-Object {
-                #     $acl.RemoveAccessRuleSpecific($_)
-                # }
+                Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
                 if ($child.PSIsContainer) {
-                    Set-Acl -Path $child.FullName -AclObject $inheritedDirAcl
+                    $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
+                    
+                    # Break-in logic bypassing Set-Acl
+                    if ($accessDenied) {
+                        Write-Verbose "Access denied. Taking ownership of '$($child.FullName)'"
+                        $takeOwnAcl = [System.Security.AccessControl.DirectorySecurity]::new()
+                        $takeOwnAcl.SetOwner($builtinAdmin)
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$takeOwnAcl)
+                    }
+                    # Apply final matrix logic
+                    [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$inheritedDirAcl)
                 }
                 else {
-                    Set-Acl -Path $child.FullName -AclObject $inheritedFileAcl
+                    $fileInfo = [System.IO.FileInfo]::new($child.FullName)
+                    
+                    # Break-in logic bypassing Set-Acl
+                    if ($accessDenied) {
+                        Write-Verbose "Access denied. Taking ownership of '$($child.FullName)'"
+                        $takeOwnAcl = [System.Security.AccessControl.FileSecurity]::new()
+                        $takeOwnAcl.SetOwner($builtinAdmin)
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.FileInfo]$fileInfo, [System.Security.AccessControl.FileSecurity]$takeOwnAcl)
+                    }
+                    # Apply final matrix logic
+                    [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.FileInfo]$fileInfo, [System.Security.AccessControl.FileSecurity]$inheritedFileAcl)
                 }
             }
             #endregion
@@ -676,8 +602,6 @@ process {
             }
 
             Write-Verbose "Parent folder '$Path'"
-
-            # Set-Location -Path $Path
         }
         catch {
             throw "Failed checking the existence of the parent folder: $_"
@@ -903,36 +827,36 @@ process {
             { ($_.FolderAcl) -and (-not $_.ignore) }
         ) | Sort-Object -Property 'Path'
 
-
         foreach ($folder in $foldersWithAcl) {
             try {
                 $ignoredFolderPaths[$folder.Path] = $true
 
                 Write-Verbose "Matrix ACL folder '$($folder.Path)'"
-                $folderItem = Get-Item -Path $folder.Path -EA Stop
+                
+                $dirInfo = [System.IO.DirectoryInfo]::new($folder.Path)
 
                 # Only for Pester testing:
                 $testedNonInheritedFolders[$folder.Path] = $folder
 
-                $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl(
-                    [System.IO.DirectoryInfo]::new($folderItem)
-                )
-
-                $testEqualParams = @{
-                    ReferenceAce  = ($folder.FolderAcl).Access
-                    DifferenceAce = ($acl).Access
+                $accessDenied = $false
+                try {
+                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl([System.IO.DirectoryInfo]$dirInfo)
+                }
+                catch [System.UnauthorizedAccessException] {
+                    $accessDenied = $true
                 }
 
-                if (
-                    (-not $acl.AreAccessRulesProtected) -or
-                    (-not (Test-AclEqualHC @testEqualParams))
-                ) {
+                # Safely get difference ACE or default to empty array
+                $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
+
+                if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
+                    
                     #region Log
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
-                            $incorrectAclNonInheritedFolders.($folder.Path) = @{
-                                'Old' = $acl.AccessToString
+                            $incorrectAclNonInheritedFolders[$folder.Path] = @{
+                                'Old' = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
                                 'New' = ($folder.FolderAcl).AccessToString
                             }
                         }
@@ -946,13 +870,15 @@ process {
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
 
-                        # Workaround for non inherited permissions
-                        # $acl.Access | ForEach-Object {
-                        #     $acl.RemoveAccessRuleSpecific($_)
-                        # }
+                        # BREAK-IN LOGIC using strongly typed .NET 
+                        if ($accessDenied) {
+                            Write-Verbose "Access denied. Taking ownership of '$($folder.Path)'"
+                            $takeOwnAcl = [System.Security.AccessControl.DirectorySecurity]::new()
+                            $takeOwnAcl.SetOwner($builtinAdmin)
+                            [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$takeOwnAcl)
+                        }
 
-                        Set-Acl -Path $folderItem.FullName -AclObject $folder.FolderAcl
-
+                        [System.IO.FileSystemAclExtensions]::SetAccessControl([System.IO.DirectoryInfo]$dirInfo, [System.Security.AccessControl.DirectorySecurity]$folder.FolderAcl)
                         Write-Verbose 'ACL corrected'
                     }
                     #endregion

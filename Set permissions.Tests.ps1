@@ -2141,7 +2141,7 @@ Describe 'when Action is' {
 
                     (Get-Acl -Path $testFolderPath).Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path $testFolderPath).Access | Should -Not -BeNullOrEmpty
-                }
+                } -Tag test
                 It 'the admin has no access to the parent folder' {
                     $testParams = @{
                         Path             = $testParentFolder
@@ -2180,7 +2180,7 @@ Describe 'when Action is' {
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
                     Should -Contain "$env:USERDOMAIN\$testUser"
-                }
+                } -Tag test
             }
         }
         Context 'when the script is run again after Action Fix/New' {
