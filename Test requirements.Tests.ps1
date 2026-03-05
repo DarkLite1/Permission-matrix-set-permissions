@@ -45,14 +45,14 @@ Describe 'return a FatalError object when' {
             Type        = 'FatalError'
             Name        = 'Administrator privileges'
             Description = "Administrator privileges are required to be able to apply permissions."
-            Value       = "SamAccountName '$env:USERNAME'"
+            Value       = "Account '$env:USERDOMAIN\$env:USERNAME'"
         }
 
         $actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true
 
         $actual | ConvertTo-Json |
         Should -BeExactly ($expected | ConvertTo-Json)
-    }
+    } -Tag test
     It 'the minimal version for PowerShell is not installed' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'

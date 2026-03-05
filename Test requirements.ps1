@@ -33,12 +33,14 @@
 #>
 
 [OutputType([PSCustomObject])]
-[CmdLetBinding()]
-Param (
+[CmdletBinding()]
+param (
     [Parameter(Mandatory)]
     [String[]]$Path,
+    
     [Parameter(Mandatory)]
     [Boolean]$Flag,
+    
     [HashTable[]]$RequiredSharePermissions = @(
         @{
             AccountName = 'BUILTIN\Administrators'
@@ -49,258 +51,190 @@ Param (
             AccessRight = 'Change'
         }
     ),
+    
     [HashTable]$MinimumPowerShellVersion = @{
         Major = 7
         Minor = 1
     }
 )
 
-Begin {
-    Function Test-IsAdminHC {
-        <#
-            .SYNOPSIS
-                Check if a user is local administrator.
-
-            .DESCRIPTION
-                Check if a user is member of the local group 'Administrators' and returns
-                TRUE if he is, FALSE if not.
-
-            .EXAMPLE
-                Test-IsAdminHC -SamAccountName SrvBatch
-                Returns TRUE in case SrvBatch is admin on this machine
-
-            .EXAMPLE
-                Test-IsAdminHC
-                Returns TRUE if the current user is admin on this machine
-
-            .NOTES
-                CHANGELOG
-                2017/05/29 Added parameter to check for a specific user
-        #>
-
-        [CmdLetBinding()]
-        [OutputType([Boolean])]
-        Param (
-            $SamAccountName = [Security.Principal.WindowsIdentity]::GetCurrent()
-        )
-
-        Try {
-            $Identity = [Security.Principal.WindowsIdentity]$SamAccountName
-            $Principal = New-Object Security.Principal.WindowsPrincipal -ArgumentList $Identity
-            $Result = $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-            Write-Verbose "Administrator permissions: $Result"
-            $Result
-        }
-        Catch {
-            throw "Failed to determine if the user '$SamAccountName' is local admin: $_"
-        }
+#region Helper Functions
+function Test-IsAdminHC {
+    try {
+        $Identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+        $Principal = New-Object Security.Principal.WindowsPrincipal($Identity)
+        $Result = $Principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        Write-Verbose "Administrator permissions: $Result"
+        return $Result
     }
-
-    Function Test-IsRequiredDotNetVersionHC {
-        $dotNet = Get-ChildItem 'HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -ErrorAction 'Ignore' |
-        Get-ItemPropertyValue -Name Release | ForEach-Object { $_ -ge 394802 }
-
-        if ($dotNet) {
-            $true
-        }
-        else {
-            $false
-        }
+    catch {
+        throw "Failed to determine if the current user is local admin: $_"
     }
-
-    Function Test-IsRequiredPowerShellVersionHC {
-        [CmdLetBinding()]
-        [OutputType([Boolean])]
-        Param (
-            [Int]$Major = $MinimumPowerShellVersion.Major,
-            [Int]$Minor = $MinimumPowerShellVersion.Minor
-        )
-
-        (
-            ($PSVersionTable.PSVersion.Major -ge $Major) -and
-            ($PSVersionTable.PSVersion.Minor -ge $Minor)
-        )
-    }
-
-    #region Test administrator privileges
-    if (-not (Test-IsAdminHC)) {
-        Return [PSCustomObject]@{
-            Type        = 'FatalError'
-            Name        = 'Administrator privileges'
-            Description = "Administrator privileges are required to be able to apply permissions."
-            Value       = "SamAccountName '$env:USERNAME'"
-        }
-    }
-    #endregion
-
-    #region Test minimal PowerShell version
-    if (-not (Test-IsRequiredPowerShellVersionHC)) {
-        Return [PSCustomObject]@{
-            Type        = 'FatalError'
-            Name        = 'PowerShell version'
-            Description = "PowerShell version $($MinimumPowerShellVersion.Major).$($MinimumPowerShellVersion.Minor) or higher is required."
-            Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
-        }
-    }
-    #endregion
-
-    #region Test minimal .NET 4.6.2
-    if (-not (Test-IsRequiredDotNetVersionHC)) {
-        Return [PSCustomObject]@{
-            Type        = 'FatalError'
-            Name        = '.NET Framework version'
-            Description = "Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods."
-            Value       = $null
-        }
-    }
-    #endregion
 }
 
-Process {
-    $smbShares = Get-SmbShare
-
-    $Path = $Path | Sort-Object -Unique
-
-    $abeCorrected = @{}
-    $permissionsCorrected = @{}
-
-    foreach ($p in $Path) {
-        foreach (
-            $share in
-            $smbShares | Where-Object {
-                ($_.Path -like "$p\*") -or ($_.Path -eq $p)
-            }
-        ) {
-            Write-Verbose "Smb share '$($share.Name)' path '$($share.Path)'"
-
-            #region Set Access based enumeration
-            Try {
-                if (
-                    (
-                        ($share.FolderEnumerationMode -eq 'AccessBased') -or
-                        ($share.FolderEnumerationMode -eq 0)
-                    ) -ne $Flag
-                ) {
-                    $params = @{
-                        Name                  = $share.Name
-                        FolderEnumerationMode = if ($Flag) {
-                            'AccessBased'
-                        }
-                        else {
-                            'Unrestricted'
-                        }
-                        ErrorAction           = 'Stop'
-                        Force                 = $true
-                    }
-                    Write-Verbose "Set FolderEnumerationMode to '$($params.FolderEnumerationMode)'"
-
-                    Set-SmbShare @params
-
-                    $abeCorrected.Add($share.Name, $share.Path)
-                }
-            }
-            Catch {
-                throw "Failed setting FolderEnumerationMode to '$($params.FolderEnumerationMode)' for path '$p' on '$env:COMPUTERNAME': $_"
-            }
-            #endregion
-
-            #region Set smb share permissions
-            try {
-                $smbShareAccess = Get-SmbShareAccess -InputObject $share -ErrorAction 'Stop'
-
-                $smbSharePermissions = $smbShareAccess.ForEach(
-                    {
-                        @{
-                            AccountName       = $_.AccountName
-                            AccessControlType = switch ($_.AccessControlType) {
-                                0 { 'Allow'; break }
-                                1 { 'Deny'; break }
-                                Default { [String]$_ }
-                            }
-                            AccessRight       = switch ($_.AccessRight) {
-                                0 { 'Full'; break }
-                                1 { 'Change'; break }
-                                2 { 'Read'; break }
-                                Default { [String]$_ }
-                            }
-                        }
-                    }
-                )
-
-                $correctPermissions = 0
-
-                foreach ($permission in $RequiredSharePermissions) {
-                    $smbSharePermissions | Where-Object {
-                        ($_.AccountName -eq $permission.AccountName) -and
-                        ($_.AccessControlType -eq 'Allow') -and
-                        ($_.AccessRight -eq $permission.AccessRight)
-                    } | ForEach-Object {
-                        $correctPermissions++
-                    }
-                }
-
-                if (
-                    ($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or
-                    ($RequiredSharePermissions.Count -ne $correctPermissions)
-                ) {
-                    #region Remove incorrect smb share permissions
-                    $incorrectPermissions = @{}
-
-                    $smbSharePermissions.ForEach(
-                        {
-                            Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
-
-                            $incorrectPermissions[$_.AccountName] = [String]$_.AccessRight
-
-                            $null = Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction 'Stop' -Force
-                        }
-                    )
-
-                    $permissionsCorrected.Add(
-                        $share.Name, $incorrectPermissions
-                    )
-                    #endregion
-
-                    #region Add correct smb share permissions
-                    $RequiredSharePermissions.ForEach(
-                        {
-                            Write-Verbose "Add correct smb share permission '$($_.AccountName): $($_.AccessRight)'"
-
-                            $params = $_
-                            $null = Grant-SmbShareAccess -Name $share.Name @params -ErrorAction 'Stop' -Force
-                        }
-                    )
-                    #endregion
-                }
-            }
-            Catch {
-                throw "Failed setting share permissions on path '$p' on '$env:COMPUTERNAME': $_"
-            }
-            #endregion
-        }
-    }
-
-    #region Return result objects
-    if ($abeCorrected.Count -ne 0) {
-        [PSCustomObject]@{
-            Type        = 'Warning'
-            Name        = 'Access Based Enumeration'
-            Description = "Access Based Enumeration should be set to '$flag'. This will hide files and folders where the users don't have access to. We fixed this now."
-            Value       = $abeCorrected
-        }
-    }
-
-    if ($permissionsCorrected.Count -ne 0) {
-        [PSCustomObject]@{
-            Type        = 'Warning'
-            Name        = 'Share permissions'
-            Description = "The share permissions are now set to {0}. The effective permissions are managed on NTFS level." -f $(
-                $RequiredSharePermissions.GetEnumerator().foreach(
-                    { "'$($_.AccountName): $($_.AccessRight)'" }
-                ) -join ', '
-            )
-            Value       = $permissionsCorrected
-        }
-    }
-    #endregion
+function Test-IsRequiredDotNetVersionHC {
+    # High-speed direct read without the pipeline
+    $dotNetRelease = Get-ItemPropertyValue -LiteralPath 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full\' -Name 'Release' -ErrorAction Ignore
+    return ($null -ne $dotNetRelease -and $dotNetRelease -ge 394802)
 }
+
+function Test-IsRequiredPowerShellVersionHC {
+    # Fixed mathematical logic: (Major > MinMajor) OR (Major == MinMajor AND Minor >= MinMinor)
+    return (
+        ($PSVersionTable.PSVersion.Major -gt $MinimumPowerShellVersion.Major) -or 
+        (($PSVersionTable.PSVersion.Major -eq $MinimumPowerShellVersion.Major) -and ($PSVersionTable.PSVersion.Minor -ge $MinimumPowerShellVersion.Minor))
+    )
+}
+#endregion
+
+#region System Requirement Checks (Early Exits)
+if (-not (Test-IsAdminHC)) {
+    return [PSCustomObject]@{
+        Type        = 'FatalError'
+        Name        = 'Administrator privileges'
+        Description = 'Administrator privileges are required to be able to apply permissions.'
+        Value       = "Account '$([Security.Principal.WindowsIdentity]::GetCurrent().Name)'"
+    }
+}
+
+if (-not (Test-IsRequiredPowerShellVersionHC)) {
+    return [PSCustomObject]@{
+        Type        = 'FatalError'
+        Name        = 'PowerShell version'
+        Description = "PowerShell version $($MinimumPowerShellVersion.Major).$($MinimumPowerShellVersion.Minor) or higher is required."
+        Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
+    }
+}
+
+if (-not (Test-IsRequiredDotNetVersionHC)) {
+    return [PSCustomObject]@{
+        Type        = 'FatalError'
+        Name        = '.NET Framework version'
+        Description = 'Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods.'
+        Value       = $null
+    }
+}
+#endregion
+
+#region Core Processing
+$smbShares = Get-SmbShare
+$uniquePaths = $Path | Sort-Object -Unique
+
+$abeCorrected = @{}
+$permissionsCorrected = @{}
+
+foreach ($p in $uniquePaths) {
+    # Fast intrinsic filtering based on exact match or subfolder match
+    $matchingShares = $smbShares.Where({ $_.Path -eq $p -or $_.Path.StartsWith("$p\") })
+
+    foreach ($share in $matchingShares) {
+        Write-Verbose "Smb share '$($share.Name)' path '$($share.Path)'"
+
+        #region Set Access Based Enumeration (ABE)
+        try {
+            # FolderEnumerationMode: 0 = AccessBased, 1 = Unrestricted
+            $isAbeEnabled = ($share.FolderEnumerationMode -eq 'AccessBased') -or ($share.FolderEnumerationMode -eq 0)
+            
+            if ($isAbeEnabled -ne $Flag) {
+                $abeMode = if ($Flag) { 'AccessBased' } else { 'Unrestricted' }
+                
+                Write-Verbose "Set FolderEnumerationMode to '$abeMode'"
+
+                Set-SmbShare -Name $share.Name -FolderEnumerationMode $abeMode -ErrorAction Stop -Force
+
+                # Use index assignment to prevent duplicate key errors
+                $abeCorrected[$share.Name] = $share.Path
+            }
+        }
+        catch {
+            throw "Failed setting FolderEnumerationMode to '$abeMode' for path '$p' on '$env:COMPUTERNAME': $_"
+        }
+        #endregion
+
+        #region Set SMB Share Permissions
+        try {
+            $smbShareAccess = Get-SmbShareAccess -InputObject $share -ErrorAction Stop
+
+            $smbSharePermissions = $smbShareAccess.ForEach({
+                    @{
+                        AccountName       = $_.AccountName
+                        AccessControlType = switch ($_.AccessControlType) {
+                            0 { 'Allow' }
+                            1 { 'Deny' }
+                            default { [String]$_ }
+                        }
+                        AccessRight       = switch ($_.AccessRight) {
+                            0 { 'Full' }
+                            1 { 'Change' }
+                            2 { 'Read' }
+                            default { [String]$_ }
+                        }
+                    }
+                })
+
+            $correctPermissionsCount = 0
+
+            foreach ($permission in $RequiredSharePermissions) {
+                $isCorrect = $smbSharePermissions.Where({
+                        $_.AccountName -eq $permission.AccountName -and
+                        $_.AccessControlType -eq 'Allow' -and
+                        $_.AccessRight -eq $permission.AccessRight
+                    }, 'First')
+
+                if ($isCorrect) {
+                    $correctPermissionsCount++
+                }
+            }
+
+            # If the share doesn't have the EXACT match of required permissions, rebuild it
+            if (($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or ($RequiredSharePermissions.Count -ne $correctPermissionsCount)) {
+                
+                $incorrectPermissions = @{}
+
+                # Revoke all existing permissions
+                $smbSharePermissions.ForEach({
+                        Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
+                        $incorrectPermissions[$_.AccountName] = [String]$_.AccessRight
+                        $null = Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction Stop -Force
+                    })
+
+                $permissionsCorrected[$share.Name] = $incorrectPermissions
+
+                # Grant the exact required baseline permissions
+                $RequiredSharePermissions.ForEach({
+                        Write-Verbose "Add correct smb share permission '$($_.AccountName): $($_.AccessRight)'"
+                    
+                        $grantParams = $_
+                        $null = Grant-SmbShareAccess -Name $share.Name @grantParams -ErrorAction Stop -Force
+                    })
+            }
+        }
+        catch {
+            throw "Failed setting share permissions on path '$p' on '$env:COMPUTERNAME': $_"
+        }
+        #endregion
+    }
+}
+#endregion
+
+#region Return Result Objects
+if ($abeCorrected.Count -gt 0) {
+    [PSCustomObject]@{
+        Type        = 'Warning'
+        Name        = 'Access Based Enumeration'
+        Description = "Access Based Enumeration should be set to '$Flag'. This will hide files and folders where the users don't have access to. We fixed this now."
+        Value       = $abeCorrected
+    }
+}
+
+if ($permissionsCorrected.Count -gt 0) {
+    $requiredString = ($RequiredSharePermissions.ForEach({ "'$($_.AccountName): $($_.AccessRight)'" })) -join ', '
+    
+    [PSCustomObject]@{
+        Type        = 'Warning'
+        Name        = 'Share permissions'
+        Description = "The share permissions are now set to $requiredString. The effective permissions are managed on NTFS level."
+        Value       = $permissionsCorrected
+    }
+}
+#endregion
