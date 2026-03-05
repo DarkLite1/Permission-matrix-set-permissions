@@ -31,7 +31,7 @@
 
 [OutputType([PSCustomObject[]])]
 [CmdLetBinding()]
-Param (
+param (
     [Parameter(Mandatory)]
     [String]$Path,
     [Parameter(Mandatory)]
@@ -44,8 +44,8 @@ Param (
     [Boolean]$DetailedLog
 )
 
-Begin {
-    Function New-AceHC {
+begin {
+    function New-AceHC {
         <#
         .SYNOPSIS
             Convert an AD Object name and a permission character to a valid ACE.
@@ -61,7 +61,7 @@ Begin {
         #>
 
         [CmdLetBinding()]
-        Param (
+        param (
             [Parameter(Mandatory)]
             [ValidateSet('L', 'R', 'W', 'F', 'M')]
             [String]$Access,
@@ -74,7 +74,7 @@ Begin {
 
         #Write-Verbose "Create ACE name '$Name' type '$Type'"
 
-        Switch ($Access) {
+        switch ($Access) {
             'L' {
                 if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
                     New-Object System.Security.AccessControl.FileSystemAccessRule(
@@ -86,7 +86,7 @@ Begin {
                     )
                 }
 
-                Break
+                break
             }
             'W' {
                 if ($type -eq 'Folder') {
@@ -127,7 +127,7 @@ Begin {
                     )
                 }
 
-                Break
+                break
             }
             'R' {
                 if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
@@ -148,7 +148,7 @@ Begin {
                         [System.Security.AccessControl.AccessControlType]::Allow
                     )
                 }
-                Break
+                break
             }
             'F' {
                 if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
@@ -169,7 +169,7 @@ Begin {
                         [System.Security.AccessControl.AccessControlType]::Allow
                     )
                 }
-                Break
+                break
             }
             'M' {
                 if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
@@ -190,15 +190,15 @@ Begin {
                         [System.Security.AccessControl.AccessControlType]::Allow
                     )
                 }
-                Break
+                break
             }
-            Default {
+            default {
                 throw "Permission character '$_' not supported."
             }
         }
     }
 
-    Function Test-AclEqualHC {
+    function Test-AclEqualHC {
         <#
 	    .SYNOPSIS
 		    Compare two Access Control Entries.
@@ -215,13 +215,13 @@ Begin {
 #>
 
         [OutputType([Boolean])]
-        Param (
+        param (
             [Parameter(Mandatory)]
             [System.Object[]]$ReferenceAce,
             [System.Object[]]$DifferenceAce
         )
 
-        Try {
+        try {
             $aclMatchCount = 0
 
             foreach ($D in $DifferenceAce) {
@@ -240,24 +240,24 @@ Begin {
                 }
                 else {
                     # Write-Verbose "ACL equal 'false'"
-                    Return $False
+                    return $False
                 }
             }
 
             if ($aclMatchCount -ne $ReferenceAce.Count) {
                 # Write-Verbose "ACL equal 'false'"
-                Return $False
+                return $False
             }
 
             # Write-Verbose "ACL equal 'true'"
-            Return $True
+            return $True
         }
-        Catch {
+        catch {
             throw "Failed testing the ACL for equality: $_"
         }
     }
 
-    Function Wait-MaxRunningJobsHC {
+    function Wait-MaxRunningJobsHC {
         <#
         .SYNOPSIS
             Limit how many jobs can run at the same time
@@ -297,7 +297,7 @@ Begin {
         #>
 
         [CmdletBinding()]
-        Param (
+        param (
             [Parameter(Mandatory)]
             [System.Management.Automation.Job[]]$Name,
             [Parameter(Mandatory)]
@@ -305,18 +305,18 @@ Begin {
             [Int]$MaxAllowedCpuLoadPercentage = 80
         )
 
-        Begin {
-            Function Get-CPUloadHC {
+        begin {
+            function Get-CPUloadHC {
                 (
                     Get-Counter '\Processor(_Total)\% Processor Time'
                 ).CounterSamples.CookedValue
             }
-            Function Get-RunningJobsHC {
+            function Get-RunningJobsHC {
                 @($Name).Where( { $_.State -eq 'Running' })
             }
         }
 
-        Process {
+        process {
             while ((Get-CPUloadHC) -gt $MaxAllowedCpuLoadPercentage) {
                 Start-Sleep -Milliseconds 500
             }
@@ -330,7 +330,7 @@ Begin {
     $inheritedPermissionsScriptBlock = {
         [OutputType([PSCustomObject[]])]
         [CmdLetBinding()]
-        Param (
+        param (
             [Parameter(Mandatory)]
             [String]$Path,
             [Parameter(Mandatory)]
@@ -358,7 +358,7 @@ Begin {
         }
         #endregion
 
-        Function Test-AclEqualHC {
+        function Test-AclEqualHC {
             <#
             .SYNOPSIS
                 Compare two Access Control Entries.
@@ -375,13 +375,13 @@ Begin {
     #>
 
             [OutputType([Boolean])]
-            Param (
+            param (
                 [Parameter(Mandatory)]
                 [System.Object[]]$ReferenceAce,
                 [System.Object[]]$DifferenceAce
             )
 
-            Try {
+            try {
                 $aclMatchCount = 0
 
                 foreach ($D in $DifferenceAce) {
@@ -399,42 +399,42 @@ Begin {
                     }
                     else {
                         # Write-Verbose "ACL equal 'false'"
-                        Return $False
+                        return $False
                     }
                 }
 
                 if ($aclMatchCount -ne $ReferenceAce.Count) {
                     # Write-Verbose "ACL equal 'false'"
-                    Return $False
+                    return $False
                 }
 
                 # Write-Verbose "ACL equal 'true'"
-                Return $True
+                return $True
             }
-            Catch {
+            catch {
                 throw "Failed testing the ACL for equality: $_"
             }
         }
 
-        Function Get-FolderContentHC {
-            Param (
+        function Get-FolderContentHC {
+            param (
                 [Parameter(Mandatory)]
                 [String]$Path
             )
 
-            Try {
+            try {
                 Write-Verbose "Get content of folder '$Path'"
 
                 $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where(
                     { -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) }
                 )
             }
-            Catch {
+            catch {
                 throw "Failed retrieving the folder content of '$Path': $_"
             }
 
             foreach ($child in $childItems) {
-                Try {
+                try {
                     # Write-Verbose "Get ACL of '$child'"
 
                     # below is faster than: $acl = Get-Acl -Path $child
@@ -443,7 +443,7 @@ Begin {
                         [System.IO.DirectoryInfo]::new($child)
                     )
                 }
-                Catch {
+                catch {
                     if (-not (Test-Path -LiteralPath $child.FullName)) {
                         Write-Verbose "Item '$child' removed"
                         $Error.RemoveAt(0)
@@ -479,7 +479,7 @@ Begin {
                         $ErrorActionPreference = 'Stop'
                     }
 
-                    Continue
+                    continue
                 }
 
                 # Only for Pester testing:
@@ -534,7 +534,7 @@ Begin {
             #endregion
         }
 
-        Try {
+        try {
             #region Logging
             $testedInheritedFilesAndFolders = @{ }
 
@@ -547,14 +547,14 @@ Begin {
             #endregion
 
             #region Get super powers
-            Try {
+            try {
                 Write-Verbose 'Get super powers'
                 Add-Type $TokenPrivileges
                 [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
             }
-            Catch {
+            catch {
                 throw "Failed getting super powers: $_"
             }
             #endregion
@@ -574,18 +574,18 @@ Begin {
             #endregion
 
             #region Check or fix folder and file permissions
-            Try {
+            try {
                 Get-FolderContentHC -Path $Path
             }
-            Catch {
+            catch {
                 throw "Failed checking or setting the inheritance in folder '$Path': $_"
             }
             #endregion
         }
-        Catch {
+        catch {
             throw "Failed setting permissions for '$Path': $_"
         }
-        Finally {
+        finally {
             [PSCustomObject]@{
                 testedInheritedFilesAndFolders = $testedInheritedFilesAndFolders
                 IncorrectInheritedAcl          = $incorrectInheritedAcl
@@ -593,7 +593,7 @@ Begin {
         }
     }
 
-    $tokenPrivileges = @"
+    $tokenPrivileges = @'
 using System;
 using System.Runtime.InteropServices;
 
@@ -664,12 +664,33 @@ throw ex;
 }
 }
 }
-"@
+'@
 }
 
-Process {
-    Try {
+process {
+    try {
         $ErrorActionPreference = 'Stop'
+
+        #region Rehydrate Deserialized ACLs
+        # When passed over PS Remoting, Hashtables are stripped of their type and become flat PSCustomObjects.
+        # This converts them safely back into native Hashtables
+        if ($Matrix) {
+            foreach ($M in $Matrix) {
+                if (
+                    ($null -ne $M.ACL) -and
+                    ($M.ACL -isnot [System.Collections.IDictionary])
+                ) {
+                    $realHash = @{}
+                    foreach ($prop in $M.ACL.PSObject.Properties) {
+                        if ($prop.MemberType -match 'NoteProperty') {
+                            $realHash[$prop.Name] = $prop.Value
+                        }
+                    }
+                    $M.ACL = $realHash
+                }
+            }
+        }
+        #endregion
 
         #region Logging
         $testedInheritedFilesAndFolders = @{ }
@@ -685,14 +706,14 @@ Process {
         #endregion
 
         #region Get super powers
-        Try {
+        try {
             Write-Verbose 'Get super powers'
             Add-Type $tokenPrivileges
             [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
             [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
             [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
         }
-        Catch {
+        catch {
             throw "Failed getting super powers: $_"
         }
         #endregion
@@ -707,16 +728,16 @@ Process {
         #endregion
 
         #region Create the parent folder when action is New
-        Try {
+        try {
             $missingFolders = [System.Collections.Generic.List[String]]::New()
 
             if ($Action -eq 'New') {
-                Try {
+                try {
                     $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName)
                 }
-                Catch {
+                catch {
                     $Error.RemoveAt(0)
-                    Return [PSCustomObject]@{
+                    return [PSCustomObject]@{
                         Type        = 'FatalError'
                         Name        = 'Parent folder exists already'
                         Description = "The folder defined as 'Path' in the worksheet 'Settings' cannot be present on the remote machine when 'Action=New' is used. Please use 'Action' with value 'Check' or 'Fix' instead."
@@ -725,7 +746,7 @@ Process {
                 }
             }
             elseif (-not (Test-Path -LiteralPath $Path -PathType Container)) {
-                Return [PSCustomObject]@{
+                return [PSCustomObject]@{
                     Type        = 'FatalError'
                     Name        = 'Parent folder missing'
                     Description = "The folder defined as 'Path' in the worksheet 'Settings' needs to be available on the remote machine. In case the folder structure needs to be created, please use 'Action=New' instead."
@@ -737,7 +758,7 @@ Process {
 
             # Set-Location -Path $Path
         }
-        Catch {
+        catch {
             throw "Failed checking the existence of the parent folder: $_"
         }
         #endregion
@@ -790,7 +811,7 @@ Process {
         #endregion
 
         #region Create file and folder ACL for each path in the matrix
-        Try {
+        try {
             Write-Verbose "Create ACE 'BUILTIN\Administrators' : 'FullControl'"
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
 
@@ -842,7 +863,7 @@ Process {
 
                 $M.ACL.GetEnumerator().Foreach(
                     {
-                        Try {
+                        try {
                             $ID = "$($_.Key)@$($_.Value)"
 
                             if (-not $aceCache.ContainsKey($ID)) {
@@ -874,7 +895,7 @@ Process {
                                 { $acl.InheritedFile.AddAccessRule($_) }
                             )
                         }
-                        Catch {
+                        catch {
                             throw "AD object '$($ID.split('@')[0])' with permission character '$($ID.split('@')[1])' probably doesn't exist in AD: $_"
                         }
                     }
@@ -890,13 +911,13 @@ Process {
             }
             #endregion
         }
-        Catch {
+        catch {
             throw "Failed creating the AccessControlList: $_"
         }
         #endregion
 
         #region Missing folders
-        Try {
+        try {
             foreach (
                 $nonExistingPath in
                 ($Matrix.Where( { (-not (Test-Path -LiteralPath $_.Path -PathType Container)) -and (-not $_.Parent) })).Path) {
@@ -920,23 +941,23 @@ Process {
                     Value       = $missingFolders.ToArray()
                 }
 
-                Switch ($Action) {
+                switch ($Action) {
                     'New' {
                         $Obj.Name = 'Child folder created'
                         $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."
-                        Break
+                        break
                     }
                     'Fix' {
                         $Obj.Name = 'Child folder created'
-                        $Obj.Description = "The missing folders underneath the parent folder have been created."
-                        Break
+                        $Obj.Description = 'The missing folders underneath the parent folder have been created.'
+                        break
                     }
                     'Check' {
                         $Obj.Name = 'Child folder missing'
                         $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."
-                        Break
+                        break
                     }
-                    Default {
+                    default {
                         throw "Action '$_' is not supported."
                     }
                 }
@@ -947,7 +968,7 @@ Process {
                 Write-Verbose 'All folders present, no missing folders'
             }
         }
-        Catch {
+        catch {
             throw "Failed checking/creating the missing child folders: $_"
         }
         #endregion
@@ -1033,7 +1054,7 @@ Process {
         #endregion
 
         #region Inherited folder and file permissions
-        Try {
+        try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
                 $jobs = @()
@@ -1097,12 +1118,12 @@ Process {
                 }
             }
         }
-        Catch {
+        catch {
             throw "Failed checking/setting the inheritance on folders and files: $_"
         }
         #endregion
     }
-    Catch {
+    catch {
         throw "Failed setting the permissions: $_"
     }
 }
