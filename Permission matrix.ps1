@@ -2167,6 +2167,7 @@ end {
             </style>'
         #endregion
 
+        # Only process matrix files into HTML/Excel if there are NO system errors up to this point
         if (($systemErrors.Count -eq 0) -and $importedMatrix) {
             $dataToExport = @{
                 AccessList    = @()
@@ -3088,41 +3089,6 @@ end {
                     <ul>{2}</ul>' -f $($exportedFiles.Count), $(if ($exportedFiles.Count -ne 1) { 's' }), $(($exportedFiles.GetEnumerator() | ForEach-Object { "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>" }) -join '')
             }
 
-            #region Create HTML error warning table
-            $errorRows = @()
-
-            if ($systemErrors.Count -ne 0) {
-                $errorRows += '
-                <tr id="probTextError">
-                    <th>System errors</th>
-                    <td>{0}</td>
-                </tr>' -f $systemErrors.Count
-            }
-
-            if ($counterData.Total.Errors.Count) {
-                $errorRows += '
-                <tr id="probTextError">
-                    <th>Matrix errors</th>
-                    <td>{0}</td>
-                </tr>' -f $counterData.Total.Errors.Count
-            }
-
-            if ($counter.Total.Warnings) {
-                $errorRows += '
-                <tr id="probTextWarning">
-                    <th>Matrix warnings</th>
-                    <td>{0}</td>
-                </tr>' -f $counter.Total.Warnings
-            }
-
-            $html.ErrorWarningTable = if ($errorRows) {
-                '<p><b>Detected issues:</b></p>
-                    <table>
-                        {0}
-                    </table>' -f ($errorRows -join '')
-            }
-            #endregion
-
             if ($html.MatrixTables) {
                 try {
                     $matrixFolderPathName = Split-Path $Matrix.FolderPath -Leaf
@@ -3135,8 +3101,43 @@ end {
                 <p><b>Processed files in the folder '<a href=`"$($Matrix.FolderPath)`">$matrixFolderPathName</a>':</b></p>
                 $($html.MatrixTables)"
             }
-            #endregion
         }
+        #
+
+        #region Create HTML error warning table
+        $errorRows = @()
+
+        if ($systemErrors.Count -ne 0) {
+            $errorRows += '
+            <tr id="probTextError">
+                <th>System errors</th>
+                <td>{0}</td>
+            </tr>' -f $systemErrors.Count
+        }
+
+        if ($counter.Total.Errors) {
+            $errorRows += '
+            <tr id="probTextError">
+                <th>Matrix errors</th>
+                <td>{0}</td>
+            </tr>' -f $counter.Total.Errors
+        }
+
+        if ($counter.Total.Warnings) {
+            $errorRows += '
+            <tr id="probTextWarning">
+                <th>Matrix warnings</th>
+                <td>{0}</td>
+            </tr>' -f $counter.Total.Warnings
+        }
+
+        $html.ErrorWarningTable = if ($errorRows) {
+            '<p><b>Detected issues:</b></p>
+                <table>
+                    {0}
+                </table>' -f ($errorRows -join '')
+        }
+        #endregion
 
         #region Write events to event log
         try {
@@ -3281,19 +3282,21 @@ end {
             }
 
             #region Subject
-            if (($systemErrors.Count -ne 0) -and (-not $importedMatrix)) {
-                $customSubject = if ($sendMail.Subject) {
-                    ", $($sendMail.Subject)"
-                }
-                else { '' }
+            $matrixCount = @($importedMatrix).Count
+            $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
+            $customSubject = if ($sendMail.Subject) { ", $($sendMail.Subject)" } else { '' }
+
+            if ($systemErrors.Count -gt 0) {
                 $sysErrPlural = if ($systemErrors.Count -ne 1) { 's' } else { '' }
-                $mailParams.Subject = "System Error$($sysErrPlural): $($systemErrors.Count) critical failure$sysErrPlural$customSubject"
+
+                if ($matrixCount -gt 0) {
+                    $mailParams.Subject = "$matrixCount matrix file$matrixPlural, $($systemErrors.Count) System Error$sysErrPlural$customSubject"
+                }
+                else {
+                    $mailParams.Subject = "System Error$($sysErrPlural): $($systemErrors.Count) critical failure$sysErrPlural$customSubject"
+                }
             }
             else {
-                # Original logic for when matrices are processed
-                $matrixCount = @($importedMatrix).Count
-                $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
-
                 $errorString = if ($counter.Total.Errors) {
                     ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })"
                 }
@@ -3303,8 +3306,6 @@ end {
                     ", $($counter.Total.Warnings) warning$(if ($counter.Total.Warnings -ne 1) { 's' })"
                 }
                 else { '' }
-
-                $customSubject = if ($sendMail.Subject) { ", $($sendMail.Subject)" } else { '' }
 
                 $mailParams.Subject = "$matrixCount matrix file$matrixPlural$errorString$warningString$customSubject"
             }
