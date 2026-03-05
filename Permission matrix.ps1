@@ -1844,11 +1844,14 @@ process {
 
                 foreach ($output in $runspaceOutput) {
                     if ($output.Result) {
-                        $targetGroup = $matrixGroups |
-                        Where-Object { $_.Name -eq $output.ComputerName }
+                        $targetGroups = $matrixGroups.Where(
+                            { $_.Name -eq $output.ComputerName }
+                        )
 
-                        foreach ($matrix in $targetGroup.Group) {
-                            $matrix.Check += $output.Result
+                        foreach ($group in $targetGroups) {
+                            foreach ($matrix in $group.Group) {
+                                $matrix.Check += $output.Result
+                            }
                         }
                     }
                 }
@@ -1995,11 +1998,15 @@ process {
                     }
                 }
 
-                foreach ($payload in $allJobResults) {
-                    $liveMatrix = $executableMatrix |
-                    Where-Object { $_.ID -eq $payload.ID }
+                foreach (
+                    $payload in
+                    @($allJobResults).Where({ $_ -ne $null })
+                ) {
+                    $matchedMatrices = $executableMatrix.Where(
+                        { $_.ID -eq $payload.ID }
+                    )
 
-                    if ($liveMatrix) {
+                    foreach ($liveMatrix in $matchedMatrices) {
                         if ($payload.Result) {
                             $liveMatrix.Check += $payload.Result
                         }
@@ -3276,7 +3283,9 @@ end {
             #region Subject
             if (($systemErrors.Count -ne 0) -and (-not $importedMatrix)) {
                 $customSubject = if ($sendMail.Subject) {
-                     ", $($sendMail.Subject)" } else { '' }
+                    ", $($sendMail.Subject)"
+                }
+                else { '' }
                 $sysErrPlural = if ($systemErrors.Count -ne 1) { 's' } else { '' }
                 $mailParams.Subject = "System Error$($sysErrPlural): $($systemErrors.Count) critical failure$sysErrPlural$customSubject"
             }
