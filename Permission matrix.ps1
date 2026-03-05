@@ -1650,14 +1650,14 @@ process {
             #region Test duplicate ComputerName/Path combination
             Write-Verbose 'Check duplicate ComputerName/Path combination'
 
-            $duplicateSettings = $importedMatrix.Settings | 
-            Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
+            $duplicateSettings = $importedMatrix.Settings |
+            Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } |
             Where-Object Count -GE 2
 
             foreach ($DupGroup in $duplicateSettings) {
                 foreach ($Setting in $DupGroup.Group) {
-        
-                    # Because these objects crossed a runspace boundary, 
+
+                    # Because these objects crossed a runspace boundary,
                     # Check might be an Object[] array now
                     # We must use += or cast it safely to add elements.
                     $Setting.Check += [PSCustomObject]@{
@@ -1676,12 +1676,12 @@ process {
             #region Test expanded matrix and get AD object details
             Write-Verbose 'Check expanded matrix'
 
-            $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys | 
+            $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys |
             Sort-Object -Unique
 
             if ($AdObjects.Count -gt 0) {
                 Write-Verbose "Get AD object details for $($AdObjects.Count) unique objects"
-    
+
                 $params = @{
                     ADObjectName = $AdObjects
                     Type         = 'SamAccountName'
@@ -1699,9 +1699,9 @@ process {
                         DefaultAcl             = $DefaultAcl
                         ExcludedSamAccountName = $ExcludedSamAccountName
                     }
-        
+
                     $expandedCheck = Test-ExpandedMatrixHC @params
-        
+
                     if ($expandedCheck) {
                         $S.Check += $expandedCheck
                     }
@@ -1710,8 +1710,8 @@ process {
             #endregion
 
             #region Get AD object details for group managers
-            $groupManagers = $ADObjectDetails.ADObject.ManagedBy | 
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | 
+            $groupManagers = $ADObjectDetails.ADObject.ManagedBy |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
             Sort-Object -Unique
 
             if ($groupManagers.Count -gt 0) {
@@ -1783,9 +1783,9 @@ process {
                             ComputerName      = $computerName
                             ErrorAction       = 'Stop'
                         }
-            
+
                         $result = Invoke-Command @params
-            
+
                         return [PSCustomObject]@{
                             ComputerName = $computerName
                             Result       = $result
@@ -1805,7 +1805,7 @@ process {
                     }
                 }
 
-                $matrixGroups = $executableMatrix | 
+                $matrixGroups = $executableMatrix |
                 Group-Object -Property { $_.Import.ComputerName }
 
                 #region Run code serial or parallel
@@ -1844,9 +1844,9 @@ process {
 
                 foreach ($output in $runspaceOutput) {
                     if ($output.Result) {
-                        $targetGroup = $matrixGroups | 
+                        $targetGroup = $matrixGroups |
                         Where-Object { $_.Name -eq $output.ComputerName }
-            
+
                         foreach ($matrix in $targetGroup.Group) {
                             $matrix.Check += $output.Result
                         }
@@ -1872,8 +1872,8 @@ process {
                 #region Add default permissions
                 if ($DefaultAcl.Count -ne 0) {
                     foreach ($acl in @($executableMatrix.Matrix.ACL).Where({ $_.Count -ne 0 })) {
-                        $DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).Foreach({ 
-                                $acl.Add($_.Key, $_.Value) 
+                        $DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).Foreach({
+                                $acl.Add($_.Key, $_.Value)
                             })
                     }
                 }
@@ -1898,7 +1898,7 @@ process {
                             ComputerName      = $matrixFile.Import.ComputerName
                             ErrorAction       = 'Stop'
                         }
-            
+
                         $result = Invoke-Command @params
 
                         $endTime = Get-Date
@@ -1953,7 +1953,9 @@ process {
                     }
                     else {
                         $matrixes | ForEach-Object -ThrottleLimit $MaxConcurrent.JobsPerRemoteComputer -Parallel {
-                            & [scriptblock]::Create($using:innerScriptBlockString) -matrixFile $_ `
+                            $rehydratedInner = [scriptblock]::Create($using:innerScriptBlockString)
+
+                            & $rehydratedInner -matrixFile $_ `
                                 -scriptPathItem ($using:scriptPathItem) `
                                 -PSSessionConfiguration ($using:PSSessionConfiguration) `
                                 -MaxConcurrent ($using:MaxConcurrent) `
@@ -1982,7 +1984,9 @@ process {
                 }
                 else {
                     $computerGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
-                        & [scriptblock]::Create($using:outerScriptBlockString) -ComputerGroup $_ `
+                        $rehydratedOuter = [scriptblock]::Create($using:outerScriptBlockString)
+
+                        & $rehydratedOuter -ComputerGroup $_ `
                             -scriptPathItem ($using:scriptPathItem) `
                             -PSSessionConfiguration ($using:PSSessionConfiguration) `
                             -MaxConcurrent ($using:MaxConcurrent) `
@@ -1992,7 +1996,7 @@ process {
                 }
 
                 foreach ($payload in $allJobResults) {
-                    $liveMatrix = $executableMatrix | 
+                    $liveMatrix = $executableMatrix |
                     Where-Object { $_.ID -eq $payload.ID }
 
                     if ($liveMatrix) {
@@ -2260,8 +2264,8 @@ end {
                     #endregion
 
                     #region Add to export
-                    $dataToExport['AccessList'] += $accessListToExport | Select-Object @{ 
-                        Name = 'MatrixFileName'; Expression = { $I.File.Item.BaseName } 
+                    $dataToExport['AccessList'] += $accessListToExport | Select-Object @{
+                        Name = 'MatrixFileName'; Expression = { $I.File.Item.BaseName }
                     }, *
                     #endregion
                 }
@@ -2272,7 +2276,7 @@ end {
                 $groupManagersToExport = foreach ($S in $matrixSamAccountNames) {
                     # Fast intrinsic where
                     $adData = $ADObjectDetails.Where({ ($S -eq $_.samAccountName) -and ($_.adObject.ObjectClass -eq 'group') }, 'First')
-                    
+
                     if ($adData) {
                         $groupManager = $groupManagersAdDetails.Where({ $_.DistinguishedName -eq $adData.adObject.ManagedBy }, 'First')
 
@@ -2325,8 +2329,8 @@ end {
                     #endregion
 
                     #region Add to export
-                    $dataToExport['GroupManagers'] += $groupManagersToExport | Select-Object @{ 
-                        Name = 'MatrixFileName'; Expression = { $I.File.Item.BaseName } 
+                    $dataToExport['GroupManagers'] += $groupManagersToExport | Select-Object @{
+                        Name = 'MatrixFileName'; Expression = { $I.File.Item.BaseName }
                     }, *
                     #endregion
                 }
@@ -3272,9 +3276,9 @@ end {
             #region Subject (Cleaned up)
             $matrixCount = @($importedMatrix).Count
             $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
-            
+
             $errorString = if ($counter.Total.Errors) {
-                ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })" 
+                ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })"
             }
             else { '' }
 
