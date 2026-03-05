@@ -52,150 +52,71 @@ begin {
 
         .DESCRIPTION
             Convert an AD Object name and a permission character to a valid Access Control List Entry.
-
-        .PARAMETER Type
-            The permission character defining the access to the folder.
-
-        .PARAMETER Name
-            Name of the AD object, used to identify the user or group within AD.
         #>
-
         [CmdLetBinding()]
         param (
             [Parameter(Mandatory)]
             [ValidateSet('L', 'R', 'W', 'F', 'M')]
             [String]$Access,
+            
             [Parameter(Mandatory)]
             [String]$Name,
+            
             [Parameter(Mandatory)]
             [ValidateSet('Folder', 'InheritedFile', 'InheritedFolder')]
             [String]$Type
         )
 
-        #Write-Verbose "Create ACE name '$Name' type '$Type'"
+        # 1. Define the static properties used by EVERY rule
+        $identity = "$env:USERDOMAIN\$Name"
+        $allow = [System.Security.AccessControl.AccessControlType]::Allow
+        $rules = [System.Collections.Generic.List[System.Security.AccessControl.FileSystemAccessRule]]::new()
 
+        # 2. Helper to instantly stamp out rules
+        $createRule = {
+            param($rights, $inheritance, $propagation)
+            $rules.Add([System.Security.AccessControl.FileSystemAccessRule]::new($identity, $rights, $inheritance, $propagation, $allow))
+        }
+
+        # 3. Matrix logic
         switch ($Access) {
             'L' {
-                if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
-                        [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
+                if ($Type -in 'Folder', 'InheritedFolder') {
+                    &$createRule 'ReadAndExecute' 'ContainerInherit' 'None'
                 }
-
-                break
             }
             'W' {
-                if ($type -eq 'Folder') {
-                    # This folder only
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize',
-                        [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::InheritOnly,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                    # Subfolders and files only
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]'DeleteSubdirectoriesAndFiles, Modify, Synchronize',
-                        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
-                        [System.Security.AccessControl.PropagationFlags]::InheritOnly,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
+                if ($Type -eq 'Folder') {
+                    # Write on the root folder creates two distinct rules
+                    &$createRule 'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize' 'None' 'InheritOnly'
+                    &$createRule 'DeleteSubdirectoriesAndFiles, Modify, Synchronize' 'ContainerInherit, ObjectInherit' 'InheritOnly'
                 }
-                elseif ($type -eq 'InheritedFolder') {
-                    # Subfolders and files only
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]'DeleteSubdirectoriesAndFiles, Modify, Synchronize',
-                        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
-                        [System.Security.AccessControl.PropagationFlags]::InheritOnly,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
+                elseif ($Type -eq 'InheritedFolder') {
+                    &$createRule 'DeleteSubdirectoriesAndFiles, Modify, Synchronize' 'ContainerInherit, ObjectInherit' 'InheritOnly'
                 }
                 elseif ($Type -eq 'InheritedFile') {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]'DeleteSubdirectoriesAndFiles, Modify, Synchronize',
-                        [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
+                    &$createRule 'DeleteSubdirectoriesAndFiles, Modify, Synchronize' 'None' 'None'
                 }
-
-                break
-            }
-            'R' {
-                if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
-                        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                elseif ($Type -eq 'InheritedFile') {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::ReadAndExecute,
-                        [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                break
-            }
-            'F' {
-                if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::FullControl,
-                        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                elseif ($Type -eq 'InheritedFile') {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::FullControl,
-                        [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                break
-            }
-            'M' {
-                if (($type -eq 'Folder') -or ($type -eq 'InheritedFolder')) {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::Modify,
-                        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                elseif ($Type -eq 'InheritedFile') {
-                    New-Object System.Security.AccessControl.FileSystemAccessRule(
-                        "$env:USERDOMAIN\$Name",
-                        [System.Security.AccessControl.FileSystemRights]::Modify,
-                        [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::None,
-                        [System.Security.AccessControl.AccessControlType]::Allow
-                    )
-                }
-                break
             }
             default {
-                throw "Permission character '$_' not supported."
+                # Maps R, F, and M which all share identical inheritance logic
+                $rights = switch ($Access) {
+                    'R' { 'ReadAndExecute' }
+                    'F' { 'FullControl' }
+                    'M' { 'Modify' }
+                }
+
+                if ($Type -in 'Folder', 'InheritedFolder') {
+                    &$createRule $rights 'ContainerInherit, ObjectInherit' 'None'
+                }
+                elseif ($Type -eq 'InheritedFile') {
+                    &$createRule $rights 'None' 'None'
+                }
             }
         }
+
+        # Return the generated rules (unwrapped safely if there's multiple)
+        return $rules.ToArray()
     }
 
     function Test-AclEqualHC {
