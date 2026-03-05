@@ -1808,12 +1808,22 @@ process {
                 $matrixGroups = $executableMatrix |
                 Group-Object -Property { $_.Import.ComputerName }
 
+                $testRequirementsBlockString = $testRequirementsBlock.ToString()
+
+                # DTO FLATTENING: Protects deep properties from runspace truncation
+                $safeReqGroups = foreach ($group in $matrixGroups) {
+                    [PSCustomObject]@{
+                        ComputerName = $group.Name
+                        PathsToCheck = @($group.Group.Import.Path)
+                    }
+                }
+
                 #region Run code serial or parallel
                 $runspaceOutput = if ($MaxConcurrent.Computers -eq 1) {
-                    $matrixGroups | ForEach-Object {
+                    $safeReqGroups | ForEach-Object {
                         $params = @{
-                            computerName           = $_.Name
-                            pathsToCheck           = $_.Group.Import.Path
+                            computerName           = $_.ComputerName
+                            pathsToCheck           = $_.PathsToCheck
                             scriptPathItem         = $scriptPathItem
                             PSSessionConfiguration = $PSSessionConfiguration
                             VerbosePreference      = $VerbosePreference
@@ -1823,31 +1833,26 @@ process {
                     }
                 }
                 else {
-                    $processScriptBlockString = $testRequirementsBlock.ToString()
-
-                    $matrixGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                    $safeReqGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                         $params = @{
-                            computerName           = $_.Name
-                            pathsToCheck           = $_.Group.Import.Path
+                            computerName           = $_.ComputerName
+                            pathsToCheck           = $_.PathsToCheck
                             scriptPathItem         = $using:scriptPathItem
                             PSSessionConfiguration = $using:PSSessionConfiguration
                             VerbosePreference      = $using:VerbosePreference
                             ErrorActionPreference  = $using:ErrorActionPreference
                         }
 
-                        $rehydratedBlock = [scriptblock]::Create($using:processScriptBlockString)
-
+                        $rehydratedBlock = [scriptblock]::Create($using:testRequirementsBlockString)
                         & $rehydratedBlock @params
                     }
                 }
                 #endregion
 
+                # Main Thread Application
                 foreach ($output in $runspaceOutput) {
-                    if ($output.Result) {
-                        $targetGroups = $matrixGroups.Where(
-                            { $_.Name -eq $output.ComputerName }
-                        )
-
+                    if ($output -and $output.Result) {
+                        $targetGroups = $matrixGroups.Where({ $_.Name -eq $output.ComputerName })
                         foreach ($group in $targetGroups) {
                             foreach ($matrix in $group.Group) {
                                 $matrix.Check += $output.Result
@@ -1860,7 +1865,8 @@ process {
 
             #region Set permissions
             if (
-                $executableMatrix = @(Get-ExecutableMatrixHC -From $importedMatrix)
+                $executableMatrix = @(
+                    Get-ExecutableMatrixHC -From $importedMatrix)
             ) {
                 $verboseMessage = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
 
@@ -1874,18 +1880,25 @@ process {
 
                 #region Add default permissions
                 if ($DefaultAcl.Count -ne 0) {
-                    foreach ($acl in @($executableMatrix.Matrix.ACL).Where({ $_.Count -ne 0 })) {
-                        $DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).Foreach({
-                                $acl.Add($_.Key, $_.Value)
-                            })
+                    foreach (
+                        $acl in
+                        @($executableMatrix.Matrix.ACL).Where(
+                            { $_.Count -ne 0 }
+                        )
+                    ) {
+                        $DefaultAcl.GetEnumerator().Where(
+                            { -not $acl.ContainsKey($_.Key) }
+                        ).Foreach(
+                            { $acl.Add($_.Key, $_.Value) }
+                        )
                     }
                 }
                 #endregion
 
-                # 1. INNER BLOCK: The pure worker. Returns the result payload.
+                # 1. INNER BLOCK
                 $innerScriptBlock = {
                     param (
-                        $matrixFile,
+                        $matrixFileDto, # Flat object
                         $scriptPathItem,
                         $PSSessionConfiguration,
                         $MaxConcurrent,
@@ -1894,32 +1907,39 @@ process {
                     try {
                         $startTime = Get-Date
 
+                        # Restore the matrix array safely from JSON
+                        $restoredMatrix = if (
+                            -not [string]::IsNullOrWhiteSpace($matrixFileDto.MatrixJson)
+                        ) {
+                            @($matrixFileDto.MatrixJson | ConvertFrom-Json)
+                        }
+                        else { @() }
+
                         $params = @{
                             FilePath          = $scriptPathItem.SetPermissionFile
-                            ArgumentList      = $matrixFile.Import.Path, $matrixFile.Import.Action, $matrixFile.Matrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
+                            ArgumentList      = $matrixFileDto.Path, $matrixFileDto.Action, $restoredMatrix, $MaxConcurrent.FoldersPerMatrix, $DetailedLog
                             ConfigurationName = $PSSessionConfiguration
-                            ComputerName      = $matrixFile.Import.ComputerName
+                            ComputerName      = $matrixFileDto.ComputerName
                             ErrorAction       = 'Stop'
                         }
 
                         $result = Invoke-Command @params
 
-                        $endTime = Get-Date
                         return [PSCustomObject]@{
-                            ID       = $matrixFile.ID # Use ID to map it back later!
+                            ID       = $matrixFileDto.ID
                             Result   = $result
                             JobStart = $startTime
-                            JobEnd   = $endTime
+                            JobEnd   = Get-Date
                         }
                     }
                     catch {
                         return [PSCustomObject]@{
-                            ID       = $matrixFile.ID
+                            ID       = $matrixFileDto.ID
                             Result   = [PSCustomObject]@{
                                 Type        = 'FatalError'
                                 Name        = 'Set permissions'
                                 Value       = @($_)
-                                Description = "Failed applying action '$($matrixFile.Import.Action)' with the 'Set permissions' script."
+                                Description = "Failed applying action '$($matrixFileDto.Action)' with the 'Set permissions' script."
                             }
                             JobStart = $startTime
                             JobEnd   = Get-Date
@@ -1929,10 +1949,10 @@ process {
 
                 $innerScriptBlockString = $innerScriptBlock.ToString()
 
-                # 2. OUTER BLOCK: Routes matrices to the inner block
+                # 2. OUTER BLOCK
                 $outerScriptBlock = {
                     param (
-                        $ComputerGroup,
+                        $ComputerGroupDto, # Safe Group object
                         $scriptPathItem,
                         $PSSessionConfiguration,
                         $MaxConcurrent,
@@ -1941,13 +1961,14 @@ process {
                         $innerScriptBlock
                     )
 
-                    $matrixes = $ComputerGroup.Group
+                    $matrixes = $ComputerGroupDto.Matrices
 
                     $innerResults = if (
                         $MaxConcurrent.JobsPerRemoteComputer -eq 1
                     ) {
+                        # SERIAL
                         $matrixes | ForEach-Object {
-                            & $innerScriptBlock -matrixFile $_ `
+                            & $innerScriptBlock -matrixFileDto $_ `
                                 -scriptPathItem $scriptPathItem `
                                 -PSSessionConfiguration $PSSessionConfiguration `
                                 -MaxConcurrent $MaxConcurrent `
@@ -1955,10 +1976,11 @@ process {
                         }
                     }
                     else {
+                        # PARALLEL
                         $matrixes | ForEach-Object -ThrottleLimit $MaxConcurrent.JobsPerRemoteComputer -Parallel {
                             $rehydratedInner = [scriptblock]::Create($using:innerScriptBlockString)
 
-                            & $rehydratedInner -matrixFile $_ `
+                            & $rehydratedInner -matrixFileDto $_ `
                                 -scriptPathItem ($using:scriptPathItem) `
                                 -PSSessionConfiguration ($using:PSSessionConfiguration) `
                                 -MaxConcurrent ($using:MaxConcurrent) `
@@ -1971,12 +1993,32 @@ process {
 
                 $outerScriptBlockString = $outerScriptBlock.ToString()
 
-                # 3. KICKOFF: Execute the outer block
-                $computerGroups = $executableMatrix | Group-Object -Property { $_.Import.ComputerName }
+                # 3. KICKOFF
+                $computerGroups = $executableMatrix |
+                Group-Object -Property { $_.Import.ComputerName }
+
+                # DTO FLATTENING: Build a shallow array and wrap the deep array in JSON
+                $safeGroups = foreach ($group in $computerGroups) {
+                    [PSCustomObject]@{
+                        ComputerName = $group.Name
+                        Matrices     = @(
+                            foreach ($S in $group.Group) {
+                                [PSCustomObject]@{
+                                    ID           = $S.ID
+                                    ComputerName = $S.Import.ComputerName
+                                    Path         = $S.Import.Path
+                                    Action       = $S.Import.Action
+                                    MatrixJson   = ($S.Matrix | ConvertTo-Json -Depth 10 -Compress)
+                                }
+                            }
+                        )
+                    }
+                }
 
                 $allJobResults = if ($MaxConcurrent.Computers -eq 1) {
-                    $computerGroups | ForEach-Object {
-                        & $outerScriptBlock -ComputerGroup $_ `
+                    # SERIAL
+                    $safeGroups | ForEach-Object {
+                        & $outerScriptBlock -ComputerGroupDto $_ `
                             -scriptPathItem $scriptPathItem `
                             -PSSessionConfiguration $PSSessionConfiguration `
                             -MaxConcurrent $MaxConcurrent `
@@ -1986,10 +2028,11 @@ process {
                     }
                 }
                 else {
-                    $computerGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
+                    # PARALLEL
+                    $safeGroups | ForEach-Object -ThrottleLimit $MaxConcurrent.Computers -Parallel {
                         $rehydratedOuter = [scriptblock]::Create($using:outerScriptBlockString)
 
-                        & $rehydratedOuter -ComputerGroup $_ `
+                        & $rehydratedOuter -ComputerGroupDto $_ `
                             -scriptPathItem ($using:scriptPathItem) `
                             -PSSessionConfiguration ($using:PSSessionConfiguration) `
                             -MaxConcurrent ($using:MaxConcurrent) `
@@ -1998,6 +2041,7 @@ process {
                     }
                 }
 
+                # 4. MAIN THREAD APPLICATION
                 foreach (
                     $payload in
                     @($allJobResults).Where({ $_ -ne $null })
