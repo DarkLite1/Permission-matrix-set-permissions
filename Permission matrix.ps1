@@ -1148,6 +1148,10 @@ process {
         Write-Verbose "Found $($matrixFiles.Count) matrix Excel files"
         #endregion
 
+        if ($matrixFiles.Count -eq 0) {
+            return
+        }
+
         #region Create dated log folder
         $datedLogFolderPath = $null
 
