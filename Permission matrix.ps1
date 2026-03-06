@@ -3248,12 +3248,12 @@ end {
             </tr>' -f $systemErrors.Count
         }
 
-        if ($counter.Total.Errors) {
+        if ($counterData.Total.Errors.Count -ne 0) {
             $errorRows += '
             <tr id="probTextError">
                 <th>Matrix errors</th>
                 <td>{0}</td>
-            </tr>' -f $counter.Total.Errors
+            </tr>' -f $counterData.Total.Errors.Count
         }
 
         if ($counter.Total.Warnings) {
