@@ -45,6 +45,7 @@ param (
 )
 
 begin {
+    #region Function New-AceHC
     function New-AceHC {
         [CmdLetBinding()]
         param (
@@ -104,7 +105,9 @@ begin {
         }
         return $rules.ToArray()
     }
+    #endregion
 
+    #region Function Test-AclEqualHC (Main Thread)
     function Test-AclEqualHC {
         [OutputType([Boolean])]
         param (
@@ -138,7 +141,9 @@ begin {
             throw "Failed testing the ACL for equality: $_"
         }
     }
+    #endregion
 
+    #region ScriptBlock InheritedPermissionsScriptBlock
     $inheritedPermissionsScriptBlock = {
         [OutputType([PSCustomObject[]])]
         [CmdLetBinding()]
@@ -170,7 +175,7 @@ begin {
 
         try { Import-Module -Name 'Microsoft.PowerShell.Security' } catch { throw "Failed loading .NET library: $_" }
 
-        # Parallel Thread AclEqual
+        #region Function Test-AclEqualHC (Parallel Thread)
         function Test-AclEqualHC {
             [OutputType([Boolean])]
             param (
@@ -204,7 +209,9 @@ begin {
                 throw "Failed testing the ACL for equality: $_"
             }
         }
+        #endregion
 
+        #region Function Get-FolderContentHC
         function Get-FolderContentHC {
             param (
                 [Parameter(Mandatory)]
@@ -223,7 +230,6 @@ begin {
             foreach ($child in $enumerator) {
                 if ($IgnoredFolderPaths.ContainsKey($child.FullName)) { continue }
 
-                # FIX: Evaluate container status using raw .NET types instead of PSIsContainer
                 $isContainer = $child -is [System.IO.DirectoryInfo]
 
                 $accessDenied = $false
@@ -266,7 +272,9 @@ begin {
                 }
             }
         }
+        #endregion
 
+        #region ScriptBlock IncorrectAclInheritedOnly
         $incorrectAclInheritedOnly = {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
 
@@ -317,8 +325,10 @@ begin {
                 }
             }
         }
+        #endregion
 
         try {
+            #region Logging Setup
             $testedInheritedFilesAndFolders = @{ }
 
             if ($DetailedLog) {
@@ -327,7 +337,9 @@ begin {
             else {
                 $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
             }
+            #endregion
 
+            #region Get super powers
             try {
                 Write-Verbose 'Get super powers'
 
@@ -347,7 +359,9 @@ begin {
                 [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
             }
             catch { throw "Failed getting super powers: $_" }
+            #endregion
 
+            #region Create inherited folder and file acl
             Write-Verbose 'Inherited permissions'
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
 
@@ -358,15 +372,20 @@ begin {
             $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
             $inheritedFileAcl.SetOwner($builtinAdmin)
             $inheritedFileAcl.SetAccessRuleProtection($false, $false)
+            #endregion
 
+            #region Check or fix folder and file permissions
             try { Get-FolderContentHC -Path $Path } catch { throw "Failed checking or setting the inheritance in folder '$Path': $_" }
+            #endregion
         }
         catch { throw "Failed setting permissions for '$Path': $_" }
         finally {
             [PSCustomObject]@{ testedInheritedFilesAndFolders = $testedInheritedFilesAndFolders; IncorrectInheritedAcl = $incorrectInheritedAcl }
         }
     }
+    #endregion
 
+    #region TokenManipulator C# Class
     $tokenPrivileges = @'
 using System;
 using System.Runtime.InteropServices;
@@ -464,13 +483,14 @@ public class TokenManipulator
     }
 }
 '@
+    #endregion
 }
 
 process {
     try {
         $ErrorActionPreference = 'Stop'
 
-        #region Create the parent folder when action is New
+        #region Pre-process the Matrix properties
         $missingFolders = [System.Collections.Generic.List[String]]::New()
 
         if ($Matrix) {
@@ -493,7 +513,7 @@ process {
         }
         #endregion
 
-        #region Logging
+        #region Logging Setup
         $testedInheritedFilesAndFolders = @{ }
 
         if ($DetailedLog) {
@@ -586,7 +606,7 @@ process {
         }
         #endregion
 
-        #region Inaccessible files
+        #region Inaccessible files Regex
         $FoldersListOnlyAclRegex = $Matrix.Where({ (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and ($_.ACL.Count -ne 0) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
         $FoldersWithPermissionsRegex = $Matrix.Where( { ($_.Acl.Values.Where( { $_ -ne 'L' })) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
         #endregion
@@ -659,9 +679,8 @@ process {
         catch { throw "Failed creating the AccessControlList: $_" }
         #endregion
 
-        #region Missing folders
+        #region Create Missing Folders (Check/Fix Matrix)
         try {
-            # FIX: Safely aggregate paths to create without relying on tricky .Where() array unrolling
             $pathsToCreate = @()
             foreach ($M in $Matrix) {
                 if (($M.Parent -eq $false) -and (-not (Test-Path -LiteralPath $M.Path -PathType Container))) {
@@ -680,7 +699,6 @@ process {
                 }
             }
 
-            # Safely filter the array after extraction
             if ($Action -eq 'Check' -and $missingFolders.Count -gt 0) {
                 $Matrix = $Matrix.Where({ $_.Path -notin $missingFolders })
             }
@@ -707,7 +725,7 @@ process {
         catch { throw "Failed checking/creating the missing child folders: $_" }
         #endregion
 
-        #region Non inherited folder permissions
+        #region Non-Inherited folder permissions check and apply
         $testedNonInheritedFolders = @{}
         Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
@@ -734,7 +752,7 @@ process {
                 if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
 
-                    #region Log
+                    #region Log Incorrect ACL
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             $incorrectAclNonInheritedFolders[$folder.Path] = @{
@@ -748,7 +766,7 @@ process {
                     }
                     #endregion
 
-                    #region Set permissions
+                    #region Set corrected ACL
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
 
@@ -785,7 +803,7 @@ process {
         }
         #endregion
 
-        #region Inherited folder and file permissions
+        #region Inherited folder and file permissions check and apply
         try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
