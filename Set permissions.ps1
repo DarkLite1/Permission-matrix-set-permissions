@@ -51,10 +51,10 @@ begin {
             [Parameter(Mandatory)]
             [ValidateSet('L', 'R', 'W', 'F', 'M')]
             [String]$Access,
-            
+
             [Parameter(Mandatory)]
             [String]$Name,
-            
+
             [Parameter(Mandatory)]
             [ValidateSet('Folder', 'InheritedFile', 'InheritedFolder')]
             [String]$Type
@@ -113,7 +113,7 @@ begin {
             [AllowNull()]
             [AllowEmptyCollection()]
             [System.Object[]]$ReferenceAce = @(),
-                
+
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
@@ -154,7 +154,7 @@ begin {
             [AllowNull()]
             [AllowEmptyCollection()]
             [System.Object[]]$FolderAclAccessList = @(),
-            
+
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
@@ -179,7 +179,7 @@ begin {
                 [AllowNull()]
                 [AllowEmptyCollection()]
                 [System.Object[]]$ReferenceAce = @(),
-                
+
                 [Parameter(Mandatory)]
                 [AllowNull()]
                 [AllowEmptyCollection()]
@@ -264,7 +264,7 @@ begin {
 
         $incorrectAclInheritedOnly = {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
-            
+
             if ($DetailedLog) {
                 $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
             }
@@ -278,7 +278,7 @@ begin {
                 if ($child.PSIsContainer) {
                     $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
                     if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
-                    
+
                     try {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
                     }
@@ -290,7 +290,7 @@ begin {
                 else {
                     $fileInfo = [System.IO.FileInfo]::new($child.FullName)
                     if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
-                    
+
                     try {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
                     }
@@ -343,13 +343,13 @@ public class TokenManipulator
 {
     [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
     internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
-    
+
     [DllImport("kernel32.dll", ExactSpelling = true)]
     internal static extern IntPtr GetCurrentProcess();
-    
+
     [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
     internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);
-    
+
     [DllImport("advapi32.dll", SetLastError = true)]
     internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
 
@@ -368,7 +368,7 @@ public class TokenManipulator
     internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
     internal const int TOKEN_QUERY = 0x00000008;
     internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
-    
+
     internal const uint OWNER_SECURITY_INFORMATION = 0x00000001;
     internal const int SE_FILE_OBJECT = 1;
 
@@ -436,7 +436,7 @@ public class TokenManipulator
 process {
     try {
         $ErrorActionPreference = 'Stop'
-        
+
         # 1. Establish the missing folders list globally in the process block
         $missingFolders = [System.Collections.Generic.List[String]]::New()
 
@@ -653,7 +653,7 @@ process {
             try {
                 $ignoredFolderPaths[$folder.Path] = $true
                 Write-Verbose "Matrix ACL folder '$($folder.Path)'"
-                
+
                 $dirInfo = [System.IO.DirectoryInfo]::new($folder.Path)
                 $testedNonInheritedFolders[$folder.Path] = $folder
 
@@ -669,7 +669,7 @@ process {
 
                 if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
-                    
+
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             $incorrectAclNonInheritedFolders[$folder.Path] = @{
@@ -691,7 +691,7 @@ process {
                         $newAcl.SetOwner($builtinAdmin)
                         $newAcl.SetAccessRuleProtection($true, $false)
                         foreach ($rule in $folder.FolderAcl.Access) { $newAcl.AddAccessRule($rule) }
-                        
+
                         try {
                             [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
                         }
@@ -715,7 +715,7 @@ process {
                 Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders } else { $incorrectAclNonInheritedFolders.ToArray() }
             }
         }
-        
+
         try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
@@ -740,9 +740,14 @@ process {
                     }
 
                     [PSCustomObject]@{
-                        Path        = $folder.Path
-                        FolderRules = &$extractRules $folder.InheritedFolderAcl
-                        FileRules   = &$extractRules $folder.InheritedFileAcl
+                        Path               = $folder.Path
+                        FolderRules        = &$extractRules $folder.InheritedFolderAcl
+                        FileRules          = &$extractRules $folder.InheritedFileAcl
+                        Action             = $Action
+                        IgnoredFolderPaths = $ignoredFolderPaths
+                        TokenPrivileges    = $tokenPrivileges
+                        DetailedLog        = $DetailedLog
+                        ScriptString       = $scriptBlockString
                     }
                 }
 
@@ -751,14 +756,14 @@ process {
 
                     $params = @{
                         Path                = $folderDto.Path
-                        Action              = $using:Action
+                        Action              = $folderDto.Action
                         FolderAclAccessList = $folderDto.FolderRules
                         FileAclAccessList   = $folderDto.FileRules
-                        IgnoredFolderPaths  = $using:ignoredFolderPaths
-                        TokenPrivileges     = $using:tokenPrivileges
-                        DetailedLog         = $using:DetailedLog
+                        IgnoredFolderPaths  = $folderDto.IgnoredFolderPaths
+                        TokenPrivileges     = $folderDto.TokenPrivileges
+                        DetailedLog         = $folderDto.DetailedLog
                     }
-                    
+
                     $rehydratedBlock = [scriptblock]::Create($using:scriptBlockString)
                     & $rehydratedBlock @params
 
