@@ -2537,11 +2537,21 @@ end {
                     #region Create objects for ServiceNow
                     Write-Verbose 'Create objects for ServiceNow form'
 
-                    $serviceNowFormData = foreach ($adObjectName in $dataToExport.AdObjects) {
+                    $formDataHash = @{}
+                    foreach ($fd in $dataToExport.FormData) {
+                        $formDataHash[$fd.MatrixFileName] = $fd
+                    }
 
-                        $formData = $dataToExport.FormData.Where({ $adObjectName.MatrixFileName -eq $_.MatrixFileName }, 'First')
+                    $serviceNowFormData = foreach (
+                        $adObjectName in
+                        $dataToExport.AdObjects
+                    ) {
+                        $formData = $formDataHash[$adObjectName.MatrixFileName]
 
-                        if ((-not $formData) -or ($formData.MatrixFormStatus -ne 'Enabled')) {
+                        if (
+                            (-not $formData) -or
+                            ($formData.MatrixFormStatus -ne 'Enabled')
+                        ) {
                             continue
                         }
 
@@ -2581,14 +2591,26 @@ end {
 
                         $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
 
-                        $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
+                                Message   = $verboseMessage
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            }
+                        )
                         Write-Verbose $verboseMessage
 
                         Copy-Item @copyParams
                     }
                     catch {
                         $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = $verboseMessage
+                            })
                         Write-Warning $verboseMessage
                     }
                     #endregion
@@ -2614,13 +2636,24 @@ end {
                         }
                         catch {
                             $verboseMessage = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
-                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+
+                            $systemErrors.Add(
+                                [PSCustomObject]@{
+                                    DateTime = Get-Date
+                                    Message  = $verboseMessage
+                                }
+                            )
                             Write-Warning $verboseMessage
                         }
                     }
                     else {
                         $verboseMessage = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+                        $systemErrors.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = $verboseMessage
+                            }
+                        )
                         Write-Warning $verboseMessage
                     }
                     #endregion
