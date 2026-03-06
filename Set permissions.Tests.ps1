@@ -688,7 +688,7 @@ Describe 'when the script runs for a matrix' {
             }
             $testedInheritedFilesAndFolders.Count |
             Should -BeExactly $expected.inheritanceTested.Count
-        }
+        } -Tag test
         It 'output is generated for ignored folders in an information object' {
             if ($testIgnoredFolders = $testMatrix | Where-Object ignore) {
                 $actual = $testResult | Where-Object {
@@ -2141,7 +2141,7 @@ Describe 'when Action is' {
 
                     (Get-Acl -Path $testFolderPath).Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path $testFolderPath).Access | Should -Not -BeNullOrEmpty
-                } 
+                }
                 It 'the admin has no access to the parent folder' {
                     $testParams = @{
                         Path             = $testParentFolder
@@ -2180,7 +2180,7 @@ Describe 'when Action is' {
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should -Be 'BUILTIN\Administrators'
                     (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
                     Should -Contain "$env:USERDOMAIN\$testUser"
-                } 
+                }
             }
         }
         Context 'when the script is run again after Action Fix/New' {

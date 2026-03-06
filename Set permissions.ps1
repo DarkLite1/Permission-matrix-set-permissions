@@ -213,13 +213,19 @@ begin {
 
             try {
                 Write-Verbose "Get content of folder '$Path'"
-                $childItems = (Get-ChildItem -LiteralPath $Path -EA Stop).Where({ -not ($IgnoredFolderPaths.ContainsKey($_.FullName)) })
+                $dirInfo = [System.IO.DirectoryInfo]::new($Path)
+                $enumerator = $dirInfo.EnumerateFileSystemInfos()
             }
             catch {
                 throw "Failed retrieving the folder content of '$Path': $_"
             }
 
-            foreach ($child in $childItems) {
+            foreach ($child in $enumerator) {
+                if ($IgnoredFolderPaths.ContainsKey($child.FullName)) { continue }
+
+                # FIX: Evaluate container status using raw .NET types instead of PSIsContainer
+                $isContainer = $child -is [System.IO.DirectoryInfo]
+
                 $accessDenied = $false
                 try {
                     $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
@@ -229,7 +235,7 @@ begin {
                 }
                 catch {
                     if (-not (Test-Path -LiteralPath $child.FullName)) {
-                        Write-Verbose "Item '$child' removed"
+                        Write-Verbose "Item '$($child.FullName)' removed"
                         $Error.RemoveAt(0)
                     }
                     else {
@@ -244,7 +250,7 @@ begin {
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
-                if ($child.PSIsContainer) {
+                if ($isContainer) {
                     if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceAce $FolderAclAccessList -DifferenceAce $diffAce))) {
                         & $incorrectAclInheritedOnly
                     }
@@ -265,7 +271,12 @@ begin {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
 
             if ($DetailedLog) {
-                $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+                $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) {
+                    'Access Denied'
+                }
+                else {
+                    $acl.AccessToString
+                }
             }
             else {
                 $incorrectInheritedAcl.Add($child.FullName)
@@ -274,9 +285,12 @@ begin {
             if ($Action -eq 'Fix') {
                 Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
-                if ($child.PSIsContainer) {
+                if ($isContainer) {
                     $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
-                    if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
+
+                    if ($accessDenied) {
+                        [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
+                    }
 
                     try {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
@@ -288,7 +302,10 @@ begin {
                 }
                 else {
                     $fileInfo = [System.IO.FileInfo]::new($child.FullName)
-                    if ($accessDenied) { [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators') }
+
+                    if ($accessDenied) {
+                        [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
+                    }
 
                     try {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
@@ -303,7 +320,13 @@ begin {
 
         try {
             $testedInheritedFilesAndFolders = @{ }
-            if ($DetailedLog) { $incorrectInheritedAcl = @{ } } else { $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New() }
+
+            if ($DetailedLog) {
+                $incorrectInheritedAcl = @{ }
+            }
+            else {
+                $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
+            }
 
             try {
                 Write-Verbose 'Get super powers'
