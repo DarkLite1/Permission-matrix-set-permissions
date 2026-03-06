@@ -1686,6 +1686,7 @@ process {
             Sort-Object -Unique
 
             $adObjectHash = @{}
+            $groupManagerHash = @{}
 
             if ($AdObjects.Count -gt 0) {
                 Write-Verbose "Get AD object details for $($AdObjects.Count) unique objects"
@@ -1748,6 +1749,16 @@ process {
                     Type         = 'DistinguishedName'
                 }
                 $groupManagersAdDetails = @(Get-ADObjectDetailHC @params)
+
+                #region Build Hash Table for Lookups
+                if ($groupManagersAdDetails) {
+                    foreach ($gm in $groupManagersAdDetails) {
+                        if (-not [string]::IsNullOrWhiteSpace($gm.DistinguishedName)) {
+                            $groupManagerHash[$gm.DistinguishedName] = $gm
+                        }
+                    }
+                }
+                #endregion
             }
             #endregion
 
@@ -2356,7 +2367,12 @@ end {
                         ($null -ne $adData.adObject) -and
                         ($adData.adObject.ObjectClass -eq 'group')
                     ) {
-                        $groupManager = $groupManagersAdDetails.Where({ $_.DistinguishedName -eq $adData.adObject.ManagedBy }, 'First')
+                        $managedBy = $adData.adObject.PSObject.Properties['ManagedBy'].Value
+
+                        $groupManager = $null
+                        if (-not [string]::IsNullOrWhiteSpace($managedBy)) {
+                            $groupManager = $groupManagerHash[$managedBy]
+                        }
 
                         if (-not $groupManager) {
                             [PSCustomObject]@{

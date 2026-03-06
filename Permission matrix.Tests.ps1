@@ -1279,7 +1279,7 @@ Describe 'the script that sets the permissions on the remote computers' {
             ($ArgumentList[2] -ne $null) -and
             ($ArgumentList[3] -ne $null)
         }
-    } -Tag test
+    }
     It 'saves the start/end/duration times for each job in the settings' {
         $ImportedMatrix.Settings.JobTime.Start | Should -HaveCount 3
         $ImportedMatrix.Settings.JobTime.End | Should -HaveCount 3
@@ -1344,7 +1344,7 @@ Describe 'export an Excel file with' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 samAccountName = 'A B bob'
-                adObject       = @{
+                adObject       = [PSCustomObject]@{
                     ObjectClass    = 'user'
                     Name           = 'A B Bob'
                     SamAccountName = 'A B bob'
@@ -1354,7 +1354,7 @@ Describe 'export an Excel file with' {
             }
             [PSCustomObject]@{
                 samAccountName = 'movieStars'
-                adObject       = @{
+                adObject       = [PSCustomObject]@{
                     ObjectClass    = 'group'
                     Name           = 'Movie Stars'
                     SamAccountName = 'movieStars'
@@ -1364,19 +1364,19 @@ Describe 'export an Excel file with' {
             }
             [PSCustomObject]@{
                 samAccountName = 'starTrekCaptains'
-                adObject       = @{
+                adObject       = [PSCustomObject]@{
                     ObjectClass    = 'group'
                     SamAccountName = 'starTrekCaptains'
                     Name           = 'Star Trek Captains'
                     ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
                 }
                 adGroupMember  = @(
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Jean Luc Picard'
                         SamAccountName = 'picard'
                     }
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Ignored account'
                         SamAccountName = 'ignoreMe'
@@ -1385,19 +1385,19 @@ Describe 'export an Excel file with' {
             }
             [PSCustomObject]@{
                 samAccountName = 'singers'
-                adObject       = @{
+                adObject       = [PSCustomObject]@{
                     ObjectClass    = 'group'
                     SamAccountName = 'singers'
                     Name           = 'Singers'
                     ManagedBy      = 'CN=SingerManagers,DC=contoso,DC=net'
                 }
-                adGroupMember  = @(
-                    @{
+                adGroupMember  = [PSCustomObject]@(
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Beyonce'
                         SamAccountName = 'queenb'
                     }
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Ignored account'
                         SamAccountName = 'ignoreMe'
@@ -1408,17 +1408,17 @@ Describe 'export an Excel file with' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
-                adObject          = @{
+                adObject          = [PSCustomObject]@{
                     ObjectClass = 'group'
                     Name        = 'Captain Managers'
                 }
                 adGroupMember     = @(
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Admiral Pike'
                         SamAccountName = 'pike'
                     }
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Excluded user'
                         SamAccountName = 'ignoreMe'
@@ -1566,7 +1566,7 @@ Describe 'export an Excel file with' {
                 $actualRow.ManagerType | Should -BeLike $testRow.ManagerType
                 $actualRow.ManagerMemberName | Should -Be $testRow.ManagerMemberName
             }
-        }
+        } -Tag test
     }
 }
 Describe 'when a job fails' {
@@ -2223,14 +2223,14 @@ Describe 'when Export.PermissionsExcelFile is used' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 samAccountName = 'A B C'
-                adObject       = @{
+                adObject       = [PSCustomObject]@{
                     ObjectClass    = 'group'
                     Name           = 'A B C'
                     SamAccountName = 'A B c'
                     ManagedBy      = 'CN=CaptainManagers,DC=contoso,DC=net'
                 }
                 adGroupMember  = @(
-                    @{
+                    [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Jean Luc Picard'
                         SamAccountName = 'picard'
@@ -2241,12 +2241,12 @@ Describe 'when Export.PermissionsExcelFile is used' {
         Mock Get-ADObjectDetailHC {
             [PSCustomObject]@{
                 DistinguishedName = 'CN=CaptainManagers,DC=contoso,DC=net'
-                adObject          = @{
+                adObject          =[PSCustomObject]@{
                     ObjectClass = 'group'
                     Name        = 'Captain Managers'
                 }
                 adGroupMember     = @(
-                    @{
+                   [PSCustomObject]@{
                         ObjectClass    = 'user'
                         Name           = 'Admiral Pike'
                         SamAccountName = 'pike'
