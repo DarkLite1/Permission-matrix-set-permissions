@@ -105,7 +105,6 @@ begin {
         return $rules.ToArray()
     }
 
-    # Main Thread AclEqual
     function Test-AclEqualHC {
         [OutputType([Boolean])]
         param (
@@ -448,15 +447,17 @@ process {
     try {
         $ErrorActionPreference = 'Stop'
 
-        # 1. Establish the missing folders list globally in the process block
+        #region Create the parent folder when action is New
         $missingFolders = [System.Collections.Generic.List[String]]::New()
 
-        # 2. Pre-process the Matrix to guarantee missing properties exist to prevent Strict Mode failures
         if ($Matrix) {
             foreach ($M in $Matrix) {
-                # Safeguard: Inject Missing Properties
-                if (-not $M.PSObject.Properties.Match('Parent').Count) { $M | Add-Member -NotePropertyName 'Parent' -NotePropertyValue $false }
-                if (-not $M.PSObject.Properties.Match('Ignore').Count) { $M | Add-Member -NotePropertyName 'Ignore' -NotePropertyValue $false }
+                if (-not $M.PSObject.Properties.Match('Parent').Count) {
+                    $M | Add-Member -NotePropertyName 'Parent' -NotePropertyValue $false
+                }
+                if (-not $M.PSObject.Properties.Match('Ignore').Count) {
+                    $M | Add-Member -NotePropertyName 'Ignore' -NotePropertyValue $false
+                }
 
                 if (($null -ne $M.ACL) -and ($M.ACL -isnot [System.Collections.IDictionary])) {
                     $realHash = @{}
@@ -467,7 +468,9 @@ process {
                 }
             }
         }
+        #endregion
 
+        #region Logging
         $testedInheritedFilesAndFolders = @{ }
 
         if ($DetailedLog) {
@@ -478,7 +481,9 @@ process {
             $incorrectAclNonInheritedFolders = [System.Collections.Generic.List[String]]::New()
             $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
         }
+        #endregion
 
+        #region Get super powers
         try {
             Write-Verbose 'Get super powers'
 
@@ -498,9 +503,13 @@ process {
             [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
         }
         catch { throw "Failed getting super powers: $_" }
+        #endregion
 
+        #region Import library for .NET calls
         try { Import-Module -Name 'Microsoft.PowerShell.Security' -Force } catch { throw "Failed loading .NET library: $_" }
+        #endregion
 
+        #region Create the parent folder when action is New
         try {
             if ($Action -eq 'New') {
                 try { $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName) }
@@ -526,12 +535,16 @@ process {
             Write-Verbose "Parent folder '$Path'"
         }
         catch { throw "Failed checking the existence of the parent folder: $_" }
+        #endregion
 
+        #region Add the FullName for each path
         foreach ($M in $Matrix) {
             $tmpPath = if ($M.Parent) { $Path } else { Join-Path -Path $Path -ChildPath $M.Path }
             $M.Path = $tmpPath
         }
+        #endregion
 
+        #region Remove ignored folders from the matrix
         $ignoredFolders, $Matrix = $Matrix.Where( { $_.Ignore }, 'Split')
         $ignoredFolderPaths = @{}
 
@@ -548,10 +561,14 @@ process {
                 Value       = $IgnoredFolders.Path
             }
         }
+        #endregion
 
+        #region Inaccessible files
         $FoldersListOnlyAclRegex = $Matrix.Where({ (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and ($_.ACL.Count -ne 0) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
         $FoldersWithPermissionsRegex = $Matrix.Where( { ($_.Acl.Values.Where( { $_ -ne 'L' })) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
+        #endregion
 
+        #region Create file and folder ACL for each path in the matrix
         try {
             Write-Verbose "Create ACE 'BUILTIN\Administrators' : 'FullControl'"
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
@@ -617,6 +634,7 @@ process {
             }
         }
         catch { throw "Failed creating the AccessControlList: $_" }
+        #endregion
 
         #region Missing folders
         try {
@@ -666,6 +684,7 @@ process {
         catch { throw "Failed checking/creating the missing child folders: $_" }
         #endregion
 
+        #region Non inherited folder permissions
         $testedNonInheritedFolders = @{}
         Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
@@ -692,6 +711,7 @@ process {
                 if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
 
+                    #region Log
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             $incorrectAclNonInheritedFolders[$folder.Path] = @{
@@ -703,7 +723,9 @@ process {
                             $incorrectAclNonInheritedFolders.Add($folder.Path)
                         }
                     }
+                    #endregion
 
+                    #region Set permissions
                     if ($Action -ne 'Check') {
                         Write-Verbose 'Set correct ACL'
 
@@ -724,6 +746,7 @@ process {
 
                         Write-Verbose 'ACL corrected'
                     }
+                    #endregion
                 }
             }
             catch { throw "Failed checking/setting the permissions on non inherited folder '$($folder.Path)': $_" }
@@ -737,7 +760,9 @@ process {
                 Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders } else { $incorrectAclNonInheritedFolders.ToArray() }
             }
         }
+        #endregion
 
+        #region Inherited folder and file permissions
         try {
             Write-Verbose 'Inherited permissions'
             if ($Action -ne 'New') {
@@ -814,6 +839,7 @@ process {
             }
         }
         catch { throw "Failed checking/setting the inheritance on folders and files: $_" }
+        #endregion
     }
     catch { throw "Failed setting the permissions: $_" }
 }
