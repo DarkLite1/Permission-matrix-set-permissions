@@ -852,7 +852,7 @@ process {
                         DetailedLog         = $folderDto.DetailedLog
                     }
 
-                    $rehydratedBlock = [scriptblock]::Create($using:scriptBlockString)
+                    $rehydratedBlock = [scriptblock]::Create($folderDto.ScriptString)
                     & $rehydratedBlock @params
 
                 } -ThrottleLimit $JobThrottleLimit
