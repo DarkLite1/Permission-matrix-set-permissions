@@ -1135,7 +1135,7 @@ process {
 
         $getParams = @{
             Path        = 'MatrixFolderPath:\*'
-            Include     = '*.xlsx'
+            Filter      = '*.xlsx'
             File        = $true
             ErrorAction = 'Stop'
         }
