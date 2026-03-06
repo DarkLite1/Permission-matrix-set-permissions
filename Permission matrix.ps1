@@ -1685,6 +1685,8 @@ process {
             $AdObjects = $importedMatrix.Settings.Matrix.ACL.Keys |
             Sort-Object -Unique
 
+            $adObjectHash = @{}
+
             if ($AdObjects.Count -gt 0) {
                 Write-Verbose "Get AD object details for $($AdObjects.Count) unique objects"
 
@@ -1693,6 +1695,14 @@ process {
                     Type         = 'SamAccountName'
                 }
                 $ADObjectDetails = @(Get-ADObjectDetailHC @params)
+
+                #region Build Hash Table for lookups
+                foreach ($ad in $ADObjectDetails) {
+                    if (-not [string]::IsNullOrWhiteSpace($ad.samAccountName)) {
+                        $adObjectHash[$ad.samAccountName] = $ad
+                    }
+                }
+                #endregion
 
                 foreach ($S in $importedMatrix.Settings) {
                     if (-not $S.Matrix) { continue }
@@ -2257,12 +2267,10 @@ end {
                 }
 
                 #region Get SamAccountNames for rows Settings sheet
-                $matrixSamAccountNames = $I.Settings.AdObjects.Values.SamAccountName |
-                Select-Object -Property @{
-                    Name       = 'name'
-                    Expression = { "$($_)".Trim() }
-                } -Unique |
-                Select-Object -ExpandProperty name
+                $matrixSamAccountNames = @(
+                    $I.Settings.AdObjects.Values.SamAccountName
+                ).ForEach({ "$($_)".Trim() }).Where({ $_ }) |
+                Sort-Object -Unique
 
                 Write-Verbose "Matrix '$($I.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
                 #endregion
@@ -2270,8 +2278,7 @@ end {
                 #region AccessList
                 #region Create object
                 $accessListToExport = foreach ($S in $matrixSamAccountNames) {
-                    # Fast intrinsic where
-                    $adData = $ADObjectDetails.Where({ $S -eq $_.samAccountName }, 'First')
+                    $adData = $adObjectHash[$S]
 
                     if (-not $adData.adObject) {
                         $verboseMessage = "Matrix '$($I.File.Item.Name)' SamAccountName '$S' not found in AD"
@@ -2338,11 +2345,17 @@ end {
 
                 #region GroupManagers
                 #region Create objects
-                $groupManagersToExport = foreach ($S in $matrixSamAccountNames) {
-                    # Fast intrinsic where
-                    $adData = $ADObjectDetails.Where({ ($S -eq $_.samAccountName) -and ($_.adObject.ObjectClass -eq 'group') }, 'First')
+                $groupManagersToExport = foreach (
+                    $S in
+                    $matrixSamAccountNames
+                ) {
+                    $adData = $adObjectHash[$S]
 
-                    if ($adData) {
+                    if (
+                        $adData -and
+                        ($null -ne $adData.adObject) -and
+                        ($adData.adObject.ObjectClass -eq 'group')
+                    ) {
                         $groupManager = $groupManagersAdDetails.Where({ $_.DistinguishedName -eq $adData.adObject.ManagedBy }, 'First')
 
                         if (-not $groupManager) {
