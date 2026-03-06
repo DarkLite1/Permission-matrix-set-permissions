@@ -308,7 +308,18 @@ begin {
 
             try {
                 Write-Verbose 'Get super powers'
-                if (-not ('TokenManipulator' -as [type])) { Add-Type $TokenPrivileges }
+
+                if (-not ('TokenManipulator' -as [type])) {
+                    try {
+                        Add-Type $tokenPrivileges -ErrorAction Stop
+                    }
+                    catch {
+                        if ($_.Exception.Message -notmatch 'already exists') {
+                            throw $_
+                        }
+                    }
+                }
+
                 [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
                 [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
@@ -470,7 +481,18 @@ process {
 
         try {
             Write-Verbose 'Get super powers'
-            if (-not ('TokenManipulator' -as [type])) { Add-Type $tokenPrivileges }
+
+            if (-not ('TokenManipulator' -as [type])) {
+                try {
+                    Add-Type $tokenPrivileges -ErrorAction Stop
+                }
+                catch {
+                    if ($_.Exception.Message -notmatch 'already exists') {
+                        throw $_
+                    }
+                }
+            }
+
             [void][TokenManipulator]::AddPrivilege('SeRestorePrivilege')
             [void][TokenManipulator]::AddPrivilege('SeBackupPrivilege')
             [void][TokenManipulator]::AddPrivilege('SeTakeOwnershipPrivilege')
