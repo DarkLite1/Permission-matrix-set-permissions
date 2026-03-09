@@ -2914,7 +2914,10 @@ end {
                 <td>Duration</td>
             </tr>'
 
-            $html.MatrixTables = foreach ($I in $importedMatrix) {
+            $html.MatrixTables = foreach (
+                $I in 
+                $importedMatrix | Sort-Object -Property { $_.File.Item.Name }
+            ) {
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
                     '<th id="matrixHeader" colspan="8">File</th>'
@@ -2997,7 +3000,10 @@ end {
                 ) {
                     $html.SettingsTable = $html.SettingsHeader
 
-                    foreach ($S in $I.Settings) {
+                    foreach (
+                        $S in 
+                        $I.Settings | Sort-Object -Property ID
+                    ) {
                         $problem = @{}
 
                         #region Get problem color
