@@ -1472,8 +1472,14 @@ process {
         #region Assign unique ID to each matrix
         $matrixId = 0
 
-        foreach ($I in $importedMatrix) {
-            foreach ($S in $I.Settings) {
+        foreach (
+            $I 
+            in $importedMatrix | Sort-Object -Property { $_.File.Item.Name }
+        ) {
+            foreach (
+                $S in
+                $I.Settings | Sort-Object -Property ComputerName, Path
+            ) {
                 $matrixId++
                 $S.ID = $matrixId
             }
