@@ -3334,12 +3334,15 @@ end {
                     $shouldDelete = $false
 
                     if (-not $item.PSIsContainer) {
-                        if ($item.LastWriteTime -lt $cutoffDate) {
+                        if ($item.CreationTime -lt $cutoffDate) {
                             $shouldDelete = $true
                         }
                     }
                     else {
-                        if (($item.GetFiles().Count -eq 0) -and ($item.GetDirectories().Count -eq 0)) {
+                        if (
+                            ($item.GetFiles().Count -eq 0) -and
+                            ($item.GetDirectories().Count -eq 0)
+                        ) {
                             $shouldDelete = $true
                         }
                     }
