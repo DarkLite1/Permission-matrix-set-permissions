@@ -228,7 +228,18 @@ begin {
             }
 
             foreach ($child in $enumerator) {
-                if ($IgnoredFolderPaths.ContainsKey($child.FullName)) { continue }
+                # Skip DFS links, Reparse Points and System directories
+                if (
+                    ($child.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -or
+                    ($child.Attributes -band [System.IO.FileAttributes]::System)
+                    # ($child.Attributes -band [System.IO.FileAttributes]::Hidden)
+                ) {
+                    continue
+                }
+
+                if ($IgnoredFolderPaths.ContainsKey($child.FullName)) { 
+                    continue 
+                }
 
                 $isContainer = $child -is [System.IO.DirectoryInfo]
 
