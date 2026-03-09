@@ -1269,11 +1269,9 @@ process {
 
                     if ($settingsSheet) {
                         foreach ($S in $settingsSheet) {
-                            $ID++
-
                             $Obj.Settings.Add(
                                 [PSCustomObject]@{
-                                    ID        = $ID
+                                    ID        = $null
                                     Import    = Format-SettingStringsHC -Settings $S
                                     Check     = [System.Collections.Generic.List[PSCustomObject]]::new()
                                     Matrix    = [System.Collections.Generic.List[PSCustomObject]]::new()
@@ -1467,6 +1465,17 @@ process {
                 $rehydratedBlock = [scriptblock]::Create($using:processScriptBlockString)
 
                 & $rehydratedBlock @params
+            }
+        }
+        #endregion
+
+        #region Assign unique ID to each matrix
+        $matrixId = 0
+
+        foreach ($I in $importedMatrix) {
+            foreach ($S in $I.Settings) {
+                $matrixId++
+                $S.ID = $matrixId
             }
         }
         #endregion
