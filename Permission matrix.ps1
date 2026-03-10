@@ -2995,13 +2995,98 @@ end {
                 }
                 #endregion
 
+                #region Create troubleshooting log in the matrix folder
+                try {
+                    $troubleshootHtml = @"
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        $($html.Style)
+                        <style>
+                            body { margin: 20px; }
+                            h2 { background-color: #333; color: white; padding: 5px 10px; margin-top: 20px;}
+                            .section-title { font-weight: bold; font-size: 16px; margin-top: 15px; padding-left: 5px; border-bottom: 2px solid #ccc; }
+                        </style>
+                    </head>
+                    <body>
+                        <h1>Troubleshooting Log</h1>
+                        <h2>$($I.File.Item.Name)</h2>
+                        <p><strong>Last change:</strong> $($I.File.ExcelInfo.LastModifiedBy) @ $($I.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))</p>
+                        
+                        <table id="matrixTable" style="width: 100%;">
+                            $FileCheck
+                            $FormDataCheck
+                            $PermissionsCheck
+"@
+                    # Add all Settings-level checks to the master log
+                    if ($I.Settings) {
+                        $troubleshootHtml += '<tr><th id="matrixHeader" colspan="8">Settings Checks</th></tr>'
+                        foreach ($S in $I.Settings | Sort-Object -Property ID) {
+                            if ($S.Check) {
+                                $troubleshootHtml += "<tr><td colspan='8' style='background-color: #eee;'><b>Setting ID: $($S.ID)</b> ($($S.Import.ComputerName) - $($S.Import.Path))</td></tr>"
+                                foreach ($chk in $S.Check) {
+                                    $pType = Get-HtmlIdTagProbTypeHC -Name $chk.Type
+                                    $htmlValue = ''
+                                    
+                                    # Format detailed lists if present
+                                    if ($chk.Value) { 
+                                        if ($chk.Value.Count -le 5 -and $chk.Value -isnot [hashtable]) {
+                                            $htmlValue = '<ul>' + (@($chk.Value).ForEach({ "<li>$_</li>" }) -join '') + '</ul>'
+                                        }
+                                        else {
+                                            $htmlValue = '<p><i>(Multiple items/Hashtable logged. Check raw JSON for full dump)</i></p>'
+                                        }
+                                    }
+
+                                    $troubleshootHtml += "<tr><td id='$pType'></td><td colspan='7'><p id='probTitle'>$($chk.Name)</p><p>$($chk.Description)</p>$htmlValue</td></tr>"
+                                }
+                            }
+                        }
+                    }
+
+                    $troubleshootHtml += @'
+                        </table>
+                        <br>
+                        <table id="LegendTable">
+                            <tr>
+                                <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
+                                <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
+                                <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
+                            </tr>
+                        </table>
+                    </body>
+                    </html>
+'@
+                    #region Save the Troubleshooting Log to the Matrix Folder
+                    if (Test-Path -LiteralPath $I.File.LogFolder -PathType Container) {
+                        $troubleshootFileParams = @{
+                            LiteralPath = Join-Path -Path $I.File.LogFolder -ChildPath '00 - Troubleshooting Log.html'
+                            Encoding    = 'utf8'
+                            Force       = $true
+                        }
+                        $troubleshootHtml | Out-File @troubleshootFileParams
+                    }
+                    #endregion
+                }
+                catch {
+                    $verboseMessage = "Failed to generate Troubleshooting Log for $($I.File.Item.Name): $_"
+                    $systemErrors.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = $verboseMessage 
+                        }
+                    )
+                    Write-Warning $verboseMessage
+                }
+                #endregion
+            
                 #region HTML Mail overview Settings table
                 $html.SettingsTable = $null
 
                 if (
-                    ($I.Settings) -and
-                    ($I.File.Check.Type -notcontains 'FatalError') -and
-                    ($I.Permissions.Check.Type -notcontains 'FatalError')
+                    ($I.Settings) #-and
+                    # ($I.File.Check.Type -notcontains 'FatalError') -and
+                    # ($I.Permissions.Check.Type -notcontains 'FatalError')
                 ) {
                     $html.SettingsTable = $html.SettingsHeader
 
