@@ -2253,7 +2253,6 @@ end {
             </style>'
         #endregion
 
-        # Only process matrix files into HTML/Excel if there are NO system errors up to this point
         if (($systemErrors.Count -eq 0) -and $importedMatrix) {
             $dataToExport = @{
                 AccessList    = [System.Collections.Generic.List[object]]::new()
@@ -3255,8 +3254,8 @@ end {
                 <p><b>Processed files in the folder '<a href=`"$($Matrix.FolderPath)`">$matrixFolderPathName</a>':</b></p>
                 $($html.MatrixTables)"
             }
+            #endregion
         }
-        #
 
         #region Create HTML error warning table
         $errorRows = @()
