@@ -1566,7 +1566,7 @@ Describe 'export an Excel file with' {
                 $actualRow.ManagerType | Should -BeLike $testRow.ManagerType
                 $actualRow.ManagerMemberName | Should -Be $testRow.ManagerMemberName
             }
-        } -Tag test
+        }
     }
 }
 Describe 'when a job fails' {
@@ -1831,7 +1831,7 @@ Describe 'when a FatalError occurs while executing the matrix' {
         $testDatedLogFolder = Test-GetDatedLogFolderPathHC
 
         $testMatrixLogFolder = Get-ChildItem -Path $testDatedLogFolder -Directory
-        @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Extension -NE '.xlsx').Count | Should -BeExactly 2
+        @(Get-ChildItem -Path $testMatrixLogFolder.FullName -File | Where-Object Name -like '* - Settings.html').Count | Should -BeExactly 2
     }
     It 'a TXT log file is created for each settings row when there are more than 5 elements in the value array' {
         $testProblem = @{

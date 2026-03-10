@@ -2923,6 +2923,8 @@ end {
                 $I in 
                 $importedMatrix | Sort-Object -Property { $_.File.Item.Name }
             ) {
+                Write-Verbose "Create HTML file content for '$($I.File.Item.Name)'"
+
                 #region HTML File
                 $FileCheck = if ($I.File.Check) {
                     '<th id="matrixHeader" colspan="8">File</th>'
@@ -2997,6 +2999,8 @@ end {
 
                 #region Create troubleshooting log in the matrix folder
                 try {
+                    Write-Verbose 'Create troubleshooting log in the matrix folder'
+
                     $troubleshootHtml = @"
                     <!DOCTYPE html>
                     <html>
@@ -3064,6 +3068,9 @@ end {
                             Encoding    = 'utf8'
                             Force       = $true
                         }
+
+                        Write-Verbose "Save troubleshooting log in matrix folder '$($troubleshootFileParams.LiteralPath)'"
+
                         $troubleshootHtml | Out-File @troubleshootFileParams
                     }
                     #endregion
@@ -3094,6 +3101,8 @@ end {
                         $S in 
                         $I.Settings | Sort-Object -Property ID
                     ) {
+                        Write-Verbose "Create HTML for setting 'ID $($S.ID) - $($($S.Import.ComputerName)) - $($S.Import.Path) - $($S.Import.Action)'"
+
                         $problem = @{}
 
                         #region Get problem color
@@ -3267,6 +3276,8 @@ end {
             }
 
             #region FatalError and warning count (Optimized)
+            Write-Verbose 'Count fatal errors and warnings'
+
             $counterData = @{
                 FormData    = @{
                     Error   = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'FatalError' }))
@@ -3343,6 +3354,8 @@ end {
         }
 
         #region Create HTML error warning table
+        Write-Verbose 'Create HTML error warning table'
+
         $errorRows = @()
 
         if ($systemErrors.Count -ne 0) {
