@@ -246,22 +246,16 @@ begin {
 
                 $accessDenied = $false
                 try {
-                    $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
+                    # FAST .NET API Call bypassing PowerShell provider overhead
+                    if ($isContainer) {
+                        $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl([System.IO.DirectoryInfo]$child)
+                    }
+                    else {
+                        $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl([System.IO.FileInfo]$child)
+                    }
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
-                }
-                catch {
-                    if (-not (Test-Path -LiteralPath $child.FullName)) {
-                        Write-Verbose "Item '$($child.FullName)' removed"
-                        $Error.RemoveAt(0)
-                    }
-                    else {
-                        $ErrorActionPreference = 'Continue'
-                        Write-Error "Failed retrieving the ACL of '$child': $_"
-                        $ErrorActionPreference = 'Stop'
-                    }
-                    continue
                 }
 
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
