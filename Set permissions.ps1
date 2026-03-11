@@ -125,15 +125,15 @@ begin {
         try {
             if ($ReferenceAce.Count -ne $DifferenceAce.Count) { return $false }
 
-            foreach ($D in $DifferenceAce) {
-                $aclMatch = $ReferenceAce.Where({
-                        ("$($D.FileSystemRights)" -eq "$($_.FileSystemRights)") -and
-                        ("$($D.AccessControlType)" -eq "$($_.AccessControlType)") -and
-                        ("$($D.IdentityReference)" -eq "$($_.IdentityReference)") -and
-                        ("$($D.InheritanceFlags)" -eq "$($_.InheritanceFlags)")
-                    }, 'First')
+            # OPTIMIZATION: Use O(1) HashSet for fast matching instead of nested loops
+            $refSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($R in $ReferenceAce) {
+                [void]$refSet.Add("$([int]$R.FileSystemRights)|$([int]$R.AccessControlType)|$($R.IdentityReference.ToString())|$([int]$R.InheritanceFlags)")
+            }
 
-                if (-not $aclMatch) { return $false }
+            foreach ($D in $DifferenceAce) {
+                $id = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
+                if (-not $refSet.Contains($id)) { return $false }
             }
             return $true
         }
@@ -175,14 +175,19 @@ begin {
 
         try { Import-Module -Name 'Microsoft.PowerShell.Security' } catch { throw "Failed loading .NET library: $_" }
 
+        # OPTIMIZATION: Setup HashSets ONCE per runspace to avoid repeating work for every file
+        $folderRulesSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($FolderAclAccessList) { foreach ($r in $FolderAclAccessList) { [void]$folderRulesSet.Add($r) } }
+
+        $fileRulesSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($FileAclAccessList) { foreach ($r in $FileAclAccessList) { [void]$fileRulesSet.Add($r) } }
+
         #region Function Test-AclEqualHC (Parallel Thread)
         function Test-AclEqualHC {
             [OutputType([Boolean])]
             param (
                 [Parameter(Mandatory)]
-                [AllowNull()]
-                [AllowEmptyCollection()]
-                [System.Object[]]$ReferenceAce = @(),
+                [System.Collections.Generic.HashSet[string]]$ReferenceSet,
 
                 [Parameter(Mandatory)]
                 [AllowNull()]
@@ -191,17 +196,13 @@ begin {
             )
 
             try {
-                if ($ReferenceAce.Count -ne $DifferenceAce.Count) { return $false }
+                if ($ReferenceSet.Count -ne $DifferenceAce.Count) { return $false }
 
                 foreach ($D in $DifferenceAce) {
-                    $aclMatch = $ReferenceAce.Where({
-                            ("$($D.FileSystemRights)" -eq $_.FileSystemRights) -and
-                            ("$($D.AccessControlType)" -eq $_.AccessControlType) -and
-                            ("$($D.IdentityReference)" -eq $_.IdentityReference) -and
-                            ("$($D.InheritanceFlags)" -eq $_.InheritanceFlags)
-                        }, 'First')
-
-                    if (-not $aclMatch) { return $false }
+                    # Generate the fingerprint using [int] to bypass slow string evaluations
+                    $id = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
+                    
+                    if (-not $ReferenceSet.Contains($id)) { return $false }
                 }
                 return $true
             }
@@ -268,7 +269,7 @@ begin {
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
                 if ($isContainer) {
-                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceAce $FolderAclAccessList -DifferenceAce $diffAce))) {
+                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $folderRulesSet -DifferenceAce $diffAce))) {
                         & $incorrectAclInheritedOnly
                     }
 
@@ -277,7 +278,7 @@ begin {
                     }
                 }
                 else {
-                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceAce $FileAclAccessList -DifferenceAce $diffAce))) {
+                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $fileRulesSet -DifferenceAce $diffAce))) {
                         & $incorrectAclInheritedOnly
                     }
                 }
@@ -828,12 +829,8 @@ process {
                         if (-not $acl) { return @() }
                         $arr = @()
                         foreach ($r in $acl.Access) {
-                            $arr += [PSCustomObject]@{
-                                FileSystemRights  = "$($r.FileSystemRights)"
-                                AccessControlType = "$($r.AccessControlType)"
-                                IdentityReference = "$($r.IdentityReference)"
-                                InheritanceFlags  = "$($r.InheritanceFlags)"
-                            }
+                            # OPTIMIZATION: Extract to primitive string before sending into the runspace!
+                            $arr += "$([int]$r.FileSystemRights)|$([int]$r.AccessControlType)|$($r.IdentityReference.ToString())|$([int]$r.InheritanceFlags)"
                         }
                         return $arr
                     }
