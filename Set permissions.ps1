@@ -747,7 +747,8 @@ process {
 
                 $accessDenied = $false
                 try {
-                    $acl = Get-Acl -LiteralPath $folder.Path -ErrorAction Stop
+                    # FAST .NET API Call bypassing PowerShell provider overhead
+                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($dirInfo)
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
