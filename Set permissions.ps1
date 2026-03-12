@@ -272,9 +272,16 @@ begin {
                             $Error.RemoveAt(0)
                         }
                         else {
-                            $ErrorActionPreference = 'Continue'
-                            Write-Error "Failed retrieving the ACL of '$child': $_"
-                            $ErrorActionPreference = 'Stop'
+                            $errorMessage = "Failed retrieving the ACL of '$child': $_"
+                            
+                            Write-Warning $errorMessage
+
+                            if ($DetailedLog) {
+                                $incorrectInheritedAcl[$child.FullName] = $errorMessage
+                            }
+                            else {
+                                $incorrectInheritedAcl.Add($child.FullName)
+                            }
                         }
                         continue
                     }
