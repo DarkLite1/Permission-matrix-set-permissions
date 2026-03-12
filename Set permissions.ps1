@@ -245,6 +245,7 @@ begin {
                 $isContainer = $child -is [System.IO.DirectoryInfo]
 
                 $accessDenied = $false
+                $acl = $null
                 try {
                     # FAST .NET API Call bypassing PowerShell provider overhead
                     if ($isContainer) {
@@ -256,6 +257,27 @@ begin {
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
+                }
+                catch {
+                    # FALLBACK: Use classic Get-Acl if .NET method fails
+                    try {
+                        $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
+                    }
+                    catch [System.UnauthorizedAccessException] {
+                        $accessDenied = $true
+                    }
+                    catch {
+                        if (-not (Test-Path -LiteralPath $child.FullName)) {
+                            Write-Verbose "Item '$($child.FullName)' removed"
+                            $Error.RemoveAt(0)
+                        }
+                        else {
+                            $ErrorActionPreference = 'Continue'
+                            Write-Error "Failed retrieving the ACL of '$child': $_"
+                            $ErrorActionPreference = 'Stop'
+                        }
+                        continue
+                    }
                 }
 
                 $testedInheritedFilesAndFolders[$child.FullName] = $true
@@ -746,12 +768,22 @@ process {
                 $testedNonInheritedFolders[$folder.Path] = $folder
 
                 $accessDenied = $false
+                $acl = $null
                 try {
                     # FAST .NET API Call bypassing PowerShell provider overhead
                     $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($dirInfo)
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
+                }
+                catch {
+                    # FALLBACK: Use classic Get-Acl if .NET method fails
+                    try {
+                        $acl = Get-Acl -LiteralPath $folder.Path -ErrorAction Stop
+                    }
+                    catch [System.UnauthorizedAccessException] {
+                        $accessDenied = $true
+                    }
                 }
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
