@@ -2365,218 +2365,230 @@ end {
 
             #region Add sheets to Matrix log files and collect data
             foreach ($I in $importedMatrix) {
-                $excelParams = @{
-                    Path               = $I.File.SaveFullName
-                    AutoSize           = $true
-                    ClearSheet         = $true
-                    FreezeTopRow       = $true
-                    NoNumberConversion = '*'
-                }
+                try {
+                    $excelParams = @{
+                        Path               = $I.File.SaveFullName
+                        AutoSize           = $true
+                        ClearSheet         = $true
+                        FreezeTopRow       = $true
+                        NoNumberConversion = '*'
+                    }
 
-                #region Get SamAccountNames for rows Settings sheet
-                $matrixSamAccountNames = @(
-                    $I.Settings.AdObjects.Values.SamAccountName
-                ).ForEach({ "$($_)".Trim() }).Where({ $_ }) |
-                Sort-Object -Unique
+                    #region Get SamAccountNames for rows Settings sheet
+                    $matrixSamAccountNames = @(
+                        $I.Settings.AdObjects.Values.SamAccountName
+                    ).ForEach({ "$($_)".Trim() }).Where({ $_ }) |
+                    Sort-Object -Unique
 
-                Write-Verbose "Matrix '$($I.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
-                #endregion
+                    Write-Verbose "Matrix '$($I.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
+                    #endregion
 
-                #region AccessList
-                #region Create object
-                $accessListToExport = foreach ($S in $matrixSamAccountNames) {
-                    $adData = $adObjectHash[$S]
+                    #region AccessList
+                    #region Create object
+                    $accessListToExport = foreach ($S in $matrixSamAccountNames) {
+                        $adData = $adObjectHash[$S]
 
-                    if (-not $adData.adObject) {
-                        $verboseMessage = "Matrix '$($I.File.Item.Name)' SamAccountName '$S' not found in AD"
+                        if (-not $adData.adObject) {
+                            $verboseMessage = "Matrix '$($I.File.Item.Name)' SamAccountName '$S' not found in AD"
+
+                            $eventLogData.Add([PSCustomObject]@{
+                                    Message   = $verboseMessage
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '2'
+                                })
+                            Write-Warning $verboseMessage
+                        }
+                        elseif (-not $adData.adGroupMember) {
+                            $adData | Select-Object -Property SamAccountName,
+                            @{Name = 'Name'; Expression = { $_.adObject.Name } },
+                            @{Name = 'Type'; Expression = { $_.adObject.ObjectClass } },
+                            MemberName, MemberSamAccountName
+                        }
+                        else {
+                            $adData.adGroupMember | Select-Object -Property @{
+                                Name       = 'SamAccountName'
+                                Expression = { $S }
+                            },
+                            @{Name = 'Name'; Expression = { $adData.adObject.Name } },
+                            @{Name = 'Type'; Expression = { $adData.adObject.ObjectClass } },
+                            @{Name = 'MemberName'; Expression = { $_.Name } },
+                            @{Name = 'MemberSamAccountName'; Expression = { $_.SamAccountName } }
+                        }
+                    }
+                    #endregion
+
+                    if ($accessListToExport) {
+                        #region Export to Excel
+                        $excelParams.WorksheetName = 'AccessList'
+                        $excelParams.TableName = 'AccessList'
+
+                        $verboseMessage = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
 
                         $eventLogData.Add([PSCustomObject]@{
                                 Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
-                                EventID   = '2'
+                                EventID   = '1'
                             })
-                        Write-Warning $verboseMessage
-                    }
-                    elseif (-not $adData.adGroupMember) {
-                        $adData | Select-Object -Property SamAccountName,
-                        @{Name = 'Name'; Expression = { $_.adObject.Name } },
-                        @{Name = 'Type'; Expression = { $_.adObject.ObjectClass } },
-                        MemberName, MemberSamAccountName
-                    }
-                    else {
-                        $adData.adGroupMember | Select-Object -Property @{
-                            Name       = 'SamAccountName'
-                            Expression = { $S }
-                        },
-                        @{Name = 'Name'; Expression = { $adData.adObject.Name } },
-                        @{Name = 'Type'; Expression = { $adData.adObject.ObjectClass } },
-                        @{Name = 'MemberName'; Expression = { $_.Name } },
-                        @{Name = 'MemberSamAccountName'; Expression = { $_.SamAccountName } }
-                    }
-                }
-                #endregion
+                        Write-Verbose $verboseMessage
 
-                if ($accessListToExport) {
-                    #region Export to Excel
-                    $excelParams.WorksheetName = 'AccessList'
-                    $excelParams.TableName = 'AccessList'
+                        $accessListToExport | Export-Excel @excelParams
+                        #endregion
 
-                    $verboseMessage = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-
-                    $eventLogData.Add([PSCustomObject]@{
-                            Message   = $verboseMessage
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        })
-                    Write-Verbose $verboseMessage
-
-                    $accessListToExport | Export-Excel @excelParams
-                    #endregion
-
-                    #region Add to export
-                    $dataToExport['AccessList'].AddRange(
-                        @(
-                            $accessListToExport |
-                            Select-Object @{
-                                Name       = 'MatrixFileName'
-                                Expression = { $I.File.Item.BaseName
-                                }
-                            }, *
+                        #region Add to export
+                        $dataToExport['AccessList'].AddRange(
+                            @(
+                                $accessListToExport |
+                                Select-Object @{
+                                    Name       = 'MatrixFileName'
+                                    Expression = { $I.File.Item.BaseName
+                                    }
+                                }, *
+                            )
                         )
-                    )
+                        #endregion
+                    }
                     #endregion
-                }
-                #endregion
 
-                #region GroupManagers
-                #region Create objects
-                $groupManagersToExport = foreach (
-                    $S in
-                    $matrixSamAccountNames
-                ) {
-                    $adData = $adObjectHash[$S]
-
-                    if (
-                        $adData -and
-                        ($null -ne $adData.adObject) -and
-                        ($adData.adObject.ObjectClass -eq 'group')
+                    #region GroupManagers
+                    #region Create objects
+                    $groupManagersToExport = foreach (
+                        $S in
+                        $matrixSamAccountNames
                     ) {
-                        $managedBy = $adData.adObject.PSObject.Properties['ManagedBy'].Value
+                        $adData = $adObjectHash[$S]
 
-                        $groupManager = $null
-                        if (-not [string]::IsNullOrWhiteSpace($managedBy)) {
-                            $groupManager = $groupManagerHash[$managedBy]
-                        }
+                        if (
+                            $adData -and
+                            ($null -ne $adData.adObject) -and
+                            ($adData.adObject.ObjectClass -eq 'group')
+                        ) {
+                            $managedBy = $adData.adObject.PSObject.Properties['ManagedBy'].Value
 
-                        if (-not $groupManager) {
-                            [PSCustomObject]@{
-                                GroupName         = $adData.adObject.Name
-                                ManagerName       = $null
-                                ManagerType       = $null
-                                ManagerMemberName = $null
+                            $groupManager = $null
+                            if (-not [string]::IsNullOrWhiteSpace($managedBy)) {
+                                $groupManager = $groupManagerHash[$managedBy]
                             }
-                        }
-                        elseif (-not $groupManager.adGroupMember) {
-                            [PSCustomObject]@{
-                                GroupName         = $adData.adObject.Name
-                                ManagerName       = $groupManager.adObject.Name
-                                ManagerType       = $groupManager.adObject.ObjectClass
-                                ManagerMemberName = $null
+
+                            if (-not $groupManager) {
+                                [PSCustomObject]@{
+                                    GroupName         = $adData.adObject.Name
+                                    ManagerName       = $null
+                                    ManagerType       = $null
+                                    ManagerMemberName = $null
+                                }
                             }
-                        }
-                        else {
-                            foreach ($user in $groupManager.adGroupMember) {
+                            elseif (-not $groupManager.adGroupMember) {
                                 [PSCustomObject]@{
                                     GroupName         = $adData.adObject.Name
                                     ManagerName       = $groupManager.adObject.Name
                                     ManagerType       = $groupManager.adObject.ObjectClass
-                                    ManagerMemberName = $user.Name
+                                    ManagerMemberName = $null
+                                }
+                            }
+                            else {
+                                foreach ($user in $groupManager.adGroupMember) {
+                                    [PSCustomObject]@{
+                                        GroupName         = $adData.adObject.Name
+                                        ManagerName       = $groupManager.adObject.Name
+                                        ManagerType       = $groupManager.adObject.ObjectClass
+                                        ManagerMemberName = $user.Name
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                #endregion
-
-                if ($groupManagersToExport) {
-                    #region Export to Excel
-                    $excelParams.WorksheetName = 'GroupManagers'
-                    $excelParams.TableName = 'GroupManagers'
-
-                    $verboseMessage = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-
-                    $eventLogData.Add([PSCustomObject]@{
-                            Message   = $verboseMessage
-                            DateTime  = Get-Date
-                            EntryType = 'Information'
-                            EventID   = '1'
-                        })
-                    Write-Verbose $verboseMessage
-
-                    $groupManagersToExport | Export-Excel @excelParams
                     #endregion
 
-                    #region Add to export
-                    $dataToExport['GroupManagers'].AddRange(
-                        @(
-                            $groupManagersToExport | Select-Object @{
-                                Name       = 'MatrixFileName'
-                                Expression = { $I.File.Item.BaseName }
-                            }, *
+                    if ($groupManagersToExport) {
+                        #region Export to Excel
+                        $excelParams.WorksheetName = 'GroupManagers'
+                        $excelParams.TableName = 'GroupManagers'
+
+                        $verboseMessage = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
+
+                        $eventLogData.Add([PSCustomObject]@{
+                                Message   = $verboseMessage
+                                DateTime  = Get-Date
+                                EntryType = 'Information'
+                                EventID   = '1'
+                            })
+                        Write-Verbose $verboseMessage
+
+                        $groupManagersToExport | Export-Excel @excelParams
+                        #endregion
+
+                        #region Add to export
+                        $dataToExport['GroupManagers'].AddRange(
+                            @(
+                                $groupManagersToExport | Select-Object @{
+                                    Name       = 'MatrixFileName'
+                                    Expression = { $I.File.Item.BaseName }
+                                }, *
+                            )
                         )
-                    )
+                        #endregion
+                    }
                     #endregion
-                }
-                #endregion
 
-                #region AdObjects
-                $adObjects = foreach ($S in $I.Settings.Where({ $_.AdObjects.Count -ne 0 })) {
-                    foreach ($A in ($S.AdObjects.GetEnumerator())) {
-                        [PSCustomObject]@{
-                            MatrixFileName = $I.File.Item.BaseName
-                            SamAccountName = $A.Value.SamAccountName
-                            GroupName      = $A.Value.Converted.Begin
-                            SiteCode       = $A.Value.Converted.Middle
-                            Name           = $A.Value.Converted.End
+                    #region AdObjects
+                    $adObjects = foreach ($S in $I.Settings.Where({ $_.AdObjects.Count -ne 0 })) {
+                        foreach ($A in ($S.AdObjects.GetEnumerator())) {
+                            [PSCustomObject]@{
+                                MatrixFileName = $I.File.Item.BaseName
+                                SamAccountName = $A.Value.SamAccountName
+                                GroupName      = $A.Value.Converted.Begin
+                                SiteCode       = $A.Value.Converted.Middle
+                                Name           = $A.Value.Converted.End
+                            }
                         }
                     }
-                }
 
-                if ($adObjects) {
-                    #region Export to Excel
-                    $excelParams.WorksheetName = 'AdObjects'
-                    $excelParams.TableName = 'AdObjects'
+                    if ($adObjects) {
+                        #region Export to Excel
+                        $excelParams.WorksheetName = 'AdObjects'
+                        $excelParams.TableName = 'AdObjects'
 
-                    $AdObjects | Export-Excel @excelParams
-                    #endregion
+                        $AdObjects | Export-Excel @excelParams
+                        #endregion
 
-                    #region Add to export
-                    $dataToExport['AdObjects'].AddRange(
-                        @(
-                            $adObjects | Group-Object SamAccountName |
-                            ForEach-Object { $_.Group[0] }
+                        #region Add to export
+                        $dataToExport['AdObjects'].AddRange(
+                            @(
+                                $adObjects | Group-Object SamAccountName |
+                                ForEach-Object { $_.Group[0] }
+                            )
                         )
-                    )
+                        #endregion
+                    }
+                    #endregion
+
+                    #region FormData
+                    if ($I.FormData.Import) {
+                        $dataToExport['FormData'].AddRange(
+                            @($I.FormData.Import)
+                        )
+                    }
                     #endregion
                 }
-                #endregion
+                catch {
+                    $verboseMessage = "Failed to add sheet 'FormData', 'AdObjects' or 'Permissions' to Matrix log file '$($I.File.Item.Name)': $_"
 
-                #region FormData
-                if ($I.FormData.Import) {
-                    $dataToExport['FormData'].AddRange(
-                        @($I.FormData.Import)
+                    $systemErrors.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = $verboseMessage 
+                        }
                     )
+                    Write-Warning $verboseMessage   
                 }
-                #endregion
             }
             #endregion
 
             $exportedFiles = @{}
 
             if ($systemErrors.Count -eq 0) {
-
                 #region Create Permissions Excel files
                 if ($Export.PermissionsExcelFile) {
                     Remove-FileHC -FilePath $Export.PermissionsExcelFile
@@ -2588,7 +2600,11 @@ end {
                         FreezeTopRow = $true
                     }
 
-                    foreach ($property in $dataToExport.GetEnumerator() | Where-Object { $_.Value }) {
+                    foreach (
+                        $property in 
+                        $dataToExport.GetEnumerator() | Where-Object {
+                            $_.Value }
+                    ) {
                         try {
                             $name = $property.Name
                             $data = $property.Value
@@ -2990,7 +3006,6 @@ end {
                     }
                 }
                 #endregion
-
             }
 
             #region HTML Mail overview & Settings detail
@@ -3367,64 +3382,6 @@ end {
 "@
             }
 
-            #region FatalError and warning count (Optimized)
-            Write-Verbose 'Count fatal errors and warnings'
-
-            $counterData = @{
-                FormData    = @{
-                    Error   = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'FatalError' }))
-                    Warning = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'Warning' }))
-                }
-                Permissions = @{
-                    Error   = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'FatalError' }))
-                    Warning = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'Warning' }))
-                }
-                Settings    = @{
-                    Error   = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'FatalError' }))
-                    Warning = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'Warning' }))
-                }
-                File        = @{
-                    Error   = @($importedMatrix.File.Check.Where({ $_.Type -eq 'FatalError' }))
-                    Warning = @($importedMatrix.File.Check.Where({ $_.Type -eq 'Warning' }))
-                }
-                Total       = @{
-                    Errors   = @()
-                    Warnings = @()
-                }
-            }
-
-            $counterData.Total.Errors = @(
-                $counterData.FormData.Error + $counterData.Permissions.Error + $counterData.Settings.Error + $counterData.File.Error
-            ).Where({ $_ })
-
-            $counterData.Total.Warnings = @(
-                $counterData.FormData.Warning + $counterData.Permissions.Warning + $counterData.Settings.Warning + $counterData.File.Warning
-            ).Where({ $_ })
-
-            $counter = @{
-                FormData    = @{
-                    Error   = $counterData.FormData.Error.Count
-                    Warning = $counterData.FormData.Warning.Count
-                }
-                Permissions = @{
-                    Error   = $counterData.Permissions.Error.Count
-                    Warning = $counterData.Permissions.Warning.Count
-                }
-                Settings    = @{
-                    Error   = $counterData.Settings.Error.Count
-                    Warning = $counterData.Settings.Warning.Count
-                }
-                File        = @{
-                    Error   = $counterData.File.Error.Count
-                    Warning = $counterData.File.Warning.Count
-                }
-                Total       = @{
-                    Errors   = ($counterData.Total.Errors.Count + $systemErrors.Count)
-                    Warnings = $counterData.Total.Warnings.Count
-                }
-            }
-            #endregion
-
             $html.ExportFilesList = if ($exportedFiles.Count) {
                 '<p><b>Exported {0} file{1}:</b></p>
                     <ul>{2}</ul>' -f $($exportedFiles.Count), $(if ($exportedFiles.Count -ne 1) { 's' }), $(($exportedFiles.GetEnumerator() | ForEach-Object { "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>" }) -join '')
@@ -3444,6 +3401,65 @@ end {
             }
             #endregion
         }
+
+        #region FatalError and warning count (Optimized)
+        Write-Verbose 'Count fatal errors and warnings'
+
+        $counterData = @{
+            FormData    = @{
+                Error   = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'FatalError' }))
+                Warning = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'Warning' }))
+            }
+            Permissions = @{
+                Error   = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'FatalError' }))
+                Warning = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'Warning' }))
+            }
+            Settings    = @{
+                Error   = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'FatalError' }))
+                Warning = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'Warning' }))
+            }
+            File        = @{
+                Error   = @($importedMatrix.File.Check.Where({ $_.Type -eq 'FatalError' }))
+                Warning = @($importedMatrix.File.Check.Where({ $_.Type -eq 'Warning' }))
+            }
+            Total       = @{
+                Errors   = @()
+                Warnings = @()
+            }
+        }
+
+        $counterData.Total.Errors = @(
+            $counterData.FormData.Error + $counterData.Permissions.Error + $counterData.Settings.Error + $counterData.File.Error
+        ).Where({ $_ })
+
+        $counterData.Total.Warnings = @(
+            $counterData.FormData.Warning + $counterData.Permissions.Warning + $counterData.Settings.Warning + $counterData.File.Warning
+        ).Where({ $_ })
+
+        $counter = @{
+            FormData    = @{
+                Error   = $counterData.FormData.Error.Count
+                Warning = $counterData.FormData.Warning.Count
+            }
+            Permissions = @{
+                Error   = $counterData.Permissions.Error.Count
+                Warning = $counterData.Permissions.Warning.Count
+            }
+            Settings    = @{
+                Error   = $counterData.Settings.Error.Count
+                Warning = $counterData.Settings.Warning.Count
+            }
+            File        = @{
+                Error   = $counterData.File.Error.Count
+                Warning = $counterData.File.Warning.Count
+            }
+            Total       = @{
+                Errors   = ($counterData.Total.Errors.Count + $systemErrors.Count)
+                Warnings = $counterData.Total.Warnings.Count
+            }
+        }
+        #endregion
+
 
         #region Create HTML error warning table
         Write-Verbose 'Create HTML error warning table'
