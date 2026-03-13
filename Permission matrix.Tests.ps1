@@ -1292,7 +1292,7 @@ Describe 'the script that sets the permissions on the remote computers' {
         Should -Contain 2
         ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check.value |
         Should -Contain 3
-    }  -Tag test
+    }
 }
 Describe 'an email is sent to the user in the default settings file' {
     BeforeAll {
