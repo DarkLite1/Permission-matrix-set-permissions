@@ -3483,8 +3483,13 @@ end {
 
         #region Send email
         if (($systemErrors.Count -ne 0) -or $importedMatrix) {
+            
+            $mailParams.To =
+            @(@($sendMail.To) + @($mailToDefaultsFile)) | Where-Object { $_ } |
+            ForEach-Object { $_.Trim() } | Where-Object { $_ } | 
+            Sort-Object -Unique
+
             $mailParams += @{
-                To                  = @(@($sendMail.To) + @($mailToDefaultsFile)).Where({ $_ }).Trim() | Sort-Object -Unique
                 From                = Get-StringValueHC $sendMail.From
                 SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
                 SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
