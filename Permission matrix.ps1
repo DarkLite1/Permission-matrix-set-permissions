@@ -3597,16 +3597,51 @@ end {
             }
             #endregion
 
-            Send-MailKitMessageHC @mailParams
+            #region Send email
+            try {
+                Send-MailKitMessageHC @mailParams
+            }
+            catch {
+                Write-Warning "Failed to send email: $_"
+
+                $systemErrors.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "Failed to send email: $_"
+                    }
+                )
+            }
+            #endregion
 
             #region Save mail in log folder
-            if (Test-Path -LiteralPath $LogFolder -PathType Container) {
-                $params = @{
-                    LiteralPath = Join-Path (Get-DatedLogFolderPathHC) ('Mail - {0}.html' -f $mailParams.Subject)
-                    Encoding    = 'utf8'
-                    NoClobber   = $true
+            try {
+                if (Test-Path -LiteralPath $LogFolder -PathType Container) {
+                    $safeSubject = if ($mailParams.Subject) {
+                        $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
+                        $escapedInvalidChars = [regex]::Escape([string]$invalidChars)
+                        $mailParams.Subject -replace "[$escapedInvalidChars]", ' '
+                    }
+                    else {
+                        'No Subject'
+                    }
+
+                    $params = @{
+                        LiteralPath = Join-Path (Get-DatedLogFolderPathHC) ('Mail - {0}.html' -f $safeSubject)
+                        Encoding    = 'utf8'
+                        NoClobber   = $true
+                    }
+                    $mailParams.Body | Out-File @params
                 }
-                $mailParams.Body | Out-File @params
+            }
+            catch {
+                Write-Warning "Failed to save mail body locally: $_"
+
+                $systemErrors.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "Failed to save mail body locally: $_"
+                    }
+                )
             }
             #endregion
         }
