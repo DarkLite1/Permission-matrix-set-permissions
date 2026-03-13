@@ -68,6 +68,85 @@ begin {
             return '<ul><li><a href="{0}">{1} items</a></li></ul>' -f $OutParams.LiteralPath, $ErrorObj.Value.Count
         }
     }
+    function ConvertTo-StructuredObjectHC {
+        <#
+        .SYNOPSIS
+            Normalizes various input types into a standard PSCustomObject for 
+            HealthCheck reports.
+        
+        .DESCRIPTION
+            This function takes strings, hashtables, or existing objects and 
+            ensures they conform to a specific schema (Name, Description, Type, 
+            Value). If properties are missing or  null, it injects "Missing 
+            data" and sets the Type to "FatalError".
+        
+        .PARAMETER Objects
+            The input data to be converted. Can be a single item or an array.
+        
+        .EXAMPLE
+            "System Error" | ConvertTo-StructuredObjectHC
+
+            Converts a simple string into a full object with Name: 
+            'Error during execution'.
+        
+        .EXAMPLE
+            ConvertTo-StructuredObjectHC -Objects @{ 
+                Name = "Disk Check"
+                Type = "Warning" 
+            }
+            Converts a hashtable into an object and fills in the missing 
+            'Description' property.
+        #>
+
+        [CmdletBinding()]
+        param(
+            [Parameter(ValueFromPipeline = $true)]
+            [AllowEmptyCollection()]
+            [array]$Objects
+        )
+
+        process {
+            foreach ($checkObj in @($Objects)) {
+                if ($null -eq $checkObj) { continue }
+
+                # 1. Normalize into a PSCustomObject
+                $current = if (
+                    $checkObj -is [string] -or 
+                    $checkObj -is [System.ValueType]
+                ) {
+                    [PSCustomObject]@{
+                        Name        = 'Error during execution'
+                        Description = "Primitive value received: $checkObj"
+                        Type        = 'FatalError'
+                        Value       = $checkObj
+                    }
+                }
+                elseif ($checkObj -is [hashtable]) {
+                    [PSCustomObject]$checkObj
+                }
+                else {
+                    # Force a cast to ensure the object is extensible/malleable
+                    [PSCustomObject]$checkObj
+                }
+
+                # 2. Ensure the 'Value' property exists (avoiding null reference errors later)
+                if (-not (Get-Member -InputObject $current -Name 'Value')) {
+                    $current | Add-Member -MemberType NoteProperty -Name 'Value' -Value $null
+                }
+
+                # 3. Validate Core Properties
+                foreach ($prop in @('Name', 'Description', 'Type')) {
+                    if ([string]::IsNullOrWhiteSpace($current.$prop)) {
+                        $current | Add-Member -MemberType NoteProperty -Name $prop -Value 'Missing data' -Force
+                        $current | Add-Member -MemberType NoteProperty -Name 'Type' -Value 'FatalError' -Force
+                    }
+                }
+
+                # Output the object to the pipeline
+                $current
+            }
+        }
+    }
     function Get-HtmlIdTagProbTypeHC {
         [OutputType([String])]
         param (
@@ -1735,7 +1814,7 @@ process {
                     $expandedCheck = Test-ExpandedMatrixHC @params
 
                     if ($expandedCheck) {
-                        $S.Check += $expandedCheck
+                        $S.Check += $expandedCheck | ConvertTo-StructuredObjectHC
                     }
                 }
             }
@@ -1894,10 +1973,12 @@ process {
                 # Main Thread Application
                 foreach ($output in $runspaceOutput) {
                     if ($output -and $output.Result) {
-                        $targetGroups = $matrixGroups.Where({ $_.Name -eq $output.ComputerName })
+                        $targetGroups = $matrixGroups.Where(
+                            { $_.Name -eq $output.ComputerName }
+                        )
                         foreach ($group in $targetGroups) {
                             foreach ($matrix in $group.Group) {
-                                $matrix.Check += $output.Result
+                                $matrix.Check += $output.Result | ConvertTo-StructuredObjectHC
                             }
                         }
                     }
@@ -2094,7 +2175,8 @@ process {
 
                     foreach ($liveMatrix in $matchedMatrices) {
                         if ($payload.Result) {
-                            $liveMatrix.Check += $payload.Result
+                            $liveMatrix.Check += $payload.Result | 
+                            ConvertTo-StructuredObjectHC
                         }
                         $liveMatrix.JobTime.Start = $payload.JobStart
                         $liveMatrix.JobTime.End = $payload.JobEnd
@@ -2253,7 +2335,7 @@ end {
             </style>'
         #endregion
 
-        if (($systemErrors.Count -eq 0) -and $importedMatrix) {
+        if ($importedMatrix) {
             $dataToExport = @{
                 AccessList    = [System.Collections.Generic.List[object]]::new()
                 AdObjects     = [System.Collections.Generic.List[object]]::new()
@@ -2493,193 +2575,206 @@ end {
 
             $exportedFiles = @{}
 
-            #region Create Permissions Excel files
-            if ($Export.PermissionsExcelFile) {
-                Remove-FileHC -FilePath $Export.PermissionsExcelFile
+            if ($systemErrors.Count -eq 0) {
 
-                #region Create Permissions file in log folder
-                $permissionsExcelLogFileParams = @{
-                    Path         = Join-Path $exportLogFolderPath 'Permissions.xlsx'
-                    AutoSize     = $true
-                    FreezeTopRow = $true
-                }
+                #region Create Permissions Excel files
+                if ($Export.PermissionsExcelFile) {
+                    Remove-FileHC -FilePath $Export.PermissionsExcelFile
 
-                foreach ($property in $dataToExport.GetEnumerator() | Where-Object { $_.Value }) {
-                    try {
-                        $name = $property.Name
-                        $data = $property.Value
-
-                        $permissionsExcelLogFileParams.WorksheetName = $name
-                        $permissionsExcelLogFileParams.TableName = $name
-
-                        $verboseMessage = "Export $($data.Count) $Name objects to '$($permissionsExcelLogFileParams.Path)'"
-
-                        $eventLogData.Add([PSCustomObject]@{
-                                Message   = $verboseMessage
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            })
-                        Write-Verbose $verboseMessage
-
-                        $data | Export-Excel @permissionsExcelLogFileParams
-                    }
-                    catch {
-                        $verboseMessage = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
-
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                        Write-Warning $verboseMessage
-                    }
-                }
-                #endregion
-
-                #region Copy Permissions file from log to prod folder
-                if (
-                    $Export.PermissionsExcelFile -and
-                    (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path -PathType Leaf)
-                ) {
-                    try {
-                        $copyParams = @{
-                            LiteralPath = $permissionsExcelLogFileParams.Path
-                            Destination = $Export.PermissionsExcelFile
-                        }
-
-                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-
-                        $eventLogData.Add([PSCustomObject]@{
-                                Message   = $verboseMessage
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            })
-                        Write-Verbose $verboseMessage
-
-                        Copy-Item @copyParams
-                    }
-                    catch {
-                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                        Write-Warning $verboseMessage
-                    }
-                }
-                #endregion
-
-                $exportedFiles['PermissionsExcelFile'] = $Export.PermissionsExcelFile
-            }
-            #endregion
-
-            #region Create ServiceNowFormData and OverviewHTML file
-            if (
-                $dataToExport['FormData'] -and
-                $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
-            ) {
-                if ($Export.ServiceNowFormDataExcelFile) {
-                    Remove-FileHC -FilePath $Export.ServiceNowFormDataExcelFile
-
-                    #region Create objects for ServiceNow
-                    Write-Verbose 'Create objects for ServiceNow form'
-
-                    $formDataHash = @{}
-                    foreach ($fd in $dataToExport.FormData) {
-                        $formDataHash[$fd.MatrixFileName] = $fd
+                    #region Create Permissions file in log folder
+                    $permissionsExcelLogFileParams = @{
+                        Path         = Join-Path $exportLogFolderPath 'Permissions.xlsx'
+                        AutoSize     = $true
+                        FreezeTopRow = $true
                     }
 
-                    $serviceNowFormData = foreach (
-                        $adObjectName in
-                        $dataToExport.AdObjects
-                    ) {
-                        $formData = $formDataHash[$adObjectName.MatrixFileName]
-
-                        if (
-                            (-not $formData) -or
-                            ($formData.MatrixFormStatus -ne 'Enabled')
-                        ) {
-                            continue
-                        }
-
-                        $adObjectName | ForEach-Object {
-                            [PSCustomObject]@{
-                                u_matrixfilename        = $_.MatrixFileName
-                                u_matrixfolderpath      = $formData.MatrixFolderPath
-                                u_matrixcategoryname    = $formData.MatrixCategoryName
-                                u_matrixsubcategoryname = $formData.MatrixSubCategoryName
-                                u_matrixresponsible     = $formData.MatrixResponsible
-                                u_adobjectname          = $_.SamAccountName
-                            }
-                        }
-                    }
-                    #endregion
-
-                    #region Export to Excel
-                    $params = @{
-                        Path          = $Export.ServiceNowFormDataExcelFile
-                        WorksheetName = 'SnowFormData'
-                        TableName     = 'SnowFormData'
-                        AutoSize      = $true
-                        FreezeTopRow  = $true
-                    }
-
-                    Write-Verbose "Export $($serviceNowFormData.Count) objects to '$($params.Path)'"
-
-                    $serviceNowFormData | Export-Excel @params
-                    #endregion
-
-                    #region Export to log folder
-                    try {
-                        $copyParams = @{
-                            LiteralPath = $params.Path
-                            Destination = Join-Path $exportLogFolderPath 'ServiceNowFormData.xlsx'
-                        }
-
-                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-
-                        $eventLogData.Add(
-                            [PSCustomObject]@{
-                                Message   = $verboseMessage
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            }
-                        )
-                        Write-Verbose $verboseMessage
-
-                        Copy-Item @copyParams
-                    }
-                    catch {
-                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-
-                        $systemErrors.Add(
-                            [PSCustomObject]@{
-                                DateTime = Get-Date
-                                Message  = $verboseMessage
-                            })
-                        Write-Warning $verboseMessage
-                    }
-                    #endregion
-
-                    $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
-
-                    #region Start ServiceNow FormData upload
-                    if (
-                        $ServiceNow.CredentialsFilePath -and
-                        $ServiceNow.Environment -and
-                        $ServiceNow.TableName -and
-                        $serviceNowFormData
-                    ) {
+                    foreach ($property in $dataToExport.GetEnumerator() | Where-Object { $_.Value }) {
                         try {
-                            $params = @{
-                                CredentialsFilePath    = $ServiceNow.CredentialsFilePath
-                                Environment            = $ServiceNow.Environment
-                                TableName              = $ServiceNow.TableName
-                                FormDataExcelFilePath  = $params.Path
-                                ExcelFileWorksheetName = $params.WorksheetName
-                            }
-                            & $scriptPathItem.UpdateServiceNow @params
+                            $name = $property.Name
+                            $data = $property.Value
+
+                            $permissionsExcelLogFileParams.WorksheetName = $name
+                            $permissionsExcelLogFileParams.TableName = $name
+
+                            $verboseMessage = "Export $($data.Count) $Name objects to '$($permissionsExcelLogFileParams.Path)'"
+
+                            $eventLogData.Add([PSCustomObject]@{
+                                    Message   = $verboseMessage
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '1'
+                                })
+                            Write-Verbose $verboseMessage
+
+                            $data | Export-Excel @permissionsExcelLogFileParams
                         }
                         catch {
-                            $verboseMessage = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+                            $verboseMessage = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
 
+                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+                            Write-Warning $verboseMessage
+                        }
+                    }
+                    #endregion
+
+                    #region Copy Permissions file from log to prod folder
+                    if (
+                        $Export.PermissionsExcelFile -and
+                        (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path -PathType Leaf)
+                    ) {
+                        try {
+                            $copyParams = @{
+                                LiteralPath = $permissionsExcelLogFileParams.Path
+                                Destination = $Export.PermissionsExcelFile
+                            }
+
+                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
+                            $eventLogData.Add([PSCustomObject]@{
+                                    Message   = $verboseMessage
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '1'
+                                })
+                            Write-Verbose $verboseMessage
+
+                            Copy-Item @copyParams
+                        }
+                        catch {
+                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+
+                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+                            Write-Warning $verboseMessage
+                        }
+                    }
+                    #endregion
+
+                    $exportedFiles['PermissionsExcelFile'] = $Export.PermissionsExcelFile
+                }
+                #endregion
+
+                #region Create ServiceNowFormData and OverviewHTML file
+                if (
+                    $dataToExport['FormData'] -and
+                    $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
+                ) {
+                    if ($Export.ServiceNowFormDataExcelFile) {
+                        Remove-FileHC -FilePath $Export.ServiceNowFormDataExcelFile
+
+                        #region Create objects for ServiceNow
+                        Write-Verbose 'Create objects for ServiceNow form'
+
+                        $formDataHash = @{}
+                        foreach ($fd in $dataToExport.FormData) {
+                            $formDataHash[$fd.MatrixFileName] = $fd
+                        }
+
+                        $serviceNowFormData = foreach (
+                            $adObjectName in
+                            $dataToExport.AdObjects
+                        ) {
+                            $formData = $formDataHash[$adObjectName.MatrixFileName]
+
+                            if (
+                                (-not $formData) -or
+                                ($formData.MatrixFormStatus -ne 'Enabled')
+                            ) {
+                                continue
+                            }
+
+                            $adObjectName | ForEach-Object {
+                                [PSCustomObject]@{
+                                    u_matrixfilename        = $_.MatrixFileName
+                                    u_matrixfolderpath      = $formData.MatrixFolderPath
+                                    u_matrixcategoryname    = $formData.MatrixCategoryName
+                                    u_matrixsubcategoryname = $formData.MatrixSubCategoryName
+                                    u_matrixresponsible     = $formData.MatrixResponsible
+                                    u_adobjectname          = $_.SamAccountName
+                                }
+                            }
+                        }
+                        #endregion
+
+                        #region Export to Excel
+                        $params = @{
+                            Path          = $Export.ServiceNowFormDataExcelFile
+                            WorksheetName = 'SnowFormData'
+                            TableName     = 'SnowFormData'
+                            AutoSize      = $true
+                            FreezeTopRow  = $true
+                        }
+
+                        Write-Verbose "Export $($serviceNowFormData.Count) objects to '$($params.Path)'"
+
+                        $serviceNowFormData | Export-Excel @params
+                        #endregion
+
+                        #region Export to log folder
+                        try {
+                            $copyParams = @{
+                                LiteralPath = $params.Path
+                                Destination = Join-Path $exportLogFolderPath 'ServiceNowFormData.xlsx'
+                            }
+
+                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+
+                            $eventLogData.Add(
+                                [PSCustomObject]@{
+                                    Message   = $verboseMessage
+                                    DateTime  = Get-Date
+                                    EntryType = 'Information'
+                                    EventID   = '1'
+                                }
+                            )
+                            Write-Verbose $verboseMessage
+
+                            Copy-Item @copyParams
+                        }
+                        catch {
+                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+
+                            $systemErrors.Add(
+                                [PSCustomObject]@{
+                                    DateTime = Get-Date
+                                    Message  = $verboseMessage
+                                })
+                            Write-Warning $verboseMessage
+                        }
+                        #endregion
+
+                        $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
+
+                        #region Start ServiceNow FormData upload
+                        if (
+                            $ServiceNow.CredentialsFilePath -and
+                            $ServiceNow.Environment -and
+                            $ServiceNow.TableName -and
+                            $serviceNowFormData
+                        ) {
+                            try {
+                                $params = @{
+                                    CredentialsFilePath    = $ServiceNow.CredentialsFilePath
+                                    Environment            = $ServiceNow.Environment
+                                    TableName              = $ServiceNow.TableName
+                                    FormDataExcelFilePath  = $params.Path
+                                    ExcelFileWorksheetName = $params.WorksheetName
+                                }
+                                & $scriptPathItem.UpdateServiceNow @params
+                            }
+                            catch {
+                                $verboseMessage = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
+
+                                $systemErrors.Add(
+                                    [PSCustomObject]@{
+                                        DateTime = Get-Date
+                                        Message  = $verboseMessage
+                                    }
+                                )
+                                Write-Warning $verboseMessage
+                            }
+                        }
+                        else {
+                            $verboseMessage = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
                             $systemErrors.Add(
                                 [PSCustomObject]@{
                                     DateTime = Get-Date
@@ -2688,26 +2783,15 @@ end {
                             )
                             Write-Warning $verboseMessage
                         }
+                        #endregion
                     }
-                    else {
-                        $verboseMessage = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
-                        $systemErrors.Add(
-                            [PSCustomObject]@{
-                                DateTime = Get-Date
-                                Message  = $verboseMessage
-                            }
-                        )
-                        Write-Warning $verboseMessage
-                    }
-                    #endregion
-                }
-                if ($Export.OverviewHtmlFile) {
-                    Remove-FileHC -FilePath $Export.OverviewHtmlFile
+                    if ($Export.OverviewHtmlFile) {
+                        Remove-FileHC -FilePath $Export.OverviewHtmlFile
 
-                    #region Export FormData to HTML file
-                    try {
-                        $htmlFileContent = @(
-                            '<style type="text/css">
+                        #region Export FormData to HTML file
+                        try {
+                            $htmlFileContent = @(
+                                '<style type="text/css">
                                     body {
                                         background-color: #f0f0f0;
                                         color: #004e2b;
@@ -2834,8 +2918,8 @@ end {
                                         color: #004e2b;
                                     }
                                     </style>',
-                            '<h1>Matrix files overview</h1>',
-                            '<table>
+                                '<h1>Matrix files overview</h1>',
+                                '<table>
                                     <tr>
                                         <th>Category</th>
                                         <th>Subcategory</th>
@@ -2843,69 +2927,71 @@ end {
                                         <th>Link to the matrix</th>
                                         <th>Responsible</th>
                                     </tr>'
-                        )
+                            )
 
-                        $htmlFileContent += $dataToExport['FormData'] |
-                        Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' |
-                        ForEach-Object {
-                            $emailsMatrixResponsible = foreach ($email in $_.MatrixResponsible -split ',') {
-                                "<a href=`"mailto:$email`">$email</a>"
-                            }
+                            $htmlFileContent += $dataToExport['FormData'] |
+                            Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' |
+                            ForEach-Object {
+                                $emailsMatrixResponsible = foreach ($email in $_.MatrixResponsible -split ',') {
+                                    "<a href=`"mailto:$email`">$email</a>"
+                                }
 
-                            "<tr>
+                                "<tr>
                                     <td>$($_.MatrixCategoryName)</td>
                                     <td>$($_.MatrixSubCategoryName)</td>
                                     <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
                                     <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
                                     <td>$emailsMatrixResponsible</td>
                                 </tr>"
+                            }
+
+                            $htmlFileContent += '</table>'
+
+                            $params = @{
+                                LiteralPath = $Export.OverviewHtmlFile
+                                Encoding    = 'utf8'
+                                Force       = $true
+                            }
+
+                            $verboseMessage = "Export FormData to '$($params.LiteralPath)'"
+                            $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
+                            Write-Verbose $verboseMessage
+
+                            $htmlFileContent | Out-File @params
                         }
-
-                        $htmlFileContent += '</table>'
-
-                        $params = @{
-                            LiteralPath = $Export.OverviewHtmlFile
-                            Encoding    = 'utf8'
-                            Force       = $true
+                        catch {
+                            $verboseMessage = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
+                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+                            Write-Warning $verboseMessage
                         }
+                        #endregion
 
-                        $verboseMessage = "Export FormData to '$($params.LiteralPath)'"
-                        $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
-                        Write-Verbose $verboseMessage
+                        #region Export to log folder
+                        try {
+                            $copyParams = @{
+                                LiteralPath = $params.LiteralPath
+                                Destination = Join-Path $exportLogFolderPath 'Overview.html'
+                            }
 
-                        $htmlFileContent | Out-File @params
-                    }
-                    catch {
-                        $verboseMessage = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                        Write-Warning $verboseMessage
-                    }
-                    #endregion
+                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
+                            $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
+                            Write-Verbose $verboseMessage
 
-                    #region Export to log folder
-                    try {
-                        $copyParams = @{
-                            LiteralPath = $params.LiteralPath
-                            Destination = Join-Path $exportLogFolderPath 'Overview.html'
+                            Copy-Item @copyParams
                         }
+                        catch {
+                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
+                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
+                            Write-Warning $verboseMessage
+                        }
+                        #endregion
 
-                        $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-                        $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
-                        Write-Verbose $verboseMessage
-
-                        Copy-Item @copyParams
+                        $exportedFiles['OverviewHtmlFile'] = $Export.OverviewHtmlFile
                     }
-                    catch {
-                        $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-                        $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                        Write-Warning $verboseMessage
-                    }
-                    #endregion
-
-                    $exportedFiles['OverviewHtmlFile'] = $Export.OverviewHtmlFile
                 }
+                #endregion
+
             }
-            #endregion
 
             #region HTML Mail overview & Settings detail
             $html.SettingsHeader = '
@@ -3022,13 +3108,18 @@ end {
                             $FormDataCheck
                             $PermissionsCheck
 "@
+
                     # Add all Settings-level checks to the master log
                     if ($I.Settings) {
                         $troubleshootHtml += '<tr><th id="matrixHeader" colspan="8">Settings Checks</th></tr>'
+
                         foreach ($S in $I.Settings | Sort-Object -Property ID) {
                             if ($S.Check) {
                                 $troubleshootHtml += "<tr><td colspan='8' style='background-color: #eee;'><b>Setting ID: $($S.ID)</b> ($($S.Import.ComputerName) - $($S.Import.Path))</td></tr>"
-                                foreach ($chk in $S.Check) {
+
+                                $checkList = ConvertTo-StructuredObjectHC $S.Check
+                             
+                                foreach ($chk in $checkList) {
                                     $pType = Get-HtmlIdTagProbTypeHC -Name $chk.Type
                                     $htmlValue = ''
                                     
@@ -3076,7 +3167,8 @@ end {
                     #endregion
                 }
                 catch {
-                    $verboseMessage = "Failed to generate Troubleshooting Log for $($I.File.Item.Name): $_"
+                    $verboseMessage = "Failed to generate Troubleshooting Log for '$($I.File.Item.Name)': $_"
+                    
                     $systemErrors.Add(
                         [PSCustomObject]@{
                             DateTime = Get-Date

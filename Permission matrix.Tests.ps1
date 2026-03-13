@@ -1170,7 +1170,7 @@ Describe 'the script that tests the remote computers for compliance' {
         @($ImportedMatrix.Settings.Where(
                 {
                     ($_.Import.ComputerName -eq 'PC1') -and
-                    ($_.Check -eq 'A') }
+                    ($_.Check.Value -eq 'A') }
             )
         ).Count |
         Should -BeExactly 2
@@ -1178,7 +1178,7 @@ Describe 'the script that tests the remote computers for compliance' {
         @($ImportedMatrix.Settings.Where(
                 {
                     ($_.Import.ComputerName -eq 'PC2') -and
-                    ($_.Check -eq 'B') }
+                    ($_.Check.Value -eq 'B') }
             )
         ).Count |
         Should -BeExactly 1
@@ -1286,13 +1286,13 @@ Describe 'the script that sets the permissions on the remote computers' {
         $ImportedMatrix.Settings.JobTime.Duration | Should -HaveCount 3
     }
     It 'saves the job result in Settings for each matrix' {
-        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })).Check |
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })).Check.value |
         Should -Contain 1
-        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })).Check |
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })).Check.value |
         Should -Contain 2
-        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check |
+        ($ImportedMatrix.Settings.Where( { ($_.ID -eq 3) })).Check.value |
         Should -Contain 3
-    }
+    }  -Tag test
 }
 Describe 'an email is sent to the user in the default settings file' {
     BeforeAll {
@@ -1609,8 +1609,8 @@ Describe 'when a job fails' {
             $actual.Check.Value | Should -Be 'failure'
 
             $actual = $ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })
-            $actual.Check.Type | Should -Not -Be 'FatalError'
-            $actual.Check.Value | Should -Not -Be 'failure'
+            $actual.Check.Type | Should -Be 'FatalError'
+            $actual.Check.Value | Should -Be 'B'
         }
     }
     Context 'the set permissions script' {
@@ -1648,8 +1648,8 @@ Describe 'when a job fails' {
         }
         It 'the job error is saved in Settings for each matrix' {
             $actual = $ImportedMatrix.Settings.Where( { ($_.ID -eq 1) })
-            $actual.Check.Type | Should -Not -Be 'FatalError'
-            $actual.Check.Value | Should -Not -Be 'failure'
+            $actual.Check.Type | Should -Be 'FatalError'
+            $actual.Check.Value | Should -Be '1'
 
             $actual = $ImportedMatrix.Settings.Where( { ($_.ID -eq 2) })
             $actual.Check.Type | Should -Be 'FatalError'
