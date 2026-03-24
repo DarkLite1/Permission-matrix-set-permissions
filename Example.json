@@ -23,6 +23,10 @@
   "PSSessionConfiguration": "PowerShell.7",
   "Settings": {
     "ScriptName": "Permission matrix",
+    "Advanced": {
+      "DriveMapMaxRetries": 5,
+      "DriveMapSleepSeconds": 5
+    },
     "SendMail": {
       "From": "no-reply-bnl-automation@example.com",
       "FromDisplayName": "Permission matrix",

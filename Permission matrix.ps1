@@ -37,6 +37,39 @@ param (
 )
 
 begin {
+    function Invoke-BeginSafe {
+        param(
+            [scriptblock]$Action,
+            [string]$MessageOnError
+        )
+
+        if ($script:fatalBeginError) {
+            return 
+        }
+
+        try {
+            & $Action
+        }
+        catch {
+            Add-FatalBeginError "$MessageOnError $_"
+        }
+    }
+    function Add-FatalBeginError {
+        param(
+            [string]$Message
+        )
+
+        Write-Warning $Message
+
+        $systemErrors.Add(
+            [PSCustomObject]@{ 
+                Message  = $Message 
+                DateTime = Get-Date
+            }
+        )
+
+        $script:fatalBeginError = $true
+    }
     function ConvertTo-HtmlValueHC {
         param(
             [Parameter(Mandatory)]
@@ -50,7 +83,10 @@ begin {
         if (-not $ErrorObj.Value) {
             return $null
         }
-        elseif (($ErrorObj.Value.Count -le 5) -and (-not ($ErrorObj.Value -is [hashtable]))) {
+        elseif (
+            ($ErrorObj.Value.Count -le 5) -and 
+            (-not ($ErrorObj.Value -is [hashtable]))
+        ) {
             return '<ul>{0}</ul>' -f $(@($ErrorObj.Value).ForEach({ "<li>$_</li>" }))
         }
         else {
@@ -145,25 +181,6 @@ begin {
                 # Output the object to the pipeline
                 $current
             }
-        }
-    }
-    function Get-HtmlIdTagProbTypeHC {
-        [OutputType([String])]
-        param (
-            [Parameter(Mandatory)]
-            [String]$Name
-        )
-
-        try {
-            switch ($Name) {
-                'FatalError' { return 'probTypeError' }
-                'Warning' { return 'probTypeWarning' }
-                'Information' { return 'probTypeInfo' }
-                default { throw "Type '$_' is unknown" }
-            }
-        }
-        catch {
-            throw "Failed converting the HTML name '$Name' to a valid HTML ID tag: $_"
         }
     }
     function Get-StringValueHC {
@@ -367,17 +384,6 @@ begin {
         }
 
         $allLogFilePaths
-    }
-    function Remove-FileHC {
-        param (
-            [parameter(Mandatory)]
-            [string]$FilePath
-        )
-
-        if (Test-Path -LiteralPath $FilePath -PathType Leaf) {
-            Write-Verbose "Remove file '$FilePath'"
-            Remove-Item -Path $FilePath -ErrorAction Ignore
-        }
     }
     function Send-MailKitMessageHC {
         <#
@@ -789,6 +795,145 @@ begin {
             }
         }
     }
+    function Validate-JsonSchema {
+        param(
+            [Parameter(Mandatory)]
+            [object]$JsonObject
+        )
+
+        $errors = [System.Collections.Generic.List[object]]::new()
+
+        function Add-SchemaError {
+            param([string]$Message)
+            $errors.Add(
+                [PSCustomObject]@{ 
+                    Message = $Message 
+                }
+            )
+        }
+
+        # --- 1. Required top-level objects ---
+        foreach (
+            $prop in 
+            @('Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings')
+        ) {
+            if ($null -eq $JsonObject.$prop) {
+                Add-SchemaError "Property '$prop' not found"
+            }
+        }
+
+        # If Settings missing, bail out (prevents deeper checks)
+        if ($null -eq $JsonObject.Settings) {
+            return $errors
+        }
+
+        # --- 2. Validate Settings structure ---
+        if ($null -eq $JsonObject.Settings.SaveLogFiles.Where.Folder) {
+            Add-SchemaError "Property 'Settings.SaveLogFiles.Where.Folder' not found"
+        }
+
+        if ($null -eq $JsonObject.Settings.SaveLogFiles.Detailed) {
+            Add-SchemaError "Property 'Settings.SaveLogFiles.Detailed' not found"
+        }
+        elseif ($JsonObject.Settings.SaveLogFiles.Detailed -isnot [bool] ) {
+            Add-SchemaError 'Settings.SaveLogFiles.Detailed must be boolean'
+        }
+
+        if ($null -eq $JsonObject.Settings.SendMail) {
+            Add-SchemaError "Property 'Settings.SendMail' not found"
+        }
+        else {
+            if (-not $JsonObject.Settings.SendMail.From) {
+                Add-SchemaError "Property 'Settings.SendMail.From' not found"
+            }
+
+            if ($JsonObject.Settings.SendMail.To -and
+                ($JsonObject.Settings.SendMail.To -isnot [string] -and
+                $JsonObject.Settings.SendMail.To -isnot [array])) {
+                Add-SchemaError "Property 'Settings.SendMail.To' not found"
+            }
+
+            if ($null -eq $JsonObject.Settings.SendMail.Body) {
+                Add-SchemaError "Property 'Settings.SendMail.Body' not found"
+            }
+        }
+
+        # --- 3. Validate Matrix structure ---
+        if ($null -ne $JsonObject.Matrix) {
+            if (-not $JsonObject.Matrix.FolderPath) {
+                Add-SchemaError "Property 'Matrix.FolderPath' not found"
+            }
+
+            if (-not $JsonObject.Matrix.DefaultsFile) {
+                Add-SchemaError "Property 'Matrix.DefaultsFile' not found"
+            }
+
+            if ($JsonObject.Matrix.ExcludedSamAccountName -and
+                $JsonObject.Matrix.ExcludedSamAccountName -isnot [array]) {
+                Add-SchemaError "Property 'Matrix.ExcludedSamAccountName' must be an array"
+            }
+
+            if ($null -eq $JsonObject.Matrix.Archive) {
+                Add-SchemaError "Property 'Matrix.Archive' not found"
+            }
+            elseif ($JsonObject.Matrix.Archive -isnot [bool]) {
+                Add-SchemaError 'Matrix.Archive must be boolean'
+            }
+        }
+        else {
+            Add-SchemaError 'Matrix required'
+        }
+
+        # --- 4. Validate MaxConcurrent structure ---
+        if ($null -ne $JsonObject.MaxConcurrent) {
+            foreach (
+                $prop in
+                @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')
+            ) {
+                $val = $JsonObject.MaxConcurrent.$prop
+
+                if ($null -eq $val) {
+                    Add-SchemaError "Property 'MaxConcurrent.$prop' not found"
+                    continue
+                }
+
+                if ($val -notmatch '^\d+$') {
+                    Add-SchemaError "MaxConcurrent.$prop must be an integer"
+                }
+            }
+        }
+     
+        # --- 5. Validate Export structure (file extensions only) ---
+        if ($null -ne $JsonObject.Export) {
+            if ($JsonObject.Export.PermissionsExcelFile -and
+                ($JsonObject.Export.PermissionsExcelFile -isnot [string]) -and
+                ($JsonObject.Export.PermissionsExcelFile -notmatch '\.xlsx$')) {
+                Add-SchemaError 'Export.PermissionsExcelFile must be a string ending with .xlsx'
+            }
+
+            if ($JsonObject.Export.OverviewHtmlFile -and
+                ($JsonObject.Export.OverviewHtmlFile -isnot [string]) -and
+                ($JsonObject.Export.OverviewHtmlFile -notmatch '\.html?$')) {
+                Add-SchemaError 'Export.OverviewHtmlFile must be a string ending with .html'
+            }
+
+            if ($JsonObject.Export.ServiceNowFormDataExcelFile -and
+                ($JsonObject.Export.ServiceNowFormDataExcelFile -isnot [string]) -and
+                ($JsonObject.Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$')) {
+                Add-SchemaError 'Export.ServiceNowFormDataExcelFile must be a string ending with .xlsx'
+            }
+
+            if ($JsonObject.Export.ServiceNowFormDataExcelFile -and
+                -not $JsonObject.ServiceNow) {
+                Add-SchemaError 'ServiceNow must be defined when ServiceNowFormDataExcelFile is used'
+            }
+        }
+        else {
+            Add-SchemaError 'Export required'
+        }
+
+        return $errors
+    }
     function Write-EventsToEventLogHC {
         <#
         .SYNOPSIS
@@ -947,267 +1092,183 @@ begin {
     }
 
     $ErrorActionPreference = 'stop'
+    $fatalBeginError = $false
 
-    $eventLogData = [System.Collections.Concurrent.ConcurrentBag[PSObject]]::new()
+    # global state
     $systemErrors = [System.Collections.Concurrent.ConcurrentBag[PSObject]]::new()
+    $eventLogData = [System.Collections.Concurrent.ConcurrentBag[PSObject]]::new()
+
+    # pre-declare major objects so END never sees unbound variables
+    $Matrix = $null
+    $Export = $null
+    $ServiceNow = $null
+    $MaxConcurrent = $null
+    $Settings = $null
+    $PSSessionConfiguration = $nul
     $scriptStartTime = Get-Date
 
-    try {
-        $mailParams = @{}
+    $mailParams = @{}
 
-        $eventLogData.Add(
-            [PSCustomObject]@{
-                Message   = 'Script started'
-                DateTime  = $scriptStartTime
-                EntryType = 'Information'
-                EventID   = '100'
-            }
-        )
-
-        #region Import .json file
-        Write-Verbose "Import .json file '$ConfigurationJsonFile'"
-
-        $jsonFileItem = Get-Item -LiteralPath $ConfigurationJsonFile -ErrorAction Stop
-
-        $jsonFileContent = Get-Content $jsonFileItem -Raw -Encoding UTF8 |
-        ConvertFrom-Json
-        #endregion
-
-        $Matrix = $jsonFileContent.Matrix
-        $Export = $jsonFileContent.Export
-        $ServiceNow = $jsonFileContent.ServiceNow
-        $MaxConcurrent = $jsonFileContent.MaxConcurrent
-        $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
-        $Settings = $jsonFileContent.Settings
-
-        if (-not $Settings) {
-            throw "Property 'Settings' not found. Details missing for sending emails, storing log files or writing to the event log."
+    $eventLogData.Add(
+        [PSCustomObject]@{
+            Message   = 'Script started'
+            DateTime  = $scriptStartTime
+            EntryType = 'Information'
+            EventID   = '100'
         }
+    )
 
-        $DetailedLog = $Settings.SaveLogFiles.Detailed
-        $LogFolder = $Settings.SaveLogFiles.Where.Folder
+    #region Import .json file
+    Invoke-BeginSafe {
+        $script:jsonFileItem = Get-Item -LiteralPath $ConfigurationJsonFile -ErrorAction Stop
+        $script:jsonFileContent = Get-Content $jsonFileItem -Raw -Encoding UTF8 | ConvertFrom-Json
+    } 'Failed to load JSON file'
+    #endregion
+    
+    #region Set script wide variables
+    $Matrix = $jsonFileContent.Matrix
+    $Export = $jsonFileContent.Export
+    $ServiceNow = $jsonFileContent.ServiceNow
+    $MaxConcurrent = $jsonFileContent.MaxConcurrent
+    $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
+    $Settings = $jsonFileContent.Settings
+    $PSSessionConfiguration = $jsonFileContent.PSSessionConfiguration
+    $DetailedLog = $Settings.SaveLogFiles.Detailed
+    $LogFolder = $Settings.SaveLogFiles.Where.Folder
+    #endregion
+    
+    #region Test script paths exist
+    $scriptPathItem = @{}
 
-        #region Test path exists
-        $scriptPathItem = @{}
-
-        foreach ($Key in $ScriptPath.Keys) {
-            $Value = $ScriptPath[$Key]
-
-            try {
-                $scriptPathItem[$Key] = (Get-Item -LiteralPath $Value -ErrorAction Stop).FullName
-            }
-            catch {
-                throw "ScriptPath.$Key '$Value' not found: $_"
-            }
-        }
-        #endregion
-
-        #region Test .json file properties
-        Write-Verbose 'Test .json file properties'
+    foreach ($Key in $ScriptPath.Keys) {
+        $Value = $ScriptPath[$Key]
 
         try {
-            foreach ($Prop in 'MaxConcurrent', 'Matrix', 'Export', 'ServiceNow', 'PSSessionConfiguration', 'Settings') {
-                # Use $null -eq instead of -not so boolean $false or integer 0 aren't flagged as missing
-                if ($null -eq $jsonFileContent.$Prop) {
-                    throw "Property '$Prop' not found"
-                }
-            }
-
-            foreach ($Prop in 'FolderPath', 'DefaultsFile') {
-                if ($null -eq $Matrix.$Prop) {
-                    throw "Property 'Matrix.$Prop' not found"
-                }
-            }
-
-            foreach ($Prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
-                $Val = $jsonFileContent.MaxConcurrent.$Prop
-
-                if ($null -eq $Val) {
-                    throw "Property 'MaxConcurrent.$Prop' not found"
-                }
-
-                try {
-                    $null = [int]$Val
-                }
-                catch {
-                    throw "Property 'MaxConcurrent.$Prop' needs to be a number, the value '$Val' is not supported."
-                }
-            }
-
-            #region Test boolean values
-            foreach ($Prop in @('Archive')) {
-                try {
-                    $null = [bool]::Parse($Matrix.$Prop)
-                }
-                catch {
-                    throw "Property 'Matrix.$Prop' is not a boolean value"
-                }
-            }
-
-            try {
-                $null = [bool]::Parse($jsonFileContent.Settings.SaveLogFiles.Detailed)
-            }
-            catch {
-                throw "Property 'Settings.SaveLogFiles.Detailed' is not a boolean value"
-            }
-            #endregion
-
-            #region Test array
-            if (-not ($Matrix.ExcludedSamAccountName -is [array])) {
-                throw "Property 'Matrix.ExcludedSamAccountName' needs to be an array"
-            }
-            #endregion
+            $scriptPathItem[$Key] = (Get-Item -LiteralPath $Value -ErrorAction Stop).FullName
         }
         catch {
-            throw "Input file '$ConfigurationJsonFile': $_"
+            Add-FatalBeginError "ScriptPath.$Key '$Value' not found: $_"
         }
-        #endregion
+    }
+    #endregion
 
-        #region Set PSSessionConfiguration
-        $PSSessionConfiguration = $jsonFileContent.PSSessionConfiguration
-
-        if (-not $PSSessionConfiguration) {
-            $PSSessionConfiguration = 'PowerShell.7'
+    #region Validate input file
+    Invoke-BeginSafe {
+        $schemaErrors = Validate-JsonSchema -JsonObject $jsonFileContent
+        foreach ($e in $schemaErrors) {
+            Add-FatalBeginError "Schema validation failed: $($e.Message)"
         }
-        #endregion
-
-        #region Create log folder
-        try {
-            if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
-                $null = New-Item -ItemType 'Directory' -Path $LogFolder -ErrorAction Stop
-            }
+    } 'JSON schema validation failed'
+    #endregion
+   
+    #region Create log folder
+    Invoke-BeginSafe {
+        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+            New-Item -ItemType Directory -Path $LogFolder -ErrorAction Stop
         }
-        catch {
-            throw "Failed to create or resolve log folder '$LogFolder': $_"
-        }
-        #endregion
+    } "Failed to create log folder '$LogFolder'"
+    #endregion
 
-        #region Map share with Excel files
+    #region Map share with Excel files
+    Invoke-BeginSafe {
         if (-not (Test-Path -LiteralPath 'MatrixFolderPath:\')) {
             $retryCount = 0
-            $maxRetries = 240
+            
+            $maxRetries = if ($null -ne $Settings.Advanced.DriveMapMaxRetries) { 
+                $Settings.Advanced.DriveMapMaxRetries 
+            }
+            else { 5 }
+            
+            $sleep = if ($null -ne $Settings.Advanced.DriveMapSleepSeconds) { 
+                $Settings.Advanced.DriveMapSleepSeconds 
+            }
+            else { 5 }
+
             $isDriveMapped = $false
 
-            while (-not $isDriveMapped) {
+            while (-not $isDriveMapped -and -not $fatalBeginError) {
                 try {
-                    $params = @{
-                        Root        = $Matrix.FolderPath
-                        Name        = 'MatrixFolderPath'
-                        PSProvider  = 'FileSystem'
-                        ErrorAction = 'Stop'
-                    }
-                    $null = New-PSDrive @params
+                    New-PSDrive -Root $Matrix.FolderPath -Name 'MatrixFolderPath' -PSProvider FileSystem -ErrorAction Stop
                     $isDriveMapped = $true
                 }
                 catch {
                     if ($retryCount -ge $maxRetries) {
-                        throw "Drive mapping failed for '$($Matrix.FolderPath)' after $maxRetries attempts: $_"
+                        Add-FatalBeginError "Property 'Matrix.FolderPath' path '$($Matrix.FolderPath)' not found: $_"
+                        break
                     }
 
-                    Write-Verbose "Drive mapping failed for '$($Matrix.FolderPath)'. Retrying in 30 seconds... ($retryCount/$maxRetries)"
-                    Start-Sleep -Seconds 30
+                    Start-Sleep -Seconds $sleep
                     $retryCount++
-                    $Error.Clear()
                 }
             }
         }
+    } 'Failed during drive mapping'
+    #endregion
 
+    #region Get matrix folder path
+    Invoke-BeginSafe {
+        $script:Matrix.FolderPath = Get-Item -LiteralPath $Matrix.FolderPath -ErrorAction Stop
+    } "Matrix folder path '$($Matrix.FolderPath)' not found"    
+    #endregion
+
+    #region Get defaults settings
+    $mailToDefaultsFile = [System.Collections.Generic.List[string]]::new()
+
+    Invoke-BeginSafe {
         try {
-            $Matrix.FolderPath = Get-Item -LiteralPath $Matrix.FolderPath -ErrorAction Stop
+            $script:DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -ErrorAction Stop
         }
         catch {
-            throw "Matrix.FolderPath '$($Matrix.FolderPath)' not found: $_"
+            throw "Property 'Matrix.DefaultsFile' path '$($Matrix.DefaultsFile)' not found: $_"
+        }
+        $DefaultsImport = Import-Excel -Path $DefaultsItem.FullName -Sheet 'Settings' -DataOnly -ErrorAction Stop        
+
+        #region Verify mandatory column headers
+        $propDefault = $DefaultsImport[0].PSObject.Properties.Name
+
+        foreach ($Column in @('MailTo', 'ADObjectName', 'Permission')) {
+            if ($Column -notin $propDefault) {
+                throw "Column header '$Column' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
+            }
         }
         #endregion
 
-        #region Default settings file
-        try {
-            #region Get the defaults
-            try {
-                $DefaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -ErrorAction Stop
+        $DefaultAcl = Get-DefaultAclHC -Sheet $DefaultsImport
+
+        #region Get MailTo
+        foreach ($Row in $DefaultsImport) {
+            if (-not [string]::IsNullOrWhiteSpace($Row.MailTo)) {
+                $script:mailToDefaultsFile.Add($Row.MailTo.ToString().Trim())
             }
-            catch {
-                throw "File not found: $_"
-            }
-
-            try {
-                Write-Verbose "Import matrix defaults file '$($Matrix.DefaultsFile)'"
-
-                $DefaultsImport = Import-Excel -Path $DefaultsItem.FullName -Sheet 'Settings' -DataOnly -ErrorAction Stop
-            }
-            catch {
-                throw "worksheet 'Settings' not found*"
-            }
-            #endregion
-
-            #region Verify mandatory column headers
-            $propDefault = $DefaultsImport[0].PSObject.Properties.Name
-
-            foreach ($Column in @('MailTo', 'ADObjectName', 'Permission')) {
-                if ($Column -notin $propDefault) {
-                    throw "Column header '$Column' not found. The column headers 'MailTo', 'ADObjectName' and 'Permission' are mandatory."
-                }
-            }
-            #endregion
-
-            $DefaultAcl = Get-DefaultAclHC -Sheet $DefaultsImport
-
-            #region Get MailTo
-            $mailToDefaultsFile = [System.Collections.Generic.List[string]]::new()
-
-            foreach ($Row in $DefaultsImport) {
-                if (-not [string]::IsNullOrWhiteSpace($Row.MailTo)) {
-                    $mailToDefaultsFile.Add($Row.MailTo.ToString().Trim())
-                }
-            }
-
-            if ($mailToDefaultsFile.Count -eq 0) {
-                throw "No valid mail addresses found under column header 'MailTo'."
-            }
-            #endregion
         }
-        catch {
-            throw "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' worksheet 'Settings': $_"
+
+        if ($script:mailToDefaultsFile.Count -eq 0) {
+            throw "No valid mail addresses found under column header 'MailTo'."
         }
         #endregion
+    } "Failed to import default settings file '$($Matrix.DefaultsFile)'"
+    #endregion
 
-        #region Archive
-        $archivePath = $null
+    #region Archive
+    $archivePath = $null
 
-        if ($Matrix.Archive) {
-            $archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
-
-            try {
-                if (-not (
-                        Test-Path -LiteralPath $archivePath -PathType Container)
-                ) {
-                    $null = New-Item -ItemType 'Directory' -Path $archivePath -ErrorAction Stop
-                }
+    if ($Matrix.Archive) {
+        Invoke-BeginSafe {
+            $script:archivePath = Join-Path -Path $Matrix.FolderPath -ChildPath 'Archive'
+        
+            if (-not (
+                    Test-Path -LiteralPath $archivePath -PathType Container)
+            ) {
+                New-Item -ItemType 'Directory' -Path $archivePath -ErrorAction Stop
             }
-            catch {
-                throw "Failed to create archive folder '$archivePath': $_"
-            }
-        }
-        #endregion
+        
+        } "Failed to create archive folder '$archivePath': $_"
     }
-    catch {
-        $verboseMessage = "Input file '$ConfigurationJsonFile': $_"
-
-        $systemErrors.Add(
-            [PSCustomObject]@{
-                DateTime = Get-Date
-                Message  = $verboseMessage
-            }
-        )
-
-        Write-Warning $verboseMessage
-
-        return
-    }
+    #endregion
 }
 
 process {
-    if ($systemErrors.Count -ne 0) { return }
+    if ($fatalBeginError -or $systemErrors.Count -gt 0) { return }
 
     try {
         $ID = 0
@@ -1363,12 +1424,14 @@ process {
                         #region Import sheet Permissions
                         $verboseMessage = "File '$($matrixFile.Name)': Import worksheet 'Permissions'"
 
-                        $eventLogData.Add([PSCustomObject]@{
+                        $eventLogData.Add(
+                            [PSCustomObject]@{
                                 Message   = $verboseMessage
                                 DateTime  = Get-Date
                                 EntryType = 'Information'
                                 EventID   = '2'
-                            })
+                            }
+                        )
                         Write-Verbose $verboseMessage
 
                         $Obj.Permissions.Import = @(
@@ -1384,12 +1447,14 @@ process {
                             try {
                                 $verboseMessage = "File '$($matrixFile.Name)': Import worksheet 'FormData'"
 
-                                $eventLogData.Add([PSCustomObject]@{
+                                $eventLogData.Add(
+                                    [PSCustomObject]@{
                                         Message   = $verboseMessage
                                         DateTime  = Get-Date
                                         EntryType = 'Information'
                                         EventID   = '2'
-                                    })
+                                    }
+                                )
                                 Write-Verbose $verboseMessage
 
                                 $formData = Import-Excel @importParams -Sheet 'FormData' -ErrorVariable importFail
@@ -1403,12 +1468,14 @@ process {
                                 }
                             }
                             catch {
-                                $Obj.File.Check.Add([PSCustomObject]@{
+                                $Obj.File.Check.Add(
+                                    [PSCustomObject]@{
                                         Type        = 'FatalError'
                                         Name        = "Worksheet 'FormData' not found"
                                         Description = "When the argument 'Export.ServiceNowFormDataExcelFile' is used the Excel file needs to have a worksheet 'FormData'."
                                         Value       = @($_)
-                                    })
+                                    }
+                                )
                             }
                         }
                         #endregion
@@ -1594,12 +1661,14 @@ process {
                     $property.MatrixResponsible = $result.userPrincipalName -join ','
 
                     if ($result.notFound) {
-                        $I.FormData.Check.Add([PSCustomObject]@{
+                        $I.FormData.Check.Add(
+                            [PSCustomObject]@{
                                 Type        = 'Warning'
                                 Name        = 'AD object not found'
                                 Description = "The email address or SamAccountName is not found in the active directory. Multiple entries are supported with the comma ',' separator."
                                 Value       = $result.notFound
-                            })
+                            }
+                        )
                     }
                     #endregion
 
@@ -1633,12 +1702,14 @@ process {
             #region Build the matrix and check for incorrect input
             $verboseMessage = 'Build the matrix and check for incorrect input'
 
-            $eventLogData.Add([PSCustomObject]@{
+            $eventLogData.Add(
+                [PSCustomObject]@{
                     Message   = $verboseMessage
                     DateTime  = Get-Date
                     EntryType = 'Information'
                     EventID   = '2'
-                })
+                }
+            )
             Write-Verbose $verboseMessage
 
             $scriptBlock = {
@@ -1878,12 +1949,14 @@ process {
             if ($executableMatrix.Count -gt 0) {
                 $verboseMessage = 'Test server requirements'
 
-                $eventLogData.Add([PSCustomObject]@{
+                $eventLogData.Add(
+                    [PSCustomObject]@{
                         Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
-                    })
+                    }
+                )
                 Write-Verbose $verboseMessage
 
                 $testRequirementsBlock = {
@@ -1993,12 +2066,14 @@ process {
             ) {
                 $verboseMessage = "Start 'Set permissions' script for '$($executableMatrix.Count)' matrix"
 
-                $eventLogData.Add([PSCustomObject]@{
+                $eventLogData.Add(
+                    [PSCustomObject]@{
                         Message   = $verboseMessage
                         DateTime  = Get-Date
                         EntryType = 'Information'
                         EventID   = '2'
-                    })
+                    }
+                )
                 Write-Verbose $verboseMessage
 
                 #region Add default permissions
@@ -2188,1597 +2263,2191 @@ process {
         }
     }
     catch {
+        Write-Warning $_
+
         $systemErrors.Add(
             [PSCustomObject]@{
                 DateTime = Get-Date
                 Message  = $_
             }
         )
-
-        Write-Warning $_
     }
 }
 
 end {
-    try {
-        if (-not $Settings) { return }
+    function Ensure-SafeSettingsHC {
+        param([object]$Settings)
 
-        $scriptName = $Settings.ScriptName
-        $saveInEventLog = $Settings.SaveInEventLog
-        $sendMail = $Settings.SendMail
-        $saveLogFiles = $Settings.SaveLogFiles
-
-        #region Get script name
-        if (-not $scriptName) {
-            $verboseMessage = "Input file '$ConfigurationJsonFile': No 'Settings.ScriptName' found."
-
-            $systemErrors.Add([PSCustomObject]@{
-                    DateTime = Get-Date
-                    Message  = $verboseMessage
-                })
-
-            Write-Warning $verboseMessage
-
-            $scriptName = 'Default script name'
-        }
-        #endregion
-
-        $html = @{}
-
-        #region HTML style
-        $html.Style = '
-            <style type="text/css">
-                a {
-                    color: black;
-                    text-decoration: underline;
+        if (-not $Settings) {
+            # Create a safe dummy object with defaults so END block cannot break
+            return [PSCustomObject]@{
+                ScriptName     = 'Default script name'
+                SaveLogFiles   = @{
+                    Where               = @{
+                        Folder = $null 
+                    } 
+                    Detailed            = $false 
+                    DeleteLogsAfterDays = 0 
                 }
-                a:hover {
-                    color: blue;
+                SaveInEventLog = @{ 
+                    Save    = $false 
+                    LogName = $null 
                 }
-                body {
-                    font-family:verdana;
-                    font-size:14px;
-                    background-color:white;
+                SendMail       = @{ 
+                    From = $null 
+                    To   = @()
+                    Body = $null 
+                    Smtp = @{ Port     = 25
+                        ConnectionType = 'None' 
+                    } 
                 }
-                h1 {
-                    margin-bottom: 0;
-                }
-                h2 {
-                    margin-bottom: 0;
-                }
-                h3 {
-                    margin-bottom: 0;
-                }
-                p.italic {
-                    font-style: italic;
-                    font-size: 12px;
-                }
-                table {
-                    border-collapse:collapse;
-                    border:0px none;
-                    padding:3px;
-                    text-align:left;
-                }
-                td, th {
-                    border-collapse:collapse;
-                    border:1px none;
-                    padding:3px;
-                    text-align:left;
-                }
-                #matrixTable {
-                    border: 1px solid Black;
-                    border-collapse: separate;
-                    border-spacing: 0px 0.6em;
-                    width: 600px;
-                }
-                #matrixTitle {
-                    border: none;
-                    background-color: lightgrey;
-                    text-align: center;
-                    padding: 6px;
-                }
-                #matrixHeader {
-                    font-weight: normal;
-                    letter-spacing: 5pt;
-                    font-style: italic;
-                }
-                #matrixFileInfo {
-                    font-weight: normal;
-                    font-size: 12px;
-                    font-style: italic;
-                    text-align: center;
-                }
-                #LegendTable {
-                    border-collapse: collapse;
-                    border: 1px solid Black;
-                    table-layout: fixed;
-                }
-                #LegendTable td {
-                    text-align: center;
-                }
-                #probTitle {
-                    font-weight: bold;
-                }
-                #probTypeWarning {
-                    background-color: orange;
-                }
-                #probTextWarning {
-                    color: orange;
-                    font-weight: bold;
-                }
-                #probTypeError {
-                    background-color: red;
-                }
-                #probTextError {
-                    color: red;
-                    font-weight: bold;
-                }
-                #probTypeInfo {
-                    background-color: lightgrey;
-                }
-                table tbody tr td a {
-                    display: block;
-                    width: 100%;
-                    height: 100%;
-                }
-                #aboutTable th {
-                    color: rgb(143, 140, 140);
-                    font-weight: normal;
-                }
-                #aboutTable td {
-                    color: rgb(143, 140, 140);
-                    font-weight: normal;
-                }
-                base {
-                    target="_blank"
-                }
-            </style>'
-        #endregion
-
-        if ($importedMatrix) {
-            $dataToExport = @{
-                AccessList    = [System.Collections.Generic.List[object]]::new()
-                AdObjects     = [System.Collections.Generic.List[object]]::new()
-                FormData      = [System.Collections.Generic.List[object]]::new()
-                GroupManagers = [System.Collections.Generic.List[object]]::new()
-            }
-
-            #region Create export log folder
-            if (
-                $Export.ServiceNowFormDataExcelFile -or
-                $Export.PermissionsExcelFile -or
-                $Export.OverviewHtmlFile
-            ) {
-                try {
-                    $exportLogFolder = Join-Path -Path (Get-DatedLogFolderPathHC) -ChildPath 'Export'
-
-                    if (-not (Test-Path -LiteralPath $exportLogFolder -PathType Container)) {
-                        $null = New-Item -ItemType 'Directory' -Path $exportLogFolder -ErrorAction Stop
-                    }
-                    $exportLogFolderPath = (Get-Item -LiteralPath $exportLogFolder -ErrorAction Stop).FullName
-                }
-                catch {
-                    throw "Failed to create the export log folder '$exportLogFolder': $_"
-                }
-            }
-            #endregion
-
-            #region Add sheets to Matrix log files and collect data
-            foreach ($I in $importedMatrix) {
-                try {
-                    $excelParams = @{
-                        Path               = $I.File.SaveFullName
-                        AutoSize           = $true
-                        ClearSheet         = $true
-                        FreezeTopRow       = $true
-                        NoNumberConversion = '*'
-                    }
-
-                    #region Get SamAccountNames for rows Settings sheet
-                    $matrixSamAccountNames = @(
-                        $I.Settings.AdObjects.Values.SamAccountName
-                    ).ForEach({ "$($_)".Trim() }).Where({ $_ }) |
-                    Sort-Object -Unique
-
-                    Write-Verbose "Matrix '$($I.File.Item.Name)' has '$($matrixSamAccountNames.count)' unique SamAccountNames"
-                    #endregion
-
-                    #region AccessList
-                    #region Create object
-                    $accessListToExport = foreach ($S in $matrixSamAccountNames) {
-                        $adData = $adObjectHash[$S]
-
-                        if (-not $adData.adObject) {
-                            $verboseMessage = "Matrix '$($I.File.Item.Name)' SamAccountName '$S' not found in AD"
-
-                            $eventLogData.Add([PSCustomObject]@{
-                                    Message   = $verboseMessage
-                                    DateTime  = Get-Date
-                                    EntryType = 'Information'
-                                    EventID   = '2'
-                                })
-                            Write-Warning $verboseMessage
-                        }
-                        elseif (-not $adData.adGroupMember) {
-                            $adData | Select-Object -Property SamAccountName,
-                            @{Name = 'Name'; Expression = { $_.adObject.Name } },
-                            @{Name = 'Type'; Expression = { $_.adObject.ObjectClass } },
-                            MemberName, MemberSamAccountName
-                        }
-                        else {
-                            $adData.adGroupMember | Select-Object -Property @{
-                                Name       = 'SamAccountName'
-                                Expression = { $S }
-                            },
-                            @{Name = 'Name'; Expression = { $adData.adObject.Name } },
-                            @{Name = 'Type'; Expression = { $adData.adObject.ObjectClass } },
-                            @{Name = 'MemberName'; Expression = { $_.Name } },
-                            @{Name = 'MemberSamAccountName'; Expression = { $_.SamAccountName } }
-                        }
-                    }
-                    #endregion
-
-                    if ($accessListToExport) {
-                        #region Export to Excel
-                        $excelParams.WorksheetName = 'AccessList'
-                        $excelParams.TableName = 'AccessList'
-
-                        $verboseMessage = "Export $($accessListToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-
-                        $eventLogData.Add([PSCustomObject]@{
-                                Message   = $verboseMessage
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            })
-                        Write-Verbose $verboseMessage
-
-                        $accessListToExport | Export-Excel @excelParams
-                        #endregion
-
-                        #region Add to export
-                        $dataToExport['AccessList'].AddRange(
-                            @(
-                                $accessListToExport |
-                                Select-Object @{
-                                    Name       = 'MatrixFileName'
-                                    Expression = { $I.File.Item.BaseName
-                                    }
-                                }, *
-                            )
-                        )
-                        #endregion
-                    }
-                    #endregion
-
-                    #region GroupManagers
-                    #region Create objects
-                    $groupManagersToExport = foreach (
-                        $S in
-                        $matrixSamAccountNames
-                    ) {
-                        $adData = $adObjectHash[$S]
-
-                        if (
-                            $adData -and
-                            ($null -ne $adData.adObject) -and
-                            ($adData.adObject.ObjectClass -eq 'group')
-                        ) {
-                            $managedBy = $adData.adObject.PSObject.Properties['ManagedBy'].Value
-
-                            $groupManager = $null
-                            if (-not [string]::IsNullOrWhiteSpace($managedBy)) {
-                                $groupManager = $groupManagerHash[$managedBy]
-                            }
-
-                            if (-not $groupManager) {
-                                [PSCustomObject]@{
-                                    GroupName         = $adData.adObject.Name
-                                    ManagerName       = $null
-                                    ManagerType       = $null
-                                    ManagerMemberName = $null
-                                }
-                            }
-                            elseif (-not $groupManager.adGroupMember) {
-                                [PSCustomObject]@{
-                                    GroupName         = $adData.adObject.Name
-                                    ManagerName       = $groupManager.adObject.Name
-                                    ManagerType       = $groupManager.adObject.ObjectClass
-                                    ManagerMemberName = $null
-                                }
-                            }
-                            else {
-                                foreach ($user in $groupManager.adGroupMember) {
-                                    [PSCustomObject]@{
-                                        GroupName         = $adData.adObject.Name
-                                        ManagerName       = $groupManager.adObject.Name
-                                        ManagerType       = $groupManager.adObject.ObjectClass
-                                        ManagerMemberName = $user.Name
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    #endregion
-
-                    if ($groupManagersToExport) {
-                        #region Export to Excel
-                        $excelParams.WorksheetName = 'GroupManagers'
-                        $excelParams.TableName = 'GroupManagers'
-
-                        $verboseMessage = "Export $($groupManagersToExport.Count) AD objects to Excel file '$($excelParams.Path)' worksheet '$($excelParams.WorksheetName)'"
-
-                        $eventLogData.Add([PSCustomObject]@{
-                                Message   = $verboseMessage
-                                DateTime  = Get-Date
-                                EntryType = 'Information'
-                                EventID   = '1'
-                            })
-                        Write-Verbose $verboseMessage
-
-                        $groupManagersToExport | Export-Excel @excelParams
-                        #endregion
-
-                        #region Add to export
-                        $dataToExport['GroupManagers'].AddRange(
-                            @(
-                                $groupManagersToExport | Select-Object @{
-                                    Name       = 'MatrixFileName'
-                                    Expression = { $I.File.Item.BaseName }
-                                }, *
-                            )
-                        )
-                        #endregion
-                    }
-                    #endregion
-
-                    #region AdObjects
-                    $adObjects = foreach ($S in $I.Settings.Where({ $_.AdObjects.Count -ne 0 })) {
-                        foreach ($A in ($S.AdObjects.GetEnumerator())) {
-                            [PSCustomObject]@{
-                                MatrixFileName = $I.File.Item.BaseName
-                                SamAccountName = $A.Value.SamAccountName
-                                GroupName      = $A.Value.Converted.Begin
-                                SiteCode       = $A.Value.Converted.Middle
-                                Name           = $A.Value.Converted.End
-                            }
-                        }
-                    }
-
-                    if ($adObjects) {
-                        #region Export to Excel
-                        $excelParams.WorksheetName = 'AdObjects'
-                        $excelParams.TableName = 'AdObjects'
-
-                        $AdObjects | Export-Excel @excelParams
-                        #endregion
-
-                        #region Add to export
-                        $dataToExport['AdObjects'].AddRange(
-                            @(
-                                $adObjects | Group-Object SamAccountName |
-                                ForEach-Object { $_.Group[0] }
-                            )
-                        )
-                        #endregion
-                    }
-                    #endregion
-
-                    #region FormData
-                    if ($I.FormData.Import) {
-                        $dataToExport['FormData'].AddRange(
-                            @($I.FormData.Import)
-                        )
-                    }
-                    #endregion
-                }
-                catch {
-                    $verboseMessage = "Failed to add sheet 'FormData', 'AdObjects' or 'Permissions' to Matrix log file '$($I.File.Item.Name)': $_"
-
-                    $systemErrors.Add(
-                        [PSCustomObject]@{
-                            DateTime = Get-Date
-                            Message  = $verboseMessage 
-                        }
-                    )
-                    Write-Warning $verboseMessage   
-                }
-            }
-            #endregion
-
-            $exportedFiles = @{}
-
-            if ($systemErrors.Count -eq 0) {
-                #region Create Permissions Excel files
-                if ($Export.PermissionsExcelFile) {
-                    Remove-FileHC -FilePath $Export.PermissionsExcelFile
-
-                    #region Create Permissions file in log folder
-                    $permissionsExcelLogFileParams = @{
-                        Path         = Join-Path $exportLogFolderPath 'Permissions.xlsx'
-                        AutoSize     = $true
-                        FreezeTopRow = $true
-                    }
-
-                    foreach (
-                        $property in 
-                        $dataToExport.GetEnumerator() | Where-Object {
-                            $_.Value }
-                    ) {
-                        try {
-                            $name = $property.Name
-                            $data = $property.Value
-
-                            $permissionsExcelLogFileParams.WorksheetName = $name
-                            $permissionsExcelLogFileParams.TableName = $name
-
-                            $verboseMessage = "Export $($data.Count) $Name objects to '$($permissionsExcelLogFileParams.Path)'"
-
-                            $eventLogData.Add([PSCustomObject]@{
-                                    Message   = $verboseMessage
-                                    DateTime  = Get-Date
-                                    EntryType = 'Information'
-                                    EventID   = '1'
-                                })
-                            Write-Verbose $verboseMessage
-
-                            $data | Export-Excel @permissionsExcelLogFileParams
-                        }
-                        catch {
-                            $verboseMessage = "Failed to export sheet '$($property.Name)' to file '$($permissionsExcelLogFileParams.Path)': $_"
-
-                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                            Write-Warning $verboseMessage
-                        }
-                    }
-                    #endregion
-
-                    #region Copy Permissions file from log to prod folder
-                    if (
-                        $Export.PermissionsExcelFile -and
-                        (Test-Path -LiteralPath $permissionsExcelLogFileParams.Path -PathType Leaf)
-                    ) {
-                        try {
-                            $copyParams = @{
-                                LiteralPath = $permissionsExcelLogFileParams.Path
-                                Destination = $Export.PermissionsExcelFile
-                            }
-
-                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-
-                            $eventLogData.Add([PSCustomObject]@{
-                                    Message   = $verboseMessage
-                                    DateTime  = Get-Date
-                                    EntryType = 'Information'
-                                    EventID   = '1'
-                                })
-                            Write-Verbose $verboseMessage
-
-                            Copy-Item @copyParams
-                        }
-                        catch {
-                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-
-                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                            Write-Warning $verboseMessage
-                        }
-                    }
-                    #endregion
-
-                    $exportedFiles['PermissionsExcelFile'] = $Export.PermissionsExcelFile
-                }
-                #endregion
-
-                #region Create ServiceNowFormData and OverviewHTML file
-                if (
-                    $dataToExport['FormData'] -and
-                    $importedMatrix.FormData.Check.Type -notcontains 'FatalError'
-                ) {
-                    if ($Export.ServiceNowFormDataExcelFile) {
-                        Remove-FileHC -FilePath $Export.ServiceNowFormDataExcelFile
-
-                        #region Create objects for ServiceNow
-                        Write-Verbose 'Create objects for ServiceNow form'
-
-                        $formDataHash = @{}
-                        foreach ($fd in $dataToExport.FormData) {
-                            $formDataHash[$fd.MatrixFileName] = $fd
-                        }
-
-                        $serviceNowFormData = foreach (
-                            $adObjectName in
-                            $dataToExport.AdObjects
-                        ) {
-                            $formData = $formDataHash[$adObjectName.MatrixFileName]
-
-                            if (
-                                (-not $formData) -or
-                                ($formData.MatrixFormStatus -ne 'Enabled')
-                            ) {
-                                continue
-                            }
-
-                            $adObjectName | ForEach-Object {
-                                [PSCustomObject]@{
-                                    u_matrixfilename        = $_.MatrixFileName
-                                    u_matrixfolderpath      = $formData.MatrixFolderPath
-                                    u_matrixcategoryname    = $formData.MatrixCategoryName
-                                    u_matrixsubcategoryname = $formData.MatrixSubCategoryName
-                                    u_matrixresponsible     = $formData.MatrixResponsible
-                                    u_adobjectname          = $_.SamAccountName
-                                }
-                            }
-                        }
-                        #endregion
-
-                        #region Export to Excel
-                        $params = @{
-                            Path          = $Export.ServiceNowFormDataExcelFile
-                            WorksheetName = 'SnowFormData'
-                            TableName     = 'SnowFormData'
-                            AutoSize      = $true
-                            FreezeTopRow  = $true
-                        }
-
-                        Write-Verbose "Export $($serviceNowFormData.Count) objects to '$($params.Path)'"
-
-                        $serviceNowFormData | Export-Excel @params
-                        #endregion
-
-                        #region Export to log folder
-                        try {
-                            $copyParams = @{
-                                LiteralPath = $params.Path
-                                Destination = Join-Path $exportLogFolderPath 'ServiceNowFormData.xlsx'
-                            }
-
-                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-
-                            $eventLogData.Add(
-                                [PSCustomObject]@{
-                                    Message   = $verboseMessage
-                                    DateTime  = Get-Date
-                                    EntryType = 'Information'
-                                    EventID   = '1'
-                                }
-                            )
-                            Write-Verbose $verboseMessage
-
-                            Copy-Item @copyParams
-                        }
-                        catch {
-                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-
-                            $systemErrors.Add(
-                                [PSCustomObject]@{
-                                    DateTime = Get-Date
-                                    Message  = $verboseMessage
-                                })
-                            Write-Warning $verboseMessage
-                        }
-                        #endregion
-
-                        $exportedFiles['ServiceNowFormDataExcelFile'] = $params.Path
-
-                        #region Start ServiceNow FormData upload
-                        if (
-                            $ServiceNow.CredentialsFilePath -and
-                            $ServiceNow.Environment -and
-                            $ServiceNow.TableName -and
-                            $serviceNowFormData
-                        ) {
-                            try {
-                                $params = @{
-                                    CredentialsFilePath    = $ServiceNow.CredentialsFilePath
-                                    Environment            = $ServiceNow.Environment
-                                    TableName              = $ServiceNow.TableName
-                                    FormDataExcelFilePath  = $params.Path
-                                    ExcelFileWorksheetName = $params.WorksheetName
-                                }
-                                & $scriptPathItem.UpdateServiceNow @params
-                            }
-                            catch {
-                                $verboseMessage = "Failed executing script '$($scriptPathItem.UpdateServiceNow.FullName)': $_"
-
-                                $systemErrors.Add(
-                                    [PSCustomObject]@{
-                                        DateTime = Get-Date
-                                        Message  = $verboseMessage
-                                    }
-                                )
-                                Write-Warning $verboseMessage
-                            }
-                        }
-                        else {
-                            $verboseMessage = "Parameter 'ServiceNow.CredentialsFilePath', 'ServiceNow.Environment' and 'ServiceNow.TableName' are missing in the configuration file to upload data to ServiceNow."
-                            $systemErrors.Add(
-                                [PSCustomObject]@{
-                                    DateTime = Get-Date
-                                    Message  = $verboseMessage
-                                }
-                            )
-                            Write-Warning $verboseMessage
-                        }
-                        #endregion
-                    }
-                    if ($Export.OverviewHtmlFile) {
-                        Remove-FileHC -FilePath $Export.OverviewHtmlFile
-
-                        #region Export FormData to HTML file
-                        try {
-                            $htmlFileContent = @(
-                                '<style type="text/css">
-                                    body {
-                                        background-color: #f0f0f0;
-                                        color: #004e2b;
-                                        font-family: Arial, sans-serif;
-                                        padding: 20px;
-                                    }
-
-                                    a {
-                                        color: #004e2b;
-                                        text-decoration: none;
-                                    }
-                                    a:hover {
-                                        color: #00dd39;
-                                        text-decoration: underline;
-                                    }
-
-                                    h1 {
-                                        border-bottom: 2px solid #004e2b;
-                                        padding-bottom: 10px;
-                                        margin-bottom: 25px;
-                                        color: #004e2b;
-                                        text-transform: uppercase;
-                                        font-size: 1.8em;
-                                    }
-
-                                    table {
-                                        width: 100%;
-                                        max-width: 1200px;
-                                        margin: 20px 0;
-                                        border-collapse: separate;
-                                        border-spacing: 0;
-                                        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
-                                        background-color: #ffffff;
-                                        border-radius: 8px;
-                                        overflow: hidden;
-                                        table-layout: auto;
-                                        border: none;
-                                    }
-
-                                    table th {
-                                        background-color: #004e2b;
-                                        color: #ffffff;
-                                        text-align: left;
-                                        padding: 15px 20px;
-                                        font-weight: bold;
-                                        text-transform: uppercase;
-                                        border: none;
-                                        font-size: 0.9em;
-                                    }
-
-                                    table thead tr:first-child th:first-child {
-                                        border-top-left-radius: 8px;
-                                    }
-                                    table thead tr:first-child th:last-child {
-                                        border-top-right-radius: 8px;
-                                    }
-
-                                    table th:nth-child(3) {
-                                        text-align: left;
-                                        word-break: normal;
-                                    }
-
-                                    table td {
-                                        text-align: center;
-                                        padding: 10px 15px;
-                                        border: none;
-                                        border-bottom: 1px solid #e0e0e0;
-                                        vertical-align: middle;
-                                        color: #004e2b;
-                                    }
-
-                                    table tbody tr:last-child td {
-                                        border-bottom: none;
-                                    }
-
-                                    table td:nth-child(3) {
-                                        text-align: left;
-                                        white-space: nowrap;
-                                        word-break: normal;
-                                        overflow: hidden;
-                                        text-overflow: ellipsis;
-                                    }
-
-                                    table td:nth-child(4) {
-                                        text-align: left;
-                                        white-space: nowrap;
-                                        word-break: normal;
-                                        overflow: hidden;
-                                        text-overflow: ellipsis;
-                                    }
-
-                                    table td:nth-child(5) {
-                                        text-align: left;
-                                        white-space: nowrap;
-                                        word-break: normal;
-                                        overflow: hidden;
-                                        text-overflow: ellipsis;
-                                    }
-
-                                    table tbody tr:nth-child(even) {
-                                        background-color: #f8f8f8b7;
-                                    }
-                                    table tbody tr:nth-child(odd) {
-                                        background-color: #ffffff;
-                                    }
-
-                                    table tbody tr:hover {
-                                        background-color: #c2ebcf;
-                                        color: #004e2b;
-                                    }
-
-                                    table tbody tr td a {
-                                        display: block;
-                                        width: 100%;
-                                        height: 100%;
-                                        color: #004e2b;
-                                    }
-                                    table td:last-child a {
-                                        display: inline;
-                                        color: #004e2b;
-                                    }
-
-                                    table tbody tr:hover td a {
-                                        color: #004e2b;
-                                    }
-                                    </style>',
-                                '<h1>Matrix files overview</h1>',
-                                '<table>
-                                    <tr>
-                                        <th>Category</th>
-                                        <th>Subcategory</th>
-                                        <th>Folder</th>
-                                        <th>Link to the matrix</th>
-                                        <th>Responsible</th>
-                                    </tr>'
-                            )
-
-                            $htmlFileContent += $dataToExport['FormData'] |
-                            Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' |
-                            ForEach-Object {
-                                $emailsMatrixResponsible = foreach ($email in $_.MatrixResponsible -split ',') {
-                                    "<a href=`"mailto:$email`">$email</a>"
-                                }
-
-                                "<tr>
-                                    <td>$($_.MatrixCategoryName)</td>
-                                    <td>$($_.MatrixSubCategoryName)</td>
-                                    <td><a href=`"$($_.MatrixFolderDisplayName)`">$($_.MatrixFolderDisplayName)</a></td>
-                                    <td><a href=`"$($_.MatrixFilePath)`">$($_.MatrixFileName)</a></td>
-                                    <td>$emailsMatrixResponsible</td>
-                                </tr>"
-                            }
-
-                            $htmlFileContent += '</table>'
-
-                            $params = @{
-                                LiteralPath = $Export.OverviewHtmlFile
-                                Encoding    = 'utf8'
-                                Force       = $true
-                            }
-
-                            $verboseMessage = "Export FormData to '$($params.LiteralPath)'"
-                            $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
-                            Write-Verbose $verboseMessage
-
-                            $htmlFileContent | Out-File @params
-                        }
-                        catch {
-                            $verboseMessage = "Failed to export FormData to HTML file '$($Export.OverviewHtmlFile)': $_"
-                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                            Write-Warning $verboseMessage
-                        }
-                        #endregion
-
-                        #region Export to log folder
-                        try {
-                            $copyParams = @{
-                                LiteralPath = $params.LiteralPath
-                                Destination = Join-Path $exportLogFolderPath 'Overview.html'
-                            }
-
-                            $verboseMessage = "Copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)'"
-                            $eventLogData.Add([PSCustomObject]@{ Message = $verboseMessage; DateTime = Get-Date; EntryType = 'Information'; EventID = '1' })
-                            Write-Verbose $verboseMessage
-
-                            Copy-Item @copyParams
-                        }
-                        catch {
-                            $verboseMessage = "Failed to copy file '$($copyParams.LiteralPath)' to '$($copyParams.Destination)': $_"
-                            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                            Write-Warning $verboseMessage
-                        }
-                        #endregion
-
-                        $exportedFiles['OverviewHtmlFile'] = $Export.OverviewHtmlFile
-                    }
-                }
-                #endregion
-            }
-
-            #region HTML Mail overview & Settings detail
-            $html.SettingsHeader = '
-            <th id="matrixHeader" colspan="8">Settings</th>
-            <tr>
-                <td></td>
-                <td>ID</td>
-                <td>ComputerName</td>
-                <td>Path</td>
-                <td>Action</td>
-                <td>Duration</td>
-            </tr>'
-
-            $html.MatrixTables = foreach (
-                $I in 
-                $importedMatrix | Sort-Object -Property { $_.File.Item.Name }
-            ) {
-                Write-Verbose "Create HTML file content for '$($I.File.Item.Name)'"
-
-                #region HTML File
-                $FileCheck = if ($I.File.Check) {
-                    '<th id="matrixHeader" colspan="8">File</th>'
-
-                    foreach ($F in $I.File.Check) {
-                        $problem = @{
-                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
-                            Details     = if ($F.Value) { '<ul>{0}</ul>' -f $(@($F.Value).ForEach( { "<li>$_</li>" })) }
-                            Name        = $F.Name
-                            Description = $F.Description
-                        }
-
-                        '<tr>
-                                <td id="{0}"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">{1}</p>
-                                    <p>{2}</p>
-                                    {3}
-                                </td>
-                            </tr>' -f $($problem.Type), $($problem.Name), $($problem.Description), $($problem.Details)
-                    }
-                }
-                #endregion
-
-                #region HTML FormData
-                $FormDataCheck = if ($I.FormData.Check) {
-                    '<th id="matrixHeader" colspan="8">FormData</th>'
-
-                    foreach ($F in $I.FormData.Check) {
-                        $problem = @{
-                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
-                            Details     = if ($F.Value) { '<ul>{0}</ul>' -f $(@($F.Value).ForEach( { "<li>$_</li>" })) }
-                            Name        = $F.Name
-                            Description = $F.Description
-                        }
-
-                        '<tr>
-                                <td id="{0}"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">{1}</p>
-                                    <p>{2}</p>
-                                    {3}
-                                </td>
-                            </tr>' -f $($problem.Type), $($problem.Name), $($problem.Description), $($problem.Details)
-                    }
-                }
-                #endregion
-
-                #region HTML Permissions
-                $PermissionsCheck = if ($I.Permissions.Check) {
-                    '<th id="matrixHeader" colspan="8">Permissions</th>'
-
-                    foreach ($F in $I.Permissions.Check) {
-                        $problem = @{
-                            Type        = Get-HtmlIdTagProbTypeHC -Name $F.Type
-                            Details     = if ($F.Value) { '<ul>{0}</ul>' -f $(@($F.Value).ForEach( { "<li>$_</li>" })) }
-                            Name        = $F.Name
-                            Description = $F.Description
-                        }
-
-                        '<tr>
-                                <td id="{0}"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">{1}</p>
-                                    <p>{2}</p>
-                                    {3}
-                                </td>
-                            </tr>' -f $($problem.Type), $($problem.Name), $($problem.Description), $($problem.Details)
-                    }
-                }
-                #endregion
-
-                #region Create troubleshooting log in the matrix folder
-                try {
-                    Write-Verbose 'Create troubleshooting log in the matrix folder'
-
-                    $troubleshootHtml = @"
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        $($html.Style)
-                        <style>
-                            body { margin: 20px; }
-                            h2 { background-color: #333; color: white; padding: 5px 10px; margin-top: 20px;}
-                            .section-title { font-weight: bold; font-size: 16px; margin-top: 15px; padding-left: 5px; border-bottom: 2px solid #ccc; }
-                        </style>
-                    </head>
-                    <body>
-                        <h1>Troubleshooting Log</h1>
-                        <h2>$($I.File.Item.Name)</h2>
-                        <p><strong>Last change:</strong> $($I.File.ExcelInfo.LastModifiedBy) @ $($I.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))</p>
-                        
-                        <table id="matrixTable" style="width: 100%;">
-                            $FileCheck
-                            $FormDataCheck
-                            $PermissionsCheck
-"@
-
-                    # Add all Settings-level checks to the master log
-                    if ($I.Settings) {
-                        $troubleshootHtml += '<tr><th id="matrixHeader" colspan="8">Settings Checks</th></tr>'
-
-                        foreach ($S in $I.Settings | Sort-Object -Property ID) {
-                            if ($S.Check) {
-                                $troubleshootHtml += "<tr><td colspan='8' style='background-color: #eee;'><b>Setting ID: $($S.ID)</b> ($($S.Import.ComputerName) - $($S.Import.Path))</td></tr>"
-
-                                $checkList = ConvertTo-StructuredObjectHC $S.Check
-                             
-                                foreach ($chk in $checkList) {
-                                    $pType = Get-HtmlIdTagProbTypeHC -Name $chk.Type
-                                    $htmlValue = ''
-                                    
-                                    # Format detailed lists if present
-                                    if ($chk.Value) { 
-                                        if ($chk.Value.Count -le 5 -and $chk.Value -isnot [hashtable]) {
-                                            $htmlValue = '<ul>' + (@($chk.Value).ForEach({ "<li>$_</li>" }) -join '') + '</ul>'
-                                        }
-                                        else {
-                                            $htmlValue = '<p><i>(Multiple items/Hashtable logged. Check raw JSON for full dump)</i></p>'
-                                        }
-                                    }
-
-                                    $troubleshootHtml += "<tr><td id='$pType'></td><td colspan='7'><p id='probTitle'>$($chk.Name)</p><p>$($chk.Description)</p>$htmlValue</td></tr>"
-                                }
-                            }
-                        }
-                    }
-
-                    $troubleshootHtml += @'
-                        </table>
-                        <br>
-                        <table id="LegendTable">
-                            <tr>
-                                <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
-                                <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
-                                <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
-                            </tr>
-                        </table>
-                    </body>
-                    </html>
-'@
-                    #region Save the Troubleshooting Log to the Matrix Folder
-                    if (Test-Path -LiteralPath $I.File.LogFolder -PathType Container) {
-                        $troubleshootFileParams = @{
-                            LiteralPath = Join-Path -Path $I.File.LogFolder -ChildPath '00 - Troubleshooting Log.html'
-                            Encoding    = 'utf8'
-                            Force       = $true
-                        }
-
-                        Write-Verbose "Save troubleshooting log in matrix folder '$($troubleshootFileParams.LiteralPath)'"
-
-                        $troubleshootHtml | Out-File @troubleshootFileParams
-                    }
-                    #endregion
-                }
-                catch {
-                    $verboseMessage = "Failed to generate Troubleshooting Log for '$($I.File.Item.Name)': $_"
-                    
-                    $systemErrors.Add(
-                        [PSCustomObject]@{
-                            DateTime = Get-Date
-                            Message  = $verboseMessage 
-                        }
-                    )
-                    Write-Warning $verboseMessage
-                }
-                #endregion
-            
-                #region HTML Mail overview Settings table
-                $html.SettingsTable = $null
-
-                if (
-                    ($I.Settings) #-and
-                    # ($I.File.Check.Type -notcontains 'FatalError') -and
-                    # ($I.Permissions.Check.Type -notcontains 'FatalError')
-                ) {
-                    $html.SettingsTable = $html.SettingsHeader
-
-                    foreach (
-                        $S in 
-                        $I.Settings | Sort-Object -Property ID
-                    ) {
-                        Write-Verbose "Create HTML for setting 'ID $($S.ID) - $($($S.Import.ComputerName)) - $($S.Import.Path) - $($S.Import.Action)'"
-
-                        $problem = @{}
-
-                        #region Get problem color
-                        $problem.Type = if ($S.Check.Type -contains 'FatalError') {
-                            Get-HtmlIdTagProbTypeHC -Name 'FatalError'
-                        }
-                        elseif ($S.Check.Type -contains 'Warning') {
-                            Get-HtmlIdTagProbTypeHC -Name 'Warning'
-                        }
-                        elseif ($S.Check.Type -contains 'Information') {
-                            Get-HtmlIdTagProbTypeHC -Name 'Information'
-                        }
-                        #endregion
-
-                        #region HTML Settings Create tables
-                        $html.MatrixLogFile = @{}
-                        $html.TableHeader = ''
-
-                        $html.MatrixLogFile.FatalError = foreach ($E in @($S.Check).Where({ $_.Type -eq 'FatalError' })) {
-                            $params = @{
-                                LogFolderPath = $I.File.LogFolder
-                                ErrorObj      = $E
-                                SettingId     = $S.ID
-                            }
-                            $htmlValue = ConvertTo-HtmlValueHC @params
-
-                            @"
-                            <tr>
-                                <td id="probTypeError"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">$($E.Name)</p>
-                                    <p>$($E.Description)</p>
-                                    $htmlValue
-                                </td>
-                            </tr>
-"@
-                        }
-
-                        $html.MatrixLogFile.Warning = foreach ($E in @($S.Check).Where({ $_.Type -eq 'Warning' })) {
-                            $params = @{
-                                LogFolderPath = $I.File.LogFolder
-                                ErrorObj      = $E
-                                SettingId     = $S.ID
-                            }
-                            $htmlValue = ConvertTo-HtmlValueHC @params
-
-                            @"
-                            <tr>
-                                <td id="probTypeWarning"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">$($E.Name)</p>
-                                    <p>$($E.Description)</p>
-                                    $htmlValue
-                                </td>
-                            </tr>
-"@
-                        }
-
-                        $html.MatrixLogFile.Info = foreach ($E in @($S.Check).Where({ $_.Type -eq 'Information' })) {
-                            $params = @{
-                                LogFolderPath = $I.File.LogFolder
-                                ErrorObj      = $E
-                                SettingId     = $S.ID
-                            }
-                            $htmlValue = ConvertTo-HtmlValueHC @params
-
-                            @"
-                            <tr>
-                                <td id="probTypeInfo"></td>
-                                <td colspan="7">
-                                    <p id="probTitle">$($E.Name)</p>
-                                    <p>$($E.Description)</p>
-                                    $htmlValue
-                                </td>
-                            </tr>
-"@
-                        }
-                        #endregion
-
-                        #region HTML Settings Create file
-                        $html.MatrixLogFile.Table = @"
-                        <!DOCTYPE html>
-                            <html>
-                            <head>
-                                <style type="text/css">
-                                    body { font-family: verdana; background-color: white; }
-                                    h1 { background-color: black; color: white; margin-bottom: 10px; text-indent: 10px; page-break-before: always; }
-                                    h2 { background-color: lightGrey; margin-bottom: 10px; text-indent: 10px; page-break-before: always; }
-                                    h3 { background-color: lightGrey; margin-bottom: 10px; font-size: 16px; text-indent: 10px; page-break-before: always; }
-                                    p { font-size: 14px; margin-left: 10px; }
-                                    p.italic { font-style: italic; font-size: 12px; }
-                                    table { font-size: 14px; border-collapse: collapse; border: 1px none; padding: 3px; text-align: left; padding-right: 10px; margin-left: 10px; }
-                                    td, th { font-size: 14px; border-collapse: collapse; border: 1px none; padding: 3px; text-align: left; padding-right: 10px; }
-                                    li { font-size: 14px; }
-                                    base { target="_blank" }
-                                </style>
-                            </head>
-                            <body>
-                                $($html.Style)
-                                <table id="matrixTable">
-                                <tr>
-                                    <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
-                                </tr>
-                                $($html.SettingsHeader)
-                                <tr>
-                                    <td id="$($problem.Type)"></td>
-                                    <td>$($S.ID)</td>
-                                    <td>$($S.Import.ComputerName)</td>
-                                    <td>$($S.Import.Path)</td>
-                                    <td>$($S.Import.Action)</td>
-                                    <td>$(if($D = $S.JobTime.Duration) { '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds } else{'NA'})</td>
-                                </tr>
-                                $(if ($html.MatrixLogFile.FatalError) {'<th id="matrixHeader" colspan="8">Error</th>' + $html.MatrixLogFile.FatalError})
-                                $(if ($html.MatrixLogFile.Warning) {'<th id="matrixHeader" colspan="8">Warning</th>' + $html.MatrixLogFile.Warning})
-                                $(if ($html.MatrixLogFile.Info) {'<th id="matrixHeader" colspan="8">Information</th>' + $html.MatrixLogFile.Info})
-                                </table>
-                                <br>
-                                <table id="LegendTable">
-                                    <tr>
-                                        <td id="probTypeError" style="border: 1px solid Black;width: 150px;">Error</td>
-                                        <td id="probTypeWarning" style="border: 1px solid Black;width: 150px;">Warning</td>
-                                        <td id="probTypeInfo" style="border: 1px solid Black;width: 150px;">Information</td>
-                                    </tr>
-                                </table>
-                                    <h2>About</h2>
-                                <table>
-                                    <tr><th>GroupName</th><td>$($S.Import.GroupName)</td></tr>
-                                    <tr><th>SiteCode</th><td>$($S.Import.SiteCode)</td></tr>
-                                    <tr><th>Start time</th><td>$(if ($D = $S.JobTime.Start) { $D.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'NA' })</td></tr>
-                                    <tr><th>End time</th><td>$(if ($D = $S.JobTime.End) { $D.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'NA' })</td></tr>
-                                </table>
-                            </body>
-                        </html>
-"@
-
-                        $matrixLogFileParams = @{
-                            FilePath = Join-Path -Path $I.File.LogFolder -ChildPath "ID $($S.ID) - Settings.html"
-                            Encoding = 'utf8'
-                        }
-                        $html.MatrixLogFile.Table | Out-File @matrixLogFileParams
-                        #endregion
-
-                        $html.SettingsTable += "
-                        <tr>
-                            <td id=`"$($problem.Type)`"></td>
-                            <td><a href=`"{0}`">$($S.ID)</a></td>
-                            <td><a href=`"{0}`">$($S.Import.ComputerName)</a></td>
-                            <td><a href=`"{0}`">$($S.Import.Path)</a></td>
-                            <td><a href=`"{0}`">$($S.Import.Action)</a></td>
-                            <td><a href=`"{0}`">{1}</a></td>
-                        </tr>" -f $($matrixLogFileParams.FilePath), $(if ($D = $S.JobTime.Duration) { '{0:00}:{1:00}:{2:00}' -f $D.Hours, $D.Minutes, $D.Seconds } else { 'NA' })
-                    }
-                }
-                #endregion
-
-                @"
-                <table id="matrixTable">
-                    <tr>
-                        <th id="matrixTitle" colspan="8"><a href="$($I.File.SaveFullName)">$($I.File.Item.Name)</a></th>
-                    </tr>
-                    <tr>
-                        <th id="matrixFileInfo" colspan="8">Last change: $($I.File.ExcelInfo.LastModifiedBy) @ $($I.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss'))</th>
-                    </tr>
-                    $FileCheck
-                    $FormDataCheck
-                    $PermissionsCheck
-                    $($html.SettingsTable)
-                </table>
-                <br><br>
-"@
-            }
-
-            $html.ExportFilesList = if ($exportedFiles.Count) {
-                '<p><b>Exported {0} file{1}:</b></p>
-                    <ul>{2}</ul>' -f $($exportedFiles.Count), $(if ($exportedFiles.Count -ne 1) { 's' }), $(($exportedFiles.GetEnumerator() | ForEach-Object { "<li><a href=`"$($_.Value)`">$($_.Key)</a></li>" }) -join '')
-            }
-
-            if ($html.MatrixTables) {
-                try {
-                    $matrixFolderPathName = Split-Path $Matrix.FolderPath -Leaf
-                }
-                catch {
-                    # ignore error, because -EA ignore does not work
-                }
-
-                $html.MatrixTables = "
-                <p><b>Processed files in the folder '<a href=`"$($Matrix.FolderPath)`">$matrixFolderPathName</a>':</b></p>
-                $($html.MatrixTables)"
-            }
-            #endregion
-        }
-
-        #region FatalError and warning count (Optimized)
-        Write-Verbose 'Count fatal errors and warnings'
-
-        $counterData = @{
-            FormData    = @{
-                Error   = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'FatalError' }))
-                Warning = @($importedMatrix.FormData.Check.Where({ $_.Type -eq 'Warning' }))
-            }
-            Permissions = @{
-                Error   = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'FatalError' }))
-                Warning = @($importedMatrix.Permissions.Check.Where({ $_.Type -eq 'Warning' }))
-            }
-            Settings    = @{
-                Error   = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'FatalError' }))
-                Warning = @($importedMatrix.Settings.Check.Where({ $_.Type -eq 'Warning' }))
-            }
-            File        = @{
-                Error   = @($importedMatrix.File.Check.Where({ $_.Type -eq 'FatalError' }))
-                Warning = @($importedMatrix.File.Check.Where({ $_.Type -eq 'Warning' }))
-            }
-            Total       = @{
-                Errors   = @()
-                Warnings = @()
             }
         }
 
-        $counterData.Total.Errors = @(
-            $counterData.FormData.Error + $counterData.Permissions.Error + $counterData.Settings.Error + $counterData.File.Error
-        ).Where({ $_ })
-
-        $counterData.Total.Warnings = @(
-            $counterData.FormData.Warning + $counterData.Permissions.Warning + $counterData.Settings.Warning + $counterData.File.Warning
-        ).Where({ $_ })
-
-        $counter = @{
-            FormData    = @{
-                Error   = $counterData.FormData.Error.Count
-                Warning = $counterData.FormData.Warning.Count
-            }
-            Permissions = @{
-                Error   = $counterData.Permissions.Error.Count
-                Warning = $counterData.Permissions.Warning.Count
-            }
-            Settings    = @{
-                Error   = $counterData.Settings.Error.Count
-                Warning = $counterData.Settings.Warning.Count
-            }
-            File        = @{
-                Error   = $counterData.File.Error.Count
-                Warning = $counterData.File.Warning.Count
-            }
-            Total       = @{
-                Errors   = ($counterData.Total.Errors.Count + $systemErrors.Count)
-                Warnings = $counterData.Total.Warnings.Count
-            }
-        }
-        #endregion
-
-
-        #region Create HTML error warning table
-        Write-Verbose 'Create HTML error warning table'
-
-        $errorRows = @()
-
-        if ($systemErrors.Count -ne 0) {
-            $errorRows += '
-            <tr id="probTextError">
-                <th>System errors</th>
-                <td>{0}</td>
-            </tr>' -f $systemErrors.Count
+        # Ensure ScriptName exists and is safe for filenames
+        if ([string]::IsNullOrWhiteSpace($Settings.ScriptName)) {
+            $Settings.ScriptName = 'Default script name'
         }
 
-        if ($counterData.Total.Errors.Count -ne 0) {
-            $errorRows += '
-            <tr id="probTextError">
-                <th>Matrix errors</th>
-                <td>{0}</td>
-            </tr>' -f $counterData.Total.Errors.Count
+        if (-not $Settings.SaveLogFiles) {
+            $Settings | Add-Member -NotePropertyName SaveLogFiles -NotePropertyValue @{
+                Where               = @{ 
+                    Folder = $null 
+                }
+                Detailed            = $false
+                DeleteLogsAfterDays = 0
+            }
         }
 
-        if ($counter.Total.Warnings) {
-            $errorRows += '
-            <tr id="probTextWarning">
-                <th>Matrix warnings</th>
-                <td>{0}</td>
-            </tr>' -f $counter.Total.Warnings
+        if (-not $Settings.SaveInEventLog) {
+            $Settings | Add-Member -NotePropertyName SaveInEventLog -NotePropertyValue @{
+                Save    = $false
+                LogName = $null
+            }
         }
 
-        $html.ErrorWarningTable = if ($errorRows) {
-            '<p><b>Detected issues:</b></p>
-                <table>
-                    {0}
-                </table>' -f ($errorRows -join '')
+        if (-not $Settings.SendMail) {
+            $Settings | Add-Member -NotePropertyName SendMail -NotePropertyValue @{
+                From = $null
+                To   = @()
+                Body = $null
+                Smtp = @{
+                    Port           = 25
+                    ConnectionType = 'None'
+                }
+            }
         }
-        #endregion
 
-        #region Write events to event log
+        return $Settings
+    }
+
+    function Ensure-LogFolderHC {
+        param(
+            [Parameter()]
+            [string]$RequestedFolder,
+
+            [Parameter()]
+            [ref]$SystemErrors
+        )
+
+        #
+        # 1 - If requested folder is null or empty → immediate fallback
+        #
+        if ([string]::IsNullOrWhiteSpace($RequestedFolder)) {
+
+            $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
+
+            try {
+                if (-not (Test-Path -LiteralPath $fallback -PathType Container)) {
+                    New-Item -ItemType Directory -Path $fallback -ErrorAction Stop | Out-Null
+                }
+            }
+            catch {
+                # Last-resort fallback (extremely rare)
+                $fallback = $env:TEMP
+            }
+
+            if ($SystemErrors) {
+                $SystemErrors.Value.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "LogFolder missing. Using fallback folder '$fallback'."
+                    }
+                )
+            }
+
+            return $fallback
+        }
+
+        #
+        # 2 - Try to create/verify the requested folder
+        #
         try {
-            $saveInEventLog.LogName = Get-StringValueHC $saveInEventLog.LogName
+            if (-not (Test-Path -LiteralPath $RequestedFolder -PathType Container)) {
+                New-Item -ItemType Directory -Path $RequestedFolder -ErrorAction Stop | Out-Null
+            }
 
-            if ($saveInEventLog.Save -and $saveInEventLog.LogName) {
-                $systemErrors | ForEach-Object {
-                    $eventLogData.Add([PSCustomObject]@{
-                            Message   = $_.Message
-                            DateTime  = $_.DateTime
-                            EntryType = 'Error'
-                            EventID   = '2'
-                        })
+            return $RequestedFolder
+        }
+        catch {
+
+            #
+            # 3 - Requested folder invalid → use fallback
+            #
+            $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
+
+            try {
+                if (-not (Test-Path -LiteralPath $fallback -PathType Container)) {
+                    New-Item -ItemType Directory -Path $fallback -ErrorAction Stop | Out-Null
+                }
+            }
+            catch {
+                # last resort (TEMP folder is always safe)
+                $fallback = $env:TEMP
+            }
+
+            if ($SystemErrors) {
+                $SystemErrors.Value.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "LogFolder '$RequestedFolder' invalid or uncreatable. Using fallback '$fallback'. Error: $_"
+                    }
+                )
+            }
+
+            return $fallback
+        }
+    }
+
+    function Remove-FileHC {
+        param(
+            [Parameter(Mandatory)]
+            [string]$FilePath,
+            [Parameter()]
+            [ref]$SystemErrors
+        )
+
+        try {
+            # If file doesn't exist, nothing to do
+            if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) {
+                return
+            }
+
+            # Remove file safely
+            Remove-Item -LiteralPath $FilePath -Force -ErrorAction Stop
+        }
+        catch {
+            # Only record errors if SystemErrors was passed in
+            if ($SystemErrors) {
+                $SystemErrors.Value.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "Remove-FileHC failed for '$FilePath': $_"
+                    }
+                )
+            }
+            else {
+                Write-Warning "Remove-FileHC failed for '$FilePath': $_"
+            }
+        }
+    }
+
+    function New-HtmlCheckRow {
+        param(
+            [Parameter(Mandatory)]
+            [object]$CheckObject
+        )
+
+        # Determine CSS class based on type (Error / Warning / Info)
+        $cssClass = Get-HtmlClassProbTypeHC -Name $CheckObject.Type
+
+        # HTML-encode dynamic fields
+        $name = [System.Net.WebUtility]::HtmlEncode($CheckObject.Name)
+        $desc = [System.Net.WebUtility]::HtmlEncode($CheckObject.Description)
+
+        # Optional list of values
+        $listHtml = Format-HtmlList -Value $CheckObject.Value
+
+        # Output final row
+        return @"
+<tr>
+    <td class="$cssClass"></td>
+    <td colspan="7">
+        <p class="probTitle">$name</p>
+        <p>$desc</p>
+        $listHtml
+    </td>
+</tr>
+"@
+    }
+
+    function Get-HtmlClassProbTypeHC {
+        [OutputType([string])]
+        param (
+            [Parameter(Mandatory)]
+            [ValidateSet('FatalError', 'Warning', 'Information')]
+            [string]$Name
+        )
+
+        switch ($Name) {
+            'FatalError' { return 'probTypeError' }
+            'Warning' { return 'probTypeWarning' }
+            'Information' { return 'probTypeInfo' }
+        }
+    }
+
+    function Validate-Settings {
+        param(
+            [object]$Settings,
+            [object]$Matrix,
+            [object]$Export,
+            [object]$ServiceNow,
+            [object]$MaxConcurrent
+        )
+        $errors = [System.Collections.Generic.List[object]]::new()
+
+        function Add-Error {
+            param(
+                [string]$Type,
+                [string]$Name,
+                [string]$Description
+            )
+                
+            $errors.Add(
+                [PSCustomObject]@{ 
+                    Type        = $Type 
+                    Name        = $Name 
+                    Description = $Description 
+                }
+            )
+        }
+
+        # ---------------------------
+        # 1. Base Settings Validation
+        # ---------------------------
+        if (-not $Settings) { 
+            Add-Error 'FatalError' 'Invalid configuration' "Property 'Settings' missing from JSON."
+            return [PSCustomObject]@{ IsValid = $false; Errors = $errors; Settings = $null }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($Settings.ScriptName)) {
+            Add-Error 'Warning' 'Missing Script Name' "No 'Settings.ScriptName' found in JSON. A default name will be used."
+            $Settings | Add-Member -NotePropertyName ScriptName -NotePropertyValue 'Default script name' -Force
+        }
+
+        if ($Settings.SaveLogFiles.Detailed -isnot [bool]) {
+            Add-Error 'FatalError' 'Invalid type' 'Settings.SaveLogFiles.Detailed must be a boolean.'
+        }
+
+        if ($Settings.SaveInEventLog.Save -isnot [bool]) {
+            Add-Error 'FatalError' 'Invalid type' 'Settings.SaveInEventLog.Save must be a boolean.'
+        }
+
+        if ([string]::IsNullOrWhiteSpace($Settings.SendMail.From)) {
+            Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.From cannot be empty.'
+        }
+
+        if (-not $Settings.SendMail.To) {
+            Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.To cannot be empty.'
+        }
+        elseif ($Settings.SendMail.To -isnot [array] -and $Settings.SendMail.To -isnot [string]) {
+            Add-Error 'FatalError' 'Invalid type' 'Settings.SendMail.To must be an array or a string.'
+        }
+        
+        if ([string]::IsNullOrWhiteSpace($Settings.SendMail.Body)) {
+            Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.Body cannot be empty.'
+        }
+        
+        if (-not $Settings.SendMail.Smtp.Port -or $Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
+            Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.Smtp.Port must be an integer.'
+        }
+        
+        $validConnections = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
+        if ($Settings.SendMail.Smtp.ConnectionType -notin $validConnections) {
+            Add-Error 'FatalError' 'Invalid configuration' "Settings.SendMail.Smtp.ConnectionType must be one of: $($validConnections -join ', ')."
+        }
+
+        # ---------------------------
+        # 2. Matrix Validation
+        # ---------------------------
+        if ($Matrix) {
+            if (-not (Test-Path -LiteralPath $Matrix.DefaultsFile -PathType Leaf)) {
+                Add-Error 'FatalError' 'Invalid path' "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' does not exist or is not a file."
+            }
+            
+            # SCHEMA CHECK ONLY: Ensure the property is populated before the BEGIN block attempts to map it
+            if ([string]::IsNullOrWhiteSpace($Matrix.FolderPath)) {
+                Add-Error 'FatalError' 'Invalid configuration' 'Matrix.FolderPath cannot be empty.'
+            }
+            
+            if ($Matrix.ExcludedSamAccountName -isnot [array]) {
+                Add-Error 'FatalError' 'Invalid type' 'Matrix.ExcludedSamAccountName must be an array.'
+            }
+        }
+        else {
+            Add-Error 'FatalError' 'Invalid configuration' "Property 'Matrix' missing."
+        }
+
+        # ---------------------------
+        # 3. MaxConcurrent Validation
+        # ---------------------------
+        if ($MaxConcurrent) {
+            foreach ($prop in @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')) {
+                if (-not $MaxConcurrent.$prop -or $MaxConcurrent.$prop -notmatch '^\d+$') {
+                    Add-Error 'FatalError' 'Invalid type' "MaxConcurrent.$prop must be an integer."
+                }
+            }
+        }
+        else {
+            Add-Error 'FatalError' 'Invalid configuration' "Property 'MaxConcurrent' missing."
+        }
+
+        # ---------------------------
+        # 4. Export & ServiceNow
+        # ---------------------------
+        if ($Export) {
+            if (-not [string]::IsNullOrWhiteSpace($Export.PermissionsExcelFile) -and $Export.PermissionsExcelFile -notmatch '\.xlsx$') {
+                Add-Error 'FatalError' 'Invalid path' 'Export.PermissionsExcelFile must end in .xlsx.'
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Export.OverviewHtmlFile) -and $Export.OverviewHtmlFile -notmatch '\.html?$') {
+                Add-Error 'FatalError' 'Invalid path' 'Export.OverviewHtmlFile must end in .html.'
+            }
+            if (-not [string]::IsNullOrWhiteSpace($Export.ServiceNowFormDataExcelFile)) {
+                if ($Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
+                    Add-Error 'FatalError' 'Invalid path' 'Export.ServiceNowFormDataExcelFile must end in .xlsx.'
+                }
+                if (-not $ServiceNow) {
+                    Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow configuration object is required when Export.ServiceNowFormDataExcelFile is populated.'
+                }
+                else {
+                    if ([string]::IsNullOrWhiteSpace($ServiceNow.CredentialsFilePath)) { 
+                        Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.CredentialsFilePath is required.' 
+                    }
+                    if ([string]::IsNullOrWhiteSpace($ServiceNow.TableName)) { 
+                        Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.TableName is required.' 
+                    }
+                    if ([string]::IsNullOrWhiteSpace($ServiceNow.Environment)) { 
+                        Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.Environment is required.' 
+                    }
+                }
+            }
+        }
+
+        return [PSCustomObject]@{
+            Settings   = $Settings
+            Matrix     = $Matrix
+            Export     = $Export
+            ServiceNow = $ServiceNow
+            IsValid    = ($errors.Where({ $_.Type -eq 'FatalError' }).Count -eq 0)
+            Errors     = $errors
+        }
+    }
+
+    function Initialize-HtmlStructure {
+        $style = @'
+        <style type="text/css">
+            a { color: black; text-decoration: underline; }
+            a:hover { color: blue; }
+            body { font-family:verdana; font-size:14px; background-color:white; }
+            h1, h2, h3 { margin-bottom: 0; }
+            p.italic { font-style: italic; font-size: 12px; }
+            table { border-collapse:collapse; border:0px none; padding:3px; text-align:left; }
+            td, th { border-collapse:collapse; border:1px none; padding:3px; text-align:left; }
+            .matrixTable { border: 1px solid Black; border-collapse: separate; border-spacing: 0px 0.6em; width: 600px; }
+            .matrixTitle { border: none; background-color: lightgrey; text-align: center; padding: 6px; }
+            .matrixHeader { font-weight: normal; letter-spacing: 5pt; font-style: italic; }
+            .matrixFileInfo { font-weight: normal; font-size: 12px; font-style: italic; text-align: center; }
+            .legendTable { border-collapse: collapse; border: 1px solid Black; table-layout: fixed; }
+            .legendTable td { text-align: center; }
+            .probTitle { font-weight: bold; }
+            .probTypeWarning { background-color: orange; }
+            .probTextWarning { color: orange; font-weight: bold; }
+            .probTypeError { background-color: red; }
+            .probTextError { color: red; font-weight: bold; }
+            .probTypeInfo { background-color: lightgrey; }
+            table tbody tr td a { display: block; width: 100%; height: 100%; }
+            .aboutTable th, .aboutTable td { color: rgb(143, 140, 140); font-weight: normal; }
+            base { target="_blank" }
+        </style>
+'@
+        $troubleshootingStyle = @'
+        <style type="text/css">
+            body { margin: 20px; }
+        </style>
+'@
+        return @{
+            Style                = $style
+            TroubleshootingStyle = $troubleshootingStyle
+            Templates            = @{
+                SettingsHeader = '<th class="matrixHeader" colspan="8">Settings</th><tr><td></td><td>ID</td><td>ComputerName</td><td>Path</td><td>Action</td><td>Duration</td></tr>'
+                LegendTable    = '<table class="legendTable"><tr><td class="probTypeError" style="width:150px;">Error</td><td class="probTypeWarning" style="width:150px;">Warning</td><td class="probTypeInfo" style="width:150px;">Information</td></tr></table>'
+            }
+        }
+    }
+
+    function Format-HtmlList {
+        param([object]$Value)
+        if (-not $Value) { return '' }
+        if ($Value.Count -le 5 -and $Value -isnot [hashtable]) {
+            $encodedItems = @($Value).ForEach(
+                { "<li>$([System.Net.WebUtility]::HtmlEncode($_))</li>" }
+            ) -join ''
+            return "<ul>$encodedItems</ul>"
+        }
+        return '<p><i>Check JSON dump for multiple items.</i></p>'
+    }
+
+    function Process-MatrixObjects {
+        param(
+            [Parameter(Mandatory)][array]$ImportedMatrix,
+            [Parameter(Mandatory)][object]$Html
+        )
+
+        #
+        # Process each matrix item:
+        #   - Generate its troubleshooting log
+        #   - Attach TroubleshootingLogPath property
+        #
+
+        foreach (
+            $matrixItem in
+            $ImportedMatrix | Sort-Object { $_.File.Item.Name }
+        ) {
+
+            $logPath = $null
+
+            try {
+                $logPath = Write-MatrixTroubleshootingLog `
+                    -Matrix $matrixItem `
+                    -Html $Html
+            }
+            catch {
+                Write-Warning "Failed to build troubleshooting log for '$($matrixItem.File.Item.Name)': $_"
+            }
+
+            #
+            # Add or update TroubleshootingLogPath on the matrix item
+            #
+            $matrixItem |
+            Add-Member -NotePropertyName TroubleshootingLogPath `
+                -NotePropertyValue $logPath `
+                -Force
+        }
+
+        return $ImportedMatrix
+    }
+
+    function Write-MatrixTroubleshootingLog {
+        param(
+            [Parameter(Mandatory)][object]$Matrix,
+            [Parameter(Mandatory)][object]$Html
+        )
+
+        try {
+            #
+            # Validate log folder
+            #
+            $logFolder = $Matrix.File.LogFolder
+            if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
+                return $null
+            }
+
+            #
+            # File metadata (safe encoded)
+            #
+            $fileName = [System.Net.WebUtility]::HtmlEncode($Matrix.File.Item.Name)
+
+            $modifiedBy = $Matrix.File.ExcelInfo.LastModifiedBy
+            $modBy = if ($modifiedBy) {
+                [System.Net.WebUtility]::HtmlEncode($modifiedBy.ToString().Trim())
+            }
+            else {
+                'Unknown'
+            }
+
+            $modifiedTime = $Matrix.File.ExcelInfo.Modified
+            $modDate = if ($modifiedTime -is [datetime]) {
+                $modifiedTime.ToString('dd/MM/yyyy HH:mm:ss')
+            }
+            elseif ($modifiedTime) {
+                [System.Net.WebUtility]::HtmlEncode("$modifiedTime")
+            }
+            else {
+                'Unknown'
+            }
+
+            #
+            # Function: Render a section (File / FormData / Permissions)
+            #
+            function New-SectionHtml {
+                param(
+                    [string]$SectionName,
+                    [object]$Checks
+                )
+
+                if (-not $Checks) { return '' }
+
+                $rows = ($Checks | ConvertTo-StructuredObjectHC | ForEach-Object {
+                        New-HtmlCheckRow -CheckObject $_
+                    }) -join ''
+
+                return "<tr><th class='matrixHeader' colspan='8'>$SectionName</th></tr>$rows"
+            }
+
+            #
+            # Build 3 main sections
+            #
+            $sectionsHtml = @(
+                New-SectionHtml -SectionName 'File' -Checks $Matrix.File.Check
+                New-SectionHtml -SectionName 'FormData' -Checks $Matrix.FormData.Check
+                New-SectionHtml -SectionName 'Permissions' -Checks $Matrix.Permissions.Check
+            ) -join ''
+
+            #
+            # Settings checks (if any)
+            #
+            $settingsHtml = ''
+
+            if ($Matrix.Settings) {
+
+                $settingsRows = foreach ($S in $Matrix.Settings | Sort-Object ID) {
+                    if (-not $S.Check) { continue }
+
+                    #
+                    # Heading row for each setting entry
+                    #
+                    $encComp = [System.Net.WebUtility]::HtmlEncode($S.Import.ComputerName)
+                    $encPath = [System.Net.WebUtility]::HtmlEncode($S.Import.Path)
+
+                    "<tr><td colspan='8' style='background-color:#eee;'>
+                    <b>Setting ID: $($S.ID)</b> ($encComp - $encPath)
+                 </td></tr>" +
+
+                    #
+                    # Individual checks rendered via the shared row builder
+                    #
+                    (
+                        $S.Check | ConvertTo-StructuredObjectHC | ForEach-Object {
+                            New-HtmlCheckRow -CheckObject $_
+                        }
+                    ) -join ''
                 }
 
-                $eventLogData.Add([PSCustomObject]@{
-                        Message   = 'Script ended'
-                        DateTime  = Get-Date
-                        EntryType = 'Information'
-                        EventID   = '199'
-                    })
+                if ($settingsRows) {
+                    $settingsHtml = "<tr><th class='matrixHeader' colspan='8'>Settings Checks</th></tr>$($settingsRows -join '')"
+                }
+            }
+
+            #
+            # Combine full table
+            #
+            $tableHtml = @"
+<table class="matrixTable" style="width: 100%;">
+    <tr><th colspan="8" class="matrixHeader">Troubleshooting details</th></tr>
+    <tr><td colspan="8"><strong>Last change:</strong> $modBy @ $modDate</td></tr>
+    $sectionsHtml
+    $settingsHtml
+</table>
+<br>
+$($Html.Templates.LegendTable)
+"@
+
+            #
+            # Final HTML document
+            #
+            $fullHtml = @"
+<!DOCTYPE html>
+<html>
+<head>
+    $($Html.Style)
+    $($Html.TroubleshootingStyle)
+</head>
+<body>
+    <h1>Troubleshooting Log: $fileName</h1>
+    $tableHtml
+</body>
+</html>
+"@
+
+            #
+            # Write file
+            #
+            $filePath = Join-Path -Path $logFolder -ChildPath '00 - Troubleshooting Log.html'
+            $fullHtml | Out-File -LiteralPath $filePath -Encoding UTF8 -Force
+
+            return $filePath
+        }
+        catch {
+            Write-Warning "Troubleshooting log failed for '$($Matrix.File.Item.Name)': $_"
+            return $null
+        }
+    }
+
+    function Build-MatrixEmailHtml {
+        param(
+            [Parameter(Mandatory)][array]$ImportedMatrix,
+            [Parameter(Mandatory)][object]$Html
+        )
+
+        function New-SectionHtml {
+            param([string]$Name, [object]$Checks)
+
+            if (-not $Checks) { return '' }
+
+            $rows = ($Checks | ConvertTo-StructuredObjectHC | ForEach-Object {
+                    New-HtmlCheckRow -CheckObject $_
+                }) -join ''
+
+            return "<tr><th class='matrixHeader' colspan='8'>$Name</th></tr>$rows"
+        }
+
+        function New-SettingsTableHtml {
+            param([object]$MatrixItem, [object]$Html)
+
+            $fatalFile = @($MatrixItem.File.Check?.Type) -contains 'FatalError'
+            $fatalPerms = @($MatrixItem.Permissions.Check?.Type) -contains 'FatalError'
+
+            if (-not $MatrixItem.Settings -or $fatalFile -or $fatalPerms) {
+                return ''    # Suppress table when File or Permissions have fatal errors
+            }
+
+            $rows = foreach ($S in $MatrixItem.Settings | Sort-Object ID) {
+
+                $types = @($S.Check?.Type).Where({ $_ })
+                if (-not $types) { continue }
+
+                $class = if ($types -contains 'FatalError') { 'probTypeError' }
+                elseif ($types -contains 'Warning') { 'probTypeWarning' }
+                elseif ($types -contains 'Information') { 'probTypeInfo' }
+                else { '' }
+
+                $duration = if ($S.JobTime.Duration) {
+                    '{0:00}:{1:00}:{2:00}' -f $S.JobTime.Duration.Hours,
+                    $S.JobTime.Duration.Minutes,
+                    $S.JobTime.Duration.Seconds
+                }
+                else {
+                    'NA'
+                }
+
+                $link = $MatrixItem.TroubleshootingLogPath ?? '#'
+
+                $encComp = [System.Net.WebUtility]::HtmlEncode($S.Import.ComputerName)
+                $encPath = [System.Net.WebUtility]::HtmlEncode($S.Import.Path)
+                $encAction = [System.Net.WebUtility]::HtmlEncode($S.Import.Action)
+
+                "<tr>
+                <td class='$class'></td>
+                <td><a href='$link'>$($S.ID)</a></td>
+                <td><a href='$link'>$encComp</a></td>
+                <td><a href='$link'>$encPath</a></td>
+                <td><a href='$link'>$encAction</a></td>
+                <td><a href='$link'>$duration</a></td>
+             </tr>"
+            }
+
+            if (-not $rows) { return '' }
+
+            return $Html.Templates.SettingsHeader + ($rows -join '')
+        }
+
+        $resultHtml = ''
+
+        foreach ($Item in $ImportedMatrix | Sort-Object { $_.File.Item.Name }) {
+
+            # Build the 3 built‑in sections
+            $sectionHtml = @(
+                New-SectionHtml -Name 'File' -Checks $Item.File.Check
+                New-SectionHtml -Name 'FormData' -Checks $Item.FormData.Check
+                New-SectionHtml -Name 'Permissions' -Checks $Item.Permissions.Check
+            ) -join ''
+
+            # Build settings table (only if no fatal file/permissions)
+            $settingsHtml = New-SettingsTableHtml -MatrixItem $Item -Html $Html
+
+            # Metadata
+            $encFileName = [System.Net.WebUtility]::HtmlEncode($Item.File.Item.Name)
+
+            $modBy = [System.Net.WebUtility]::HtmlEncode(
+                $Item.File.ExcelInfo.LastModifiedBy ??
+                'Unknown'
+            )
+
+            $modDate = $Item.File.ExcelInfo.Modified
+            if ($modDate -is [datetime]) {
+                $modDate = $modDate.ToString('dd/MM/yyyy HH:mm:ss')
+            }
+            elseif ($modDate) {
+                $modDate = [System.Net.WebUtility]::HtmlEncode("$modDate")
+            }
+            else {
+                $modDate = 'Unknown'
+            }
+
+            # Assemble full table
+            $resultHtml += @"
+<table class="matrixTable">
+    <tr>
+        <th class="matrixTitle" colspan="8">
+            <a href="$($Item.File.SaveFullName)">$encFileName</a>
+        </th>
+    </tr>
+    <tr>
+        <th class="matrixFileInfo" colspan="8">
+            Last change: $modBy @ $modDate
+        </th>
+    </tr>
+    $sectionHtml
+    $settingsHtml
+</table>
+<br><br>
+"@
+        }
+
+        return $resultHtml
+    }
+
+    function Build-AccessList {
+        param(
+            [array]$SamAccountNames, [hashtable]$AdObjectHash, [string]$FileName
+        )
+        $list = [System.Collections.Generic.List[object]]::new()
+        foreach ($S in $SamAccountNames) {
+            $adData = $AdObjectHash[$S]
+            if (-not $adData?.adObject) { continue }
+            
+            if (-not $adData.adGroupMember) {
+                $list.Add(
+                    [PSCustomObject]@{ 
+                        MatrixFileName       = $FileName
+                        SamAccountName       = $S
+                        Name                 = $adData.adObject.Name
+                        Type                 = $adData.adObject.ObjectClass
+                        MemberName           = $null 
+                        MemberSamAccountName = $null 
+                    }
+                )
+            }
+            else {
+                foreach ($member in $adData.adGroupMember) {
+                    $list.Add(
+                        [PSCustomObject]@{
+                            MatrixFileName       = $FileName 
+                            SamAccountName       = $S 
+                            Name                 = $adData.adObject.Name
+                            Type                 = $adData.adObject.ObjectClass
+                            MemberName           = $member.Name 
+                            MemberSamAccountName = $member.SamAccountName 
+                        }
+                    )
+                }
+            }
+        }
+        return $list
+    }
+
+    function Build-GroupManagerList {
+        param([array]$SamAccountNames, [hashtable]$AdObjectHash, [hashtable]$GroupManagerHash, [string]$FileName)
+        $list = [System.Collections.Generic.List[object]]::new()
+        foreach ($S in $SamAccountNames) {
+            $adData = $AdObjectHash[$S]
+            if (-not $adData?.adObject -or $adData.adObject.ObjectClass -ne 'group') { continue }
+            
+            $managedBy = $adData.adObject.PSObject.Properties['ManagedBy']?.Value
+            if ([string]::IsNullOrWhiteSpace($managedBy)) { continue }
+
+            $gm = $GroupManagerHash[$managedBy]
+            if (-not $gm?.adObject) { 
+                $list.Add(
+                    [PSCustomObject]@{ 
+                        MatrixFileName    = $FileName 
+                        GroupName         = $adData.adObject.Name 
+                        ManagerName       = $null
+                        ManagerType       = $null 
+                        ManagerMemberName = $null 
+                    }
+                )
+            }
+            elseif (-not $gm.adGroupMember) { 
+                $list.Add(
+                    [PSCustomObject]@{ 
+                        MatrixFileName    = $FileName
+                        GroupName         = $adData.adObject.Name 
+                        ManagerName       = $gm.adObject.Name 
+                        ManagerType       = $gm.adObject.ObjectClass 
+                        ManagerMemberName = $null 
+                    }
+                )
+            }
+            else { 
+                foreach ($user in $gm.adGroupMember) { 
+                    $list.Add(
+                        [PSCustomObject]@{ 
+                            MatrixFileName    = $FileName 
+                            GroupName         = $adData.adObject.Name 
+                            ManagerName       = $gm.adObject.Name
+                            ManagerType       = $gm.adObject.ObjectClass
+                            ManagerMemberName = $user.Name 
+                        }
+                    ) 
+                } 
+            }
+        }
+        return $list
+    }
+
+    function Build-ExportData {
+        param(
+            [Parameter(Mandatory)][array]$ImportedMatrix,
+            [hashtable]$AdObjectHash,
+            [hashtable]$GroupManagerHash
+        )
+
+        #
+        # Prepare output structure
+        #
+        $export = @{
+            AccessList    = [System.Collections.Generic.List[object]]::new()
+            AdObjects     = [System.Collections.Generic.List[object]]::new()
+            FormData      = [System.Collections.Generic.List[object]]::new()
+            GroupManagers = [System.Collections.Generic.List[object]]::new()
+        }
+
+        #
+        # Helper: Extract unique SAMs from a matrix
+        #
+        function Get-UniqueMatrixSamAccountNames {
+            param([object]$MatrixItem)
+
+            return $MatrixItem.Settings?.AdObjects?.Values |
+            ForEach-Object { "$($_.SamAccountName)".Trim() } |
+            Where-Object { $_ } |
+            Sort-Object -Unique
+        }
+
+        #
+        # Helper: Convert a single AdObject entry to export format
+        #
+        function Convert-AdObjectExport {
+            param(
+                [string]$MatrixName,
+                [object]$Entry
+            )
+
+            return [PSCustomObject]@{
+                MatrixFileName = $MatrixName
+                SamAccountName = $Entry.SamAccountName
+                GroupName      = $Entry.Converted.Begin
+                SiteCode       = $Entry.Converted.Middle
+                Name           = $Entry.Converted.End
+            }
+        }
+
+        #
+        # Main processing loop
+        #
+        foreach ($Matrix in $ImportedMatrix) {
+
+            $matrixName = $Matrix.File.Item.BaseName
+            $uniqueSams = Get-UniqueMatrixSamAccountNames -MatrixItem $Matrix
+
+            #
+            # 1. Access list
+            #
+            $access = Build-AccessList `
+                -SamAccountNames $uniqueSams `
+                -AdObjectHash $AdObjectHash `
+                -FileName $matrixName
+
+            if ($access) { $export.AccessList.AddRange($access) }
+
+            #
+            # 2. Group managers
+            #
+            $gm = Build-GroupManagerList `
+                -SamAccountNames $uniqueSams `
+                -AdObjectHash $AdObjectHash `
+                -GroupManagerHash $GroupManagerHash `
+                -FileName $matrixName
+
+            if ($gm) { $export.GroupManagers.AddRange($gm) }
+
+            #
+            # 3. AD object (converted values)
+            #
+            if ($Matrix.Settings?.AdObjects) {
+
+                $adConvertedObjects =
+                $Matrix.Settings.AdObjects.GetEnumerator() |
+                ForEach-Object {
+                    Convert-AdObjectExport -MatrixName $matrixName -Entry $_.Value
+                } |
+                Group-Object SamAccountName |
+                ForEach-Object { $_.Group[0] }   # ensure unique
+
+                if ($adConvertedObjects) {
+                    $export.AdObjects.AddRange($adConvertedObjects)
+                }
+            }
+
+            #
+            # 4. FormData (raw source)
+            #
+            if ($Matrix.FormData?.Import) {
+                $export.FormData.AddRange($Matrix.FormData.Import)
+            }
+        }
+
+        return $export
+    }
+
+    function Export-PermissionsFile {
+        param(
+            [Parameter(Mandatory)][object]$DataToExport,
+            [Parameter(Mandatory)][string]$OutputPath,
+            [Parameter(Mandatory)][string]$LogFolder,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        try {
+            #
+            # 1. Remove existing output files
+            #
+            Remove-FileHC -FilePath $OutputPath
+
+            $logTempPath = Join-Path $LogFolder 'Permissions.xlsx'
+            Remove-FileHC -FilePath $logTempPath
+
+            #
+            # 2. Export each collection into its corresponding worksheet
+            #
+            foreach ($entry in $DataToExport.GetEnumerator()) {
+
+                if (-not $entry.Value) {
+                    continue
+                }
 
                 $params = @{
-                    Source  = $scriptName
-                    LogName = $saveInEventLog.LogName
-                    Events  = $eventLogData
+                    Path          = $logTempPath
+                    WorksheetName = $entry.Name
+                    TableName     = $entry.Name
+                    AutoSize      = $true
+                    FreezeTopRow  = $true
                 }
-                Write-EventsToEventLogHC @params
+
+                try {
+                    $entry.Value | Export-Excel @params
+                }
+                catch {
+                    $SystemErrors.Value.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = "Export-PermissionsFile failed for sheet '$($entry.Name)': $_"
+                        }
+                    )
+                }
             }
-            elseif ($saveInEventLog.Save -and (-not $saveInEventLog.LogName)) {
-                throw "Both 'Settings.SaveInEventLog.Save' and 'Settings.SaveInEventLog.LogName' are required to save events in the event log."
+
+            #
+            # 3. Copy the final result to the target output path
+            #
+            if (Test-Path -LiteralPath $logTempPath -PathType Leaf) {
+                Copy-Item -LiteralPath $logTempPath -Destination $OutputPath -Force
             }
         }
         catch {
-            $verboseMessage = "Failed writing events to event log: $_"
-            $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-            Write-Warning $verboseMessage
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Export-PermissionsFile failed: $_"
+                }
+            )
         }
-        #endregion
+    }
 
-        #region Remove old log files
-        if ($saveLogFiles.DeleteLogsAfterDays -gt 0 -and $LogFolder) {
-            $cutoffDate = (Get-Date).AddDays(-$saveLogFiles.DeleteLogsAfterDays)
+    function Upload-ServiceNowFormData {
+        param(
+            [Parameter(Mandatory)][string]$OutputPath,
+            [Parameter(Mandatory)][object]$ServiceNowConfig,
+            [Parameter(Mandatory)][object]$ScriptPathItem,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
 
-            Write-Verbose "Remove log files older than $cutoffDate from '$LogFolder'"
+        try {
+            #
+            # 1. Validate required ServiceNow parameters
+            #
+            $credPath = $ServiceNowConfig.CredentialsFilePath
+            $env = $ServiceNowConfig.Environment
+            $table = $ServiceNowConfig.TableName
 
-            Get-ChildItem -LiteralPath $LogFolder -Recurse |
-            Sort-Object 'FullName' -Descending |
+            if (-not $credPath -or -not $env -or -not $table) {
+                return   # Silent skip 
+            }
+
+            #
+            # 2. Execute uploader script
+            #
+            & $ScriptPathItem.UpdateServiceNow `
+                -CredentialsFilePath $credPath `
+                -Environment $env `
+                -TableName $table `
+                -FormDataExcelFilePath $OutputPath `
+                -ExcelFileWorksheetName 'SnowFormData'
+        }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Upload-ServiceNowFormData failed: $_"
+                }
+            )
+        }
+    }
+
+    function Export-ServiceNowFormData {
+        param(
+            [Parameter(Mandatory)][object]$DataToExport,
+            [Parameter(Mandatory)][string]$OutputPath,
+            [Parameter(Mandatory)][string]$ExportLogFolder,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        try {
+            #
+            # 1. Remove existing output file (if any)
+            #
+            Remove-FileHC -FilePath $OutputPath
+
+            #
+            # 2. Build a lookup of FormData keyed by MatrixFileName
+            #
+            $formDataHash = @{}
+            foreach ($fd in $DataToExport.FormData) {
+                if ($fd.MatrixFileName) {
+                    $formDataHash[$fd.MatrixFileName] = $fd
+                }
+            }
+
+            #
+            # 3. Build ServiceNow export rows
+            #
+            $serviceNowRows = foreach ($adObj in $DataToExport.AdObjects) {
+
+                $fd = $formDataHash[$adObj.MatrixFileName]
+
+                if (
+                    $fd -and
+                    $fd.MatrixFormStatus -eq 'Enabled'
+                ) {
+                    [PSCustomObject]@{
+                        u_matrixfilename        = $adObj.MatrixFileName
+                        u_matrixfolderpath      = $fd.MatrixFolderPath
+                        u_matrixcategoryname    = $fd.MatrixCategoryName
+                        u_matrixsubcategoryname = $fd.MatrixSubCategoryName
+                        u_matrixresponsible     = $fd.MatrixResponsible
+                        u_adobjectname          = $adObj.SamAccountName
+                    }
+                }
+            }
+
+            #
+            # 4. Nothing to export?
+            #
+            if (-not $serviceNowRows) {
+                return $false
+            }
+
+            #
+            # 5. Export to Excel (SnowFormData sheet)
+            #
+            $xlsxParams = @{
+                Path          = $OutputPath
+                WorksheetName = 'SnowFormData'
+                TableName     = 'SnowFormData'
+                AutoSize      = $true
+                FreezeTopRow  = $true
+            }
+
+            $serviceNowRows | Export-Excel @xlsxParams
+
+            #
+            # 6. Copy file to export log folder
+            #
+            $logCopyPath = Join-Path $ExportLogFolder 'ServiceNowFormData.xlsx'
+
+            if (Test-Path -LiteralPath $OutputPath) {
+                Copy-Item -LiteralPath $OutputPath -Destination $logCopyPath -Force
+                return $true
+            }
+
+            return $false
+        }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Export-ServiceNowFormData failed: $_"
+                }
+            )
+            return $false
+        }
+    }
+
+    function Export-OverviewHtml {
+        param(
+            [Parameter(Mandatory)][object]$DataToExport,
+            [Parameter(Mandatory)][string]$OutputPath,
+            [Parameter(Mandatory)][string]$ExportLogFolder,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        try {
+            #
+            # 1. Remove old output file
+            #
+            Remove-FileHC -FilePath $OutputPath
+
+            #
+            # 2. Build table rows
+            #
+            function New-OverviewRow {
+                param([object]$FormData)
+
+                $category = $FormData.MatrixCategoryName
+                $subcat = $FormData.MatrixSubCategoryName
+                $folderPath = $FormData.MatrixFolderDisplayName
+                $filePath = $FormData.MatrixFilePath
+                $fileName = $FormData.MatrixFileName
+
+                # Build mailto: list safely
+                $emails = ($FormData.MatrixResponsible -split ',') |
+                ForEach-Object {
+                    $trimmed = $_.Trim()
+                    if ($trimmed) { "mailto:$trimmed$trimmed</a>" }
+                } |
+                Join-String -Separator ', '
+
+                return @"
+<tr>
+    <td>$category</td>
+    <td>$subcat</td>
+    <td>$folderPath$folderPath</a></td>
+    <td>$filePath$fileName</a></td>
+    <td>$emails</td>
+</tr>
+"@
+            }
+
+            $rows = $DataToExport.FormData |
+            Sort-Object MatrixCategoryName, MatrixSubCategoryName, MatrixFolderDisplayName |
+            ForEach-Object { New-OverviewRow -FormData $_ } |
+            Join-String
+
+            #
+            # 3. Build full HTML document
+            #
+            $html = @"
+<html>
+<head>
+<style>
+    body { font-family:Arial; }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px; border-bottom:1px solid #ddd; text-align:left; }
+</style>
+</head>
+<body>
+<h1>Matrix files overview</h1>
+
+<table>
+    <tr>
+        <th>Category</th>
+        <th>Subcategory</th>
+        <th>Folder</th>
+        <th>Link to matrix</th>
+        <th>Responsible</th>
+    </tr>
+    $rows
+</table>
+
+</body>
+</html>
+"@
+
+            #
+            # 4. Save HTML output
+            #
+            $html | Out-File -LiteralPath $OutputPath -Encoding UTF8 -Force
+
+            #
+            # 5. Copy to log folder
+            #
+            $logCopy = Join-Path $ExportLogFolder 'Overview.html'
+            Copy-Item -LiteralPath $OutputPath -Destination $logCopy -Force
+        }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Export-OverviewHtml failed: $_"
+                }
+            )
+        }
+    }
+
+    function Export-Files {
+        param(
+            [Parameter(Mandatory)][object]$DataToExport,
+            [Parameter(Mandatory)][object]$ExportConfig,
+            [Parameter(Mandatory)][object]$ServiceNowConfig,
+            [Parameter(Mandatory)][string]$ExportLogFolder,
+            [Parameter(Mandatory)][object]$ScriptPathItem,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        #
+        # Return structure
+        #
+        $results = @{}
+
+
+        #
+        # Helper: run a task safely and track failures
+        #
+        function Invoke-Safe {
+            param(
+                [scriptblock]$Action,
+                [string]$ErrorMessage
+            )
+            try { & $Action }
+            catch { 
+                $SystemErrors.Value.Add(
+                    [PSCustomObject]@{
+                        DateTime = Get-Date
+                        Message  = "$ErrorMessage`: $_"
+                    }
+                )
+                return $false
+            }
+            return $true
+        }
+
+
+        #
+        # 1. Export Permissions Excel
+        #
+        if ($ExportConfig.PermissionsExcelFile) {
+
+            $ok = Invoke-Safe `
+                -ErrorMessage 'Export-PermissionsFile failed' `
+                -Action {
+                Export-PermissionsFile `
+                    -DataToExport $DataToExport `
+                    -OutputPath $ExportConfig.PermissionsExcelFile `
+                    -LogFolder $ExportLogFolder `
+                    -SystemErrors $SystemErrors
+            }
+
+            if ($ok -and (Test-Path -LiteralPath $ExportConfig.PermissionsExcelFile -PathType Leaf)) {
+                $results['PermissionsExcelFile'] = $ExportConfig.PermissionsExcelFile
+            }
+        }
+
+
+        #
+        # 2. Export + Upload ServiceNow form data
+        #
+        if ($ExportConfig.ServiceNowFormDataExcelFile -and $DataToExport.FormData) {
+
+            $hasData = Invoke-Safe `
+                -ErrorMessage 'Export-ServiceNowFormData failed' `
+                -Action {
+                Export-ServiceNowFormData `
+                    -DataToExport $DataToExport `
+                    -OutputPath $ExportConfig.ServiceNowFormDataExcelFile `
+                    -ExportLogFolder $ExportLogFolder `
+                    -SystemErrors $SystemErrors
+            }
+
+            if ($hasData -and (Test-Path -LiteralPath $ExportConfig.ServiceNowFormDataExcelFile -PathType Leaf)) {
+
+                Invoke-Safe `
+                    -ErrorMessage 'Upload-ServiceNowFormData failed' `
+                    -Action {
+                    Upload-ServiceNowFormData `
+                        -OutputPath $ExportConfig.ServiceNowFormDataExcelFile `
+                        -ServiceNowConfig $ServiceNowConfig `
+                        -ScriptPathItem $ScriptPathItem `
+                        -SystemErrors $SystemErrors
+                }
+
+                $results['ServiceNowFormDataExcelFile'] = $ExportConfig.ServiceNowFormDataExcelFile
+            }
+        }
+
+
+        #
+        # 3. Export Overview HTML
+        #
+        if ($ExportConfig.OverviewHtmlFile -and $DataToExport.FormData) {
+
+            $ok = Invoke-Safe `
+                -ErrorMessage 'Export-OverviewHtml failed' `
+                -Action {
+                Export-OverviewHtml `
+                    -DataToExport $DataToExport `
+                    -OutputPath $ExportConfig.OverviewHtmlFile `
+                    -ExportLogFolder $ExportLogFolder `
+                    -SystemErrors $SystemErrors
+            }
+
+            if ($ok -and (Test-Path -LiteralPath $ExportConfig.OverviewHtmlFile -PathType Leaf)) {
+                $results['OverviewHtmlFile'] = $ExportConfig.OverviewHtmlFile
+            }
+        }
+
+
+        return $results
+    }
+
+    function Build-Counters {
+        param(
+            [Parameter(Mandatory = $false)][array]$ImportedMatrix,
+            [Parameter(Mandatory = $false)][object]$SystemErrors
+        )
+
+        #
+        # Prepare result structure
+        #
+        $counters = [ordered]@{
+            TotalErrors   = 0
+            TotalWarnings = 0
+            File          = @{ Error = 0; Warning = 0 }
+            Settings      = @{ Error = 0; Warning = 0 }
+            Permissions   = @{ Error = 0; Warning = 0 }
+            FormData      = @{ Error = 0; Warning = 0 }
+        }
+
+        #
+        # If no matrix data, only return system errors
+        #
+        if (-not $ImportedMatrix) {
+            $counters.TotalErrors = $SystemErrors.Count
+            return [PSCustomObject]$counters
+        }
+
+        #
+        # Helper: Count error/warning types in a collection
+        #
+        function Count-CheckTypes {
+            param([object[]]$Checks)
+
+            return @{
+                Error   = @(
+                    $Checks | Where-Object { $_.Type -eq 'FatalError' }
+                ).Count
+                Warning = @(
+                    $Checks | Where-Object { $_.Type -eq 'Warning' }
+                ).Count
+            }
+        }
+
+        #
+        # Gather all check collections
+        #
+        $fileChecks = $ImportedMatrix | ForEach-Object { 
+            $_.File.Check ?? @()
+        }
+        $settingsChecks = $ImportedMatrix | ForEach-Object { 
+            $_.Settings ?? @() } | ForEach-Object { $_.Check ?? @() 
+        }
+        $permissionChecks = $ImportedMatrix | ForEach-Object { 
+            $_.Permissions.Check ?? @() 
+        }
+        $formDataChecks = $ImportedMatrix | ForEach-Object {
+            $_.FormData.Check ?? @() 
+        }
+
+        #
+        # Count all categories
+        #
+        $counters.File = Count-CheckTypes $fileChecks
+        $counters.Settings = Count-CheckTypes $settingsChecks
+        $counters.Permissions = Count-CheckTypes $permissionChecks
+        $counters.FormData = Count-CheckTypes $formDataChecks
+
+        #
+        # Totals
+        #
+        $counters.TotalErrors =
+        $counters.File.Error +
+        $counters.Settings.Error +
+        $counters.Permissions.Error +
+        $counters.FormData.Error +
+        $SystemErrors.Count
+
+        $counters.TotalWarnings =
+        $counters.File.Warning +
+        $counters.Settings.Warning +
+        $counters.Permissions.Warning +
+        $counters.FormData.Warning
+
+        return [PSCustomObject]$counters
+    }
+
+    function Build-ErrorWarningTable {
+        param(
+            [Parameter(Mandatory)][object]$CounterData,
+            [Parameter(Mandatory)][object]$SystemErrors
+        )
+
+        #
+        # Helper: build a table row in a single consistent way
+        #
+        function New-ErrorRow {
+            param(
+                [string]$CssClass,
+                [string]$Label,
+                [int]   $Count
+            )
+            return "<tr class='$CssClass'><th>$Label</th><td>$Count</td></tr>"
+        }
+
+        $rows = @()
+
+        #
+        # 1. System errors
+        #
+        if ($SystemErrors.Count -gt 0) {
+            $rows += New-ErrorRow -CssClass 'probTextError' -Label 'System errors' -Count $SystemErrors.Count
+        }
+
+        #
+        # 2. Matrix errors (excluding system errors)
+        #
+        $matrixErrors = $CounterData.TotalErrors - $SystemErrors.Count
+        if ($matrixErrors -gt 0) {
+            $rows += New-ErrorRow -CssClass 'probTextError' -Label 'Matrix errors' -Count $matrixErrors
+        }
+
+        #
+        # 3. Matrix warnings
+        #
+        if ($CounterData.TotalWarnings -gt 0) {
+            $rows += New-ErrorRow -CssClass 'probTextWarning' -Label 'Matrix warnings' -Count $CounterData.TotalWarnings
+        }
+
+        #
+        # 4. If no rows, return empty string
+        #
+        if (-not $rows) {
+            return ''
+        }
+
+        #
+        # 5. Wrap rows in the final table
+        #
+        return "<p><b>Detected issues:</b></p><table class='errorWarningTable'>" +
+        ($rows -join '') +
+        '</table>'
+    }
+
+    function Write-EventLogSafe {
+        param(
+            [Parameter(Mandatory)][object]$EventLogData,
+            [Parameter(Mandatory)][string]$ScriptName,
+            [Parameter(Mandatory)][object]$Settings,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        # Maximum message length allowed by Windows Event Log
+        $maxMessageLength = 31000
+
+        try {
+            # Is event log writing enabled?
+            $logName = Get-StringValueHC $Settings.SaveInEventLog.LogName
+
+            if (-not ($Settings.SaveInEventLog.Save -and $logName)) {
+                return
+            }
+
+            #
+            # 1. Convert system errors into event entries
+            #
+            foreach ($err in $SystemErrors.Value) {
+                $EventLogData.Add(
+                    [PSCustomObject]@{
+                        Message   = $err.Message
+                        DateTime  = $err.DateTime
+                        EntryType = 'Error'
+                        EventID   = '2'
+                    }
+                )
+            }
+
+            #
+            # 2. Add "Script ended" marker
+            #
+            $EventLogData.Add(
+                [PSCustomObject]@{
+                    Message   = 'Script ended'
+                    DateTime  = Get-Date
+                    EntryType = 'Information'
+                    EventID   = '199'
+                }
+            )
+
+            #
+            # 3. Truncate messages exceeding allowed length
+            #
+            foreach ($item in $EventLogData) {
+                if ($item.Message -and $item.Message.Length -gt $maxMessageLength) {
+                    $item.Message = $item.Message.Substring(0, $maxMessageLength) +
+                    '... [TRUNCATED DUE TO EVENT LOG SIZE LIMITS]'
+                }
+            }
+
+            #
+            # 4. Write the events
+            #
+            Write-EventsToEventLogHC `
+                -Source $ScriptName `
+                -LogName $logName `
+                -Events $EventLogData
+        }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Event log write failed: $_"
+                }
+            )
+        }
+    }
+
+    function Cleanup-OldLogs {
+        param(
+            [Parameter(Mandatory)]
+            [string]$LogFolder,
+            [int]$RetentionDays,
+            [Parameter(Mandatory)]
+            [ref]$SystemErrors
+        )
+
+        #
+        # No cleanup if retention is disabled or folder missing
+        #
+        if ($RetentionDays -le 0 -or -not $LogFolder) {
+            return
+        }
+
+        try {
+            if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+                return
+            }
+
+            $cutoff = (Get-Date).AddDays(-$RetentionDays)
+
+            #
+            # 1. Delete old files
+            #
+            Get-ChildItem -LiteralPath $LogFolder -Recurse -File -ErrorAction Stop |
+            Where-Object { $_.CreationTime -lt $cutoff } |
             ForEach-Object {
-                $item = $_
                 try {
-                    $shouldDelete = $false
-
-                    if (-not $item.PSIsContainer) {
-                        if ($item.CreationTime -lt $cutoffDate) {
-                            $shouldDelete = $true
-                        }
-                    }
-                    else {
-                        if (
-                            ($item.GetFiles().Count -eq 0) -and
-                            ($item.GetDirectories().Count -eq 0)
-                        ) {
-                            $shouldDelete = $true
-                        }
-                    }
-
-                    if ($shouldDelete) {
-                        Write-Verbose "Remove '$($item.FullName)'"
-                        Remove-Item -Path $item.FullName -Force -Recurse
-                    }
+                    Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
                 }
                 catch {
-                    $verboseMessage = "Failed to remove file '$($item.FullName)': $_"
-                    $systemErrors.Add([PSCustomObject]@{ DateTime = Get-Date; Message = $verboseMessage })
-                    Write-Warning $verboseMessage
+                    $SystemErrors.Value.Add(
+                        [PSCustomObject]@{
+                            DateTime = Get-Date
+                            Message  = "Log cleanup failed to delete file '$($_.FullName)': $_"
+                        }
+                    )
+                }
+            }
+
+            #
+            # 2. Remove empty folders (bottom‑up)
+            #
+            Get-ChildItem -LiteralPath $LogFolder -Recurse -Directory -ErrorAction Stop |
+            Sort-Object FullName -Descending | # ensures children deleted before parents
+            ForEach-Object {
+                if (-not $_.GetFileSystemInfos().Count) {
+                    try {
+                        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+                    }
+                    catch {
+                        $SystemErrors.Value.Add(
+                            [PSCustomObject]@{
+                                DateTime = Get-Date
+                                Message  = "Log cleanup failed to remove empty folder '$($_.FullName)': $_"
+                            }
+                        )
+                    }
                 }
             }
         }
-        #endregion
-
-        #region Create system errors log file
-        if (($systemErrors.Count -ne 0) -and (Test-Path -LiteralPath $LogFolder -PathType Container)) {
-            $params = @{
-                DataToExport   = $systemErrors
-                PartialPath    = Join-Path (Get-DatedLogFolderPathHC) 'System errors log'
-                FileExtensions = '.json'
-            }
-            $mailParams.Attachments = Out-LogFileHC @params -ErrorAction Ignore
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Log cleanup failed: $_"
+                }
+            )
         }
-        #endregion
+    }
 
-        #region Send email
-        if (($systemErrors.Count -ne 0) -or $importedMatrix) {
-            
-            $mailParams.To =
-            @(@($sendMail.To) + @($mailToDefaultsFile)) | Where-Object { $_ } |
-            ForEach-Object { $_.Trim() } | Where-Object { $_ } | 
-            Sort-Object -Unique
-
-            $mailParams += @{
-                From                = Get-StringValueHC $sendMail.From
-                SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
-                SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
-                MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
-                MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
+    function Write-SystemErrorLog {
+        param(
+            [Parameter(Mandatory)][object]$SystemErrors,
+            [Parameter(Mandatory)][string]$LogFolder,
+            [Parameter(Mandatory)][ref]$MailParams
+        )
+        if ($SystemErrors.Count -gt 0 -and (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+            $path = Join-Path (Get-DatedLogFolderPathHC) 'System errors log'
+            $attachments = Out-LogFileHC -DataToExport $SystemErrors -PartialPath $path -FileExtensions '.json' -ErrorAction Ignore
+            if ($attachments) {
+                if (-not $MailParams.Value.Contains('Attachments')) { $MailParams.Value['Attachments'] = @() }
+                $MailParams.Value['Attachments'] += $attachments
             }
+        }
+    }
 
-            if ($sendMail.Bcc) {
-                $mailParams.Bcc = $sendMail.Bcc
-            }
+    function Generate-MailRecipientList {
+        param(
+            [object]$Recipients,
+            [array]$Defaults = @()
+        )
 
-            #region Body
-            $mailParams.Body = @"
-    <!DOCTYPE html>
-    <html>
-    <head>
-        $($html.Style)
-    </head>
-    <body>
-    <table>
-        <h1>$scriptName</h1>
-        <hr size="2" color="#06cc7a">
+        #
+        # Normalize a single input value into an array of strings
+        #
+        function Normalize-MailEntry {
+            param([object]$Value)
 
-        $($sendMail.Body)
-        $($html.ErrorWarningTable)
-        $($html.ExportFilesList)
-        $($html.MatrixTables)
+            if (-not $Value) { return @() }
+            if ($Value -is [string]) { return , $Value.Trim() }
+            if ($Value -is [array]) { return $Value | ForEach-Object { "$_".Trim() } }
 
-        $(if ($mailParams.Attachments) { '<p><i>* Check the attachment(s) for details</i></p>' })
+            # Unsupported type → ignore silently (same as original loose behavior)
+            return @()
+        }
 
-        <hr size="2" color="#06cc7a">
-        <table id="aboutTable">
-            $(if ($scriptStartTime) { '<tr><th>Start time</th><td>{0:00}/{1:00}/{2:00} {3:00}:{4:00} ({5})</td></tr>' -f $scriptStartTime.Day, $scriptStartTime.Month, $scriptStartTime.Year, $scriptStartTime.Hour, $scriptStartTime.Minute, $scriptStartTime.DayOfWeek })
-            $(if ($scriptStartTime) { $runTime = New-TimeSpan -Start $scriptStartTime -End (Get-Date); '<tr><th>Duration</th><td>{0:00}:{1:00}:{2:00}</td></tr>' -f $runTime.Hours, $runTime.Minutes, $runTime.Seconds })
-            $(if ($LogFolder) { '<tr><th>Log files</th><td><a href="{0}">Open log folder</a></td></tr>' -f $LogFolder })
-            <tr><th>Host</th><td>$($host.Name)</td></tr>
-            <tr><th>PowerShell</th><td>$($PSVersionTable.PSVersion.ToString())</td></tr>
-            <tr><th>Computer</th><td>$env:COMPUTERNAME</td></tr>
-            <tr><th>Account</th><td>$env:USERDNSDOMAIN\$env:USERNAME</td></tr>
-        </table>
-        </table>
-        </body>
-    </html>
-"@
-            #endregion
+        #
+        # Normalize primary list + defaults
+        #
+        $combined =
+        (Normalize-MailEntry -Value $Recipients) +
+        (Normalize-MailEntry -Value $Defaults)
 
-            if ($sendMail.FromDisplayName) {
-                $mailParams.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
-            }
+        #
+        # Remove empty values, trim, unique, sorted
+        #
+        return $combined |
+        ForEach-Object { "$_".Trim() } |
+        Where-Object { $_ } |
+        Sort-Object -Unique
+    }
 
-            #region Subject
-            $matrixCount = @($importedMatrix).Count
-            $matrixPlural = if ($matrixCount -ne 1) { 's' } else { '' }
-            $customSubject = if ($sendMail.Subject) { ", $($sendMail.Subject)" } else { '' }
+    function Generate-MailSubject {
+        param(
+            [int]$MatrixCount,
+            [object]$SystemErrors,
+            [object]$Counter,
+            [string]$CustomSubject
+        )
 
-            if ($systemErrors.Count -gt 0) {
-                $sysErrPlural = if ($systemErrors.Count -ne 1) { 's' } else { '' }
+        #
+        # Helper: pluralize a word if needed
+        #
+        function Plural {
+            param(
+                [int]$Count,
+                [string]$Word
+            )
+            return ($Count -eq 1) ? $Word : ($Word + 's')
+        }
 
-                if ($matrixCount -gt 0) {
-                    $mailParams.Subject = "$matrixCount matrix file$matrixPlural, $($systemErrors.Count) System Error$sysErrPlural$customSubject"
-                }
-                else {
-                    $mailParams.Subject = "System Error$($sysErrPlural): $($systemErrors.Count) critical failure$sysErrPlural$customSubject"
-                }
+        #
+        # Optional custom suffix
+        #
+        $suffix = if ($CustomSubject) { ", $CustomSubject" } else { '' }
+
+        $subject = $null
+
+        #
+        # 1. If system errors exist → priority subject line
+        #
+        if ($SystemErrors.Count -gt 0) {
+
+            $sysWord = Plural -Count $SystemErrors.Count -Word 'System Error'
+            $matWord = Plural -Count $MatrixCount -Word 'matrix file'
+
+            if ($MatrixCount -gt 0) {
+                $subject = "$MatrixCount $matWord, $($SystemErrors.Count) $sysWord$suffix"
             }
             else {
-                $errorString = if ($counter.Total.Errors) {
-                    ", $($counter.Total.Errors) error$(if ($counter.Total.Errors -ne 1) { 's' })"
-                }
-                else { '' }
-
-                $warningString = if ($counter.Total.Warnings) {
-                    ", $($counter.Total.Warnings) warning$(if ($counter.Total.Warnings -ne 1) { 's' })"
-                }
-                else { '' }
-
-                $mailParams.Subject = "$matrixCount matrix file$matrixPlural$errorString$warningString$customSubject"
+                # No matrix, only system failures
+                $subject = "$sysWord`: $($SystemErrors.Count) critical failure$(if ($SystemErrors.Count -ne 1) {'s'})$suffix"
             }
-            #endregion
-
-            if (($systemErrors.Count -ne 0) -or $counter.Total.Errors -or $counter.Total.Warnings) {
-                $mailParams.Priority = 'High'
-            }
-
-            if ($sendMail.Smtp.ConnectionType) {
-                $mailParams.SmtpConnectionType = Get-StringValueHC $sendMail.Smtp.ConnectionType
-            }
-
-            #region Create SMTP credential
-            $smtpUserName = Get-StringValueHC $sendMail.Smtp.UserName
-            $smtpPassword = Get-StringValueHC $sendMail.Smtp.Password
-
-            if ($smtpUserName -and $smtpPassword) {
-                try {
-                    $securePassword = ConvertTo-SecureString -String $smtpPassword -AsPlainText -Force
-                    $credential = New-Object System.Management.Automation.PSCredential($smtpUserName, $securePassword)
-                    $mailParams.Credential = $credential
-                }
-                catch {
-                    throw "Failed to create credential: $_"
-                }
-            }
-            elseif ($smtpUserName -or $smtpPassword) {
-                throw "Both 'Settings.SendMail.Smtp.Username' and 'Settings.SendMail.Smtp.Password' are required when authentication is needed."
-            }
-            #endregion
-
-            #region Send email
-            try {
-                Send-MailKitMessageHC @mailParams
-            }
-            catch {
-                Write-Warning "Failed to send email: $_"
-
-                $systemErrors.Add(
-                    [PSCustomObject]@{
-                        DateTime = Get-Date
-                        Message  = "Failed to send email: $_"
-                    }
-                )
-            }
-            #endregion
-
-            #region Save mail in log folder
-            try {
-                if (Test-Path -LiteralPath $LogFolder -PathType Container) {
-                    $safeSubject = if ($mailParams.Subject) {
-                        $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
-                        $escapedInvalidChars = [regex]::Escape([string]$invalidChars)
-                        $mailParams.Subject -replace "[$escapedInvalidChars]", ' '
-                    }
-                    else {
-                        'No Subject'
-                    }
-
-                    $params = @{
-                        LiteralPath = Join-Path (Get-DatedLogFolderPathHC) ('Mail - {0}.html' -f $safeSubject)
-                        Encoding    = 'utf8'
-                        NoClobber   = $true
-                    }
-                    $mailParams.Body | Out-File @params
-                }
-            }
-            catch {
-                Write-Warning "Failed to save mail body locally: $_"
-
-                $systemErrors.Add(
-                    [PSCustomObject]@{
-                        DateTime = Get-Date
-                        Message  = "Failed to save mail body locally: $_"
-                    }
-                )
-            }
-            #endregion
         }
+
+        #
+        # 2. Otherwise → Matrix subject with error and warning summary
+        #
+        else {
+            $matWord = Plural -Count $MatrixCount -Word 'matrix file'
+
+            $errPart = if ($Counter.TotalErrors) {
+                ", $($Counter.TotalErrors) error$(if($Counter.TotalErrors-ne 1){'s'})" 
+            }
+            else { '' }
+
+            $warnPart = if ($Counter.TotalWarnings) {
+                ", $($Counter.TotalWarnings) warning$(if($Counter.TotalWarnings-ne 1){'s'})" 
+            }
+            else { '' }
+
+            $subject = "$MatrixCount $matWord$errPart$warnPart$suffix"
+        }
+
+        #
+        # 3. Sanitize for use as filenames (original behavior preserved)
+        #
+        return [string]::Join(
+            '_',
+            $subject.Split([System.IO.Path]::GetInvalidFileNameChars())
+        )
+    }
+
+    function Generate-MailBodyHtml {
+        param(
+            [Parameter(Mandatory)][object]$Settings,
+            [Parameter(Mandatory)][object]$Html,
+            [Parameter()][object]$ExportedFiles,
+            [Parameter()][string]$AttNote,
+            [Parameter()][string]$DurStr,
+            [Parameter()][datetime]$ScriptStartTime,
+            [Parameter()][string]$LogFolder
+        )
+
+        #
+        # Helper: Create exported file links
+        #
+        function New-ExportListHtml {
+            param([object]$Files)
+
+            if (-not $Files -or $Files.Count -eq 0) {
+                return ''
+            }
+
+            $items = $Files.GetEnumerator() |
+            ForEach-Object {
+                "<li>$($_.Value)$($_.Key)</a></li>"
+            }
+
+            return "<p><b>Exported $($Files.Count) file$(if($Files.Count-ne 1){'s'}):</b></p><ul>$($items -join '')</ul>"
+        }
+
+        #
+        # Helper: Build the metadata table
+        #
+        function New-MetadataTable {
+            param(
+                [datetime]$Start,
+                [string]$Duration,
+                [string]$LogFolder
+            )
+
+            $startStr = $Start.ToString('dd/MM/yyyy HH:mm (dddd)')
+            $logHtml = if ($LogFolder) {
+                "<tr><th>Log files</th><td>$LogFolderOpen log folder</a></td></tr>"
+            }
+
+            return @"
+<table class="aboutTable">
+    <tr><th>Start time</th><td>$startStr</td></tr>
+    <tr><th>Duration</th><td>$Duration</td></tr>
+    $logHtml
+    <tr><th>Host</th><td>$($host.Name)</td></tr>
+    <tr><th>Computer</th><td>$env:COMPUTERNAME</td></tr>
+    <tr><th>Account</th><td>$($env:USERDNSDOMAIN)\$($env:USERNAME)</td></tr>
+</table>
+"@
+        }
+
+        #
+        # Compose sections
+        #
+        $exportHtml = New-ExportListHtml -Files $ExportedFiles
+        $metaTable = New-MetadataTable -Start $ScriptStartTime -Duration $DurStr -LogFolder $LogFolder
+
+        #
+        # Main HTML document
+        #
+        return @"
+<!DOCTYPE html>
+<html>
+<head>
+    $($Html.Style)
+</head>
+<body>
+
+<h1>$($Settings.ScriptName)</h1>
+<hr size="2" color="#06cc7a">
+
+$($Settings.SendMail.Body)
+$($Html.ErrorWarningTable)
+$exportHtml
+$($Html.MatrixTables)
+$AttNote
+
+<hr size="2" color="#06cc7a">
+
+$metaTable
+
+</body>
+</html>
+"@
+    }
+
+    function Build-MailParameters {
+        param(
+            [Parameter(Mandatory)][object]$Settings,
+            [Parameter(Mandatory)][object]$Html,
+            [Parameter()][object]$ExportedFiles,
+            [Parameter()][object]$Counter,
+            [Parameter()][object]$SystemErrors,
+            [Parameter()][int]$MatrixCount,
+            [Parameter(Mandatory)][hashtable]$ExistingMailParams,
+            [Parameter()][array]$MailToDefaultsFile,
+            [Parameter()][string]$LogFolder,
+            [Parameter()][datetime]$ScriptStartTime
+        )
+
+        #
+        # 1. Prepare base hashtable
+        #
+        $mail = $ExistingMailParams
+        $sendMail = $Settings.SendMail
+        $smtp = $sendMail.Smtp
+
+        #
+        # 2. Recipients
+        #
+        $mail.To = Generate-MailRecipientList `
+            -Recipients $sendMail.To `
+            -Defaults $MailToDefaultsFile
+
+        if ($sendMail.Bcc) {
+            $mail.Bcc = Generate-MailRecipientList -Recipients $sendMail.Bcc
+        }
+
+        #
+        # 3. Basic metadata
+        #
+        $mail.From = Get-StringValueHC $sendMail.From
+        $mail.FromDisplayName = Get-StringValueHC $sendMail.FromDisplayName
+        $mail.SmtpServerName = Get-StringValueHC $smtp.ServerName
+        $mail.SmtpPort = Get-StringValueHC $smtp.Port
+        $mail.SmtpConnectionType = Get-StringValueHC $smtp.ConnectionType
+
+        $mail.MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
+        $mail.MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
+
+        #
+        # 4. Credential (optional)
+        #
+        if ($smtp.UserName -and $smtp.Password) {
+            $sec = ConvertTo-SecureString `
+                -String (Get-StringValueHC $smtp.Password) `
+                -AsPlainText -Force
+
+            $mail.Credential = New-Object `
+                System.Management.Automation.PSCredential `
+            (Get-StringValueHC $smtp.UserName), $sec
+        }
+
+        #
+        # 5. Subject line
+        #
+        $mail.Subject = Generate-MailSubject `
+            -MatrixCount $MatrixCount `
+            -SystemErrors $SystemErrors `
+            -Counter $Counter `
+            -CustomSubject $sendMail.Subject
+
+        #
+        # 6. Mail priority
+        #
+        if (
+            $SystemErrors.Count -gt 0 -or
+            $Counter.TotalErrors -gt 0 -or
+            $Counter.TotalWarnings -gt 0
+        ) {
+            $mail.Priority = 'High'
+        }
+
+        #
+        # 7. Build the mail body
+        #
+        $attachmentNote = if ($mail.Attachments) {
+            '<p><i>* Check the attachment(s) for details</i></p>'
+        }
+
+        $durationString = $null
+        if ($ScriptStartTime) {
+            $ts = New-TimeSpan -Start $ScriptStartTime -End (Get-Date)
+            $durationString = '{0:00}:{1:00}:{2:00}' -f $ts.Hours, $ts.Minutes, $ts.Seconds
+        }
+
+        $mail.Body = Generate-MailBodyHtml `
+            -Settings $Settings `
+            -Html $Html `
+            -ExportedFiles $ExportedFiles `
+            -AttNote $attachmentNote `
+            -DurStr $durationString `
+            -ScriptStartTime $ScriptStartTime `
+            -LogFolder $LogFolder
+
+        return $mail
+    }
+
+    function Send-MailSafe {
+        param(
+            [Parameter(Mandatory)][hashtable]$MailParams,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+        try { Send-MailKitMessageHC @MailParams }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date 
+                    Message  = "Failed to send mail: $_" 
+                }
+            ) 
+        }
+    }
+
+    function Save-MailBodyToLog {
+        param(
+            [Parameter(Mandatory)][hashtable]$MailParams,
+            [Parameter(Mandatory)][string]$LogFolder,
+            [Parameter(Mandatory)][ref]$SystemErrors
+        )
+
+        try {
+            # No subject → no log file
+            if (-not $MailParams.Subject) {
+                return
+            }
+
+            # Ensure log folder exists
+            if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+                return
+            }
+
+            # Build final file path
+            $fileName = "Mail - $($MailParams.Subject).html"
+            $fullPath = Join-Path (Get-DatedLogFolderPathHC) $fileName
+
+            # Save HTML
+            $MailParams.Body |
+            Out-File -LiteralPath $fullPath -Encoding UTF8 -Force
+        }
+        catch {
+            $SystemErrors.Value.Add(
+                [PSCustomObject]@{
+                    DateTime = Get-Date
+                    Message  = "Failed to save mail HTML: $_"
+                }
+            )
+        }
+    }
+
+    try {
+        #region Ensure Settings and LogFolder are defined
+        $Settings = Ensure-SafeSettingsHC $Settings
+        
+        $LogFolder = Ensure-LogFolderHC `
+            -RequestedFolder $Settings.SaveLogFiles.Where.Folder `
+            -SystemErrors ([ref]$systemErrors)
         #endregion
+
+        if (-not $fatalBeginError) {
+            #
+            # 1. VALIDATE CONFIGURATION
+            #
+            $validation = Validate-Settings `
+                -Settings $Settings `
+                -Matrix $Matrix `
+                -Export $Export `
+                -ServiceNow $ServiceNow `
+                -MaxConcurrent $MaxConcurrent
+
+            foreach ($err in $validation.Errors) {
+                $systemErrors.Add($err)
+            }
+
+            if (-not $validation.IsValid) {
+                Write-Warning 'Configuration validation failed. Aborting end block.'
+                return
+            }
+        }
+
+        #
+        # 2. INITIALIZE HTML STRUCTURE
+        #
+        $html = Initialize-HtmlStructure
+       
+        #
+        # 3. PROCESS MATRICES AND BUILD HTML TABLES
+        #
+        if ($importedMatrix) {
+            $importedMatrix = Process-MatrixObjects `
+                -ImportedMatrix $importedMatrix `
+                -Html $html
+
+            $html.MatrixTables = Build-MatrixEmailHtml `
+                -ImportedMatrix $importedMatrix `
+                -Html $html
+        }
+
+        #
+        # 4. COLLECT EXPORT DATA
+        #
+        $dataToExport = $null
+        if ($importedMatrix) {
+            $dataToExport = Build-ExportData `
+                -ImportedMatrix $importedMatrix `
+                -AdObjectHash $adObjectHash `
+                -GroupManagerHash $groupManagerHash
+        }
+
+        #
+        # 5. EXPORT FILES
+        #
+        $exportedFiles = @{}
+        if ($systemErrors.Count -eq 0 -and $dataToExport) {
+
+            $exportLogFolderPath = ''
+            if ($Export.ServiceNowFormDataExcelFile -or
+                $Export.PermissionsExcelFile -or
+                $Export.OverviewHtmlFile) {
+
+                $exportLogFolderPath = Join-Path (Get-DatedLogFolderPathHC) 'Export'
+
+                if (-not (Test-Path -LiteralPath $exportLogFolderPath)) {
+                    New-Item -ItemType Directory -Path $exportLogFolderPath -ErrorAction SilentlyContinue | Out-Null
+                }
+            }
+
+            $exportedFiles = Export-Files `
+                -DataToExport $dataToExport `
+                -ExportConfig $Export `
+                -ServiceNowConfig $ServiceNow `
+                -ExportLogFolder $exportLogFolderPath `
+                -ScriptPathItem $scriptPathItem `
+                -SystemErrors ([ref]$systemErrors)
+        }
+
+        #
+        # 6. BUILD COUNTERS AND ERROR TABLES
+        #
+        $counter = Build-Counters `
+            -ImportedMatrix $importedMatrix `
+            -SystemErrors $systemErrors
+
+        $html.ErrorWarningTable = Build-ErrorWarningTable `
+            -CounterData $counter `
+            -SystemErrors $systemErrors
+
+
+        #
+        # 7. WRITE EVENT LOG
+        #
+        Write-EventLogSafe `
+            -EventLogData $eventLogData `
+            -ScriptName $Settings.ScriptName `
+            -Settings $Settings `
+            -SystemErrors ([ref]$systemErrors)
+
+        #
+        # 8. CLEANUP OLD LOGS AND SAVE SYSTEM ERROR DUMP
+        #
+        Cleanup-OldLogs `
+            -LogFolder $LogFolder `
+            -RetentionDays $Settings.SaveLogFiles.DeleteLogsAfterDays `
+            -SystemErrors ([ref]$systemErrors)
+
+        Write-SystemErrorLog `
+            -SystemErrors $systemErrors `
+            -LogFolder $LogFolder `
+            -MailParams ([ref]$mailParams)
+
+
+        #
+        # 9. BUILD AND SEND MAIL
+        #
+        $mailParams = Build-MailParameters `
+            -Settings $Settings `
+            -Html $html `
+            -ExportedFiles $exportedFiles `
+            -Counter $counter `
+            -SystemErrors $systemErrors `
+            -MatrixCount @($importedMatrix).Count `
+            -ExistingMailParams $mailParams `
+            -MailToDefaultsFile $mailToDefaultsFile `
+            -LogFolder $LogFolder `
+            -ScriptStartTime $scriptStartTime
+
+        if ($systemErrors.Count -ne 0 -or $importedMatrix) {
+
+            Send-MailSafe `
+                -MailParams $mailParams `
+                -SystemErrors ([ref]$systemErrors)
+
+            if (Test-Path -LiteralPath $LogFolder -PathType Container) {
+                Save-MailBodyToLog `
+                    -MailParams $mailParams `
+                    -LogFolder $LogFolder `
+                    -SystemErrors ([ref]$systemErrors)
+            }
+        }
     }
     catch {
-        $systemErrors.Add([PSCustomObject]@{
+        #
+        # ANY uncaught failure inside END block is severe
+        #
+        $systemErrors.Add(
+            [PSCustomObject]@{
                 DateTime = Get-Date
-                Message  = $_
-            })
-
-        Write-Warning $_
+                Message  = "Unhandled error in END block: $_"
+            }
+        )
+        Write-Warning "Unhandled fatal error: $_"
     }
     finally {
+        #
+        # Always remove drive if it exists
+        #
         Remove-PSDrive MatrixFolderPath -ErrorAction Ignore
 
-        if ($systemErrors.Count -ne 0) {
-            $M = 'Found {0} system error{1}' -f $systemErrors.Count, $(if ($systemErrors.Count -ne 1) { 's' })
-            Write-Warning $M
-
-            $systemErrors | ForEach-Object {
-                Write-Warning $_.Message
-            }
+        #
+        # Determine exit behavior
+        #
+        if ($systemErrors.Count -gt 0) {
+            Write-Warning ('Found {0} system error(s).' -f $systemErrors.Count)
+            $systemErrors |
+            Sort-Object DateTime |
+            ForEach-Object { Write-Warning $_.Message }
 
             Write-Warning 'Exit script with error code 1'
             exit 1
         }
         else {
-            Write-Verbose 'Script finished successfully'
+            Write-Verbose 'Script finished successfully.'
         }
     }
 }
