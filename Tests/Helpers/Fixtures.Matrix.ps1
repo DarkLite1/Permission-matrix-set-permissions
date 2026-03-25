@@ -1,0 +1,313 @@
+function _FakeMatrixSettingsRows {
+    param([string]$Scenario)
+
+    switch ($Scenario) {
+
+        'MissingColumn' {
+            return @(
+                # Missing Permission column
+                [pscustomobject]@{
+                    MailTo       = 'x@x.com'
+                    ADObjectName = 'GroupA'
+                    # Permission missing
+                }
+            )
+        }
+
+        'InvalidPermission' {
+            return @(
+                [pscustomobject]@{
+                    MailTo       = 'x@x.com'
+                    ADObjectName = 'GroupA'
+                    Permission   = 'Z'   # invalid permission character
+                }
+            )
+        }
+
+        'MissingMailTo' {
+            return @(
+                [pscustomobject]@{
+                    MailTo       = $null
+                    ADObjectName = 'GroupA'
+                    Permission   = 'R'
+                }
+            )
+        }
+
+        default {
+            throw "Unknown fake Settings scenario '$Scenario'"
+        }
+    }
+}
+function _FakeMatrixPermissionsRows {
+    param([string]$Scenario)
+
+    switch ($Scenario) {
+
+        'MissingADObjectName' {
+            return @(
+                [pscustomobject]@{
+                    ADObjectName = $null
+                    Path         = 'Test:\Folder'
+                    Permission   = 'R'
+                }
+            )
+        }
+
+        'InvalidPermissionChar' {
+            return @(
+                [pscustomobject]@{
+                    ADObjectName = 'GroupA'
+                    Path         = 'Test:\Folder'
+                    Permission   = 'XYZ' # invalid pattern for your permission logic
+                }
+            )
+        }
+
+        default {
+            throw "Unknown fake Permissions scenario '$Scenario'"
+        }
+    }
+}
+function Get-MatrixSettingsFixtures {
+
+    return @(
+
+        @{
+            Issue           = 'Missing mandatory Settings column'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingColumn')"
+            ExpectedMessage = 'Missing mandatory column'
+        }
+
+        @{
+            Issue           = 'Invalid Action value'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'InvalidAction')"
+            ExpectedMessage = 'Invalid Action'
+        }
+
+        @{
+            Issue           = 'Missing ComputerName'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingComputerName')"
+            ExpectedMessage = 'ComputerName'
+        }
+
+        @{
+            Issue           = 'Missing GroupName'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingGroupName')"
+            ExpectedMessage = 'GroupName'
+        }
+
+        @{
+            Issue           = 'Missing Path'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingPath')"
+            ExpectedMessage = 'Path'
+        }
+    )
+}
+function Get-MatrixPermissionsFixtures {
+
+    return @(
+
+        # ---------------------------------------------------------------
+        # 1. Missing AD group name (column header)
+        # ---------------------------------------------------------------
+        @{
+            Issue = 'Missing ADObjectName'
+            Mutation = @"
+New-MatrixExcelFixture `
+    -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `
+    -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') `
+    -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingADObjectName')
+"@
+            Expected = 'Missing group name'
+        }
+
+
+        # ---------------------------------------------------------------
+        # 2. Invalid permission characters
+        # ---------------------------------------------------------------
+        @{
+            Issue = 'Invalid permission characters'
+            Mutation = @"
+New-MatrixExcelFixture `
+    -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `
+    -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') `
+    -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'InvalidPermissionChar')
+"@
+            Expected = 'Invalid permission'
+        }
+
+    )
+}
+function Get-DisabledMatrixFixtures {
+    return @(
+        @{
+            Description    = 'All matrices disabled'
+            FixtureBuilder = {
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix1.xlsx' -Disabled
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix2.xlsx' -Disabled
+            }
+            ExpectedCount  = 0
+        }
+        @{
+            Description    = 'One disabled, one enabled'
+            FixtureBuilder = {
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix1.xlsx' -Disabled
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix2.xlsx'
+            }
+            ExpectedCount  = 1
+        }
+    )
+}
+function Get-DuplicateMatrixFixtures {
+    return @(
+        @{
+            Description    = 'Duplicate ComputerName + Path combination'
+            FixtureBuilder = {
+
+                $path = 'TestDrive:\Matrix\DUP.xlsx'
+
+                $settings = @(
+                    [pscustomobject]@{
+                        Status       = 'Enabled'
+                        SiteName     = 'HQ South'
+                        SiteCode     = 'CS&L'
+                        ComputerName = 'BEL$FFRAN0001'
+                        Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                        GroupName    = 'BEL ROL-AGS-SAGREV'
+                        Action       = 'Fix'
+                    }
+                    [pscustomobject]@{
+                        Status       = 'Enabled'
+                        SiteName     = 'HQ South'
+                        SiteCode     = 'CS&L'
+                        ComputerName = 'BEL$FFRAN0001'   # DUPLICATE
+                        Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                        GroupName    = 'BEL ROL-AGS-SAGREV'
+                        Action       = 'Check'
+                    }
+                )
+
+                New-MatrixExcelFixture -Path $path -SettingsRows $settings
+            }
+            ExpectedError  = 'Duplicate.*ComputerName.*Path'
+        }
+    )
+}
+function Get-AclConversionFixtures {
+    return @(
+        @{
+            Description      = 'Single ACL entry'
+            SettingsRows     = @(
+                [pscustomobject]@{
+                    Status       = 'Enabled'
+                    SiteName     = 'HQ South'
+                    SiteCode     = 'CS&L'
+                    ComputerName = 'BEL$FFRAN0001'
+                    Path         = 'E:\Data'
+                    GroupName    = 'GroupA'
+                    Action       = 'Fix'
+                }
+            )
+            ExpectedAclCount = 1
+        }
+
+        @{
+            Description      = 'Two ACL entries'
+            SettingsRows     = @(
+                [pscustomobject]@{
+                    Status       = 'Enabled'
+                    SiteName     = 'HQ South'
+                    SiteCode     = 'CS&L'
+                    ComputerName = 'BEL$FFRAN0001'
+                    Path         = 'E:\Data'
+                    GroupName    = 'GroupA'
+                    Action       = 'Fix'
+                }
+                [pscustomobject]@{
+                    Status       = 'Enabled'
+                    SiteName     = 'HQ South'
+                    SiteCode     = 'CS&L'
+                    ComputerName = 'BEL$FRAN0002'
+                    Path         = 'E:\Data2'
+                    GroupName    = 'GroupB'
+                    Action       = 'Check'
+                }
+            )
+            ExpectedAclCount = 2
+        }
+    )
+}
+function Get-DefaultPermissionsMergeFixtures {
+    return @(
+        @{
+            Description    = 'Defaults fill in missing values'
+            DefaultsRows   = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
+            )
+            MatrixRows     = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = $null }
+            )
+            ExpectedMerged = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
+            )
+        }
+
+        @{
+            Description    = 'Matrix overrides defaults'
+            DefaultsRows   = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
+            )
+            MatrixRows     = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'F' }
+            )
+            ExpectedMerged = @(
+                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'F' }
+            )
+        }
+    )
+}
+function Get-AdObjectBuildFixtures {
+    return @(
+        @{
+            Description    = 'Two AD objects'
+            FixtureBuilder = {
+                return @{
+                    'GroupA' = @{
+                        adObject      = @{ Name = 'GroupA'; ObjectClass = 'group' }
+                        adGroupMember = @()
+                    }
+                    'UserB'  = @{
+                        adObject      = @{ Name = 'UserB' ; ObjectClass = 'user' }
+                        adGroupMember = @()
+                    }
+                }
+            }
+            Expected       = 2
+        }
+    )
+}
+function Get-MatrixBuildFixtures {
+    return @(
+        @{
+            Description    = 'Two matrix files → two HTML tables'
+
+            FixtureBuilder = {
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\M1.xlsx'
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\M2.xlsx'
+            }
+
+            ExpectedFiles  = 2
+        }
+
+        @{
+            Description    = 'One matrix file → one HTML table'
+
+            FixtureBuilder = {
+                New-MatrixExcelFixture -Path 'TestDrive:\Matrix\M1.xlsx'
+            }
+
+            ExpectedFiles  = 1
+        }
+    )
+}
