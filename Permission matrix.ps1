@@ -37,6 +37,42 @@ param (
 )
 
 begin {
+    function Import-PermissionMatrixModuleHC {
+        param(
+            [Parameter(Mandatory)]
+            [string]$ScriptRoot,
+
+            [Parameter()]
+            [ref]$SystemErrors
+        )
+
+        try {
+            # Local module path first (repo-local override)
+            $localModulePath = Join-Path $ScriptRoot 'Modules\Toolbox.PermissionMatrixHC'
+
+            if (Test-Path $localModulePath) {
+                Import-Module $localModulePath -Force -ErrorAction Stop
+                return
+            }
+
+            # Fall back to system-installed module
+            Import-Module 'Toolbox.PermissionMatrixHC' -Force -ErrorAction Stop
+        }
+        catch {
+            $msg = "Failed to import Toolbox.PermissionMatrixHC module: $_"
+        
+            if ($SystemErrors) {
+                $SystemErrors.Value.Add(
+                    [pscustomobject]@{
+                        DateTime = Get-Date
+                        Message  = $msg
+                    }
+                )
+            }
+
+            throw $msg  # hard stop: script cannot continue without module
+        }
+    }
     function Invoke-BeginSafe {
         param(
             [scriptblock]$Action,
@@ -939,7 +975,11 @@ begin {
         }
     )
 
-    Import-Module "$PSScriptRoot\Modules\Toolbox.PermissionMatrixHC" -Force -Global
+    # region Load modules
+    Import-PermissionMatrixModuleHC `
+        -ScriptRoot $PSScriptRoot `
+        -SystemErrors ([ref]$systemErrors)
+    #endregion
 
     #region Import .json file
     Invoke-BeginSafe {
