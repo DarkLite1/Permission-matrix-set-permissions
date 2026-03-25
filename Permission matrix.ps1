@@ -3105,19 +3105,16 @@ $($Html.Templates.LegendTable)
             [hashtable]$GroupManagerHash
         )
 
-        #
-        # Prepare output structure
-        #
-        $export = @{
-            AccessList    = [System.Collections.Generic.List[object]]::new()
-            AdObjects     = [System.Collections.Generic.List[object]]::new()
-            FormData      = [System.Collections.Generic.List[object]]::new()
-            GroupManagers = [System.Collections.Generic.List[object]]::new()
-        }
+       
+        # Start with an empty result
+        $export = @{}
 
-        #
-        # Helper: Extract unique SAMs from a matrix
-        #
+        # Temp lists only if needed
+        $accessList = [System.Collections.Generic.List[object]]::new()
+        $adObjects = [System.Collections.Generic.List[object]]::new()
+        $formData = [System.Collections.Generic.List[object]]::new()
+        $groupManagers = [System.Collections.Generic.List[object]]::new()
+
         function Get-UniqueMatrixSamAccountNames {
             param([object]$MatrixItem)
 
@@ -3127,14 +3124,8 @@ $($Html.Templates.LegendTable)
             Sort-Object -Unique
         }
 
-        #
-        # Helper: Convert a single AdObject entry to export format
-        #
         function Convert-AdObjectExport {
-            param(
-                [string]$MatrixName,
-                [object]$Entry
-            )
+            param([string]$MatrixName, [object]$Entry)
 
             return [PSCustomObject]@{
                 MatrixFileName = $MatrixName
@@ -3145,60 +3136,65 @@ $($Html.Templates.LegendTable)
             }
         }
 
-        #
-        # Main processing loop
-        #
         foreach ($Matrix in $ImportedMatrix) {
 
             $matrixName = $Matrix.File.Item.BaseName
             $uniqueSams = Get-UniqueMatrixSamAccountNames -MatrixItem $Matrix
 
-            #
-            # 1. Access list
-            #
+
+            # 1. AccessList
             $access = Build-AccessList `
                 -SamAccountNames $uniqueSams `
                 -AdObjectHash $AdObjectHash `
                 -FileName $matrixName
 
-            if ($access) { $export.AccessList.AddRange($access) }
+            if ($access) { $accessList.AddRange($access) }
 
-            #
-            # 2. Group managers
-            #
+
+            # 2. GroupManagers
             $gm = Build-GroupManagerList `
                 -SamAccountNames $uniqueSams `
                 -AdObjectHash $AdObjectHash `
                 -GroupManagerHash $GroupManagerHash `
                 -FileName $matrixName
 
-            if ($gm) { $export.GroupManagers.AddRange($gm) }
+            if ($gm) { $groupManagers.AddRange($gm) }
 
-            #
-            # 3. AD object (converted values)
-            #
+
+            # 3. AD Objects
             if ($Matrix.Settings?.AdObjects) {
-
-                $adConvertedObjects =
+                $adConverted =
                 $Matrix.Settings.AdObjects.GetEnumerator() |
                 ForEach-Object {
                     Convert-AdObjectExport -MatrixName $matrixName -Entry $_.Value
                 } |
                 Group-Object SamAccountName |
-                ForEach-Object { $_.Group[0] }   # ensure unique
+                ForEach-Object { $_.Group[0] }
 
-                if ($adConvertedObjects) {
-                    $export.AdObjects.AddRange($adConvertedObjects)
+                if ($adConverted) {
+                    $adObjects.AddRange($adConverted)
                 }
             }
 
-            #
-            # 4. FormData (raw source)
-            #
+
+            # 4. FormData
             if ($Matrix.FormData?.Import) {
-                $export.FormData.AddRange($Matrix.FormData.Import)
+                $formData.AddRange($Matrix.FormData.Import)
             }
         }
+
+        #
+        # Add only non-empty collections
+        #
+        if ($accessList.Count -gt 0) { $export.AccessList = $accessList }
+        if ($adObjects.Count -gt 0) { $export.AdObjects = $adObjects }
+        if ($formData.Count -gt 0) { $export.FormData = $formData }
+        if ($groupManagers.Count -gt 0) { $export.GroupManagers = $groupManagers }
+
+        #
+        # If nothing was added → return $null
+        #
+        if ($export.Count -eq 0) { return $null }
 
         return $export
     }
@@ -4319,15 +4315,15 @@ $metaTable
         #
         # 4. COLLECT EXPORT DATA
         #
-        
-        $isExportNeeded =
-        $Export.ServiceNowFormDataExcelFile -or
-        $Export.PermissionsExcelFile -or
-        $Export.OverviewHtmlFile
-    
-        $dataToExport = $null
-        if ($importedMatrix -and $isExportNeeded) {
-            $dataToExport = Build-ExportData `
+        $dataToExport = if (
+            $importedMatrix -and
+            (
+                $Export.ServiceNowFormDataExcelFile -or
+                $Export.PermissionsExcelFile -or
+                $Export.OverviewHtmlFile
+            )
+        ) {
+            Build-ExportData `
                 -ImportedMatrix $importedMatrix `
                 -AdObjectHash $adObjectHash `
                 -GroupManagerHash $groupManagerHash
@@ -4337,9 +4333,8 @@ $metaTable
         # 5. EXPORT FILES
         #
         $exportedFiles = @{}
-        if ($systemErrors.Count -eq 0 -and $dataToExport -and $isExportNeeded) {
-
-            $exportLogFolderPath = ''
+        if ($dataToExport -and $systemErrors.Count -eq 0) {
+            
             $exportLogFolderPath = Join-Path (Get-DatedLogFolderPathHC) 'Export'
 
             if (-not (Test-Path -LiteralPath $exportLogFolderPath)) {
