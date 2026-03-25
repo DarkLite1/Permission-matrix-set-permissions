@@ -160,6 +160,145 @@ function Process-MatrixObjects {
 
     return $ImportedMatrix
 }
+function Validate-JsonSchema {
+    param(
+        [Parameter(Mandatory)]
+        [object]$JsonObject
+    )
+
+    $errors = [System.Collections.Generic.List[object]]::new()
+
+    function Add-SchemaError {
+        param([string]$Message)
+        $errors.Add(
+            [PSCustomObject]@{ 
+                Message = $Message 
+            }
+        )
+    }
+
+    # --- 1. Required top-level objects ---
+    foreach (
+        $prop in 
+        @('Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings')
+    ) {
+        if ($null -eq $JsonObject.$prop) {
+            Add-SchemaError "Property '$prop' not found"
+        }
+    }
+
+    # If Settings missing, bail out (prevents deeper checks)
+    if ($null -eq $JsonObject.Settings) {
+        return $errors
+    }
+
+    # --- 2. Validate Settings structure ---
+    if ($null -eq $JsonObject.Settings.SaveLogFiles.Where.Folder) {
+        Add-SchemaError "Property 'Settings.SaveLogFiles.Where.Folder' not found"
+    }
+
+    if ($null -eq $JsonObject.Settings.SaveLogFiles.Detailed) {
+        Add-SchemaError "Property 'Settings.SaveLogFiles.Detailed' not found"
+    }
+    elseif ($JsonObject.Settings.SaveLogFiles.Detailed -isnot [bool] ) {
+        Add-SchemaError 'Settings.SaveLogFiles.Detailed must be boolean'
+    }
+
+    if ($null -eq $JsonObject.Settings.SendMail) {
+        Add-SchemaError "Property 'Settings.SendMail' not found"
+    }
+    else {
+        if (-not $JsonObject.Settings.SendMail.From) {
+            Add-SchemaError "Property 'Settings.SendMail.From' not found"
+        }
+
+        if ($JsonObject.Settings.SendMail.To -and
+            ($JsonObject.Settings.SendMail.To -isnot [string] -and
+            $JsonObject.Settings.SendMail.To -isnot [array])) {
+            Add-SchemaError "Property 'Settings.SendMail.To' not found"
+        }
+
+        if ($null -eq $JsonObject.Settings.SendMail.Body) {
+            Add-SchemaError "Property 'Settings.SendMail.Body' not found"
+        }
+    }
+
+    # --- 3. Validate Matrix structure ---
+    if ($null -ne $JsonObject.Matrix) {
+        if (-not $JsonObject.Matrix.FolderPath) {
+            Add-SchemaError "Property 'Matrix.FolderPath' not found"
+        }
+
+        if (-not $JsonObject.Matrix.DefaultsFile) {
+            Add-SchemaError "Property 'Matrix.DefaultsFile' not found"
+        }
+
+        if ($JsonObject.Matrix.ExcludedSamAccountName -and
+            $JsonObject.Matrix.ExcludedSamAccountName -isnot [array]) {
+            Add-SchemaError "Property 'Matrix.ExcludedSamAccountName' must be an array"
+        }
+
+        if ($null -eq $JsonObject.Matrix.Archive) {
+            Add-SchemaError "Property 'Matrix.Archive' not found"
+        }
+        elseif ($JsonObject.Matrix.Archive -isnot [bool]) {
+            Add-SchemaError 'Matrix.Archive must be boolean'
+        }
+    }
+    else {
+        Add-SchemaError 'Matrix required'
+    }
+
+    # --- 4. Validate MaxConcurrent structure ---
+    if ($null -ne $JsonObject.MaxConcurrent) {
+        foreach (
+            $prop in
+            @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')
+        ) {
+            $val = $JsonObject.MaxConcurrent.$prop
+
+            if ($null -eq $val) {
+                Add-SchemaError "Property 'MaxConcurrent.$prop' not found"
+                continue
+            }
+
+            if ($val -notmatch '^\d+$') {
+                Add-SchemaError "MaxConcurrent.$prop must be an integer"
+            }
+        }
+    }
+     
+    # --- 5. Validate Export structure (file extensions only) ---
+    if ($null -ne $JsonObject.Export) {
+        if ($JsonObject.Export.PermissionsExcelFile -and
+            ($JsonObject.Export.PermissionsExcelFile -isnot [string]) -and
+            ($JsonObject.Export.PermissionsExcelFile -notmatch '\.xlsx$')) {
+            Add-SchemaError 'Export.PermissionsExcelFile must be a string ending with .xlsx'
+        }
+
+        if ($JsonObject.Export.OverviewHtmlFile -and
+            ($JsonObject.Export.OverviewHtmlFile -isnot [string]) -and
+            ($JsonObject.Export.OverviewHtmlFile -notmatch '\.html?$')) {
+            Add-SchemaError 'Export.OverviewHtmlFile must be a string ending with .html'
+        }
+
+        if ($JsonObject.Export.ServiceNowFormDataExcelFile -and
+            ($JsonObject.Export.ServiceNowFormDataExcelFile -isnot [string]) -and
+            ($JsonObject.Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$')) {
+            Add-SchemaError 'Export.ServiceNowFormDataExcelFile must be a string ending with .xlsx'
+        }
+
+        if ($JsonObject.Export.ServiceNowFormDataExcelFile -and
+            -not $JsonObject.ServiceNow) {
+            Add-SchemaError 'ServiceNow must be defined when ServiceNowFormDataExcelFile is used'
+        }
+    }
+    else {
+        Add-SchemaError 'Export required'
+    }
+
+    return $errors
+}
 function Write-MatrixTroubleshootingLog {
     param(
         [Parameter(Mandatory)][object]$Matrix,

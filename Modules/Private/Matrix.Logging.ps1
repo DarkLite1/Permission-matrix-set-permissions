@@ -70,6 +70,142 @@ function Cleanup-OldLogs {
         )
     }
 }
+function Out-LogFileHC {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [PSCustomObject[]]$DataToExport,
+        [Parameter(Mandatory)]
+        [String]$PartialPath,
+        [Parameter(Mandatory)]
+        [String[]]$FileExtensions,
+        [hashtable]$ExcelFile = @{
+            SheetName = 'Overview'
+            TableName = 'Overview'
+            CellStyle = $null
+        },
+        [Switch]$Append
+    )
+
+    $allLogFilePaths = @()
+
+    foreach (
+        $fileExtension in
+        $FileExtensions | Sort-Object -Unique
+    ) {
+        try {
+            $logFilePath = "$PartialPath$fileExtension"
+
+            Write-Verbose "Export $($DataToExport.Count) object(s) to '$logFilePath'"
+
+            switch ($fileExtension) {
+                '.csv' {
+                    $params = @{
+                        LiteralPath       = $logFilePath
+                        Append            = $Append
+                        Delimiter         = ';'
+                        NoTypeInformation = $true
+                    }
+                    $DataToExport | Export-Csv @params
+
+                    break
+                }
+                '.json' {
+                    #region Convert error object to error message string
+                    $convertedDataToExport = foreach (
+                        $exportObject in
+                        $DataToExport
+                    ) {
+                        foreach ($property in $exportObject.PSObject.Properties) {
+                            $name = $property.Name
+                            $value = $property.Value
+                            if (
+                                $value -is [System.Management.Automation.ErrorRecord]
+                            ) {
+                                if (
+                                    $value.Exception -and $value.Exception.Message
+                                ) {
+                                    $exportObject.$name = $value.Exception.Message
+                                }
+                                else {
+                                    $exportObject.$name = $value.ToString()
+                                }
+                            }
+                        }
+                        $exportObject
+                    }
+                    #endregion
+
+                    if (
+                        $Append -and
+                        (Test-Path -LiteralPath $logFilePath -PathType Leaf)
+                    ) {
+                        $params = @{
+                            LiteralPath = $logFilePath
+                            Raw         = $true
+                            Encoding    = 'UTF8'
+                        }
+                        $jsonFileContent = Get-Content @params | ConvertFrom-Json
+
+                        $convertedDataToExport = [array]$convertedDataToExport + [array]$jsonFileContent
+                    }
+
+                    $convertedDataToExport |
+                    ConvertTo-Json -Depth 7 |
+                    Out-File -LiteralPath $logFilePath
+
+                    break
+                }
+                '.txt' {
+                    $params = @{
+                        LiteralPath = $logFilePath
+                        Append      = $Append
+                    }
+
+                    $DataToExport | Format-List -Property * -Force |
+                    Out-File @params
+
+                    break
+                }
+                '.xlsx' {
+                    if (
+                        (-not $Append) -and
+                        (Test-Path -LiteralPath $logFilePath -PathType Leaf)
+                    ) {
+                        $logFilePath | Remove-Item
+                    }
+
+                    $excelParams = @{
+                        Path          = $logFilePath
+                        Append        = $true
+                        AutoNameRange = $true
+                        AutoSize      = $true
+                        FreezeTopRow  = $true
+                        WorksheetName = $ExcelFile.SheetName
+                        TableName     = $ExcelFile.TableName
+                        Verbose       = $false
+                    }
+                    if ($ExcelFile.CellStyle) {
+                        $excelParams.CellStyleSB = $ExcelFile.CellStyle
+                    }
+                    $DataToExport | Export-Excel @excelParams
+
+                    break
+                }
+                default {
+                    throw "Log file extension '$_' not supported. Supported values are '.csv', '.json', '.txt' or '.xlsx'."
+                }
+            }
+
+            $allLogFilePaths += $logFilePath
+        }
+        catch {
+            Write-Warning "Failed creating log file '$logFilePath': $_"
+        }
+    }
+
+    $allLogFilePaths
+}
 function Remove-FileHC {
     param(
         [Parameter(Mandatory)]
@@ -172,6 +308,162 @@ function Write-EventLogSafe {
                 Message  = "Event log write failed: $_"
             }
         )
+    }
+}
+function Write-EventsToEventLogHC {
+    <#
+        .SYNOPSIS
+            Write events to the event log.
+
+        .DESCRIPTION
+            The use of this function will allow standardization in the Windows
+            Event Log by using the same EventID's and other properties across
+            different scripts.
+
+            Custom Windows EventID's based on the PowerShell standard streams:
+
+            PowerShell Stream     EventIcon    EventID   EventDescription
+            -----------------     ---------    -------   ----------------
+            [i] Info              [i] Info     100       Script started
+            [4] Verbose           [i] Info     4         Verbose message
+            [1] Output/Success    [i] Info     1         Output on success
+            [3] Warning           [w] Warning  3         Warning message
+            [2] Error             [e] Error    2         Fatal error message
+            [i] Info              [i] Info     199       Script ended successfully
+
+        .PARAMETER Source
+            Specifies the script name under which the events will be logged.
+
+        .PARAMETER LogName
+            Specifies the name of the event log to which the events will be
+            written. If the log does not exist, it will be created.
+
+        .PARAMETER Events
+            Specifies the events to be written to the event log. This should be
+            an array of PSCustomObject with properties: Message, EntryType, and
+            EventID.
+
+        .PARAMETER Events.xxx
+            All properties that are not 'EntryType' or 'EventID' will be used to
+            create a formatted message.
+
+        .PARAMETER Events.EntryType
+            The type of the event.
+
+            The following values are supported:
+            - Information
+            - Warning
+            - Error
+            - SuccessAudit
+            - FailureAudit
+
+            The default value is Information.
+
+        .PARAMETER Events.EventID
+            The ID of the event. This should be a number.
+            The default value is 4.
+
+        .EXAMPLE
+            $eventLogData = [System.Collections.Generic.List[PSObject]]::new()
+
+            $eventLogData.Add(
+                [PSCustomObject]@{
+                    Message   = 'Script started'
+                    EntryType = 'Information'
+                    EventID   = '100'
+                }
+            )
+            $eventLogData.Add(
+                [PSCustomObject]@{
+                    Message  = 'Failed to read the file'
+                    FileName = 'C:\Temp\test.txt'
+                    DateTime = Get-Date
+                    EntryType = 'Error'
+                    EventID   = '2'
+                }
+            )
+            $eventLogData.Add(
+                [PSCustomObject]@{
+                    Message  = 'Created file'
+                    FileName = 'C:\Report.xlsx'
+                    FileSize = 123456
+                    DateTime = Get-Date
+                    EntryType = 'Information'
+                    EventID   = '1'
+                }
+            )
+            $eventLogData.Add(
+                [PSCustomObject]@{
+                    Message   = 'Script finished'
+                    EntryType = 'Information'
+                    EventID   = '199'
+                }
+            )
+
+            $params = @{
+                Source  = 'Test (Brecht)'
+                LogName = 'HCScripts'
+                Events  = $eventLogData
+            }
+            Write-EventsToEventLogHC @params
+        #>
+
+    [CmdLetBinding()]
+    param (
+        [Parameter(Mandatory)]
+        [String]$Source,
+        [Parameter(Mandatory)]
+        [String]$LogName,
+        [PSCustomObject[]]$Events
+    )
+
+    try {
+        if ([System.Diagnostics.EventLog]::SourceExists($Source)) {
+            $existingLogName = [System.Diagnostics.EventLog]::LogNameFromSourceName($Source, '.')
+
+            if ($existingLogName -ne $LogName) {
+                throw "The event log source '$Source' is already registered with event log name '$existingLogName', it cannot be used with log name '$LogName'."
+            }
+        }
+        else {
+            Write-Verbose "Create event log source '$Source' with log name '$LogName'"
+
+            New-EventLog -LogName $LogName -Source $Source -EA Stop
+        }
+
+        foreach ($eventItem in $Events) {
+            $params = @{
+                LogName     = $LogName
+                Source      = $Source
+                EntryType   = $eventItem.EntryType
+                EventID     = $eventItem.EventID
+                Message     = ''
+                ErrorAction = 'Stop'
+            }
+
+            if (-not $params.EntryType) {
+                $params.EntryType = 'Information'
+            }
+            if (-not $params.EventID) {
+                $params.EventID = 4
+            }
+
+            foreach (
+                $property in
+                $eventItem.PSObject.Properties | Where-Object {
+                    ($_.Name -ne 'EntryType') -and ($_.Name -ne 'EventID')
+                }
+            ) {
+                $params.Message += "`n- $($property.Name) '$($property.Value)'"
+            }
+
+            Write-Verbose "Write event to log '$LogName' source '$Source' message '$($params.Message)'"
+
+            Write-EventLog @params
+        }
+    }
+    catch {
+        throw "Failed to write to event log '$LogName' source '$Source': $_"
     }
 }
 function Write-SystemErrorLog {
