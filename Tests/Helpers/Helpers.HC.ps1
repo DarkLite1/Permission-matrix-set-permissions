@@ -132,6 +132,19 @@ function Get-FallbackLogFolderHC {
     return Join-Path $env:TEMP 'PermissionMatrixLogs'
 }
 
+function Get-LatestLogFolderHC {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Root
+    )
+
+    if (-not (Test-Path $Root)) { return $null }
+
+    return Get-ChildItem -LiteralPath $Root -Directory |
+    Sort-Object Name -Descending |
+    Select-Object -First 1
+}
+
 function Save-TestJson {
     param(
         [Parameter(Mandatory)]

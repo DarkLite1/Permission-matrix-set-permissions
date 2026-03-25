@@ -1188,7 +1188,7 @@ begin {
 
             while (-not $isDriveMapped -and -not $fatalBeginError) {
                 try {
-                    New-PSDrive -Root $Matrix.FolderPath -Name 'MatrixFolderPath' -PSProvider FileSystem -ErrorAction Stop
+                    New-PSDrive -Root $Matrix.FolderPath -Name 'MatrixFolderPath' -PSProvider FileSystem -Scope Global -ErrorAction Stop
                     $isDriveMapped = $true
                 }
                 catch {
@@ -1276,13 +1276,15 @@ process {
         $getParams = @{
             Path        = 'MatrixFolderPath:\*'
             Filter      = '*.xlsx'
-            File        = $true
             ErrorAction = 'Stop'
         }
 
         #region Get matrix files
         $matrixFiles = @(Get-ChildItem @getParams).Where(
-            { $_.FullName -ne $DefaultsItem.FullName }
+            { 
+                (-not $_.PSIsContainer) -and
+                ($_.FullName -ne $DefaultsItem.FullName)
+            }
         )
 
         Write-Verbose "Found $($matrixFiles.Count) matrix Excel files"
@@ -4317,8 +4319,14 @@ $metaTable
         #
         # 4. COLLECT EXPORT DATA
         #
+        
+        $isExportNeeded =
+        $Export.ServiceNowFormDataExcelFile -or
+        $Export.PermissionsExcelFile -or
+        $Export.OverviewHtmlFile
+    
         $dataToExport = $null
-        if ($importedMatrix) {
+        if ($importedMatrix -and $isExportNeeded) {
             $dataToExport = Build-ExportData `
                 -ImportedMatrix $importedMatrix `
                 -AdObjectHash $adObjectHash `
@@ -4329,18 +4337,13 @@ $metaTable
         # 5. EXPORT FILES
         #
         $exportedFiles = @{}
-        if ($systemErrors.Count -eq 0 -and $dataToExport) {
+        if ($systemErrors.Count -eq 0 -and $dataToExport -and $isExportNeeded) {
 
             $exportLogFolderPath = ''
-            if ($Export.ServiceNowFormDataExcelFile -or
-                $Export.PermissionsExcelFile -or
-                $Export.OverviewHtmlFile) {
+            $exportLogFolderPath = Join-Path (Get-DatedLogFolderPathHC) 'Export'
 
-                $exportLogFolderPath = Join-Path (Get-DatedLogFolderPathHC) 'Export'
-
-                if (-not (Test-Path -LiteralPath $exportLogFolderPath)) {
-                    New-Item -ItemType Directory -Path $exportLogFolderPath -ErrorAction SilentlyContinue | Out-Null
-                }
+            if (-not (Test-Path -LiteralPath $exportLogFolderPath)) {
+                New-Item -ItemType Directory -Path $exportLogFolderPath -ErrorAction SilentlyContinue | Out-Null
             }
 
             $exportedFiles = Export-Files `
