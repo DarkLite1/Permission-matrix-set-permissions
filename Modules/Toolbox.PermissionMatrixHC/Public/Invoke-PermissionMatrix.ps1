@@ -14,9 +14,15 @@ function Invoke-PermissionMatrix {
         -SystemErrors ([ref]$systemErrors)
 
     # PROCESS stage
-    $importedMatrix = Invoke-PermissionMatrixProcess `
-        -Context $context `
-        -SystemErrors ([ref]$systemErrors)
+    if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
+        Write-Warning 'Skipping PROCESS stage due to fatal BEGIN errors...'
+        $importedMatrix = $null
+    }
+    else {
+        $importedMatrix = Invoke-PermissionMatrixProcess `
+            -Context $context `
+            -SystemErrors ([ref]$systemErrors)
+    }
 
     # END stage
     Invoke-PermissionMatrixEnd `

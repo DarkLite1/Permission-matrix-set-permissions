@@ -10,18 +10,17 @@ function Invoke-PermissionMatrixEnd {
         # ------------------------------------------------------------
         # 1. VALIDATION
         # ------------------------------------------------------------
-        $validation = Validate-RuntimeSettings `
+        Validate-RuntimeSettings `
             -Settings $Context.Settings `
             -Matrix $Context.Matrix `
             -Export $Context.Export `
             -ServiceNow $Context.ServiceNow `
             -MaxConcurrent $Context.MaxConcurrent
-
-        foreach ($err in $validation.Errors) {
-            $SystemErrors.Value.Add($err)
+        
+        if ($SystemErrors.Value.Type -contains 'FatalError') {
+            Write-Warning 'Runtime settings validation failed. Aborting END block.'
+            return
         }
-
-        if (-not $validation.IsValid) { return }
 
 
         # ------------------------------------------------------------

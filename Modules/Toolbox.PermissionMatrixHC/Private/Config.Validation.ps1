@@ -146,69 +146,54 @@ function Validate-RuntimeSettings {
         [object]$Matrix,
         [object]$Export,
         [object]$ServiceNow,
-        [object]$MaxConcurrent
+        [object]$MaxConcurrent,
+        [ref]$SystemErrors
     )
-    $errors = [System.Collections.Generic.List[object]]::new()
 
-    function Add-Error {
-        param(
-            [string]$Type,
-            [string]$Name,
-            [string]$Description
-        )
-                
-        $errors.Add(
-            [PSCustomObject]@{ 
-                Type        = $Type 
-                Name        = $Name 
-                Description = $Description 
-            }
-        )
-    }
 
     # ---------------------------
     # 1. Base Settings Validation
     # ---------------------------
     if (-not $Settings) { 
-        Add-Error 'FatalError' 'Invalid configuration' "Property 'Settings' missing from JSON."
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'Settings' missing from JSON."
         return [PSCustomObject]@{ IsValid = $false; Errors = $errors; Settings = $null }
     }
 
     if ([string]::IsNullOrWhiteSpace($Settings.ScriptName)) {
-        Add-Error 'Warning' 'Missing Script Name' "No 'Settings.ScriptName' found in JSON. A default name will be used."
+        Add-RuntimeErrorHC 'Warning' 'Missing Script Name' "No 'Settings.ScriptName' found in JSON. A default name will be used."
         $Settings | Add-Member -NotePropertyName ScriptName -NotePropertyValue 'Default script name' -Force
     }
 
     if ($Settings.SaveLogFiles.Detailed -isnot [bool]) {
-        Add-Error 'FatalError' 'Invalid type' 'Settings.SaveLogFiles.Detailed must be a boolean.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SaveLogFiles.Detailed must be a boolean.'
     }
 
     if ($Settings.SaveInEventLog.Save -isnot [bool]) {
-        Add-Error 'FatalError' 'Invalid type' 'Settings.SaveInEventLog.Save must be a boolean.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SaveInEventLog.Save must be a boolean.'
     }
 
     if ([string]::IsNullOrWhiteSpace($Settings.SendMail.From)) {
-        Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.From cannot be empty.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.From cannot be empty.'
     }
 
     if (-not $Settings.SendMail.To) {
-        Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.To cannot be empty.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.To cannot be empty.'
     }
     elseif ($Settings.SendMail.To -isnot [array] -and $Settings.SendMail.To -isnot [string]) {
-        Add-Error 'FatalError' 'Invalid type' 'Settings.SendMail.To must be an array or a string.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SendMail.To must be an array or a string.'
     }
         
     if ([string]::IsNullOrWhiteSpace($Settings.SendMail.Body)) {
-        Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.Body cannot be empty.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.Body cannot be empty.'
     }
         
     if (-not $Settings.SendMail.Smtp.Port -or $Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
-        Add-Error 'FatalError' 'Invalid configuration' 'Settings.SendMail.Smtp.Port must be an integer.'
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.Smtp.Port must be an integer.'
     }
         
     $validConnections = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
     if ($Settings.SendMail.Smtp.ConnectionType -notin $validConnections) {
-        Add-Error 'FatalError' 'Invalid configuration' "Settings.SendMail.Smtp.ConnectionType must be one of: $($validConnections -join ', ')."
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Settings.SendMail.Smtp.ConnectionType must be one of: $($validConnections -join ', ')."
     }
 
     # ---------------------------
@@ -216,20 +201,20 @@ function Validate-RuntimeSettings {
     # ---------------------------
     if ($Matrix) {
         if (-not (Test-Path -LiteralPath $Matrix.DefaultsFile -PathType Leaf)) {
-            Add-Error 'FatalError' 'Invalid path' "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' does not exist or is not a file."
+            Add-RuntimeErrorHC 'FatalError' 'Invalid path' "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' does not exist or is not a file."
         }
             
         # SCHEMA CHECK ONLY: Ensure the property is populated before the BEGIN block attempts to map it
         if ([string]::IsNullOrWhiteSpace($Matrix.FolderPath)) {
-            Add-Error 'FatalError' 'Invalid configuration' 'Matrix.FolderPath cannot be empty.'
+            Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Matrix.FolderPath cannot be empty.'
         }
             
         if ($Matrix.ExcludedSamAccountName -isnot [array]) {
-            Add-Error 'FatalError' 'Invalid type' 'Matrix.ExcludedSamAccountName must be an array.'
+            Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Matrix.ExcludedSamAccountName must be an array.'
         }
     }
     else {
-        Add-Error 'FatalError' 'Invalid configuration' "Property 'Matrix' missing."
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'Matrix' missing."
     }
 
     # ---------------------------
@@ -238,12 +223,12 @@ function Validate-RuntimeSettings {
     if ($MaxConcurrent) {
         foreach ($prop in @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')) {
             if (-not $MaxConcurrent.$prop -or $MaxConcurrent.$prop -notmatch '^\d+$') {
-                Add-Error 'FatalError' 'Invalid type' "MaxConcurrent.$prop must be an integer."
+                Add-RuntimeErrorHC 'FatalError' 'Invalid type' "MaxConcurrent.$prop must be an integer."
             }
         }
     }
     else {
-        Add-Error 'FatalError' 'Invalid configuration' "Property 'MaxConcurrent' missing."
+        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'MaxConcurrent' missing."
     }
 
     # ---------------------------
@@ -251,39 +236,30 @@ function Validate-RuntimeSettings {
     # ---------------------------
     if ($Export) {
         if (-not [string]::IsNullOrWhiteSpace($Export.PermissionsExcelFile) -and $Export.PermissionsExcelFile -notmatch '\.xlsx$') {
-            Add-Error 'FatalError' 'Invalid path' 'Export.PermissionsExcelFile must end in .xlsx.'
+            Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.PermissionsExcelFile must end in .xlsx.'
         }
         if (-not [string]::IsNullOrWhiteSpace($Export.OverviewHtmlFile) -and $Export.OverviewHtmlFile -notmatch '\.html?$') {
-            Add-Error 'FatalError' 'Invalid path' 'Export.OverviewHtmlFile must end in .html.'
+            Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.OverviewHtmlFile must end in .html.'
         }
         if (-not [string]::IsNullOrWhiteSpace($Export.ServiceNowFormDataExcelFile)) {
             if ($Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
-                Add-Error 'FatalError' 'Invalid path' 'Export.ServiceNowFormDataExcelFile must end in .xlsx.'
+                Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.ServiceNowFormDataExcelFile must end in .xlsx.'
             }
             if (-not $ServiceNow) {
-                Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow configuration object is required when Export.ServiceNowFormDataExcelFile is populated.'
+                Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow configuration object is required when Export.ServiceNowFormDataExcelFile is populated.'
             }
             else {
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.CredentialsFilePath)) { 
-                    Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.CredentialsFilePath is required.' 
+                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.CredentialsFilePath is required.' 
                 }
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.TableName)) { 
-                    Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.TableName is required.' 
+                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.TableName is required.' 
                 }
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.Environment)) { 
-                    Add-Error 'FatalError' 'Invalid configuration' 'ServiceNow.Environment is required.' 
+                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.Environment is required.' 
                 }
             }
         }
-    }
-
-    return [PSCustomObject]@{
-        Settings   = $Settings
-        Matrix     = $Matrix
-        Export     = $Export
-        ServiceNow = $ServiceNow
-        IsValid    = ($errors.Where({ $_.Type -eq 'FatalError' }).Count -eq 0)
-        Errors     = $errors
     }
 }
 function ConvertTo-StructuredObjectHC {

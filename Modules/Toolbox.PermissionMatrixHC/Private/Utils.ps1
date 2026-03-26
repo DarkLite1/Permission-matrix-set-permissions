@@ -1,3 +1,52 @@
+function Add-JsonSchemaErrorHC {
+    param(
+        [string]$Type, 
+        [string]$Name,
+        [string]$Message,
+        [string]$Description = '',
+        [ref]$SystemErrors
+    )
+
+    New-ErrorHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'JsonSchema' `
+        -SystemErrors ([ref]$SystemErrors)
+}
+function Add-MatrixErrorHC {
+    param(
+        [string]$Type, 
+        [string]$Name,
+        [string]$Message,
+        [string]$Description = '',
+        [ref]$SystemErrors
+    )
+
+    New-ErrorHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'Matrix' `
+        -SystemErrors ([ref]$SystemErrors)
+}
+function Add-RuntimeErrorHC {
+    param(
+        [string]$Type,
+        [string]$Name,
+        [string]$Message,
+        [string]$Description = ''
+    )
+    New-ErrorHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'RuntimeSettings' `
+        -SystemErrors ([ref]$SystemErrors)
+}
 function Get-StringValueHC {
     <#
         .SYNOPSIS
@@ -64,11 +113,36 @@ function Get-DatedLogFolderPathHC {
         return $LogFolder
     }
 }
+function New-ErrorHC {
+    param(
+        [Parameter(Mandatory)][string]$Type,         # 'FatalError' or 'Warning'
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Message,
+        [Parameter()][string]$Description = '',
+        [Parameter()][string]$Category = 'General',
+        [Parameter(Mandatory)][ref]$SystemErrors
+    )
 
+    $SystemErrors.Value.Add(
+        [pscustomobject]@{
+            DateTime    = Get-Date
+            Type        = $Type
+            Name        = $Name
+            Message     = $Message
+            Description = $Description
+            Category    = $Category
+        }
+    )
+}
 function Plural {
     param(
         [int]$Count,
         [string]$Word
     )
     return ($Count -eq 1) ? $Word : ($Word + 's')
+}
+function Test-HasFatalErrorsHC {
+    param([ref]$SystemErrors)
+
+    return $SystemErrors.Value.Type -contains 'FatalError'
 }
