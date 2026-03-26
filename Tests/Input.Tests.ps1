@@ -12,14 +12,14 @@ Describe 'Input Validation Tests' {
         ✅ no dot‑sourcing
         #>        
 
-        . "$PSScriptRoot\..\Helpers\Fixtures.TestCases.ps1"
+        . "$PSScriptRoot\Helpers\Fixtures.TestCases.ps1"
     
         $script:MissingTopLevelProps = Get-MissingTopLevelProperties
         $script:MissingMaxConcurrentProps = Get-MissingMaxConcurrentProperties
         $script:MissingMatrixProps = Get-MissingMatrixProperties
         $script:InvalidPathTests = Get-InvalidMatrixPaths
 
-        $script:testScript = Join-Path $PSScriptRoot '..\..\Permission matrix.ps1'
+        $script:testScript = Join-Path $PSScriptRoot '..\Permission matrix.ps1'
     }
     BeforeAll {
         <# 
@@ -30,8 +30,8 @@ Describe 'Input Validation Tests' {
         ✅ all filesystem\TestDrive operations
         #>
 
-        . "$PSScriptRoot/../Helpers/Helpers.HC.ps1"
-        . "$PSScriptRoot/../Helpers/Fixtures.Json.ps1"
+        . "$PSScriptRoot/Helpers/Helpers.HC.ps1"
+        . "$PSScriptRoot/Helpers/Fixtures.Json.ps1"
 
         if (-not (Test-Path $TestScript)) {
             throw "Script '$TestScript' not found"
