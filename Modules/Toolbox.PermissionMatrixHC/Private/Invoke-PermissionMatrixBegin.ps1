@@ -29,12 +29,10 @@ function Invoke-PermissionMatrixBegin {
             -RequestedFolder $context.Settings.SaveLogFiles.Where.Folder `
             -SystemErrors $SystemErrors
 
-        # Validate JSON schema if function exists
-        if (Get-Command Validate-JsonSchema -ErrorAction SilentlyContinue) {
-            Validate-JsonSchema `
-                -Json $context.json `
-                -SystemErrors $SystemErrors
-        }
+        # Validate JSON schema
+        Validate-ConfigurationStructure `
+            -Json $context.json `
+            -SystemErrors $SystemErrors
     }
     catch {
         $SystemErrors.Value.Add([pscustomobject]@{

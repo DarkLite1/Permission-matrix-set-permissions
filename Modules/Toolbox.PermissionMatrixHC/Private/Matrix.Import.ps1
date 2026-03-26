@@ -160,7 +160,7 @@ function Process-MatrixObjects {
 
     return $ImportedMatrix
 }
-function Validate-JsonSchema {
+function Validate-ConfigurationStructure {
     param(
         [Parameter(Mandatory)]
         [object]$Json,

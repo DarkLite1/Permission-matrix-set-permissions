@@ -140,7 +140,7 @@ function Ensure-LogFolderHC {
         return $fallback
     }
 }
-function Validate-Settings {
+function Validate-RuntimeSettings {
     param(
         [object]$Settings,
         [object]$Matrix,

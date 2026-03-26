@@ -10,7 +10,7 @@ function Invoke-PermissionMatrixEnd {
         # ------------------------------------------------------------
         # 1. VALIDATION
         # ------------------------------------------------------------
-        $validation = Validate-Settings `
+        $validation = Validate-RuntimeSettings `
             -Settings $Context.Settings `
             -Matrix $Context.Matrix `
             -Export $Context.Export `
