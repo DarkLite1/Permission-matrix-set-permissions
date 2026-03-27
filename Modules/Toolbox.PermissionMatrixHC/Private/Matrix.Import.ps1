@@ -168,27 +168,19 @@ function Validate-ConfigurationStructure {
         [Parameter(Mandatory)]
         [ref]$SystemErrors
     )
-
-    function Add-SchemaError {
-        param([string]$Message)
-
-        $SystemErrors.Value.Add(
-            [pscustomobject]@{
-                DateTime = Get-Date
-                Message  = $Message
-                Type     = 'FatalError'
-                Category = 'JsonSchema'
-            }
-        )
-    }
-
+    
     # --- 1. Required top-level properties ---
     foreach (
         $prop in 
         @('Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings')
     ) {
         if ($null -eq $Json.$prop) {
-            Add-SchemaError "Property '$prop' not found"
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
     }
 
@@ -199,74 +191,168 @@ function Validate-ConfigurationStructure {
 
     # --- 2. Settings — SaveLogFiles ---
     if ($null -eq $Json.Settings.SaveLogFiles.Where.Folder) {
-        Add-SchemaError "Property 'Settings.SaveLogFiles.Where.Folder' not found"
+        $prop = 'Settings.SaveLogFiles.Where.Folder'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     if ($null -eq $Json.Settings.SaveLogFiles.Detailed) {
-        Add-SchemaError "Property 'Settings.SaveLogFiles.Detailed' not found"
+        $prop = 'Settings.SaveLogFiles.Detailed'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
     elseif ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
-        Add-SchemaError 'Settings.SaveLogFiles.Detailed must be boolean'
+        $prop = 'Settings.SaveLogFiles.Detailed'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' needs to be a boolean" `
+            -Description "The JSON input file property '$prop' needs to be a boolean value" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     # --- Settings — SendMail ---
     if ($null -eq $Json.Settings.SendMail) {
-        Add-SchemaError "Property 'Settings.SendMail' not found"
+        $prop = 'Settings.SendMail'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
     else {
         if (-not $Json.Settings.SendMail.From) {
-            Add-SchemaError "Property 'Settings.SendMail.From' not found"
+            $prop = 'Settings.SendMail.From'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($Json.Settings.SendMail.To -and 
             ($Json.Settings.SendMail.To -isnot [string] -and
             $Json.Settings.SendMail.To -isnot [array])) {
-            Add-SchemaError "Property 'Settings.SendMail.To' must be string or array"
+            $prop = 'Settings.SendMail.To'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' needs to be a string or an array" `
+                -Description "The JSON input file property '$prop' needs to be a string or an array" `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($null -eq $Json.Settings.SendMail.Body) {
-            Add-SchemaError "Property 'Settings.SendMail.Body' not found"
+            $prop = 'Settings.SendMail.Body'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
     }
 
     # --- 3. Matrix structure ---
     if ($Json.Matrix) {
         if (-not $Json.Matrix.FolderPath) {
-            Add-SchemaError "Property 'Matrix.FolderPath' not found"
+            $prop = 'Matrix.FolderPath'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if (-not $Json.Matrix.DefaultsFile) {
-            Add-SchemaError "Property 'Matrix.DefaultsFile' not found"
+            $prop = 'Matrix.DefaultsFile'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($Json.Matrix.ExcludedSamAccountName -and
             $Json.Matrix.ExcludedSamAccountName -isnot [array]) {
-            Add-SchemaError "Property 'Matrix.ExcludedSamAccountName' must be an array"
+            $prop = 'Matrix.ExcludedSamAccountName'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' needs to be an array" `
+                -Description "The JSON input file property '$prop' needs to be an array" `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($null -eq $Json.Matrix.Archive) {
-            Add-SchemaError "Property 'Matrix.Archive' not found"
+            $prop = 'Matrix.Archive'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
         elseif ($Json.Matrix.Archive -isnot [bool]) {
-            Add-SchemaError 'Matrix.Archive must be boolean'
+            $prop = 'Matrix.Archive'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' needs to be a boolean" `
+                -Description "The JSON input file property '$prop' needs to be a boolean" `
+                -SystemErrors ([ref]$SystemErrors)
         }
     }
     else {
-        Add-SchemaError 'Matrix required'
+        $prop = 'Matrix'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     # --- 4. MaxConcurrent ---
     if ($Json.MaxConcurrent) {
-        foreach ($prop in @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')) {
+        foreach (
+            $prop in 
+            @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')
+        ) {
             $val = $Json.MaxConcurrent.$prop
 
+            $propFullName = "MaxConcurrent.$prop"
+
             if ($null -eq $val) {
-                Add-SchemaError "Property 'MaxConcurrent.$prop' not found"
+                Add-JsonSchemaErrorHC `
+                    -Type 'FatalError' `
+                    -Name "Missing '$propFullName'" `
+                    -Message "Property '$propFullName' not found in JSON." `
+                    -Description "The JSON input file must contain property '$propFullName'" `
+                    -SystemErrors ([ref]$SystemErrors)
+
                 continue
             }
 
             if ($val -notmatch '^\d+$') {
-                Add-SchemaError "MaxConcurrent.$prop must be an integer"
+                Add-JsonSchemaErrorHC `
+                    -Type 'FatalError' `
+                    -Name "Incorrect '$propFullName'" `
+                    -Message "Property '$propFullName' needs to be a number." `
+                    -Description "The JSON input file property '$propFullName' needs to be a number." `
+                    -SystemErrors ([ref]$SystemErrors)
             }
         }
     }
@@ -276,25 +362,54 @@ function Validate-ConfigurationStructure {
 
         if ($Json.Export.PermissionsExcelFile -and
             $Json.Export.PermissionsExcelFile -notmatch '\.xlsx$') {
-            Add-SchemaError 'PermissionsExcelFile must end with .xlsx'
+            $prop = 'Export.PermissionsExcelFile'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' must end with .xlsx." `
+                -Description "The JSON input file property '$prop' must end with '.xlsx'." `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($Json.Export.OverviewHtmlFile -and
             $Json.Export.OverviewHtmlFile -notmatch '\.html?$') {
-            Add-SchemaError 'OverviewHtmlFile must end with .html'
+            $prop = 'Export.OverviewHtmlFile'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' must end with .html." `
+                -Description "The JSON input file property '$prop' must end with '.html'." `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($Json.Export.ServiceNowFormDataExcelFile -and
             $Json.Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
-            Add-SchemaError 'ServiceNowFormDataExcelFile must end with .xlsx'
+            $prop = 'Export.ServiceNowFormDataExcelFile'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' must end with .xlsx." `
+                -Description "The JSON input file property '$prop' must end with '.xlsx'." `
+                -SystemErrors ([ref]$SystemErrors)
         }
 
         if ($Json.Export.ServiceNowFormDataExcelFile -and -not $Json.ServiceNow) {
-            Add-SchemaError 'ServiceNow must be defined when ServiceNowFormDataExcelFile is used'
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name 'Incorrect configuration' `
+                -Message "Property 'ServiceNow' must be defined when 'ServiceNowFormDataExcelFile' is used." `
+                -Description 'The JSON input file property 'ServiceNow' must be defined when 'ServiceNowFormDataExcelFile' is used.' `
+                -SystemErrors ([ref]$SystemErrors)
         }
     }
     else {
-        Add-SchemaError 'Export required'
+        $prop = 'Export'
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 }
 function Write-MatrixTroubleshootingLog {

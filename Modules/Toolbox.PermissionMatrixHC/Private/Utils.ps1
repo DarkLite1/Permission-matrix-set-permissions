@@ -1,52 +1,97 @@
-function Add-JsonSchemaErrorHC {
-    param(
-        [string]$Type, 
-        [string]$Name,
-        [string]$Message,
-        [string]$Description = '',
-        [ref]$SystemErrors
-    )
-
-    New-ErrorHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'JsonSchema' `
-        -SystemErrors ([ref]$SystemErrors)
-}
+# Permission-matrix-set-permissions\Modules\Toolbox.PermissionMatrixHC\Private\Utils.ps1
 function Add-MatrixErrorHC {
+    throw 'replace with Add-ErrorByCategoryHC'
+}
+function Add-ErrorByCategoryHC {
+    <#
+        .SYNOPSIS
+            Add a structured error object into the shared SystemErrors collection.
+
+        .DESCRIPTION
+            This helper creates a canonical error object and injects it directly into 
+            the SystemErrors reference. It enforces a single consistent error format 
+            across the entire PermissionMatrix module.
+
+        .PARAMETER Type
+            Error type: 'FatalError' or 'Warning'.
+
+        .PARAMETER Name
+            Short label identifying the error.
+
+        .PARAMETER Message
+            A readable explanation summarizing the error.
+
+        .PARAMETER Description
+            Optional deeper technical context for HTML reports and logs.
+
+        .PARAMETER Category
+            Logical subsystem: 
+            'JsonSchema', 'RuntimeSettings', 'Matrix', 'Permissions', 'FormData', 'File', etc.
+
+        .PARAMETER SystemErrors
+            Reference to the master SystemErrors list shared across all orchestrator components.
+
+        .EXAMPLE
+            Add-ErrorByCategoryHC -Type FatalError -Name 'Missing Settings' `
+                -Message 'Settings object missing from JSON.' `
+                -Category 'RuntimeSettings' `
+                -SystemErrors ([ref]$SystemErrors)
+    #>
+
     param(
-        [string]$Type, 
-        [string]$Name,
-        [string]$Message,
-        [string]$Description = '',
-        [ref]$SystemErrors
+        [Parameter(Mandatory)][string]$Type,       
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Message,
+        [Parameter()][string]$Description = '',
+        [Parameter(Mandatory)][string]$Category,
+        [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    New-ErrorHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'Matrix' `
-        -SystemErrors ([ref]$SystemErrors)
+    $SystemErrors.Value.Add(
+        [PSCustomObject]@{
+            DateTime    = Get-Date
+            Type        = $Type
+            Name        = $Name
+            Message     = $Message
+            Description = $Description
+            Category    = $Category
+        }
+    )
 }
 function Add-RuntimeErrorHC {
     param(
         [string]$Type,
         [string]$Name,
         [string]$Message,
-        [string]$Description = ''
+        [string]$Description = '',
+        [ref]$SystemErrors
     )
-    New-ErrorHC `
+    Add-ErrorByCategoryHC `
         -Type $Type `
         -Name $Name `
         -Message $Message `
         -Description $Description `
         -Category 'RuntimeSettings' `
-        -SystemErrors ([ref]$SystemErrors)
+        -SystemErrors $SystemErrors
 }
+function Add-JsonSchemaErrorHC {
+    param(
+        [string]$Type,
+        [string]$Name,
+        [string]$Message,
+        [string]$Description = '',
+        [ref]$SystemErrors
+    )
+    Add-ErrorByCategoryHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'JsonSchema' `
+        -SystemErrors $SystemErrors
+}
+
+
 function Get-StringValueHC {
     <#
         .SYNOPSIS
@@ -112,27 +157,6 @@ function Get-DatedLogFolderPathHC {
     catch {
         return $LogFolder
     }
-}
-function New-ErrorHC {
-    param(
-        [Parameter(Mandatory)][string]$Type,         # 'FatalError' or 'Warning'
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][string]$Message,
-        [Parameter()][string]$Description = '',
-        [Parameter()][string]$Category = 'General',
-        [Parameter(Mandatory)][ref]$SystemErrors
-    )
-
-    $SystemErrors.Value.Add(
-        [pscustomobject]@{
-            DateTime    = Get-Date
-            Type        = $Type
-            Name        = $Name
-            Message     = $Message
-            Description = $Description
-            Category    = $Category
-        }
-    )
 }
 function Plural {
     param(
