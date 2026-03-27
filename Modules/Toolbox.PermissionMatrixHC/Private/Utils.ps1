@@ -1,7 +1,5 @@
 # Permission-matrix-set-permissions\Modules\Toolbox.PermissionMatrixHC\Private\Utils.ps1
-function Add-MatrixErrorHC {
-    throw 'replace with Add-ErrorByCategoryHC'
-}
+
 function Add-ErrorByCategoryHC {
     <#
         .SYNOPSIS
@@ -90,8 +88,6 @@ function Add-JsonSchemaErrorHC {
         -Category 'JsonSchema' `
         -SystemErrors $SystemErrors
 }
-
-
 function Get-StringValueHC {
     <#
         .SYNOPSIS

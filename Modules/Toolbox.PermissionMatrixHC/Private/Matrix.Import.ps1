@@ -366,7 +366,7 @@ function Validate-ConfigurationStructure {
             Add-JsonSchemaErrorHC `
                 -Type 'FatalError' `
                 -Name "Incorrect '$prop'" `
-                -Message "Property '$prop' must end with .xlsx." `
+                -Message "Property '$prop' must end with '.xlsx'." `
                 -Description "The JSON input file property '$prop' must end with '.xlsx'." `
                 -SystemErrors ([ref]$SystemErrors)
         }
@@ -377,7 +377,7 @@ function Validate-ConfigurationStructure {
             Add-JsonSchemaErrorHC `
                 -Type 'FatalError' `
                 -Name "Incorrect '$prop'" `
-                -Message "Property '$prop' must end with .html." `
+                -Message "Property '$prop' must end with '.html'." `
                 -Description "The JSON input file property '$prop' must end with '.html'." `
                 -SystemErrors ([ref]$SystemErrors)
         }
@@ -388,7 +388,7 @@ function Validate-ConfigurationStructure {
             Add-JsonSchemaErrorHC `
                 -Type 'FatalError' `
                 -Name "Incorrect '$prop'" `
-                -Message "Property '$prop' must end with .xlsx." `
+                -Message "Property '$prop' must end with '.xlsx'." `
                 -Description "The JSON input file property '$prop' must end with '.xlsx'." `
                 -SystemErrors ([ref]$SystemErrors)
         }

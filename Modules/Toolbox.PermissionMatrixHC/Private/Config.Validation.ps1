@@ -153,46 +153,111 @@ function Validate-RuntimeSettings {
     # ---------------------------
     # 1. Base Settings Validation
     # ---------------------------
-    if (-not $Settings) { 
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'Settings' missing from JSON."
-        return [PSCustomObject]@{ IsValid = $false; Errors = $errors; Settings = $null }
+    if (-not $Settings) {
+        $prop = 'Settings'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
+
+        return
     }
 
     if ([string]::IsNullOrWhiteSpace($Settings.ScriptName)) {
-        Add-RuntimeErrorHC 'Warning' 'Missing Script Name' "No 'Settings.ScriptName' found in JSON. A default name will be used."
+        $prop = 'Settings.ScriptName'
+        Add-RuntimeErrorHC `
+            -Type 'Warning' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
+        
         $Settings | Add-Member -NotePropertyName ScriptName -NotePropertyValue 'Default script name' -Force
     }
 
     if ($Settings.SaveLogFiles.Detailed -isnot [bool]) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SaveLogFiles.Detailed must be a boolean.'
+        $prop = 'Settings.SaveLogFiles.Detailed'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' needs to be a boolean." `
+            -Description "The JSON input file property '$prop' needs to be a boolean" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     if ($Settings.SaveInEventLog.Save -isnot [bool]) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SaveInEventLog.Save must be a boolean.'
+        $prop = 'Settings.SaveInEventLog.Save'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' needs to be a boolean." `
+            -Description "The JSON input file property '$prop' needs to be a boolean" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     if ([string]::IsNullOrWhiteSpace($Settings.SendMail.From)) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.From cannot be empty.'
+        $prop = 'Settings.SendMail.From'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     if (-not $Settings.SendMail.To) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.To cannot be empty.'
+        $prop = 'Settings.SendMail.To'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
     elseif ($Settings.SendMail.To -isnot [array] -and $Settings.SendMail.To -isnot [string]) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Settings.SendMail.To must be an array or a string.'
+        $prop = 'Settings.SendMail.To'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' needs to be an array or a string." `
+            -Description "The JSON input file property '$prop' needs to be ab array or a string" `
+            -SystemErrors ([ref]$SystemErrors)
     }
         
     if ([string]::IsNullOrWhiteSpace($Settings.SendMail.Body)) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.Body cannot be empty.'
+        $prop = 'Settings.SendMail.Body'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
         
     if (-not $Settings.SendMail.Smtp.Port -or $Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Settings.SendMail.Smtp.Port must be an integer.'
+        $prop = 'SendMail.Smtp.Port'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' needs to be a number." `
+            -Description "The JSON input file property '$prop' needs to be a number" `
+            -SystemErrors ([ref]$SystemErrors)
     }
         
-    $validConnections = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
+    $validConnections = @(
+        'None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable'
+    )
+
     if ($Settings.SendMail.Smtp.ConnectionType -notin $validConnections) {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Settings.SendMail.Smtp.ConnectionType must be one of: $($validConnections -join ', ')."
+        $prop = 'Settings.SendMail.Smtp.ConnectionType'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Incorrect '$prop'" `
+            -Message "Property '$prop' has an incorrect value." `
+            -Description "The JSON input file property '$prop' needs to have one of the following values: $($validConnections -join ', ')." `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     # ---------------------------
@@ -200,20 +265,43 @@ function Validate-RuntimeSettings {
     # ---------------------------
     if ($Matrix) {
         if (-not (Test-Path -LiteralPath $Matrix.DefaultsFile -PathType Leaf)) {
-            Add-RuntimeErrorHC 'FatalError' 'Invalid path' "Matrix.DefaultsFile '$($Matrix.DefaultsFile)' does not exist or is not a file."
+            $prop = 'Matrix.DefaultsFile'
+            Add-RuntimeErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Path '$($Matrix.DefaultsFile)' in property '$prop' not found." `
+                -Description "The JSON input file property '$prop' with path '$($Matrix.DefaultsFile)': path not found." `
+                -SystemErrors ([ref]$SystemErrors)
         }
             
-        # SCHEMA CHECK ONLY: Ensure the property is populated before the BEGIN block attempts to map it
         if ([string]::IsNullOrWhiteSpace($Matrix.FolderPath)) {
-            Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'Matrix.FolderPath cannot be empty.'
+            $prop = 'Matrix.FolderPath'
+            Add-RuntimeErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -Description "The JSON input file must contain property '$prop'" `
+                -SystemErrors ([ref]$SystemErrors)
         }
             
         if ($Matrix.ExcludedSamAccountName -isnot [array]) {
-            Add-RuntimeErrorHC 'FatalError' 'Invalid type' 'Matrix.ExcludedSamAccountName must be an array.'
+            $prop = 'Matrix.ExcludedSamAccountName'
+            Add-RuntimeErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' must be an array." `
+                -Description "The JSON input file property '$prop' must be an array" `
+                -SystemErrors ([ref]$SystemErrors)
         }
     }
     else {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'Matrix' missing."
+        $prop = 'Matrix'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     # ---------------------------
@@ -222,12 +310,23 @@ function Validate-RuntimeSettings {
     if ($MaxConcurrent) {
         foreach ($prop in @('Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer')) {
             if (-not $MaxConcurrent.$prop -or $MaxConcurrent.$prop -notmatch '^\d+$') {
-                Add-RuntimeErrorHC 'FatalError' 'Invalid type' "MaxConcurrent.$prop must be an integer."
+                Add-RuntimeErrorHC `
+                    -Type 'FatalError' `
+                    -Name "Incorrect 'MaxConcurrent.$prop'" `
+                    -Message "Property 'MaxConcurrent.$prop' needs to be a number." `
+                    -Description "The JSON input file property '$prop' needs to be a number" `
+                    -SystemErrors ([ref]$SystemErrors)
             }
         }
     }
     else {
-        Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' "Property 'MaxConcurrent' missing."
+        $prop = 'MaxConcurrent'
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name "Missing '$prop'" `
+            -Message "Property '$prop' not found in JSON." `
+            -Description "The JSON input file must contain property '$prop'" `
+            -SystemErrors ([ref]$SystemErrors)
     }
 
     # ---------------------------
@@ -235,27 +334,68 @@ function Validate-RuntimeSettings {
     # ---------------------------
     if ($Export) {
         if (-not [string]::IsNullOrWhiteSpace($Export.PermissionsExcelFile) -and $Export.PermissionsExcelFile -notmatch '\.xlsx$') {
-            Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.PermissionsExcelFile must end in .xlsx.'
+            $prop = 'Export.PermissionsExcelFile'
+            Add-RuntimeErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' must end with '.xlsx'." `
+                -Description "The JSON input file property '$prop' must end with '.xlsx'." `
+                -SystemErrors ([ref]$SystemErrors)
         }
         if (-not [string]::IsNullOrWhiteSpace($Export.OverviewHtmlFile) -and $Export.OverviewHtmlFile -notmatch '\.html?$') {
-            Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.OverviewHtmlFile must end in .html.'
+            $prop = 'Export.OverviewHtmlFile'
+            Add-RuntimeErrorHC `
+                -Type 'FatalError' `
+                -Name "Incorrect '$prop'" `
+                -Message "Property '$prop' must end with '.html'." `
+                -Description "The JSON input file property '$prop' must end with '.html'." `
+                -SystemErrors ([ref]$SystemErrors)
         }
         if (-not [string]::IsNullOrWhiteSpace($Export.ServiceNowFormDataExcelFile)) {
             if ($Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
-                Add-RuntimeErrorHC 'FatalError' 'Invalid path' 'Export.ServiceNowFormDataExcelFile must end in .xlsx.'
+                $prop = 'Export.ServiceNowFormDataExcelFile'
+                Add-RuntimeErrorHC `
+                    -Type 'FatalError' `
+                    -Name "Incorrect '$prop'" `
+                    -Message "Property '$prop' must end with '.xlsx'." `
+                    -Description "The JSON input file property '$prop' must end with '.xlsx'." `
+                    -SystemErrors ([ref]$SystemErrors)
             }
             if (-not $ServiceNow) {
-                Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow configuration object is required when Export.ServiceNowFormDataExcelFile is populated.'
+                Add-RuntimeErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'Incorrect configuration' `
+                    -Message "Property 'ServiceNow' must be defined when 'ServiceNowFormDataExcelFile' is used." `
+                    -Description 'The JSON input file property 'ServiceNow' must be defined when 'ServiceNowFormDataExcelFile' is used.' `
+                    -SystemErrors ([ref]$SystemErrors)
             }
             else {
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.CredentialsFilePath)) { 
-                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.CredentialsFilePath is required.' 
+                    $prop = 'ServiceNow.CredentialsFilePath'
+                    Add-RuntimeErrorHC `
+                        -Type 'FatalError' `
+                        -Name "Incorrect '$prop'" `
+                        -Message "Property '$prop' not found in JSON." `
+                        -Description "The JSON input file must contain property '$prop'" `
+                        -SystemErrors ([ref]$SystemErrors)
                 }
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.TableName)) { 
-                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.TableName is required.' 
+                    $prop = 'ServiceNow.TableName'
+                    Add-RuntimeErrorHC `
+                        -Type 'FatalError' `
+                        -Name "Incorrect '$prop'" `
+                        -Message "Property '$prop' not found in JSON." `
+                        -Description "The JSON input file must contain property '$prop'" `
+                        -SystemErrors ([ref]$SystemErrors)
                 }
                 if ([string]::IsNullOrWhiteSpace($ServiceNow.Environment)) { 
-                    Add-RuntimeErrorHC 'FatalError' 'Invalid configuration' 'ServiceNow.Environment is required.' 
+                    $prop = 'ServiceNow.Environment'
+                    Add-RuntimeErrorHC `
+                        -Type 'FatalError' `
+                        -Name "Incorrect '$prop'" `
+                        -Message "Property '$prop' not found in JSON." `
+                        -Description "The JSON input file must contain property '$prop'" `
+                        -SystemErrors ([ref]$SystemErrors)
                 }
             }
         }
