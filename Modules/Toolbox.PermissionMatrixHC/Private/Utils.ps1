@@ -1,5 +1,26 @@
 # Permission-matrix-set-permissions\Modules\Toolbox.PermissionMatrixHC\Private\Utils.ps1
 
+
+<# 
+# Matrix sheet example:
+Add-MatrixErrorHC `
+    -Type 'FatalError' `
+    -Name 'Missing Column' `
+    -Message "Column 'Path' missing in Settings sheet." `
+    -Description 'The Settings sheet must include Path, ComputerName, GroupName, Action.' `
+    -SystemErrors ([ref]$Matrix.Settings.Check)
+
+# Permissions sheet example
+Add-PermissionsErrorHC `
+    -Type 'Warning' `
+    -Name 'Unknown Group' `
+    -Message "Group 'XXX' not recognized in AD." `
+    -Description 'The group may be disabled or misspelled.' `
+    -SystemErrors ([ref]$Matrix.Permissions.Check)
+#>
+
+
+
 function Add-ErrorByCategoryHC {
     <#
         .SYNOPSIS
@@ -55,6 +76,40 @@ function Add-ErrorByCategoryHC {
             Category    = $Category
         }
     )
+}
+function Add-MatrixErrorHC {
+    param(
+        [Parameter(Mandatory)][string]$Type,        # FatalError / Warning
+        [Parameter(Mandatory)][string]$Name,        # Short label
+        [Parameter(Mandatory)][string]$Message,     # 1-line summary
+        [Parameter()][string]$Description = '',     # Detailed explanation
+        [Parameter(Mandatory)][ref]$SystemErrors    # Or $Matrix.File.Check, etc.
+    )
+
+    Add-ErrorByCategoryHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'Matrix' `
+        -SystemErrors $SystemErrors        
+}
+function Add-PermissionsErrorHC {
+    param(
+        [Parameter(Mandatory)][string]$Type, 
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][string]$Message,
+        [Parameter()][string]$Description = '',
+        [Parameter(Mandatory)][ref]$SystemErrors    # Usually $Matrix.Permissions.Check
+    )
+
+    Add-ErrorByCategoryHC `
+        -Type $Type `
+        -Name $Name `
+        -Message $Message `
+        -Description $Description `
+        -Category 'Permissions' `
+        -SystemErrors $SystemErrors
 }
 function Add-RuntimeErrorHC {
     param(

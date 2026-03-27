@@ -17,42 +17,48 @@ param(
 )
 
 begin {
-    function Import-PermissionMatrixModuleHC {
-        param(
-            [Parameter(Mandatory)][string]$ScriptRoot,
-            [Parameter()][ref]$SystemErrors
-        )
+    try {
+        function Import-PermissionMatrixModuleHC {
+            param(
+                [Parameter(Mandatory)][string]$ScriptRoot,
+                [Parameter()][ref]$SystemErrors
+            )
 
-        try {
-            $localModuleRoot = Join-Path $ScriptRoot 'Modules\Toolbox.PermissionMatrixHC'
+            try {
+                $localModuleRoot = Join-Path $ScriptRoot 'Modules\Toolbox.PermissionMatrixHC'
 
-            if (Test-Path $localModuleRoot) {
-                Write-Verbose "Importing local module: $localModuleRoot"
-                Import-Module $localModuleRoot -Force -ErrorAction Stop
-                return
+                if (Test-Path $localModuleRoot) {
+                    Write-Verbose "Importing local module: $localModuleRoot"
+                    Import-Module $localModuleRoot -Force -ErrorAction Stop
+                    return
+                }
+            }
+            catch {
+                $msg = "Failed to import Toolbox.PermissionMatrixHC module: $_"
+                if ($SystemErrors) {
+                    $SystemErrors.Value.Add([pscustomobject]@{
+                            DateTime = Get-Date
+                            Message  = $msg
+                            Type     = 'FatalError'
+                            Category = 'Bootstrap'
+                        })
+                }
+                throw $msg
             }
         }
-        catch {
-            $msg = "Failed to import Toolbox.PermissionMatrixHC module: $_"
 
-            if ($SystemErrors) {
-                $SystemErrors.Value.Add([pscustomobject]@{
-                        DateTime = Get-Date
-                        Message  = $msg
-                    })
-            }
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
 
-            throw $msg
-        }
+        Import-PermissionMatrixModuleHC `
+            -ScriptRoot $PSScriptRoot `
+            -SystemErrors ([ref]$systemErrors)
     }
-    
-    $systemErrors = [System.Collections.Generic.List[object]]::new()
-
-    Import-PermissionMatrixModuleHC `
-        -ScriptRoot $PSScriptRoot `
-        -SystemErrors ([ref]$systemErrors)
+    catch {
+        Write-Error "BEGIN stage crashed before orchestrator could run: $_"
+        exit 1
+    }
 }
-# process not used — preserved to support pipelined input in the future
+
 process { }
 
 end {

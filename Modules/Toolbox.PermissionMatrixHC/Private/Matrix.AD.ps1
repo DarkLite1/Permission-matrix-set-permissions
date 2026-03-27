@@ -58,3 +58,79 @@ function Test-AdObjectsHC {
         }
     }
 }
+function Get-AdUserPrincipalNameHC {
+    <#
+    .SYNOPSIS
+        Convert a list of e-mail addresses to a list of UserPrincipalNames.
+
+    .DESCRIPTION
+        The list to convert can contain user e-mail addresses or group e-mail
+        addresses. For groups the user members are retrieved. The result will
+        only contain UserPrincipalNames from AD user accounts that are enabled.
+
+    .PARAMETER Name
+        Can be an e-mail address or a SamAccountName of a user object or a
+        group object in AD.
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [String[]]$Name,
+        
+        [String[]]$ExcludeSamAccountName = @()
+    )
+
+    process {
+        try {
+            # Use Generic Lists for massive speed improvements over +=
+            $NotFound = [System.Collections.Generic.List[string]]::new()
+            $UpnList = [System.Collections.Generic.List[string]]::new()
+
+            $UniqueNames = $Name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
+
+            foreach ($N in $UniqueNames) {
+                # Find the object in AD
+                $AdObject = Get-ADObject -Filter "ProxyAddresses -eq 'smtp:$N' -or SamAccountName -eq '$N'" -Property 'Mail'
+
+                if ($AdObject.Count -ge 2) {
+                    throw "Multiple results found for name '$N': $($AdObject.Name -join ', '). Skipping."
+                    
+                }
+
+                if (-not $AdObject) {
+                    $NotFound.Add($N)
+                    continue
+                }
+
+                $AdUsers = $null
+
+                if ($AdObject.ObjectClass -eq 'group') {
+                    $AdUsers = Get-ADGroupMember -Identity $AdObject -Recursive
+                }
+                elseif ($AdObject.ObjectClass -eq 'user') {
+                    $AdUsers = $AdObject
+                }
+
+                if ($AdUsers) {
+                    $AdUsers | Get-ADUser -Properties Enabled, Mail -ErrorAction SilentlyContinue | 
+                    ForEach-Object {
+                        if ($_.Mail -and $_.Enabled -and $_.SamAccountName -notin $ExcludeSamAccountName) {
+                            if (-not [string]::IsNullOrWhiteSpace($_.UserPrincipalName)) {
+                                $UpnList.Add($_.UserPrincipalName)
+                            }
+                        }
+                    }
+                }
+            }
+
+            return @{
+                notFound          = @($NotFound)
+                userPrincipalName = @($UpnList | Sort-Object -Unique)
+            }
+        }
+        catch {
+            throw "Failed converting email address or SamAccountName to userPrincipalName: $_"
+        }
+    }
+}

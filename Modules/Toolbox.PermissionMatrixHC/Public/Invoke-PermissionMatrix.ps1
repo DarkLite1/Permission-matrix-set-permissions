@@ -29,4 +29,12 @@ function Invoke-PermissionMatrix {
         -Context $context `
         -ImportedMatrix $importedMatrix `
         -SystemErrors ([ref]$systemErrors)
+
+    
+    # ------------------------------------------------------------
+    # EXIT CODE HANDLING
+    # ------------------------------------------------------------
+    if ($systemErrors.Type -contains 'FatalError') {
+        exit 1
+    }
 }
