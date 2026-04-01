@@ -57,6 +57,8 @@ function Invoke-PermissionMatrixProcessHC {
             # Collect matrices
             $allMatrices += $fileResult.Matrices
         }
+
+        return $allMatrices
     }
     catch {
         Add-ErrorHC `
