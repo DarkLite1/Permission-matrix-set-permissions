@@ -5,16 +5,14 @@ function Invoke-PermissionMatrixInternalHC {
 
     .DESCRIPTION
         Executes the Permission Matrix pipeline in a controlled manner.
-        Supports multiple execution modes:
-            - Full        : BEGIN → PROCESS → END (HTML, mail, logging)
-            - ExportOnly  : BEGIN → PROCESS → EXPORT only
 
-        This function owns:
-            - SystemErrors lifecycle
-            - Fatal error short-circuiting
-            - Mode-based execution control
-
-        Public functions must call this function and do nothing else.
+        Rules:
+        - BEGIN may block PROCESS but must not suppress END
+        - END runs only if there is something to report:
+            * errors exist OR
+            * matrix files were found
+        - Idle polling runs are silent
+        - PROCESS may run in parallel
     #>
 
     [CmdletBinding()]
@@ -34,6 +32,13 @@ function Invoke-PermissionMatrixInternalHC {
     # 0. Shared state
     # ---------------------------------------------------------------------
     $systemErrors = [System.Collections.Generic.List[object]]::new()
+    $context = $null
+    $importedMatrix = @()
+
+    $canProcess = $true
+    $foundMatrices = $false
+    $mustReport = $false
+
     $result = [ordered]@{
         Success = $false
         Mode    = $Mode
@@ -43,7 +48,7 @@ function Invoke-PermissionMatrixInternalHC {
 
     try {
         # ================================================================
-        # 1. BEGIN STAGE
+        # 1. BEGIN STAGE (always runs)
         # ================================================================
         $context = Invoke-PermissionMatrixBeginHC `
             -ConfigurationJsonFile $ConfigurationJsonFile `
@@ -51,37 +56,48 @@ function Invoke-PermissionMatrixInternalHC {
             -SystemErrors ([ref]$systemErrors)
 
         if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
-            return $result
+            $canProcess = $false
         }
 
+        if ($systemErrors.Count -gt 0) {
+            $mustReport = $true
+        }
 
         # ================================================================
-        # 2. PROCESS STAGE
+        # 2. PROCESS STAGE (conditional)
         # ================================================================
-        $importedMatrix = Invoke-PermissionMatrixProcessHC `
-            -Context $context `
-            -SystemErrors ([ref]$systemErrors)
+        if ($canProcess) {
 
-        if (-not $importedMatrix) {
-            Add-ErrorHC `
-                -Type 'Warning' `
-                -Name 'No matrix files processed' `
-                -Message 'No matrix files were found or successfully processed.' `
-                -Category 'Matrix' `
+            $processResult = Invoke-PermissionMatrixProcessHC `
+                -Context $context `
                 -SystemErrors ([ref]$systemErrors)
+
+            # Expected contract:
+            # @{
+            #   FoundMatrices = [bool]
+            #   Imported      = [array]
+            # }
+
+            if ($processResult) {
+                $foundMatrices = $processResult.FoundMatrices
+                $importedMatrix = $processResult.Imported
+            }
+
+            if ($foundMatrices) {
+                $mustReport = $true
+            }
+
+            if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
+                $canProcess = $false
+                $mustReport = $true
+            }
         }
 
-        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
-            return $result
-        }
-
-
         # ================================================================
-        # 3. EXPORT-ONLY MODE
+        # 3. EXPORT-ONLY MODE (conditional)
         # ================================================================
-        if ($Mode -eq 'ExportOnly') {
+        if ($Mode -eq 'ExportOnly' -and $canProcess -and $foundMatrices) {
 
-            # Determine if export is actually configured
             $exportWanted =
             $context.Export.PermissionsExcelFile -or
             $context.Export.ServiceNowFormDataExcelFile -or
@@ -95,38 +111,16 @@ function Invoke-PermissionMatrixInternalHC {
                     -Category 'RuntimeSettings' `
                     -SystemErrors ([ref]$systemErrors)
 
-                $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-                return $result
+                $mustReport = $true
             }
-
-            # Run export pipeline
-            $exportedFiles = Export-FilesHC `
-                -ImportedMatrix $importedMatrix `
-                -ExportSettings $context.Export `
-                -HtmlOverview $null `
-                -Counters $context.Counter
-
-            $result.Files = $exportedFiles
-            $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-            return $result
+            else {
+                $result.Files = Export-FilesHC `
+                    -ImportedMatrix $importedMatrix `
+                    -ExportSettings $context.Export `
+                    -HtmlOverview $null `
+                    -Counters $context.Counter
+            }
         }
-
-
-        # ================================================================
-        # 4. END STAGE (FULL PIPELINE ONLY)
-        # ================================================================
-        Invoke-PermissionMatrixEnd `
-            -Context $context `
-            -ImportedMatrix $importedMatrix `
-            -SystemErrors ([ref]$systemErrors)
-
-
-        # ================================================================
-        # 5. FINAL RESULT
-        # ================================================================
-        $result.Files = $context.ExportedFiles ?? @{}
-        $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-        return $result
     }
     catch {
         Add-ErrorHC `
@@ -136,7 +130,38 @@ function Invoke-PermissionMatrixInternalHC {
             -Category 'Runtime' `
             -SystemErrors ([ref]$systemErrors)
 
-        return $result
+        $mustReport = $true
+    }
+    finally {
+        # ================================================================
+        # 4. END STAGE (conditional but guaranteed for errors)
+        # ================================================================
+        if ($mustReport) {
+            try {
+                Invoke-PermissionMatrixEndHC `
+                    -Context $context `
+                    -ImportedMatrix $importedMatrix `
+                    -SystemErrors ([ref]$systemErrors)
+            }
+            catch {
+                Add-ErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'END stage failure' `
+                    -Message $_ `
+                    -Category 'Runtime' `
+                    -SystemErrors ([ref]$systemErrors)
+            }
+        }
+
+        # ================================================================
+        # 5. FINAL RESULT
+        # ================================================================
+        if ($context -and $context.ExportedFiles) {
+            $result.Files = $context.ExportedFiles
+        }
+
+        $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
+        $result
     }
 }
 
