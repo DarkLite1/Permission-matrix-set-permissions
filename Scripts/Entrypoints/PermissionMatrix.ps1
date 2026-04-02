@@ -20,37 +20,46 @@ begin {
     try {
         function Import-PermissionMatrixModuleHC {
             param(
-                [Parameter(Mandatory)][string]$ScriptRoot,
+                [Parameter(Mandatory)][string]$Path,
                 [Parameter()][ref]$SystemErrors
             )
 
-            try {
-                $localModuleRoot = Join-Path $ScriptRoot '..\..\Modules\PermissionMatrix'
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+                $SystemErrors.Value.Add(
+                    [pscustomobject]@{
+                        DateTime = Get-Date
+                        Message  = "PermissionMatrix module not found at '$Path'."
+                        Type     = 'FatalError'
+                        Category = 'Bootstrap'
+                    }
+                )
+                return
+            }
 
-                if (Test-Path $localModuleRoot) {
-                    Write-Verbose "Importing local module: $localModuleRoot"
-                    Import-Module $localModuleRoot -Force -ErrorAction Stop
-                    return
-                }
+            try {
+                Write-Verbose "Importing PermissionMatrix module: $Path"
+                Import-Module $Path -Force -ErrorAction Stop
             }
             catch {
-                $msg = "Failed to import PermissionMatrixHC module: $_"
-                if ($SystemErrors) {
-                    $SystemErrors.Value.Add([pscustomobject]@{
-                            DateTime = Get-Date
-                            Message  = $msg
-                            Type     = 'FatalError'
-                            Category = 'Bootstrap'
-                        })
-                }
-                throw $msg
+                $SystemErrors.Value.Add(
+                    [pscustomobject]@{
+                        DateTime = Get-Date
+                        Message  = "Failed to import PermissionMatrix module: $_"
+                        Type     = 'FatalError'
+                        Category = 'Bootstrap'
+                    }
+                )
             }
         }
 
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
+        $modulePath = Join-Path $PSScriptRoot '..\..\Modules\PermissionMatrix\PermissionMatrix.psm1'
+
+        $ScriptPath.PermissionMatrixModule = $modulePath
+
         Import-PermissionMatrixModuleHC `
-            -ScriptRoot $PSScriptRoot `
+            -Path $modulePath `
             -SystemErrors ([ref]$systemErrors)
     }
     catch {

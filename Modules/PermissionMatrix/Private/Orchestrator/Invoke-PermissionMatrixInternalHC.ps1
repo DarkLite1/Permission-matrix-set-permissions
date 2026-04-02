@@ -48,35 +48,25 @@ function Invoke-PermissionMatrixInternalHC {
 
     try {
         # ================================================================
-        # 1. BEGIN STAGE (always runs)
+        # 1. BEGIN STAGE
         # ================================================================
         $context = Invoke-PermissionMatrixBeginHC `
             -ConfigurationJsonFile $ConfigurationJsonFile `
             -ScriptPath $ScriptPath `
             -SystemErrors ([ref]$systemErrors)
-
-        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
-            $canProcess = $false
-        }
-
+        
         if ($systemErrors.Count -gt 0) {
+            $canProcess = $false
             $mustReport = $true
         }
 
         # ================================================================
-        # 2. PROCESS STAGE (conditional)
+        # 2. PROCESS STAGE
         # ================================================================
         if ($canProcess) {
-
             $processResult = Invoke-PermissionMatrixProcessHC `
                 -Context $context `
                 -SystemErrors ([ref]$systemErrors)
-
-            # Expected contract:
-            # @{
-            #   FoundMatrices = [bool]
-            #   Imported      = [array]
-            # }
 
             if ($processResult) {
                 $foundMatrices = $processResult.FoundMatrices

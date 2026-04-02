@@ -1,5 +1,21 @@
 
 function Invoke-PermissionMatrixBeginHC {
+    <#
+    .SYNOPSIS
+        BEGIN stage for the Permission Matrix pipeline.
+
+    .DESCRIPTION
+        - Loads and validates the configuration JSON
+        - Validates required top-level properties
+        - Normalizes runtime settings
+        - Builds and returns the execution context
+
+        This function must NOT:
+        - Read Excel files
+        - Query AD
+        - Scan matrix folders
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -13,37 +29,50 @@ function Invoke-PermissionMatrixBeginHC {
     )
 
     try {
-        # ------------------------------------------------------------
-        # Load JSON
-        # ------------------------------------------------------------
-        if (-not (Test-Path $ConfigurationJsonFile)) {
+        #region Configuration file existence
+        if (-not (Test-Path -LiteralPath $ConfigurationJsonFile -PathType Leaf)) {
             Add-ErrorHC `
                 -Type 'FatalError' `
-                -Category 'Configuration' `
-                -Name 'No configuration file' `
-                -Message "Configuration file '$ConfigurationJsonFile' not found." `
+                -Name 'Configuration file not found' `
+                -Message "Configuration file '$ConfigurationJsonFile' does not exist." `
+                -Category 'RuntimeSettings' `
                 -SystemErrors $SystemErrors
-            
+
             return $null
         }
+        #endregion
 
-        $json = Get-Content $ConfigurationJsonFile -Raw -Encoding UTF8 |
-        ConvertFrom-Json -Depth 50
+        #region Load JSON
+        try {
+            $json = Get-Content `
+                -LiteralPath $ConfigurationJsonFile `
+                -Raw `
+                -Encoding UTF8 |
+            ConvertFrom-Json -Depth 50
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Invalid JSON' `
+                -Message "Failed to parse configuration file '$ConfigurationJsonFile'." `
+                -Description $_ `
+                -Category 'RuntimeSettings' `
+                -SystemErrors $SystemErrors
 
-        # ------------------------------------------------------------
-        # Validate configuration
-        # ------------------------------------------------------------
+            return $null
+        }
+        #endregion
+
+        #region Validate configuration
         Validate-ConfigurationStructureHC `
             -Json $json `
             -SystemErrors $SystemErrors
 
-        if (Test-HasFatalErrorsHC $SystemErrors) {
+        if ($SystemErrors.Value.Count -gt 0) {
             return $null
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Build context object
-        # ------------------------------------------------------------
         return [pscustomobject]@{
             Settings      = $json.Settings
             Matrix        = $json.Matrix
@@ -53,6 +82,7 @@ function Invoke-PermissionMatrixBeginHC {
             ScriptPath    = $ScriptPath
             StartTime     = Get-Date
             Counter       = New-CounterObjectHC
+            ExportedFiles = @{}
         }
     }
     catch {
@@ -60,7 +90,7 @@ function Invoke-PermissionMatrixBeginHC {
             -Type 'FatalError' `
             -Category 'Runtime' `
             -Name 'BEGIN stage failure' `
-            -Message "Unhandled exception occurred: $_" `
+            -Message "Unexpected failure in BEGIN stage: $_" `
             -SystemErrors $SystemErrors
 
         return $null

@@ -5,9 +5,6 @@ function Import-MatrixFileHC {
         [System.IO.FileInfo]$MatrixFile,
 
         [Parameter(Mandatory)]
-        [pscustomobject]$Defaults,
-
-        [Parameter(Mandatory)]
         [pscustomobject]$Context
     )
 
@@ -17,46 +14,67 @@ function Import-MatrixFileHC {
             Path  = $MatrixFile.FullName
             Check = [System.Collections.Generic.List[pscustomobject]]::new()
         }
+        Sheets   = @{
+            Permissions = @{
+                Raw       = $null
+                Formatted = $null
+            }
+            Settings    = @{
+                Raw       = $null
+                Formatted = $null
+            }
+            FormData    = @{
+                Raw       = $null
+                Formatted = $null
+            }
+        }
         Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
     }
 
     try {
-        # ------------------------------------------------------------
-        # Import Settings sheet
-        # ------------------------------------------------------------
+        #region Import Settings sheet
         $settingsSheet = @(
             Import-Excel `
                 -Path $MatrixFile.FullName `
                 -Sheet 'Settings' `
                 -DataOnly `
                 -ErrorAction Stop
-        ).Where({ $_.Status -eq 'Enabled' })
+        )
+        $fileResult.Sheets.Settings.Raw = $settingsSheet
 
-        if (-not $settingsSheet) {
-            $fileResult.File.Check.Add([pscustomobject]@{
+        $enabledSettings = $settingsSheet.Where({ $_.Status -eq 'Enabled' })
+
+        if (-not $enabledSettings) {
+            $fileResult.File.Check.Add(
+                [pscustomobject]@{
                     Type        = 'Warning'
                     Name        = 'Matrix disabled'
                     Description = 'Every Excel file needs at least one enabled matrix.'
                     Value       = 'No rows with Status = Enabled'
-                })
+                }
+            )
 
             return $fileResult
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Import Permissions sheet ONCE
-        # ------------------------------------------------------------
-        $permissions = Import-Excel `
+        #region Import Permissions sheet ONCE
+        $permissionsSheet = Import-Excel `
             -Path $MatrixFile.FullName `
             -Sheet 'Permissions' `
             -NoHeader `
             -DataOnly `
-            -ErrorAction Stop |
-        Format-PermissionsStringsHC
+            -ErrorAction Stop
 
-        # ------------------------------------------------------------
-        # Optional FormData
-        # ------------------------------------------------------------
+        $fileResult.Sheets.Permissions.Raw = $permissionsSheet 
+            
+        $formattedPermissionsSheet = Format-PermissionsStringsHC `
+            -Permissions $fileResult.Sheets.Permissions.Raw
+
+        $fileResult.Sheets.Permissions.Formatted = $formattedPermissionsSheet
+        #endregion
+
+        #region Import optional FormData
         $formData = $null
         if ($Context.Export.ServiceNowFormDataExcelFile -or
             $Context.Export.OverviewHtmlFile) {
@@ -69,6 +87,7 @@ function Import-MatrixFileHC {
                     -ErrorAction Stop
 
                 $formDataCheck = Test-FormDataHC $formDataImport
+
                 if ($formDataCheck) {
                     $fileResult.File.Check.Add($formDataCheck)
                 }
@@ -77,44 +96,51 @@ function Import-MatrixFileHC {
                 }
             }
             catch {
-                $fileResult.File.Check.Add([pscustomobject]@{
+                $fileResult.File.Check.Add(
+                    [pscustomobject]@{
                         Type        = 'FatalError'
                         Name        = "Worksheet 'FormData' not found"
                         Description = "Worksheet 'FormData' is required when ServiceNow export is enabled."
                         Value       = $_
-                    })
+                    }
+                )
             }
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Create ONE matrix per enabled Settings row
-        # ------------------------------------------------------------
-        foreach ($S in $settingsSheet) {
+        #region Create ONE matrix per enabled Settings row
+        foreach ($enabledSetting in $enabledSettings) {
             $matrix = [pscustomobject]@{
-                ID          = $null
-                Import      = Format-SettingStringsHC -Settings $S
-                Check       = [System.Collections.Generic.List[pscustomobject]]::new()
-                Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
-                AdObjects   = @{}
-                JobTime     = @{}
-                Defaults    = $Defaults
-                Permissions = $permissions
-                FormData    = $formData
+                ID             = $null
+                EnabledSetting = @{
+                    Raw       = $enabledSetting
+                    Formatted = Format-SettingStringsHC `
+                        -Settings $enabledSetting
+                }
+                Check          = [System.Collections.Generic.List[pscustomobject]]::new()
+                Matrix         = [System.Collections.Generic.List[pscustomobject]]::new()
+                AdObjects      = @{}
+                JobTime        = @{}
+                # Reference back to file-level data
+                FileContext    = $fileResult
             }
-
+          
             # Optional: validate settings row here
             # Add to $matrix.Check if needed
 
             $fileResult.Matrices.Add($matrix)
         }
+        #endregion
     }
     catch {
-        $fileResult.File.Check.Add([pscustomobject]@{
+        $fileResult.File.Check.Add(
+            [pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'
                 Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
                 Value       = $_
-            })
+            }
+        )
     }
 
     return $fileResult

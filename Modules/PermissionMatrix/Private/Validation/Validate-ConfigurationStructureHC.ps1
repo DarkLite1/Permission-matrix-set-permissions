@@ -5,9 +5,7 @@ function Validate-ConfigurationStructureHC {
         [Parameter(Mandatory)][ref]   $SystemErrors
     )
 
-    #
-    # 1. Required Top-Level Properties
-    #
+    #region Top-Level properties
     foreach ($prop in @(
             'Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings'
         )) {
@@ -19,13 +17,27 @@ function Validate-ConfigurationStructureHC {
                 -SystemErrors $SystemErrors
         }
     }
+    #endregion
 
-    #
-    # 2. Settings block
-    #
+    #region Settings
     if ($Json.Settings) {
+        #region SaveInEventLog
+        if ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
 
-        # SaveLogFiles
+        if ($Json.Settings.SaveInEventLog.Save -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Settings.SaveInEventLog.Save'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
+
+        #region SaveLogFiles
         if (-not $Json.Settings.SaveLogFiles.Where.Folder) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Settings.SaveLogFiles.Where.Folder'" `
@@ -45,15 +57,10 @@ function Validate-ConfigurationStructureHC {
                 -Message 'Must be boolean.' `
                 -SystemErrors $SystemErrors
         }
+        #endregion
 
-        # SendMail
-        if (-not $Json.Settings.SendMail) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Settings.SendMail'" `
-                -Message 'SendMail block is mandatory.' `
-                -SystemErrors $SystemErrors
-        }
-        else {
+        #region SendMail
+        if ( $Json.Settings.SendMail) {
             if (-not $Json.Settings.SendMail.From) {
                 Add-JsonSchemaErrorHC -Type 'FatalError' `
                     -Name "Missing 'Settings.SendMail.From'" `
@@ -74,19 +81,49 @@ function Validate-ConfigurationStructureHC {
                     -Message 'Body is required.' `
                     -SystemErrors $SystemErrors
             }
+            if (-not $Json.Settings.SendMail.Smtp.Port -or $Json.Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
+                Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'SendMail.Smtp.Port'" `
+                    -Message 'Port must be numeric.' `
+                    -SystemErrors $SystemErrors
+            }
+
+            $validConn = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
+            if ($Json.Settings.SendMail.Smtp.ConnectionType -notin $validConn) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Settings.SendMail.Smtp.ConnectionType'" `
+                    -Message 'Invalid connection type.' `
+                    -SystemErrors $SystemErrors
+            }
+        }
+        else {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.SendMail'" `
+                -Message 'SendMail block is mandatory.' `
+                -SystemErrors $SystemErrors
+            
+        }
+        #endregion
+
+        if (-not $json.Settings.ScriptName) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.ScriptName'" `
+                -Message 'ScriptName is required.' `
+                -SystemErrors $SystemErrors
         }
     }
+    #endregion
 
-
-    #
-    # 3. Matrix
-    #
+    #region Matrix
     if ($Json.Matrix) {
-
         if (-not $Json.Matrix.FolderPath) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Matrix.FolderPath'" `
                 -Message 'FolderPath is required.' `
+                -SystemErrors $SystemErrors
+        }
+        elseif (-not (Test-Path -LiteralPath $Json.Matrix.FolderPath -PathType Leaf)) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.FolderPath'" `
+                -Message "FolderPath '$($Matrix.FolderPath)' not found" `
                 -SystemErrors $SystemErrors
         }
 
@@ -94,6 +131,12 @@ function Validate-ConfigurationStructureHC {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Matrix.DefaultsFile'" `
                 -Message 'DefaultsFile is required.' `
+                -SystemErrors $SystemErrors
+        }
+        elseif (-not (Test-Path -LiteralPath $Json.Matrix.DefaultsFile -PathType Leaf)) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.DefaultsFile'" `
+                -Message "DefaultsFile '$($Matrix.DefaultsFile)' not found" `
                 -SystemErrors $SystemErrors
         }
 
@@ -111,12 +154,10 @@ function Validate-ConfigurationStructureHC {
                 -Message 'Must be boolean.' `
                 -SystemErrors $SystemErrors
         }
-    }
+    } 
+    #endregion
 
-
-    #
-    # 4. MaxConcurrent
-    #
+    #region MaxConcurrent
     if ($Json.MaxConcurrent) {
         foreach ($prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
             $val = $Json.MaxConcurrent.$prop
@@ -128,16 +169,49 @@ function Validate-ConfigurationStructureHC {
             }
         }
     }
+    #endregion
 
+    #region Export
+    if ($Json.Export) {
+        if ($Json.Export.PermissionsExcelFile -and $Json.Export.PermissionsExcelFile -notmatch '\.xlsx$') {
+            Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Export.PermissionsExcelFile'" `
+                -Message 'Must end with .xlsx' `
+                -SystemErrors $SystemErrors
+        }
 
-    #
-    # 5. Export
-    #
-    if (-not $Json.Export) {
-        Add-JsonSchemaErrorHC -Type 'FatalError' `
-            -Name "Missing 'Export'" `
-            -Message 'Export section missing.' `
-            -SystemErrors $SystemErrors
+        if ($Json.Export.OverviewHtmlFile -and $Json.Export.OverviewHtmlFile -notmatch '\.html?$') {
+            Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Export.OverviewHtmlFile'" `
+                -Message 'Must end with .html' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($Json.Export.ServiceNowFormDataExcelFile) {
+
+            if ($Json.Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Incorrect 'Export.ServiceNowFormDataExcelFile'" `
+                    -Message 'Must end with .xlsx' `
+                    -SystemErrors $SystemErrors
+            }
+
+            if (-not $ServiceNow) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name 'Incorrect configuration' `
+                    -Message 'ServiceNow must be defined when using ServiceNowFormDataExcelFile.' `
+                    -SystemErrors $SystemErrors
+            }
+            else {
+                foreach ($p in 'CredentialsFilePath', 'TableName', 'Environment') {
+                    if (-not $ServiceNow.$p) {
+                        Add-JsonSchemaErrorHC -Type 'FatalError' `
+                            -Name "Missing 'ServiceNow.$p'" `
+                            -Message "$p is required." `
+                            -SystemErrors $SystemErrors
+                    }
+                }
+            }
+        }
     }
+    #endregion
 }
 
