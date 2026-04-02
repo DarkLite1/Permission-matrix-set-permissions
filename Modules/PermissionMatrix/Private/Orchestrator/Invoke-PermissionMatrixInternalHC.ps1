@@ -21,11 +21,7 @@ function Invoke-PermissionMatrixInternalHC {
         [string]$ConfigurationJsonFile,
 
         [Parameter(Mandatory)]
-        [hashtable]$ScriptPath,
-
-        [Parameter(Mandatory)]
-        [ValidateSet('Full', 'ExportOnly')]
-        [string]$Mode
+        [hashtable]$ScriptPath
     )
 
     # ---------------------------------------------------------------------
@@ -86,24 +82,14 @@ function Invoke-PermissionMatrixInternalHC {
         # ================================================================
         # 3. EXPORT-ONLY MODE (conditional)
         # ================================================================
-        if ($Mode -eq 'ExportOnly' -and $canProcess -and $foundMatrices) {
+        if ($canProcess -and $foundMatrices) {
 
             $exportWanted =
             $context.Export.PermissionsExcelFile -or
             $context.Export.ServiceNowFormDataExcelFile -or
             $context.Export.OverviewHtmlFile
 
-            if (-not $exportWanted) {
-                Add-ErrorHC `
-                    -Type 'Information' `
-                    -Name 'No export configured' `
-                    -Message 'No export targets configured. Nothing to export.' `
-                    -Category 'RuntimeSettings' `
-                    -SystemErrors ([ref]$systemErrors)
-
-                $mustReport = $true
-            }
-            else {
+            if ($exportWanted) {
                 $result.Files = Export-FilesHC `
                     -ImportedMatrix $importedMatrix `
                     -ExportSettings $context.Export `
@@ -164,19 +150,5 @@ function Invoke-PermissionMatrix {
 
     Invoke-PermissionMatrixInternalHC `
         -ConfigurationJsonFile $ConfigurationJsonFile `
-        -ScriptPath $ScriptPath `
-        -Mode 'Full'
-}
-
-function Export-PermissionMatrix {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ConfigurationJsonFile,
-        [Parameter(Mandatory)][hashtable]$ScriptPath
-    )
-
-    Invoke-PermissionMatrixInternalHC `
-        -ConfigurationJsonFile $ConfigurationJsonFile `
-        -ScriptPath $ScriptPath `
-        -Mode 'ExportOnly'
+        -ScriptPath $ScriptPath
 }
