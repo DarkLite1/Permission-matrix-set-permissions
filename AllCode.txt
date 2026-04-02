@@ -1,13 +1,5 @@
 
 -------------------------------------------------------------------------------
-FILE: AllCode.txt
--------------------------------------------------------------------------------
-
-
-
-
-
--------------------------------------------------------------------------------
 FILE: README.MD
 -------------------------------------------------------------------------------
 
@@ -1671,7 +1663,7 @@ if (Test-Path $publicFolder) {
 # ---------------------------------------------------------------------
 $privateFolder = Join-Path $PSScriptRoot 'Private'
 if (Test-Path $privateFolder) {
-    Get-ChildItem -Path $privateFolder -Filter *.ps1 | ForEach-Object {
+    Get-ChildItem -Path $privateFolder -Recurse -Filter *.ps1 | ForEach-Object {
         Write-Verbose "Load '$_'"
         . $_.FullName
     }
@@ -1714,37 +1706,46 @@ begin {
     try {
         function Import-PermissionMatrixModuleHC {
             param(
-                [Parameter(Mandatory)][string]$ScriptRoot,
+                [Parameter(Mandatory)][string]$Path,
                 [Parameter()][ref]$SystemErrors
             )
 
-            try {
-                $localModuleRoot = Join-Path $ScriptRoot '..\..\Modules\PermissionMatrix'
+            if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+                $SystemErrors.Value.Add(
+                    [pscustomobject]@{
+                        DateTime = Get-Date
+                        Message  = "PermissionMatrix module not found at '$Path'."
+                        Type     = 'FatalError'
+                        Category = 'Bootstrap'
+                    }
+                )
+                return
+            }
 
-                if (Test-Path $localModuleRoot) {
-                    Write-Verbose "Importing local module: $localModuleRoot"
-                    Import-Module $localModuleRoot -Force -ErrorAction Stop
-                    return
-                }
+            try {
+                Write-Verbose "Importing PermissionMatrix module: $Path"
+                Import-Module $Path -Force -ErrorAction Stop
             }
             catch {
-                $msg = "Failed to import PermissionMatrixHC module: $_"
-                if ($SystemErrors) {
-                    $SystemErrors.Value.Add([pscustomobject]@{
-                            DateTime = Get-Date
-                            Message  = $msg
-                            Type     = 'FatalError'
-                            Category = 'Bootstrap'
-                        })
-                }
-                throw $msg
+                $SystemErrors.Value.Add(
+                    [pscustomobject]@{
+                        DateTime = Get-Date
+                        Message  = "Failed to import PermissionMatrix module: $_"
+                        Type     = 'FatalError'
+                        Category = 'Bootstrap'
+                    }
+                )
             }
         }
 
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
+        $modulePath = Join-Path $PSScriptRoot '..\..\Modules\PermissionMatrix\PermissionMatrix.psm1'
+
+        $ScriptPath.PermissionMatrixModule = $modulePath
+
         Import-PermissionMatrixModuleHC `
-            -ScriptRoot $PSScriptRoot `
+            -Path $modulePath `
             -SystemErrors ([ref]$systemErrors)
     }
     catch {
@@ -2054,119 +2055,6 @@ Q��8�����.�A��z�fv$�u�GJ��g<�٪�͋�
 �����������bcog�h���v�j~p�R�x�UQ"�D�^kv�%�e2PVJ�G�������?u~5�}3U��]�uz����M���-�����B���L��l�b��gk[�{A��~���  �� PK     ! {���   (   customXml/_rels/item3.xml.rels �(�                                                                                                                                                                                                                                                                 ���j�0�{a�`t_�t0J���(�6F�Gq�b�X�X�~��=JB�/��߸�,(�&GSH�������b�dWJh����i��j�.�2��$6�������ʘ�d��Բx������m_u�5`�3�8(�ԁ:]rM~l�<�o�����ݙ��W\�e��-�@���KS�=����  �� PK     ! ���   (   customXml/_rels/item4.xml.rels �(�                                                                                                                                                                                                                                                                 ���j�0�{a�`t_��1J���(�6F�Gq�b�X�X�~��=JB�/��߸�,(�&GSH�������b�dWJh����i��j�.�2��$6�������ʘ�d��Բx������m_u�5`�3�8(�ԁ:]rM~l�<�o�����ݙ��W\�e��-�@���KS�=����  �� PK     ! ��Be  @   ( customXml/itemProps3.xml �$ (�                                  ��_k�0���%�m���8� Lc_Cz�aMR�t���K����M����M>x弃�L��� 9 �,��d��e�&�ц��TR@��D���ͨ�Â��T�4�{�친g�+��q�Hr�a��}��4B7��p�i>�o������m���k�N�'k����cK���,���a��`a���|�+4��캟�ԧeg�Q�0�nT�kP\c��w��U�F6�3���.Lm*n�,�2����Q%�,�G%�#=��;���|֗��Y��5�=�j�-`��l��k�>����i�`A8h�"\
 ����u���`��51�.�?e��Fɪ�3�k���d��?   �� PK-      ! �`��  �	                   [Content_Types].xmlPK-      ! ^�e  �               �  _rels/.relsPK-      ! ��?P  6               0  xl/_rels/workbook.xml.relsPK-      ! �M�Ȁ  �               �	  xl/workbook.xmlPK-      ! �M$R�  �               m  xl/worksheets/sheet1.xmlPK-      ! �(���  �               )  xl/worksheets/sheet2.xmlPK-      ! �]I��  �               I  xl/worksheets/sheet3.xmlPK-      ! 2J}�  (               $  xl/worksheets/sheet4.xmlPK-      ! kj2i  &               !  xl/theme/theme1.xmlPK-      ! �-0~B  �V               �)  xl/styles.xmlPK-      ! �洢                 2  xl/sharedStrings.xmlPK-      ! ;m2K�   B  #             �6  xl/worksheets/_rels/sheet1.xml.relsPK-      ! �,�   B  #             �7  xl/worksheets/_rels/sheet2.xml.relsPK-      ! �LZ\�   �  #             �8  xl/worksheets/_rels/sheet3.xml.relsPK-      ! 4�	��   B  #             2:  xl/worksheets/_rels/sheet4.xml.relsPK-      ! �9���  Z   "             5;  xl/externalLinks/externalLink1.xmlPK-      ! �\g
 r  �+  '             XA  xl/printerSettings/printerSettings1.binPK-      ! U�<v  �9  '             C  xl/printerSettings/printerSettings2.binPK-      ! �4��;   �   '             �F  xl/printerSettings/printerSettings3.binPK-      ! 2�rIt   �                JG  customXml/item1.xmlPK-      ! �����   S               H  customXml/itemProps1.xmlPK-      ! T�@"  �               eI  customXml/item2.xmlPK-      ! siw$^  m               �M  customXml/itemProps2.xmlPK-      ! #88n�   O               �O  customXml/itemProps4.xmlPK-      ! �2��  B               �P  docProps/core.xmlPK-      ! �Dě  X               �S  docProps/app.xmlPK-      ! 9\S�c  �               �V  docProps/custom.xmlPK-      ! �C��   "               \Y  customXml/item3.xmlPK-      ! ��b#�   �                uZ  customXml/item4.xmlPK-      ! n�]�   t  -             ^[  xl/externalLinks/_rels/externalLink1.xml.relsPK-      ! t?9z�   (               �\  customXml/_rels/item1.xml.relsPK-      ! \�'"�   (               �^  customXml/_rels/item2.xml.relsPK-      ! {���   (               �`  customXml/_rels/item3.xml.relsPK-      ! ���   (               �b  customXml/_rels/item4.xml.relsPK-      ! ��Be  @               �d  customXml/itemProps3.xmlPK    # # �	  uf    
-
-
-
--------------------------------------------------------------------------------
-FILE: Scripts\Utilities\createOneFile.ps1
--------------------------------------------------------------------------------
-
-param (
-    [string]$SourceFolderPath = (Resolve-Path "$PSScriptRoot\..\..").Path,
-    [string]$OutputFile = 'AllCode.txt', 
-    [HashTable]$Ignored = @{
-        Folders = @(
-            '.vscode',
-            '.git',
-            'Tests',
-            'legacy'
-        )
-        Files   = @(
-            '.gitignore',
-            '.prettierrc.json'
-        )
-    }
-)
-
-function Convert-ToNativePath {
-    [CmdletBinding()]
-    param (
-        [Parameter(ValueFromPipeline = $true, Mandatory = $true)]
-        [string]$Path
-    )
-    begin {
-        $Separator = [System.IO.Path]::DirectorySeparatorChar
-    }
-    process {
-        $returnPath = $Path.Replace('\', $Separator).Replace('/', $Separator)
-
-        if (Test-Path $returnPath) {
-            $returnPath = (Get-Item $returnPath -Force).FullName
-            $returnPath
-        }
-    }
-}
-
-# 1. Resolve Output file to a full absolute path
-$OutputFilePath = Join-Path -Path $SourceFolderPath -ChildPath $OutputFile | Convert-ToNativePath
-
-# 2. Transform the relative ignore lists into full native paths
-$ignoredFolders = $Ignored.Folders | ForEach-Object { 
-    Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
-}
-
-$ignoredFiles = $Ignored.Files | ForEach-Object { 
-    Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
-}
-
-# 3. Dynamically add the script itself and the output file to the ignore list
-$ignoredFiles += ($PSCommandPath | Convert-ToNativePath)
-$ignoredFiles += $OutputFilePath
-
-# Initialize or clear the output file
-New-Item -ItemType File -Path $OutputFilePath -Force | Out-Null
-
-# Setup the traversal queue
-$DirectoriesToProcess = [System.Collections.Generic.List[string]]::new()
-$DirectoriesToProcess.Add($SourceFolderPath)
-
-while ($DirectoriesToProcess.Count -gt 0) {
-    
-    $CurrentPath = $DirectoriesToProcess[0]
-    $DirectoriesToProcess.RemoveAt(0)
-    
-    $Children = Get-ChildItem -Path $CurrentPath
-
-    foreach ($Child in $Children) {
-        
-        if ($Child.PSIsContainer) {
-            # Check if the folder is in the full-path ignore list
-            if ($ignoredFolders -contains $Child.FullName) {
-                Write-Verbose "Folder ignored: $($Child.FullName)"
-                continue
-            }
-            
-            # If not ignored, add it to the queue
-            $DirectoriesToProcess.Add($Child.FullName)
-        } 
-        else {
-            # Check if the file is in the full-path ignore list (which now includes the script & output file)
-            if ($ignoredFiles -contains $Child.FullName) {
-                Write-Verbose "File ignored: $($Child.FullName)"
-                continue
-            }
-
-            # Safely calculate the relative path by cutting off the base path length
-            $relativePath = $Child.FullName.Substring($SourceFolderPath.Length).TrimStart('\/')
-            $fileContent = Get-Content -Path $Child.FullName -Raw # -Raw reads it as one big string for speed
-
-            Write-Verbose "Adding file content: $relativePath"
-
-            $fileContentToAdd = @"
-
--------------------------------------------------------------------------------
-FILE: $relativePath
--------------------------------------------------------------------------------
-
-$fileContent
-"@
-            # Append the formatted content and a trailing newline
-            ($fileContentToAdd, "`n") | Add-Content -Path $OutputFilePath
-        }
-    }
-}
-
-Write-Host "Success! Consolidated file created at: $OutputFilePath" -ForegroundColor Cyan
 
 
 
@@ -2689,6 +2577,8 @@ function Invoke-MatrixChecksHC {
 
 
 
+
+
 -------------------------------------------------------------------------------
 FILE: Modules\PermissionMatrix\Private\Export.ps1
 -------------------------------------------------------------------------------
@@ -3116,371 +3006,6 @@ $($Html.MatrixTables)
 "@
 }
 #endregion
-
-
-
--------------------------------------------------------------------------------
-FILE: Modules\PermissionMatrix\Private\Logging.ps1
--------------------------------------------------------------------------------
-
-###############################################################################
-#region Cleanup-OldLogsHC
-###############################################################################
-function Cleanup-OldLogsHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] [string]$LogFolder,
-        [int]$RetentionDays,
-        [Parameter(Mandatory)] [ref]$SystemErrors
-    )
-
-    # Disabled or folder missing → nothing to do
-    if ($RetentionDays -le 0 -or -not $LogFolder) { return }
-
-    try {
-        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
-
-        $cutoff = (Get-Date).AddDays(-$RetentionDays)
-
-        # --- 1. Delete old files ---
-        Get-ChildItem -LiteralPath $LogFolder -Recurse -File -ErrorAction Stop |
-        Where-Object { $_.CreationTime -lt $cutoff } |
-        ForEach-Object {
-            try {
-                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
-            }
-            catch {
-                Add-ErrorByCategoryHC `
-                    -Type 'Warning' `
-                    -Name 'LogCleanupFailedFile' `
-                    -Message "Failed to delete log file '$($_.FullName)': $_" `
-                    -Category 'Logging' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-        }
-
-        # --- 2. Empty folder cleanup (bottom-up) ---
-        Get-ChildItem -LiteralPath $LogFolder -Recurse -Directory -ErrorAction Stop |
-        Sort-Object FullName -Descending |
-        ForEach-Object {
-            if (-not $_.GetFileSystemInfos().Count) {
-                try {
-                    Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
-                }
-                catch {
-                    Add-ErrorByCategoryHC `
-                        -Type 'Warning' `
-                        -Name 'LogCleanupFailedDirectory' `
-                        -Message "Failed to remove empty folder '$($_.FullName)': $_" `
-                        -Category 'Logging' `
-                        -SystemErrors ([ref]$SystemErrors)
-                }
-            }
-        }
-    }
-    catch {
-        Add-ErrorByCategoryHC `
-            -Type 'Warning' `
-            -Name 'LogCleanupFailedGeneral' `
-            -Message "General log cleanup failure: $_" `
-            -Category 'Logging' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-}
-#endregion
-
-
-###############################################################################
-#region Out-LogFileHC
-###############################################################################
-function Out-LogFileHC {
-    <#
-        Generic exporter for CSV / JSON / TXT / XLSX log files.
-    #>
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory)] [PSCustomObject[]]$DataToExport,
-        [Parameter(Mandatory)] [String]$PartialPath,
-        [Parameter(Mandatory)] [String[]]$FileExtensions,
-        [hashtable]$ExcelFile = @{
-            SheetName = 'Overview'
-            TableName = 'Overview'
-            CellStyle = $null
-        },
-        [Switch]$Append
-    )
-
-    $allPaths = @()
-
-    foreach ($ext in ($FileExtensions | Sort-Object -Unique)) {
-
-        $logFilePath = "$PartialPath$ext"
-
-        try {
-            switch ($ext) {
-
-                '.csv' {
-                    $DataToExport |
-                    Export-Csv -LiteralPath $logFilePath -Delimiter ';' `
-                        -Append:$Append -NoTypeInformation
-                    break
-                }
-
-                '.json' {
-                    $converted = foreach ($item in $DataToExport) {
-                        foreach ($p in $item.PSObject.Properties) {
-                            if ($p.Value -is [System.Management.Automation.ErrorRecord]) {
-                                $item.$($p.Name) = $p.Value.Exception.Message
-                            }
-                        }
-                        $item
-                    }
-
-                    if ($Append -and (Test-Path $logFilePath)) {
-                        $existing = Get-Content -LiteralPath $logFilePath -Raw | ConvertFrom-Json
-                        $converted = @($converted) + @($existing)
-                    }
-
-                    $converted |
-                    ConvertTo-Json -Depth 7 |
-                    Out-File -LiteralPath $logFilePath -Encoding utf8 -Force
-                    break
-                }
-
-                '.txt' {
-                    $DataToExport |
-                    Format-List * |
-                    Out-File -LiteralPath $logFilePath -Append:$Append
-                    break
-                }
-
-                '.xlsx' {
-                    if (-not $Append -and (Test-Path $logFilePath)) {
-                        Remove-Item -LiteralPath $logFilePath -Force
-                    }
-
-                    $params = @{
-                        Path          = $logFilePath
-                        Append        = $true
-                        AutoNameRange = $true
-                        AutoSize      = $true
-                        FreezeTopRow  = $true
-                        WorksheetName = $ExcelFile.SheetName
-                        TableName     = $ExcelFile.TableName
-                    }
-
-                    if ($ExcelFile.CellStyle) {
-                        $params.CellStyleSB = $ExcelFile.CellStyle
-                    }
-
-                    $DataToExport | Export-Excel @params
-                    break
-                }
-
-                default {
-                    throw "Unsupported file extension '$ext'."
-                }
-            }
-
-            $allPaths += $logFilePath
-        }
-        catch {
-            Write-Warning "Failed to export log '$logFilePath': $_"
-        }
-    }
-
-    return $allPaths
-}
-#endregion
-
-
-###############################################################################
-#region Remove-FileHC
-###############################################################################
-function Remove-FileHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)] [string]$FilePath,
-        [ref]$SystemErrors
-    )
-
-    try {
-        if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) { return }
-        Remove-Item -LiteralPath $FilePath -Force -ErrorAction Stop
-    }
-    catch {
-        if ($SystemErrors) {
-            Add-ErrorByCategoryHC `
-                -Type 'Warning' `
-                -Name 'RemoveFileFailed' `
-                -Message "Failed to remove '$FilePath': $_" `
-                -Category 'Logging' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-        else {
-            Write-Warning "Failed removing '$FilePath': $_"
-        }
-    }
-}
-#endregion
-
-
-###############################################################################
-#region Write-EventLogSafe
-###############################################################################
-function Write-EventLogSafe {
-    <#
-        Safe wrapper to write data into Windows EventLog.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$EventLogData,
-        [Parameter(Mandatory)][string]$ScriptName,
-        [Parameter(Mandatory)][object]$Settings,
-        [Parameter(Mandatory)][ref]$SystemErrors
-    )
-
-    $maxLen = 31000
-
-    try {
-        $logName = Get-StringValueHC $Settings.SaveInEventLog.LogName
-        if (-not ($Settings.SaveInEventLog.Save -and $logName)) { return }
-
-        # Append SystemErrors as individual error entries
-        foreach ($err in $SystemErrors.Value) {
-            $EventLogData.Add(
-                [PSCustomObject]@{
-                    Message   = $err.Message
-                    DateTime  = $err.DateTime
-                    EntryType = 'Error'
-                    EventID   = '2'
-                }
-            )
-        }
-
-        # Add “script ended”
-        $EventLogData.Add(
-            [PSCustomObject]@{
-                Message   = 'Script ended'
-                DateTime  = Get-Date
-                EntryType = 'Information'
-                EventID   = '199'
-            }
-        )
-
-        # Truncate too-long messages
-        foreach ($item in $EventLogData) {
-            if ($item.Message.Length -gt $maxLen) {
-                $item.Message =
-                $item.Message.Substring(0, $maxLen) +
-                '... [TRUNCATED DUE TO EVENT LOG SIZE LIMITS]'
-            }
-        }
-
-        Write-EventsToEventLogHC `
-            -Source $ScriptName `
-            -LogName $logName `
-            -Events $EventLogData
-    }
-    catch {
-        Add-ErrorByCategoryHC `
-            -Type 'Warning' `
-            -Name 'EventLogWriteFailed' `
-            -Message "Failed writing to event log: $_" `
-            -Category 'Logging' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-}
-#endregion
-
-
-###############################################################################
-#region Write-EventsToEventLogHC
-###############################################################################
-function Write-EventsToEventLogHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][String]$Source,
-        [Parameter(Mandatory)][String]$LogName,
-        [PSCustomObject[]]$Events
-    )
-
-    try {
-        if (-not [System.Diagnostics.EventLog]::SourceExists($Source)) {
-            New-EventLog -LogName $LogName -Source $Source -EA Stop
-        }
-
-        foreach ($eventItem in $Events) {
-
-            $params = @{
-                LogName     = $LogName
-                Source      = $Source
-                EntryType   = $eventItem.EntryType
-                EventID     = $eventItem.EventID
-                Message     = ''
-                ErrorAction = 'Stop'
-            }
-
-            if (-not $params.EntryType) { $params.EntryType = 'Information' }
-            if (-not $params.EventID) { $params.EventID = 4 }
-
-            foreach ($prop in $eventItem.PSObject.Properties |
-                Where-Object { $_.Name -notin 'EntryType', 'EventID' }) {
-
-                $params.Message += "`n- $($prop.Name): $($prop.Value)"
-            }
-
-            Write-EventLog @params
-        }
-    }
-    catch {
-        throw "Failed writing events to Windows Event Log: $_"
-    }
-}
-#endregion
-
-
-###############################################################################
-#region Write-SystemErrorLogHC (final attachment export)
-###############################################################################
-function Write-SystemErrorLogHC {
-    <#
-        Creates JSON log file of system errors and attaches to email params.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$SystemErrors,
-        [Parameter(Mandatory)][string]$LogFolder,
-        [Parameter(Mandatory)][ref]$MailParams,
-        [datetime]$ScriptStartTime = (Get-Date),
-        [object]$JsonFileItem = @{ BaseName = 'MatrixConfig' }
-    )
-
-    if ($SystemErrors.Count -eq 0) { return }
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
-
-    $datedFolder = Get-DatedLogFolderPathHC `
-        -LogFolder $LogFolder `
-        -ScriptStartTime $ScriptStartTime `
-        -JsonFileItem $JsonFileItem
-
-    $partial = Join-Path $datedFolder 'SystemErrors'
-
-    $attachments = Out-LogFileHC `
-        -DataToExport $SystemErrors `
-        -PartialPath $partial `
-        -FileExtensions '.json' `
-        -ErrorAction Ignore
-
-    if ($attachments) {
-        if (-not $MailParams.Value.ContainsKey('Attachments')) {
-            $MailParams.Value['Attachments'] = @()
-        }
-        $MailParams.Value['Attachments'] += $attachments
-    }
-}
-#endregion
-``
 
 
 
@@ -3923,182 +3448,11 @@ function Get-DefaultAclHC {
 
 
 -------------------------------------------------------------------------------
-FILE: Modules\PermissionMatrix\Private\Orchestrator.ps1
--------------------------------------------------------------------------------
-
-function Invoke-PermissionMatrixInternalHC {
-    <#
-    .SYNOPSIS
-        Internal orchestrator for the Permission Matrix pipeline.
-
-    .DESCRIPTION
-        Executes the Permission Matrix pipeline in a controlled manner.
-        Supports multiple execution modes:
-            - Full        : BEGIN → PROCESS → END (HTML, mail, logging)
-            - ExportOnly  : BEGIN → PROCESS → EXPORT only
-
-        This function owns:
-            - SystemErrors lifecycle
-            - Fatal error short-circuiting
-            - Mode-based execution control
-
-        Public functions must call this function and do nothing else.
-    #>
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [string]$ConfigurationJsonFile,
-
-        [Parameter(Mandatory)]
-        [hashtable]$ScriptPath,
-
-        [Parameter(Mandatory)]
-        [ValidateSet('Full', 'ExportOnly')]
-        [string]$Mode
-    )
-
-    # ---------------------------------------------------------------------
-    # 0. Shared state
-    # ---------------------------------------------------------------------
-    $systemErrors = [System.Collections.Generic.List[object]]::new()
-    $result = [ordered]@{
-        Success = $false
-        Mode    = $Mode
-        Files   = @{}
-        Errors  = $systemErrors
-    }
-
-    try {
-        # ================================================================
-        # 1. BEGIN STAGE
-        # ================================================================
-        $context = Invoke-PermissionMatrixBegin `
-            -ConfigurationJsonFile $ConfigurationJsonFile `
-            -ScriptPath $ScriptPath `
-            -SystemErrors ([ref]$systemErrors)
-
-        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
-            return $result
-        }
-
-
-        # ================================================================
-        # 2. PROCESS STAGE
-        # ================================================================
-        $importedMatrix = Invoke-PermissionMatrixProcess `
-            -Context $context `
-            -SystemErrors ([ref]$systemErrors)
-
-        if (-not $importedMatrix) {
-            Add-RuntimeErrorHC `
-                -Type 'Warning' `
-                -Name 'No matrix files processed' `
-                -Message 'No matrix files were found or successfully processed.' `
-                -SystemErrors ([ref]$systemErrors)
-        }
-
-        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
-            return $result
-        }
-
-
-        # ================================================================
-        # 3. EXPORT-ONLY MODE
-        # ================================================================
-        if ($Mode -eq 'ExportOnly') {
-
-            # Determine if export is actually configured
-            $exportWanted =
-            $context.Export.PermissionsExcelFile -or
-            $context.Export.ServiceNowFormDataExcelFile -or
-            $context.Export.OverviewHtmlFile
-
-            if (-not $exportWanted) {
-                Add-RuntimeErrorHC `
-                    -Type 'Information' `
-                    -Name 'No export configured' `
-                    -Message 'No export targets configured. Nothing to export.' `
-                    -SystemErrors ([ref]$systemErrors)
-
-                $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-                return $result
-            }
-
-            # Run export pipeline
-            $exportedFiles = Export-FilesHC `
-                -ImportedMatrix $importedMatrix `
-                -ExportSettings $context.Export `
-                -HtmlOverview $null `
-                -Counters $context.Counter
-
-            $result.Files = $exportedFiles
-            $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-            return $result
-        }
-
-
-        # ================================================================
-        # 4. END STAGE (FULL PIPELINE ONLY)
-        # ================================================================
-        Invoke-PermissionMatrixEnd `
-            -Context $context `
-            -ImportedMatrix $importedMatrix `
-            -SystemErrors ([ref]$systemErrors)
-
-
-        # ================================================================
-        # 5. FINAL RESULT
-        # ================================================================
-        $result.Files = $context.ExportedFiles ?? @{}
-        $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-        return $result
-    }
-    catch {
-        Add-RuntimeErrorHC `
-            -Type 'FatalError' `
-            -Name 'Unhandled orchestrator failure' `
-            -Message "Invoke-PermissionMatrixInternalHC failed: $_" `
-            -SystemErrors ([ref]$systemErrors)
-
-        return $result
-    }
-}
-
-function Invoke-PermissionMatrix {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ConfigurationJsonFile,
-        [Parameter(Mandatory)][hashtable]$ScriptPath
-    )
-
-    Invoke-PermissionMatrixInternalHC `
-        -ConfigurationJsonFile $ConfigurationJsonFile `
-        -ScriptPath $ScriptPath `
-        -Mode 'Full'
-}
-
-function Export-PermissionMatrix {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$ConfigurationJsonFile,
-        [Parameter(Mandatory)][hashtable]$ScriptPath
-    )
-
-    Invoke-PermissionMatrixInternalHC `
-        -ConfigurationJsonFile $ConfigurationJsonFile `
-        -ScriptPath $ScriptPath `
-        -Mode 'ExportOnly'
-}
-
-
-
--------------------------------------------------------------------------------
 FILE: Modules\PermissionMatrix\Private\Utils.ps1
 -------------------------------------------------------------------------------
 
 
-function Add-ErrorByCategoryHC {
+function Add-ErrorHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Type,       
@@ -4131,13 +3485,7 @@ function Add-MatrixErrorHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    Add-ErrorByCategoryHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'Matrix' `
-        -SystemErrors $SystemErrors
+    Add-ErrorHC -Category 'Matrix' @PSBoundParameters
 }
 
 function Add-PermissionsErrorHC {
@@ -4150,13 +3498,7 @@ function Add-PermissionsErrorHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    Add-ErrorByCategoryHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'Permissions' `
-        -SystemErrors $SystemErrors
+    Add-ErrorHC -Category 'Permissions' @PSBoundParameters
 }
 
 function Add-RuntimeErrorHC {
@@ -4169,13 +3511,7 @@ function Add-RuntimeErrorHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    Add-ErrorByCategoryHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'RuntimeSettings' `
-        -SystemErrors $SystemErrors
+    Add-ErrorHC -Category 'RuntimeSettings' @PSBoundParameters
 }
 
 function Add-JsonSchemaErrorHC {
@@ -4188,13 +3524,7 @@ function Add-JsonSchemaErrorHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    Add-ErrorByCategoryHC `
-        -Type $Type `
-        -Name $Name `
-        -Message $Message `
-        -Description $Description `
-        -Category 'JsonSchema' `
-        -SystemErrors $SystemErrors
+    Add-ErrorHC -Category 'JsonSchema' @PSBoundParameters
 }
 
 function Get-StringValueHC {
@@ -4272,24 +3602,6 @@ function Test-HasFatalErrorsHC {
 FILE: Modules\PermissionMatrix\Private\Validation.ps1
 -------------------------------------------------------------------------------
 
-<#
-    Validation.ps1
-    Consolidated validation logic for Toolbox.PermissionMatrixHC.
-
-    Uses utility functions from Utils.ps1:
-        - Add-JsonSchemaErrorHC
-        - Add-RuntimeErrorHC
-        - New-HcError
-        - ConvertTo-StructuredObjectHC
-#>
-
-
-
-###############################################################
-# Generic Structured Validation Helpers
-###############################################################
-
-#region New-HcError
 function New-HcError {
     [CmdletBinding()]
     param(
@@ -4309,10 +3621,7 @@ function New-HcError {
         Category    = $Category
     }
 }
-#endregion
 
-
-#region ConvertTo-StructuredObjectHC
 function ConvertTo-StructuredObjectHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Objects)
@@ -4337,15 +3646,7 @@ function ConvertTo-StructuredObjectHC {
 
     return $output
 }
-#endregion
 
-
-
-###############################################################
-# Matrix File, Permissions, FormData, Setting Validation
-###############################################################
-
-#region Test-MatrixFileHC
 function Test-MatrixFileHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $MatrixObject)
@@ -4364,10 +3665,7 @@ function Test-MatrixFileHC {
 
     return $checks
 }
-#endregion
 
-
-#region Test-MatrixPermissionsHC
 function Test-MatrixPermissionsHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)][array]$Permissions)
@@ -4378,10 +3676,7 @@ function Test-MatrixPermissionsHC {
             -Category 'Permissions'
     }
 }
-#endregion
 
-
-#region Test-MatrixFormDataHC
 function Test-MatrixFormDataHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $FormData)
@@ -4392,10 +3687,7 @@ function Test-MatrixFormDataHC {
             -Category 'FormData'
     }
 }
-#endregion
 
-
-#region Test-MatrixSettingHC
 function Test-MatrixSettingHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)] $Setting)
@@ -4417,10 +3709,7 @@ function Test-MatrixSettingHC {
 
     return $checks
 }
-#endregion
 
-
-#region Test-AdObjectsHC
 function Test-AdObjectsHC {
     [CmdletBinding()]
     param(
@@ -4442,10 +3731,7 @@ function Test-AdObjectsHC {
 
     return $checks
 }
-#endregion
 
-
-#region Test-ExpandedMatrixHC
 function Test-ExpandedMatrixHC {
     [CmdletBinding()]
     param(
@@ -4474,338 +3760,6 @@ function Test-ExpandedMatrixHC {
 
     return $checks
 }
-#endregion
-
-
-
-###############################################################
-# JSON Schema Validation
-###############################################################
-
-#region Validate-ConfigurationStructure
-function Validate-ConfigurationStructure {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$Json,
-        [Parameter(Mandatory)][ref]   $SystemErrors
-    )
-
-    #
-    # 1. Required Top-Level Properties
-    #
-    foreach ($prop in @(
-            'Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings'
-        )) {
-        if ($null -eq $Json.$prop) {
-            Add-JsonSchemaErrorHC `
-                -Type 'FatalError' `
-                -Name "Missing '$prop'" `
-                -Message "Property '$prop' not found in JSON." `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-    }
-
-    #
-    # 2. Settings block
-    #
-    if ($Json.Settings) {
-
-        # SaveLogFiles
-        if (-not $Json.Settings.SaveLogFiles.Where.Folder) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Settings.SaveLogFiles.Where.Folder'" `
-                -Message 'Folder is required.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if ($null -eq $Json.Settings.SaveLogFiles.Detailed) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Settings.SaveLogFiles.Detailed'" `
-                -Message 'Detailed is required.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-        elseif ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
-                -Message 'Must be boolean.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        # SendMail
-        if (-not $Json.Settings.SendMail) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Settings.SendMail'" `
-                -Message 'SendMail block is mandatory.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-        else {
-            if (-not $Json.Settings.SendMail.From) {
-                Add-JsonSchemaErrorHC -Type 'FatalError' `
-                    -Name "Missing 'Settings.SendMail.From'" `
-                    -Message 'From is required.' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-            if ($Json.Settings.SendMail.To -and
-                ($Json.Settings.SendMail.To -isnot [string] -and
-                $Json.Settings.SendMail.To -isnot [array])) {
-                Add-JsonSchemaErrorHC -Type 'FatalError' `
-                    -Name "Incorrect 'Settings.SendMail.To'" `
-                    -Message 'Must be string or array.' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-            if ($null -eq $Json.Settings.SendMail.Body) {
-                Add-JsonSchemaErrorHC -Type 'FatalError' `
-                    -Name "Missing 'Settings.SendMail.Body'" `
-                    -Message 'Body is required.' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-        }
-    }
-
-
-    #
-    # 3. Matrix
-    #
-    if ($Json.Matrix) {
-
-        if (-not $Json.Matrix.FolderPath) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Matrix.FolderPath'" `
-                -Message 'FolderPath is required.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if (-not $Json.Matrix.DefaultsFile) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Missing 'Matrix.DefaultsFile'" `
-                -Message 'DefaultsFile is required.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if ($Json.Matrix.ExcludedSamAccountName -and
-            $Json.Matrix.ExcludedSamAccountName -isnot [array]) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Incorrect 'Matrix.ExcludedSamAccountName'" `
-                -Message 'Must be an array.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if ($null -eq $Json.Matrix.Archive -or $Json.Matrix.Archive -isnot [bool]) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Incorrect 'Matrix.Archive'" `
-                -Message 'Must be boolean.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-    }
-
-
-    #
-    # 4. MaxConcurrent
-    #
-    if ($Json.MaxConcurrent) {
-        foreach ($prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
-            $val = $Json.MaxConcurrent.$prop
-            if ($null -eq $val -or $val -notmatch '^\d+$') {
-                Add-JsonSchemaErrorHC -Type 'FatalError' `
-                    -Name "Incorrect 'MaxConcurrent.$prop'" `
-                    -Message "$prop must be numeric." `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-        }
-    }
-
-
-    #
-    # 5. Export
-    #
-    if (-not $Json.Export) {
-        Add-JsonSchemaErrorHC -Type 'FatalError' `
-            -Name "Missing 'Export'" `
-            -Message 'Export section missing.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-}
-#endregion
-
-
-
-###############################################################
-# Runtime Configuration Validation
-###############################################################
-
-#region Validate-RuntimeSettings
-function Validate-RuntimeSettings {
-    [CmdletBinding()]
-    param(
-        [object]$Settings,
-        [object]$Matrix,
-        [object]$Export,
-        [object]$ServiceNow,
-        [object]$MaxConcurrent,
-        [ref]$SystemErrors
-    )
-
-    #
-    # 1. Settings
-    #
-    if (-not $Settings) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Settings'" `
-            -Message 'Settings are required.' `
-            -SystemErrors ([ref]$SystemErrors)
-        return
-    }
-
-    if (-not $Settings.ScriptName) {
-        Add-RuntimeErrorHC -Type 'Warning' -Name "Missing 'Settings.ScriptName'" `
-            -Message 'Using default script name.' `
-            -SystemErrors ([ref]$SystemErrors)
-
-        $Settings |
-        Add-Member -NotePropertyName ScriptName -NotePropertyValue 'Default script name' -Force
-    }
-
-    if ($Settings.SaveLogFiles.Detailed -isnot [bool]) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
-            -Message 'Must be boolean.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    if ($Settings.SaveInEventLog.Save -isnot [bool]) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Settings.SaveInEventLog.Save'" `
-            -Message 'Must be boolean.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    if (-not $Settings.SendMail.From) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Settings.SendMail.From'" `
-            -Message 'From is required.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    if (-not $Settings.SendMail.To) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Settings.SendMail.To'" `
-            -Message 'To is required.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    if (-not $Settings.SendMail.Body) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Settings.SendMail.Body'" `
-            -Message 'Body is required.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    if (-not $Settings.SendMail.Smtp.Port -or $Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'SendMail.Smtp.Port'" `
-            -Message 'Port must be numeric.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-    $validConn = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
-    if ($Settings.SendMail.Smtp.ConnectionType -notin $validConn) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Settings.SendMail.Smtp.ConnectionType'" `
-            -Message 'Invalid connection type.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-
-
-    #
-    # 2. Matrix
-    #
-    if (-not $Matrix) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Matrix'" `
-            -Message 'Matrix block is required.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-    else {
-        if (-not (Test-Path -LiteralPath $Matrix.DefaultsFile -PathType Leaf)) {
-            Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Matrix.DefaultsFile'" `
-                -Message "DefaultsFile not found: $($Matrix.DefaultsFile)" `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-        if (-not $Matrix.FolderPath) {
-            Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'Matrix.FolderPath'" `
-                -Message 'FolderPath missing.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-        if ($Matrix.ExcludedSamAccountName -isnot [array]) {
-            Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Matrix.ExcludedSamAccountName'" `
-                -Message 'Must be array.' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-    }
-
-
-    #
-    # 3. MaxConcurrent
-    #
-    if (-not $MaxConcurrent) {
-        Add-RuntimeErrorHC -Type 'FatalError' -Name "Missing 'MaxConcurrent'" `
-            -Message 'MaxConcurrent block missing.' `
-            -SystemErrors ([ref]$SystemErrors)
-    }
-    else {
-        foreach ($p in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
-            if (-not $MaxConcurrent.$p -or $MaxConcurrent.$p -notmatch '^\d+$') {
-                Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'MaxConcurrent.$p'" `
-                    -Message "$p must be numeric." `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-        }
-    }
-
-
-    #
-    # 4. Export & ServiceNow validation
-    #
-    if ($Export) {
-
-        if ($Export.PermissionsExcelFile -and $Export.PermissionsExcelFile -notmatch '\.xlsx$') {
-            Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Export.PermissionsExcelFile'" `
-                -Message 'Must end with .xlsx' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if ($Export.OverviewHtmlFile -and $Export.OverviewHtmlFile -notmatch '\.html?$') {
-            Add-RuntimeErrorHC -Type 'FatalError' -Name "Incorrect 'Export.OverviewHtmlFile'" `
-                -Message 'Must end with .html' `
-                -SystemErrors ([ref]$SystemErrors)
-        }
-
-        if ($Export.ServiceNowFormDataExcelFile) {
-
-            #
-            # validate extension
-            #
-            if ($Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
-                Add-RuntimeErrorHC -Type 'FatalError' `
-                    -Name "Incorrect 'Export.ServiceNowFormDataExcelFile'" `
-                    -Message 'Must end with .xlsx' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-
-            #
-            # ServiceNow must exist
-            #
-            if (-not $ServiceNow) {
-                Add-RuntimeErrorHC -Type 'FatalError' `
-                    -Name 'Incorrect configuration' `
-                    -Message 'ServiceNow must be defined when using ServiceNowFormDataExcelFile.' `
-                    -SystemErrors ([ref]$SystemErrors)
-            }
-            else {
-                foreach ($p in 'CredentialsFilePath', 'TableName', 'Environment') {
-                    if (-not $ServiceNow.$p) {
-                        Add-RuntimeErrorHC -Type 'FatalError' `
-                            -Name "Missing 'ServiceNow.$p'" `
-                            -Message "$p is required." `
-                            -SystemErrors ([ref]$SystemErrors)
-                    }
-                }
-            }
-        }
-    }
-}
-#endregion
 
 
 
@@ -4855,5 +3809,1424 @@ function Invoke-PermissionMatrix {
         -ScriptPath $ScriptPath `
         -Mode 'Full'
 }
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixBeginHC.ps1
+-------------------------------------------------------------------------------
+
+
+function Invoke-PermissionMatrixBeginHC {
+    <#
+    .SYNOPSIS
+        BEGIN stage for the Permission Matrix pipeline.
+
+    .DESCRIPTION
+        - Loads and validates the configuration JSON
+        - Validates required top-level properties
+        - Normalizes runtime settings
+        - Builds and returns the execution context
+
+        This function must NOT:
+        - Read Excel files
+        - Query AD
+        - Scan matrix folders
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ConfigurationJsonFile,
+
+        [Parameter(Mandatory)]
+        [hashtable]$ScriptPath,
+
+        [Parameter(Mandatory)]
+        [ref]$SystemErrors
+    )
+
+    try {
+        #region Configuration file existence
+        if (-not (Test-Path -LiteralPath $ConfigurationJsonFile -PathType Leaf)) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Configuration file not found' `
+                -Message "Configuration file '$ConfigurationJsonFile' does not exist." `
+                -Category 'RuntimeSettings' `
+                -SystemErrors $SystemErrors
+
+            return $null
+        }
+        #endregion
+
+        #region Load JSON
+        try {
+            $json = Get-Content `
+                -LiteralPath $ConfigurationJsonFile `
+                -Raw `
+                -Encoding UTF8 |
+            ConvertFrom-Json -Depth 50
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Invalid JSON' `
+                -Message "Failed to parse configuration file '$ConfigurationJsonFile'." `
+                -Description $_ `
+                -Category 'RuntimeSettings' `
+                -SystemErrors $SystemErrors
+
+            return $null
+        }
+        #endregion
+
+        #region Validate configuration
+        Validate-ConfigurationStructureHC `
+            -Json $json `
+            -SystemErrors $SystemErrors
+
+        if ($SystemErrors.Value.Count -gt 0) {
+            return $null
+        }
+        #endregion
+
+        return [pscustomobject]@{
+            Settings      = $json.Settings
+            Matrix        = $json.Matrix
+            Export        = $json.Export
+            ServiceNow    = $json.ServiceNow
+            MaxConcurrent = $json.MaxConcurrent
+            ScriptPath    = $ScriptPath
+            StartTime     = Get-Date
+            Counter       = New-CounterObjectHC
+            ExportedFiles = @{}
+        }
+    }
+    catch {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Category 'Runtime' `
+            -Name 'BEGIN stage failure' `
+            -Message "Unexpected failure in BEGIN stage: $_" `
+            -SystemErrors $SystemErrors
+
+        return $null
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixEndHC.ps1
+-------------------------------------------------------------------------------
+
+function Invoke-PermissionMatrixEndHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Context,
+
+        [Parameter(Mandatory)]
+        [array]$ImportedMatrix,
+
+        [Parameter(Mandatory)]
+        [ref]$SystemErrors
+    )
+
+    try {
+        # ------------------------------------------------------------
+        # Export
+        # ------------------------------------------------------------
+        if ($Context.Export) {
+            $Context.ExportedFiles = Export-FilesHC `
+                -ImportedMatrix $ImportedMatrix `
+                -Context $Context `
+                -SystemErrors $SystemErrors
+        }
+
+        # ------------------------------------------------------------
+        # HTML / Mail / Logging
+        # ------------------------------------------------------------
+        Write-SystemLogsHC `
+            -Context $Context `
+            -ImportedMatrix $ImportedMatrix `
+            -SystemErrors $SystemErrors
+    }
+    catch {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Category 'Runtime' `
+            -Name 'END stage failure' `
+            -Message "Unhandled exception occurred: $_" `
+            -SystemErrors $SystemErrors
+    }
+}
+
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixProcessHC.ps1
+-------------------------------------------------------------------------------
+
+function Invoke-PermissionMatrixProcessHC {
+    <#
+    .SYNOPSIS
+        PROCESS stage for the Permission Matrix pipeline.
+
+    .DESCRIPTION
+        - Discovers matrix Excel files
+        - Loads defaults only when needed
+        - Imports and validates matrix files in parallel
+        - Returns structured execution units and checks
+
+        This function performs NO:
+        - AD queries
+        - Permission execution
+        - Export / logging / mail
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Context,
+
+        [Parameter(Mandatory)]
+        [ref]$SystemErrors
+    )
+
+    try {
+        #region Discover matrix Excel files (serial, cheap)
+        try {
+            $matrixFiles = Get-ChildItem `
+                -Path $Context.Matrix.FolderPath `
+                -Filter '*.xlsx' `
+                -File `
+                -ErrorAction Stop
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Matrix folder access failed' `
+                -Message "Failed to access matrix folder '$($Context.Matrix.FolderPath)'." `
+                -Description $_ `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+
+            return [pscustomobject]@{
+                FoundMatrices = $false
+                Imported      = @()
+            }
+        }
+        #endregion
+
+        #region No files, exit early with success (but no matrices)
+        if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
+            return [pscustomobject]@{
+                FoundMatrices = $false
+                Imported      = @()
+            }
+        }
+        #endregion
+
+        #region Import defaults ONCE (only now)
+        $defaults = Import-MatrixDefaultsHC `
+            -Matrix $Context.Matrix `
+            -SystemErrors $SystemErrors
+
+        if (-not $defaults -or (Test-HasFatalErrorsHC $SystemErrors)) {
+            return [pscustomobject]@{
+                FoundMatrices = $true
+                Imported      = @()
+            }
+        }
+        #endregion
+
+        #region Exclude defaults file itself from matrix list
+        $matrixFiles = $matrixFiles |
+        Where-Object { $_.FullName -ne $defaults.FilePath }
+
+        if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
+            return [pscustomobject]@{
+                FoundMatrices = $true
+                Imported      = @()
+            }
+        }
+        #endregion
+
+        #region Parallel import + validation per matrix file
+        $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
+
+        $parallelResults = Invoke-WithOptionalParallelismHC `
+            -InputObject $matrixFiles `
+            -ThrottleLimit $throttle `
+            -ArgumentList $Context `
+            -ScriptBlock {
+            param($file, $context)
+
+            $modulePath = $context.ScriptPath.PermissionMatrixModule
+            Import-Module $modulePath -Force -ErrorAction Stop
+
+            Import-MatrixFileHC `
+                -MatrixFile $file `
+                -Context $context
+        }
+        #endregion
+
+        #region Merge results on main thread
+        $allMatrices = @()
+
+        foreach ($fileResult in $parallelResults) {
+            # Promote file-level checks to SystemErrors
+            # foreach ($check in $fileResult.File.Check) {
+            #     Add-ErrorHC `
+            #         -Type $check.Type `
+            #         -Name $check.Name `
+            #         -Message $check.Description `
+            #         -Category 'Matrix' `
+            #         -SystemErrors $SystemErrors
+            # }
+
+            # Collect execution matrices
+            if ($fileResult.Matrices) {
+                $allMatrices += $fileResult.Matrices
+            }
+        }
+        #endregion
+
+        #region Archive processed matrix files
+        if ($Context.Matrix.Archive) {
+
+            $archiveRootReady = $false
+            $archivePath = Join-Path `
+                -Path $Context.Matrix.FolderPath `
+                -ChildPath 'Archive'
+
+            try {
+                if (-not (Test-Path -LiteralPath $archivePath -PathType Container)) {
+                    $null = New-Item -ItemType Directory -Path $archivePath -ErrorAction Stop
+                }
+                $archiveRootReady = $true
+            }
+            catch {
+                Add-ErrorHC `
+                    -Type 'Warning' `
+                    -Name 'Archive folder creation failed' `
+                    -Message "Failed to create archive folder '$archivePath'." `
+                    -Description $_ `
+                    -Category 'Matrix' `
+                    -SystemErrors $SystemErrors
+            }
+
+            if ($archiveRootReady) {
+                foreach ($file in $matrixFiles) {
+                    try {
+                        $destination = Join-Path `
+                            -Path $archivePath `
+                            -ChildPath $file.Name
+
+                        Move-Item `
+                            -LiteralPath $file.FullName `
+                            -Destination $destination `
+                            -Force `
+                            -ErrorAction Stop
+                    }
+                    catch {
+                        Add-ErrorHC `
+                            -Type 'Warning' `
+                            -Name 'Archive failed' `
+                            -Message "Failed to archive matrix file '$($file.Name)'." `
+                            -Description $_ `
+                            -Category 'Matrix' `
+                            -SystemErrors $SystemErrors
+                    }
+                }
+            }
+        }
+        #endregion
+
+        return [pscustomobject]@{
+            FoundMatrices = $true
+            Imported      = $allMatrices
+        }
+    }
+    catch {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Category 'Runtime' `
+            -Name 'PROCESS stage failure' `
+            -Message "Unhandled exception occurred: $_" `
+            -SystemErrors $SystemErrors
+
+        return [pscustomobject]@{
+            FoundMatrices = $true
+            Imported      = @()
+        }
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1
+-------------------------------------------------------------------------------
+
+function Invoke-WithOptionalParallelismHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [IEnumerable]$InputObject,
+
+        [Parameter(Mandatory)]
+        [scriptblock]$ScriptBlock,
+
+        [Parameter(Mandatory)]
+        [int]$ThrottleLimit,
+
+        [Parameter()]
+        [object[]]$ArgumentList = @()
+    )
+
+    if ($ThrottleLimit -le 1) {
+        Write-Verbose 'Running sequentially (ThrottleLimit <= 1)'
+
+        foreach ($item in $InputObject) {
+            & $ScriptBlock $item @ArgumentList
+        }
+    }
+    else {
+        Write-Verbose "Running in parallel (ThrottleLimit = $ThrottleLimit)"
+
+        $InputObject | ForEach-Object -Parallel $ScriptBlock `
+            -ThrottleLimit $ThrottleLimit `
+            -ArgumentList $ArgumentList
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Cleanup-OldLogsHC.ps1
+-------------------------------------------------------------------------------
+
+function Cleanup-OldLogsHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$LogFolder,
+        [int]$RetentionDays,
+        [Parameter(Mandatory)] [ref]$SystemErrors
+    )
+
+    # Disabled or folder missing → nothing to do
+    if ($RetentionDays -le 0 -or -not $LogFolder) { return }
+
+    try {
+        if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
+
+        $cutoff = (Get-Date).AddDays(-$RetentionDays)
+
+        # --- 1. Delete old files ---
+        Get-ChildItem -LiteralPath $LogFolder -Recurse -File -ErrorAction Stop |
+        Where-Object { $_.CreationTime -lt $cutoff } |
+        ForEach-Object {
+            try {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+            }
+            catch {
+                Add-ErrorByCategoryHC `
+                    -Type 'Warning' `
+                    -Name 'LogCleanupFailedFile' `
+                    -Message "Failed to delete log file '$($_.FullName)': $_" `
+                    -Category 'Logging' `
+                    -SystemErrors ([ref]$SystemErrors)
+            }
+        }
+
+        # --- 2. Empty folder cleanup (bottom-up) ---
+        Get-ChildItem -LiteralPath $LogFolder -Recurse -Directory -ErrorAction Stop |
+        Sort-Object FullName -Descending |
+        ForEach-Object {
+            if (-not $_.GetFileSystemInfos().Count) {
+                try {
+                    Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+                }
+                catch {
+                    Add-ErrorByCategoryHC `
+                        -Type 'Warning' `
+                        -Name 'LogCleanupFailedDirectory' `
+                        -Message "Failed to remove empty folder '$($_.FullName)': $_" `
+                        -Category 'Logging' `
+                        -SystemErrors ([ref]$SystemErrors)
+                }
+            }
+        }
+    }
+    catch {
+        Add-ErrorByCategoryHC `
+            -Type 'Warning' `
+            -Name 'LogCleanupFailedGeneral' `
+            -Message "General log cleanup failure: $_" `
+            -Category 'Logging' `
+            -SystemErrors ([ref]$SystemErrors)
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Out-LogFileHC.ps1
+-------------------------------------------------------------------------------
+
+function Out-LogFileHC {
+    <#
+        Generic exporter for CSV / JSON / TXT / XLSX log files.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory)] [PSCustomObject[]]$DataToExport,
+        [Parameter(Mandatory)] [String]$PartialPath,
+        [Parameter(Mandatory)] [String[]]$FileExtensions,
+        [hashtable]$ExcelFile = @{
+            SheetName = 'Overview'
+            TableName = 'Overview'
+            CellStyle = $null
+        },
+        [Switch]$Append
+    )
+
+    $allPaths = @()
+
+    foreach ($ext in ($FileExtensions | Sort-Object -Unique)) {
+
+        $logFilePath = "$PartialPath$ext"
+
+        try {
+            switch ($ext) {
+
+                '.csv' {
+                    $DataToExport |
+                    Export-Csv -LiteralPath $logFilePath -Delimiter ';' `
+                        -Append:$Append -NoTypeInformation
+                    break
+                }
+
+                '.json' {
+                    $converted = foreach ($item in $DataToExport) {
+                        foreach ($p in $item.PSObject.Properties) {
+                            if ($p.Value -is [System.Management.Automation.ErrorRecord]) {
+                                $item.$($p.Name) = $p.Value.Exception.Message
+                            }
+                        }
+                        $item
+                    }
+
+                    if ($Append -and (Test-Path $logFilePath)) {
+                        $existing = Get-Content -LiteralPath $logFilePath -Raw | ConvertFrom-Json
+                        $converted = @($converted) + @($existing)
+                    }
+
+                    $converted |
+                    ConvertTo-Json -Depth 7 |
+                    Out-File -LiteralPath $logFilePath -Encoding utf8 -Force
+                    break
+                }
+
+                '.txt' {
+                    $DataToExport |
+                    Format-List * |
+                    Out-File -LiteralPath $logFilePath -Append:$Append
+                    break
+                }
+
+                '.xlsx' {
+                    if (-not $Append -and (Test-Path $logFilePath)) {
+                        Remove-Item -LiteralPath $logFilePath -Force
+                    }
+
+                    $params = @{
+                        Path          = $logFilePath
+                        Append        = $true
+                        AutoNameRange = $true
+                        AutoSize      = $true
+                        FreezeTopRow  = $true
+                        WorksheetName = $ExcelFile.SheetName
+                        TableName     = $ExcelFile.TableName
+                    }
+
+                    if ($ExcelFile.CellStyle) {
+                        $params.CellStyleSB = $ExcelFile.CellStyle
+                    }
+
+                    $DataToExport | Export-Excel @params
+                    break
+                }
+
+                default {
+                    throw "Unsupported file extension '$ext'."
+                }
+            }
+
+            $allPaths += $logFilePath
+        }
+        catch {
+            Write-Warning "Failed to export log '$logFilePath': $_"
+        }
+    }
+
+    return $allPaths
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Remove-FileHC.ps1
+-------------------------------------------------------------------------------
+
+function Remove-FileHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$FilePath,
+        [ref]$SystemErrors
+    )
+
+    try {
+        if (-not (Test-Path -LiteralPath $FilePath -PathType Leaf)) { return }
+        Remove-Item -LiteralPath $FilePath -Force -ErrorAction Stop
+    }
+    catch {
+        if ($SystemErrors) {
+            Add-ErrorByCategoryHC `
+                -Type 'Warning' `
+                -Name 'RemoveFileFailed' `
+                -Message "Failed to remove '$FilePath': $_" `
+                -Category 'Logging' `
+                -SystemErrors ([ref]$SystemErrors)
+        }
+        else {
+            Write-Warning "Failed removing '$FilePath': $_"
+        }
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Write-EventLogSafe.ps1
+-------------------------------------------------------------------------------
+
+function Write-EventLogSafe {
+    <#
+        Safe wrapper to write data into Windows EventLog.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$EventLogData,
+        [Parameter(Mandatory)][string]$ScriptName,
+        [Parameter(Mandatory)][object]$Settings,
+        [Parameter(Mandatory)][ref]$SystemErrors
+    )
+
+    $maxLen = 31000
+
+    try {
+        $logName = Get-StringValueHC $Settings.SaveInEventLog.LogName
+        if (-not ($Settings.SaveInEventLog.Save -and $logName)) { return }
+
+        # Append SystemErrors as individual error entries
+        foreach ($err in $SystemErrors.Value) {
+            $EventLogData.Add(
+                [PSCustomObject]@{
+                    Message   = $err.Message
+                    DateTime  = $err.DateTime
+                    EntryType = 'Error'
+                    EventID   = '2'
+                }
+            )
+        }
+
+        # Add “script ended”
+        $EventLogData.Add(
+            [PSCustomObject]@{
+                Message   = 'Script ended'
+                DateTime  = Get-Date
+                EntryType = 'Information'
+                EventID   = '199'
+            }
+        )
+
+        # Truncate too-long messages
+        foreach ($item in $EventLogData) {
+            if ($item.Message.Length -gt $maxLen) {
+                $item.Message =
+                $item.Message.Substring(0, $maxLen) +
+                '... [TRUNCATED DUE TO EVENT LOG SIZE LIMITS]'
+            }
+        }
+
+        Write-EventsToEventLogHC `
+            -Source $ScriptName `
+            -LogName $logName `
+            -Events $EventLogData
+    }
+    catch {
+        Add-ErrorByCategoryHC `
+            -Type 'Warning' `
+            -Name 'EventLogWriteFailed' `
+            -Message "Failed writing to event log: $_" `
+            -Category 'Logging' `
+            -SystemErrors ([ref]$SystemErrors)
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Write-EventsToEventLogHC.ps1
+-------------------------------------------------------------------------------
+
+function Write-EventsToEventLogHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][String]$Source,
+        [Parameter(Mandatory)][String]$LogName,
+        [PSCustomObject[]]$Events
+    )
+
+    try {
+        if (-not [System.Diagnostics.EventLog]::SourceExists($Source)) {
+            New-EventLog -LogName $LogName -Source $Source -EA Stop
+        }
+
+        foreach ($eventItem in $Events) {
+
+            $params = @{
+                LogName     = $LogName
+                Source      = $Source
+                EntryType   = $eventItem.EntryType
+                EventID     = $eventItem.EventID
+                Message     = ''
+                ErrorAction = 'Stop'
+            }
+
+            if (-not $params.EntryType) { $params.EntryType = 'Information' }
+            if (-not $params.EventID) { $params.EventID = 4 }
+
+            foreach ($prop in $eventItem.PSObject.Properties |
+                Where-Object { $_.Name -notin 'EntryType', 'EventID' }) {
+
+                $params.Message += "`n- $($prop.Name): $($prop.Value)"
+            }
+
+            Write-EventLog @params
+        }
+    }
+    catch {
+        throw "Failed writing events to Windows Event Log: $_"
+    }
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Logging\Write-SystemErrorLogHC.ps1
+-------------------------------------------------------------------------------
+
+function Write-SystemErrorLogHC {
+    <#
+        Creates JSON log file of system errors and attaches to email params.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$SystemErrors,
+        [Parameter(Mandatory)][string]$LogFolder,
+        [Parameter(Mandatory)][ref]$MailParams,
+        [datetime]$ScriptStartTime = (Get-Date),
+        [object]$JsonFileItem = @{ BaseName = 'MatrixConfig' }
+    )
+
+    if ($SystemErrors.Count -eq 0) { return }
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
+
+    $datedFolder = Get-DatedLogFolderPathHC `
+        -LogFolder $LogFolder `
+        -ScriptStartTime $ScriptStartTime `
+        -JsonFileItem $JsonFileItem
+
+    $partial = Join-Path $datedFolder 'SystemErrors'
+
+    $attachments = Out-LogFileHC `
+        -DataToExport $SystemErrors `
+        -PartialPath $partial `
+        -FileExtensions '.json' `
+        -ErrorAction Ignore
+
+    if ($attachments) {
+        if (-not $MailParams.Value.ContainsKey('Attachments')) {
+            $MailParams.Value['Attachments'] = @()
+        }
+        $MailParams.Value['Attachments'] += $attachments
+    }
+}
+
+
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Matrix\Import-MatrixDefaultsFile.ps1
+-------------------------------------------------------------------------------
+
+function Import-MatrixDefaultsHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [pscustomobject]$Matrix,
+
+        [Parameter(Mandatory)]
+        [ref]$SystemErrors
+    )
+
+    try {
+        # ------------------------------------------------------------
+        # Locate defaults file
+        # ------------------------------------------------------------
+        try {
+            $defaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -ErrorAction Stop
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Defaults file not found' `
+                -Message "Defaults file '$($Matrix.DefaultsFile)' not found." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            return $null
+        }
+
+        # ------------------------------------------------------------
+        # Import Settings worksheet
+        # ------------------------------------------------------------
+        try {
+            Write-Verbose "Import matrix defaults file '$($defaultsItem.FullName)'"
+
+            $defaultsImport = Import-Excel `
+                -Path $defaultsItem.FullName `
+                -Sheet 'Settings' `
+                -DataOnly `
+                -ErrorAction Stop
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Defaults worksheet missing' `
+                -Message "Worksheet 'Settings' not found in defaults file." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            return $null
+        }
+
+        # ------------------------------------------------------------
+        # Validate mandatory columns
+        # ------------------------------------------------------------
+        $columns = $defaultsImport[0].PSObject.Properties.Name
+        foreach ($required in 'MailTo', 'ADObjectName', 'Permission') {
+            if ($required -notin $columns) {
+                Add-ErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'Invalid defaults format' `
+                    -Message "Mandatory column '$required' not found in defaults file." `
+                    -Category 'Matrix' `
+                    -SystemErrors $SystemErrors
+                return $null
+            }
+        }
+
+        # ------------------------------------------------------------
+        # Extract default ACL
+        # ------------------------------------------------------------
+        $defaultAcl = Get-DefaultAclHC -Sheet $defaultsImport
+
+        # ------------------------------------------------------------
+        # Extract MailTo
+        # ------------------------------------------------------------
+        $mailTo = [System.Collections.Generic.List[string]]::new()
+        foreach ($row in $defaultsImport) {
+            if (-not [string]::IsNullOrWhiteSpace($row.MailTo)) {
+                $mailTo.Add($row.MailTo.ToString().Trim())
+            }
+        }
+
+        if ($mailTo.Count -eq 0) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'No MailTo addresses' `
+                -Message 'No valid mail addresses found in defaults file.' `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            return $null
+        }
+
+        # ------------------------------------------------------------
+        # Return defaults object
+        # ------------------------------------------------------------
+        return [pscustomobject]@{
+            FilePath   = $defaultsItem.FullName
+            DefaultAcl = $defaultAcl
+            MailTo     = $mailTo
+        }
+    }
+    catch {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Name 'Defaults import failed' `
+            -Message $_ `
+            -Category 'Matrix' `
+            -SystemErrors $SystemErrors
+        return $null
+    }
+}
+
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Matrix\Import-MatrixFileHC.ps1
+-------------------------------------------------------------------------------
+
+function Import-MatrixFileHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$MatrixFile,
+
+        [Parameter(Mandatory)]
+        [pscustomobject]$Context
+    )
+
+    $fileResult = [pscustomobject]@{
+        File     = @{
+            Name  = $MatrixFile.Name
+            Path  = $MatrixFile.FullName
+            Check = [System.Collections.Generic.List[pscustomobject]]::new()
+        }
+        Sheets   = @{
+            Permissions = @{
+                Raw       = $null
+                Formatted = $null
+            }
+            Settings    = @{
+                Raw       = $null
+                Formatted = $null
+            }
+            FormData    = @{
+                Raw       = $null
+                Formatted = $null
+            }
+        }
+        Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
+    }
+
+    try {
+        #region Import Settings sheet
+        $settingsSheet = @(
+            Import-Excel `
+                -Path $MatrixFile.FullName `
+                -Sheet 'Settings' `
+                -DataOnly `
+                -ErrorAction Stop
+        )
+        $fileResult.Sheets.Settings.Raw = $settingsSheet
+
+        $enabledSettings = $settingsSheet.Where({ $_.Status -eq 'Enabled' })
+
+        if (-not $enabledSettings) {
+            $fileResult.File.Check.Add(
+                [pscustomobject]@{
+                    Type        = 'Warning'
+                    Name        = 'Matrix disabled'
+                    Description = 'Every Excel file needs at least one enabled matrix.'
+                    Value       = 'No rows with Status = Enabled'
+                }
+            )
+
+            return $fileResult
+        }
+        #endregion
+
+        #region Import Permissions sheet ONCE
+        $permissionsSheet = Import-Excel `
+            -Path $MatrixFile.FullName `
+            -Sheet 'Permissions' `
+            -NoHeader `
+            -DataOnly `
+            -ErrorAction Stop
+
+        $fileResult.Sheets.Permissions.Raw = $permissionsSheet 
+            
+        $formattedPermissionsSheet = Format-PermissionsStringsHC `
+            -Permissions $fileResult.Sheets.Permissions.Raw
+
+        $fileResult.Sheets.Permissions.Formatted = $formattedPermissionsSheet
+        #endregion
+
+        #region Import optional FormData
+        $formData = $null
+        if ($Context.Export.ServiceNowFormDataExcelFile -or
+            $Context.Export.OverviewHtmlFile) {
+
+            try {
+                $formDataImport = Import-Excel `
+                    -Path $MatrixFile.FullName `
+                    -Sheet 'FormData' `
+                    -DataOnly `
+                    -ErrorAction Stop
+
+                $formDataCheck = Test-FormDataHC $formDataImport
+
+                if ($formDataCheck) {
+                    $fileResult.File.Check.Add($formDataCheck)
+                }
+                else {
+                    $formData = $formDataImport[0]
+                }
+            }
+            catch {
+                $fileResult.File.Check.Add(
+                    [pscustomobject]@{
+                        Type        = 'FatalError'
+                        Name        = "Worksheet 'FormData' not found"
+                        Description = "Worksheet 'FormData' is required when ServiceNow export is enabled."
+                        Value       = $_
+                    }
+                )
+            }
+        }
+        #endregion
+
+        #region Create ONE matrix per enabled Settings row
+        foreach ($enabledSetting in $enabledSettings) {
+            $matrix = [pscustomobject]@{
+                ID             = $null
+                EnabledSetting = @{
+                    Raw       = $enabledSetting
+                    Formatted = Format-SettingStringsHC `
+                        -Settings $enabledSetting
+                }
+                Check          = [System.Collections.Generic.List[pscustomobject]]::new()
+                Matrix         = [System.Collections.Generic.List[pscustomobject]]::new()
+                AdObjects      = @{}
+                JobTime        = @{}
+                # Reference back to file-level data
+                FileContext    = $fileResult
+            }
+          
+            # Optional: validate settings row here
+            # Add to $matrix.Check if needed
+
+            $fileResult.Matrices.Add($matrix)
+        }
+        #endregion
+    }
+    catch {
+        $fileResult.File.Check.Add(
+            [pscustomobject]@{
+                Type        = 'FatalError'
+                Name        = 'Excel file incorrect'
+                Description = "The worksheets 'Settings' and 'Permissions' are mandatory."
+                Value       = $_
+            }
+        )
+    }
+
+    return $fileResult
+}
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Orchestrator\Invoke-PermissionMatrixInternalHC.ps1
+-------------------------------------------------------------------------------
+
+function Invoke-PermissionMatrixInternalHC {
+    <#
+    .SYNOPSIS
+        Internal orchestrator for the Permission Matrix pipeline.
+
+    .DESCRIPTION
+        Executes the Permission Matrix pipeline in a controlled manner.
+
+        Rules:
+        - BEGIN may block PROCESS but must not suppress END
+        - END runs only if there is something to report:
+            * errors exist OR
+            * matrix files were found
+        - Idle polling runs are silent
+        - PROCESS may run in parallel
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ConfigurationJsonFile,
+
+        [Parameter(Mandatory)]
+        [hashtable]$ScriptPath
+    )
+
+    # ---------------------------------------------------------------------
+    # 0. Shared state
+    # ---------------------------------------------------------------------
+    $systemErrors = [System.Collections.Generic.List[object]]::new()
+    $context = $null
+    $importedMatrix = @()
+
+    $canProcess = $true
+    $foundMatrices = $false
+    $mustReport = $false
+
+    $result = [ordered]@{
+        Success = $false
+        Mode    = $Mode
+        Files   = @{}
+        Errors  = $systemErrors
+    }
+
+    try {
+        # ================================================================
+        # 1. BEGIN STAGE
+        # ================================================================
+        $context = Invoke-PermissionMatrixBeginHC `
+            -ConfigurationJsonFile $ConfigurationJsonFile `
+            -ScriptPath $ScriptPath `
+            -SystemErrors ([ref]$systemErrors)
+        
+        if ($systemErrors.Count -gt 0) {
+            $canProcess = $false
+            $mustReport = $true
+        }
+
+        # ================================================================
+        # 2. PROCESS STAGE
+        # ================================================================
+        if ($canProcess) {
+            $processResult = Invoke-PermissionMatrixProcessHC `
+                -Context $context `
+                -SystemErrors ([ref]$systemErrors)
+
+            if ($processResult) {
+                $foundMatrices = $processResult.FoundMatrices
+                $importedMatrix = $processResult.Imported
+            }
+
+            if ($foundMatrices) {
+                $mustReport = $true
+            }
+
+            if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
+                $canProcess = $false
+                $mustReport = $true
+            }
+        }
+
+        # ================================================================
+        # 3. EXPORT-ONLY MODE (conditional)
+        # ================================================================
+        if ($canProcess -and $foundMatrices) {
+
+            $exportWanted =
+            $context.Export.PermissionsExcelFile -or
+            $context.Export.ServiceNowFormDataExcelFile -or
+            $context.Export.OverviewHtmlFile
+
+            if ($exportWanted) {
+                $result.Files = Export-FilesHC `
+                    -ImportedMatrix $importedMatrix `
+                    -ExportSettings $context.Export `
+                    -HtmlOverview $null `
+                    -Counters $context.Counter
+            }
+        }
+    }
+    catch {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Name 'Unhandled orchestrator failure' `
+            -Message "Invoke-PermissionMatrixInternalHC failed: $_" `
+            -Category 'Runtime' `
+            -SystemErrors ([ref]$systemErrors)
+
+        $mustReport = $true
+    }
+    finally {
+        # ================================================================
+        # 4. END STAGE (conditional but guaranteed for errors)
+        # ================================================================
+        if ($mustReport) {
+            try {
+                Invoke-PermissionMatrixEndHC `
+                    -Context $context `
+                    -ImportedMatrix $importedMatrix `
+                    -SystemErrors ([ref]$systemErrors)
+            }
+            catch {
+                Add-ErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'END stage failure' `
+                    -Message $_ `
+                    -Category 'Runtime' `
+                    -SystemErrors ([ref]$systemErrors)
+            }
+        }
+
+        # ================================================================
+        # 5. FINAL RESULT
+        # ================================================================
+        if ($context -and $context.ExportedFiles) {
+            $result.Files = $context.ExportedFiles
+        }
+
+        $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
+        $result
+    }
+}
+
+function Invoke-PermissionMatrix {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ConfigurationJsonFile,
+        [Parameter(Mandatory)][hashtable]$ScriptPath
+    )
+
+    Invoke-PermissionMatrixInternalHC `
+        -ConfigurationJsonFile $ConfigurationJsonFile `
+        -ScriptPath $ScriptPath
+}
+
+
+
+
+-------------------------------------------------------------------------------
+FILE: Modules\PermissionMatrix\Private\Validation\Validate-ConfigurationStructureHC.ps1
+-------------------------------------------------------------------------------
+
+function Validate-ConfigurationStructureHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Json,
+        [Parameter(Mandatory)][ref]   $SystemErrors
+    )
+
+    #region Top-Level properties
+    foreach ($prop in @(
+            'Matrix', 'Export', 'ServiceNow', 'MaxConcurrent', 'PSSessionConfiguration', 'Settings'
+        )) {
+        if ($null -eq $Json.$prop) {
+            Add-JsonSchemaErrorHC `
+                -Type 'FatalError' `
+                -Name "Missing '$prop'" `
+                -Message "Property '$prop' not found in JSON." `
+                -SystemErrors $SystemErrors
+        }
+    }
+    #endregion
+
+    #region Settings
+    if ($Json.Settings) {
+        #region SaveInEventLog
+        if ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($Json.Settings.SaveInEventLog.Save -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Settings.SaveInEventLog.Save'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
+
+        #region SaveLogFiles
+        if (-not $Json.Settings.SaveLogFiles.Where.Folder) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.SaveLogFiles.Where.Folder'" `
+                -Message 'Folder is required.' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($null -eq $Json.Settings.SaveLogFiles.Detailed) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.SaveLogFiles.Detailed'" `
+                -Message 'Detailed is required.' `
+                -SystemErrors $SystemErrors
+        }
+        elseif ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
+
+        #region SendMail
+        if ( $Json.Settings.SendMail) {
+            if (-not $Json.Settings.SendMail.From) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Missing 'Settings.SendMail.From'" `
+                    -Message 'From is required.' `
+                    -SystemErrors $SystemErrors
+            }
+            if ($Json.Settings.SendMail.To -and
+                ($Json.Settings.SendMail.To -isnot [string] -and
+                $Json.Settings.SendMail.To -isnot [array])) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Incorrect 'Settings.SendMail.To'" `
+                    -Message 'Must be string or array.' `
+                    -SystemErrors $SystemErrors
+            }
+            if ($null -eq $Json.Settings.SendMail.Body) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Missing 'Settings.SendMail.Body'" `
+                    -Message 'Body is required.' `
+                    -SystemErrors $SystemErrors
+            }
+            if (-not $Json.Settings.SendMail.Smtp.Port -or $Json.Settings.SendMail.Smtp.Port -notmatch '^\d+$') {
+                Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'SendMail.Smtp.Port'" `
+                    -Message 'Port must be numeric.' `
+                    -SystemErrors $SystemErrors
+            }
+
+            $validConn = @('None', 'Auto', 'SslOnConnect', 'StartTls', 'StartTlsWhenAvailable')
+            if ($Json.Settings.SendMail.Smtp.ConnectionType -notin $validConn) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Settings.SendMail.Smtp.ConnectionType'" `
+                    -Message 'Invalid connection type.' `
+                    -SystemErrors $SystemErrors
+            }
+        }
+        else {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.SendMail'" `
+                -Message 'SendMail block is mandatory.' `
+                -SystemErrors $SystemErrors
+            
+        }
+        #endregion
+
+        if (-not $json.Settings.ScriptName) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Settings.ScriptName'" `
+                -Message 'ScriptName is required.' `
+                -SystemErrors $SystemErrors
+        }
+    }
+    #endregion
+
+    #region Matrix
+    if ($Json.Matrix) {
+        if (-not $Json.Matrix.FolderPath) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Matrix.FolderPath'" `
+                -Message 'FolderPath is required.' `
+                -SystemErrors $SystemErrors
+        }
+        elseif (-not (Test-Path -LiteralPath $Json.Matrix.FolderPath -PathType Leaf)) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.FolderPath'" `
+                -Message "FolderPath '$($Matrix.FolderPath)' not found" `
+                -SystemErrors $SystemErrors
+        }
+
+        if (-not $Json.Matrix.DefaultsFile) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Missing 'Matrix.DefaultsFile'" `
+                -Message 'DefaultsFile is required.' `
+                -SystemErrors $SystemErrors
+        }
+        elseif (-not (Test-Path -LiteralPath $Json.Matrix.DefaultsFile -PathType Leaf)) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.DefaultsFile'" `
+                -Message "DefaultsFile '$($Matrix.DefaultsFile)' not found" `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($Json.Matrix.ExcludedSamAccountName -and
+            $Json.Matrix.ExcludedSamAccountName -isnot [array]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.ExcludedSamAccountName'" `
+                -Message 'Must be an array.' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($null -eq $Json.Matrix.Archive -or $Json.Matrix.Archive -isnot [bool]) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'Matrix.Archive'" `
+                -Message 'Must be boolean.' `
+                -SystemErrors $SystemErrors
+        }
+    } 
+    #endregion
+
+    #region MaxConcurrent
+    if ($Json.MaxConcurrent) {
+        foreach ($prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
+            $val = $Json.MaxConcurrent.$prop
+            if ($null -eq $val -or $val -notmatch '^\d+$') {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Incorrect 'MaxConcurrent.$prop'" `
+                    -Message "$prop must be numeric." `
+                    -SystemErrors $SystemErrors
+            }
+        }
+    }
+    #endregion
+
+    #region Export
+    if ($Json.Export) {
+        if ($Json.Export.PermissionsExcelFile -and $Json.Export.PermissionsExcelFile -notmatch '\.xlsx$') {
+            Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Export.PermissionsExcelFile'" `
+                -Message 'Must end with .xlsx' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($Json.Export.OverviewHtmlFile -and $Json.Export.OverviewHtmlFile -notmatch '\.html?$') {
+            Add-JsonSchemaErrorHC -Type 'FatalError' -Name "Incorrect 'Export.OverviewHtmlFile'" `
+                -Message 'Must end with .html' `
+                -SystemErrors $SystemErrors
+        }
+
+        if ($Json.Export.ServiceNowFormDataExcelFile) {
+
+            if ($Json.Export.ServiceNowFormDataExcelFile -notmatch '\.xlsx$') {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Incorrect 'Export.ServiceNowFormDataExcelFile'" `
+                    -Message 'Must end with .xlsx' `
+                    -SystemErrors $SystemErrors
+            }
+
+            if (-not $ServiceNow) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name 'Incorrect configuration' `
+                    -Message 'ServiceNow must be defined when using ServiceNowFormDataExcelFile.' `
+                    -SystemErrors $SystemErrors
+            }
+            else {
+                foreach ($p in 'CredentialsFilePath', 'TableName', 'Environment') {
+                    if (-not $ServiceNow.$p) {
+                        Add-JsonSchemaErrorHC -Type 'FatalError' `
+                            -Name "Missing 'ServiceNow.$p'" `
+                            -Message "$p is required." `
+                            -SystemErrors $SystemErrors
+                    }
+                }
+            }
+        }
+    }
+    #endregion
+}
+
+
 
 

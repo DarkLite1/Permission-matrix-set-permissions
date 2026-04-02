@@ -25,30 +25,29 @@ function Convert-ToNativePath {
         $Separator = [System.IO.Path]::DirectorySeparatorChar
     }
     process {
-        $returnPath = $Path.Replace('\', $Separator).Replace('/', $Separator)
-
-        if (Test-Path $returnPath) {
-            $returnPath = (Get-Item $returnPath -Force).FullName
-            $returnPath
-        }
+        $Path.Replace('\', $Separator).Replace('/', $Separator)
     }
 }
 
 # 1. Resolve Output file to a full absolute path
-$OutputFilePath = Join-Path -Path $SourceFolderPath -ChildPath $OutputFile | Convert-ToNativePath
+$OutputFilePath = Join-Path -Path $SourceFolderPath -ChildPath $OutputFile
 
 # 2. Transform the relative ignore lists into full native paths
-$ignoredFolders = $Ignored.Folders | ForEach-Object { 
-    Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
-}
+$ignoredFolders = @(
+    $Ignored.Folders | ForEach-Object { 
+        Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
+    }
+)
 
-$ignoredFiles = $Ignored.Files | ForEach-Object { 
-    Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
-}
+$ignoredFiles = @(
+    $Ignored.Files | ForEach-Object { 
+        Join-Path -Path $SourceFolderPath -ChildPath $_ | Convert-ToNativePath 
+    }
+)
 
 # 3. Dynamically add the script itself and the output file to the ignore list
-$ignoredFiles += ($PSCommandPath | Convert-ToNativePath)
-$ignoredFiles += $OutputFilePath
+$ignoredFiles += $PSCommandPath | Convert-ToNativePath
+$ignoredFiles += $OutputFilePath | Convert-ToNativePath 
 
 # Initialize or clear the output file
 New-Item -ItemType File -Path $OutputFilePath -Force | Out-Null
@@ -98,7 +97,7 @@ FILE: $relativePath
 $fileContent
 "@
             # Append the formatted content and a trailing newline
-            ($fileContentToAdd, "`n") | Add-Content -Path $OutputFilePath
+            ($fileContentToAdd, "`n") | Add-Content -Path $OutputFilePath -Force
         }
     }
 }
