@@ -86,22 +86,20 @@ function Invoke-PermissionMatrixProcessHC {
         #region Parallel import + validation per matrix file
         $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
 
-        $parallelResults = $matrixFiles | Sort-Object Name |
-        ForEach-Object -Parallel {
+        $parallelResults = Invoke-WithOptionalParallelismHC `
+            -InputObject $matrixFiles `
+            -ThrottleLimit $throttle `
+            -ArgumentList $Context `
+            -ScriptBlock {
             param($file, $context)
 
-            #region Import module
-            Import-Module `
-                -FullyQualifiedName $context.ScriptPath.PermissionMatrixModule `
-                -Force `
-                -ErrorAction Stop
-            #endregion
+            $modulePath = $context.ScriptPath.PermissionMatrixModule
+            Import-Module $modulePath -Force -ErrorAction Stop
 
             Import-MatrixFileHC `
                 -MatrixFile $file `
                 -Context $context
-
-        } -ThrottleLimit $throttle -ArgumentList $Context
+        }
         #endregion
 
         #region Merge results on main thread
