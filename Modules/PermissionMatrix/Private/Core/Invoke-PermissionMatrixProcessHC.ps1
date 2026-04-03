@@ -2,19 +2,10 @@ function Invoke-PermissionMatrixProcessHC {
     <#
     .SYNOPSIS
         PROCESS stage for the Permission Matrix pipeline.
-
     .DESCRIPTION
-        - Discovers matrix Excel files
-        - Loads defaults only when needed
-        - Imports and validates matrix files in parallel
-        - Returns structured execution units and checks
-
-        This function performs NO:
-        - AD queries
-        - Permission execution
-        - Export / logging / mail
+        1. Parallel (Grouped by Computer): Run 'Test requirements.ps1'
+        2. Parallel (Grouped by Computer): Run 'Set permissions.ps1' on servers without FatalErrors.
     #>
-
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -25,171 +16,151 @@ function Invoke-PermissionMatrixProcessHC {
     )
 
     try {
-        #region Discover matrix Excel files (serial, cheap)
-        try {
-            $matrixFiles = Get-ChildItem `
-                -Path $Context.Matrix.FolderPath `
-                -Filter '*.xlsx' `
-                -File `
-                -ErrorAction Stop
+        if (-not $Context.Matrices -or $Context.Matrices.Count -eq 0) {
+            return $Context
         }
-        catch {
-            Add-ErrorHC `
-                -Type 'FatalError' `
-                -Name 'Matrix folder access failed' `
-                -Message "Failed to access matrix folder '$($Context.Matrix.FolderPath)'." `
-                -Description $_ `
-                -Category 'Matrix' `
-                -SystemErrors $SystemErrors
 
-            return [pscustomobject]@{
-                FoundMatrices = $false
-                Imported      = @()
+        # Retrieve all specific Settings blocks across all matrices that don't have a FatalError yet
+        # (Assuming Get-ExecutableMatrixHC essentially does this filtering)
+        $executableSettings = @()
+        foreach ($matrix in $Context.Matrices) {
+            if ($matrix.Check.Type -notcontains 'FatalError') {
+                $executableSettings += @($matrix.Settings | Where-Object { $_.Check.Type -notcontains 'FatalError' })
             }
         }
-        #endregion
 
-        #region No files, exit early with success (but no matrices)
-        if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
-            return [pscustomobject]@{
-                FoundMatrices = $false
-                Imported      = @()
+        if ($executableSettings.Count -eq 0) {
+            Write-Verbose 'No executable matrices found after initial validation.'
+            return $Context
+        }
+
+        $throttleComputers = $Context.MaxConcurrent.Computers ?? 10
+        $psSessionConfig = $Context.Settings.PSSessionConfiguration ?? 'PowerShell.7'
+
+        # =====================================================================
+        # 1. PARALLEL: Test Requirements
+        # =====================================================================
+        $matrixGroups = $executableSettings | Group-Object -Property { $_.Import.ComputerName }
+        
+        # DTO FLATTENING: Protects deep properties from runspace truncation 
+        $safeReqGroups = foreach ($group in $matrixGroups) {
+            [PSCustomObject]@{
+                ComputerName = $group.Name
+                PathsToCheck = @($group.Group.Import.Path)
             }
         }
-        #endregion
 
-        #region Import defaults ONCE (only now)
-        $defaults = Import-MatrixDefaultsHC `
-            -Matrix $Context.Matrix `
-            -SystemErrors $SystemErrors
-
-        if (-not $defaults -or (Test-HasFatalErrorsHC $SystemErrors)) {
-            return [pscustomobject]@{
-                FoundMatrices = $true
-                Imported      = @()
-            }
-        }
-        #endregion
-
-        #region Exclude defaults file itself from matrix list
-        $matrixFiles = $matrixFiles |
-        Where-Object { $_.FullName -ne $defaults.FilePath }
-
-        if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
-            return [pscustomobject]@{
-                FoundMatrices = $true
-                Imported      = @()
-            }
-        }
-        #endregion
-
-        #region Parallel import + validation per matrix file
-        $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
-
-        $parallelResults = Invoke-WithOptionalParallelismHC `
-            -InputObject $matrixFiles `
-            -ThrottleLimit $throttle `
-            -ArgumentList $Context `
-            -ScriptBlock {
-            param($file, $context)
-
-            $modulePath = $context.ScriptPath.PermissionMatrixModule
-            Import-Module $modulePath -Force -ErrorAction Stop
-
-            Import-MatrixFileHC `
-                -MatrixFile $file `
-                -Context $context
-        }
-        #endregion
-
-        #region Merge results on main thread
-        $allMatrices = @()
-
-        foreach ($fileResult in $parallelResults) {
-            # Promote file-level checks to SystemErrors
-            # foreach ($check in $fileResult.File.Check) {
-            #     Add-ErrorHC `
-            #         -Type $check.Type `
-            #         -Name $check.Name `
-            #         -Message $check.Description `
-            #         -Category 'Matrix' `
-            #         -SystemErrors $SystemErrors
-            # }
-
-            # Collect execution matrices
-            if ($fileResult.Matrices) {
-                $allMatrices += $fileResult.Matrices
-            }
-        }
-        #endregion
-
-        #region Archive processed matrix files
-        if ($Context.Matrix.Archive) {
-
-            $archiveRootReady = $false
-            $archivePath = Join-Path `
-                -Path $Context.Matrix.FolderPath `
-                -ChildPath 'Archive'
-
+        $reqResults = Invoke-WithOptionalParallelismHC -InputObject $safeReqGroups -ThrottleLimit $throttleComputers -ArgumentList $Context.ScriptPath, $psSessionConfig -ScriptBlock {
+            param($dto, $scriptPaths, $sessionConfig)
             try {
-                if (-not (Test-Path -LiteralPath $archivePath -PathType Container)) {
-                    $null = New-Item -ItemType Directory -Path $archivePath -ErrorAction Stop
-                }
-                $archiveRootReady = $true
+                $result = Invoke-Command -FilePath $scriptPaths.TestRequirementsFile `
+                    -ArgumentList $dto.PathsToCheck, $true `
+                    -ConfigurationName $sessionConfig `
+                    -ComputerName $dto.ComputerName `
+                    -ErrorAction Stop
+                
+                return [PSCustomObject]@{ ComputerName = $dto.ComputerName; Result = $result }
             }
             catch {
-                Add-ErrorHC `
-                    -Type 'Warning' `
-                    -Name 'Archive folder creation failed' `
-                    -Message "Failed to create archive folder '$archivePath'." `
-                    -Description $_ `
-                    -Category 'Matrix' `
-                    -SystemErrors $SystemErrors
+                $errObj = [PSCustomObject]@{ Type = 'FatalError'; Name = 'Computer requirements'; Description = 'Failed checking computer requirements.'; Value = $_ } 
+                return [PSCustomObject]@{ ComputerName = $dto.ComputerName; Result = $errObj }
             }
+        }
 
-            if ($archiveRootReady) {
-                foreach ($file in $matrixFiles) {
-                    try {
-                        $destination = Join-Path `
-                            -Path $archivePath `
-                            -ChildPath $file.Name
-
-                        Move-Item `
-                            -LiteralPath $file.FullName `
-                            -Destination $destination `
-                            -Force `
-                            -ErrorAction Stop
-                    }
-                    catch {
-                        Add-ErrorHC `
-                            -Type 'Warning' `
-                            -Name 'Archive failed' `
-                            -Message "Failed to archive matrix file '$($file.Name)'." `
-                            -Description $_ `
-                            -Category 'Matrix' `
-                            -SystemErrors $SystemErrors
-                    }
+        # Main Thread Application: Add results back to the live objects
+        foreach ($output in $reqResults) {
+            if ($output.Result) {
+                $targetSettings = $executableSettings.Where({ $_.Import.ComputerName -eq $output.ComputerName })
+                foreach ($setting in $targetSettings) {
+                    $setting.Check += $output.Result | ConvertTo-StructuredObjectHC 
                 }
             }
         }
-        #endregion
 
-        return [pscustomobject]@{
-            FoundMatrices = $true
-            Imported      = $allMatrices
+        # =====================================================================
+        # 2. PARALLEL: Set Permissions
+        # =====================================================================
+        
+        # Re-filter matrices since some might have failed 'Test requirements.ps1'
+        $validSettings = $executableSettings.Where({ $_.Check.Type -notcontains 'FatalError' })
+
+        if ($validSettings.Count -eq 0) { return $Context }
+
+        # Add default permissions just before execution
+        if ($Context.Defaults.DefaultAcl.Count -gt 0) {
+            foreach ($acl in $validSettings.Matrix.ACL.Where({ $_.Count -gt 0 })) {
+                $Context.Defaults.DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).ForEach({ $acl.Add($_.Key, $_.Value) }) 
+            }
         }
+
+        $compGroupsForPerms = $validSettings | Group-Object -Property { $_.Import.ComputerName }
+
+        # DTO FLATTENING: Build a shallow array and wrap the deep Matrix array in JSON 
+        $safePermGroups = foreach ($group in $compGroupsForPerms) {
+            [PSCustomObject]@{
+                ComputerName = $group.Name
+                Matrices     = @(
+                    foreach ($S in $group.Group) {
+                        [PSCustomObject]@{
+                            ID           = $S.ID
+                            ComputerName = $S.Import.ComputerName
+                            Path         = $S.Import.Path
+                            Action       = $S.Import.Action
+                            MatrixJson   = ($S.Matrix | ConvertTo-Json -Depth 10 -Compress)
+                        }
+                    }
+                )
+            }
+        }
+
+        # Run parallel across computers. We process jobs per computer sequentially inside the runspace
+        # to avoid WinRM connection exhaustion/overloads on a single target.
+        $permResults = Invoke-WithOptionalParallelismHC -InputObject $safePermGroups -ThrottleLimit $throttleComputers -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.MaxConcurrent, $Context.Settings.SaveLogFiles.Detailed -ScriptBlock {
+            param($compDto, $scriptPaths, $sessionConfig, $maxConc, $detailedLog)
+
+            $innerResults = @()
+            
+            foreach ($job in $compDto.Matrices) {
+                $startTime = Get-Date
+                try {
+                    $restoredMatrix = if (-not [string]::IsNullOrWhiteSpace($job.MatrixJson)) { @($job.MatrixJson | ConvertFrom-Json) } else { @() } 
+                    
+                    $res = Invoke-Command -FilePath $scriptPaths.SetPermissionFile `
+                        -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
+                        -ConfigurationName $sessionConfig `
+                        -ComputerName $job.ComputerName `
+                        -ErrorAction Stop
+                    
+                    $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $res; Start = $startTime; End = (Get-Date) }
+                }
+                catch {
+                    $errObj = [PSCustomObject]@{ Type = 'FatalError'; Name = 'Set permissions'; Description = 'Failed applying action.'; Value = $_ }
+                    $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $errObj; Start = $startTime; End = (Get-Date) }
+                }
+            }
+            return $innerResults
+        }
+
+        # Main Thread Application: Add Job Times and Results back to Live Objects
+        foreach ($resArray in $permResults) {
+            foreach ($res in $resArray) {
+                $liveSetting = $validSettings.Where({ $_.ID -eq $res.ID }) 
+                if ($liveSetting) {
+                    if ($res.Result) {
+                        $liveSetting.Check += $res.Result | ConvertTo-StructuredObjectHC 
+                    }
+                    $liveSetting.JobTime.Start = $res.Start
+                    $liveSetting.JobTime.End = $res.End
+                    $liveSetting.JobTime.Duration = New-TimeSpan -Start $res.Start -End $res.End 
+                }
+            }
+        }
+
+        return $Context
+
     }
     catch {
-        Add-ErrorHC `
-            -Type 'FatalError' `
-            -Category 'Runtime' `
-            -Name 'PROCESS stage failure' `
-            -Message "Unhandled exception occurred: $_" `
-            -SystemErrors $SystemErrors
-
-        return [pscustomobject]@{
-            FoundMatrices = $true
-            Imported      = @()
-        }
+        Add-ErrorHC -Type 'FatalError' -Category 'Runtime' -Name 'PROCESS stage failure' -Message "Unhandled exception occurred: $_" -SystemErrors $SystemErrors 
+        return $Context
     }
 }

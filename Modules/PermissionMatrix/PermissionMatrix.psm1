@@ -24,6 +24,5 @@ if (Test-Path $privateFolder) {
 
 
 Export-ModuleMember -Function @(
-    'Invoke-PermissionMatrix',
-    'Export-PermissionMatrix'
+    'Invoke-PermissionMatrix'
 )

@@ -23,8 +23,7 @@ to process, validate, export, and analyze Permission Matrix Excel files.
     )
 
     FunctionsToExport    = @(
-        'Invoke-PermissionMatrix',
-        'Export-PermissionMatrix'
+        'Invoke-PermissionMatrix'
     )
 
     CmdletsToExport      = @()
