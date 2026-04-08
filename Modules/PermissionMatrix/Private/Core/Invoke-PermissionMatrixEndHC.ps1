@@ -5,6 +5,11 @@ function Invoke-PermissionMatrixEndHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
+    # Tally up all errors and warnings generated across the runspaces
+    $Context.Counter = Update-MatrixCounterHC `
+        -Context $Context `
+        -SystemErrors $SystemErrors.Value
+
     $hasFatalErrors = Test-HasFatalErrorsHC $SystemErrors
     $htmlTemplates = Initialize-HtmlStructureHC
     $fullHtmlBody = ''
