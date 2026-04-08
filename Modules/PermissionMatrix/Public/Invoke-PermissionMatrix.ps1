@@ -1,7 +1,7 @@
 function Invoke-PermissionMatrix {
     <#
     .SYNOPSIS
-        Internal orchestrator for the Permission Matrix pipeline.
+        Main orchestrator for the Permission Matrix pipeline.
     .DESCRIPTION
         Executes the Permission Matrix pipeline in a controlled manner:
         - BEGIN: Parses config, reads/archives matrices, checks AD.
@@ -54,7 +54,7 @@ function Invoke-PermissionMatrix {
         Add-ErrorHC `
             -Type 'FatalError' `
             -Name 'Unhandled orchestrator failure' `
-            -Message "Invoke-PermissionMatrixInternalHC failed: $_" `
+            -Message "Invoke-PermissionMatrix failed: $_" `
             -Category 'Runtime' `
             -SystemErrors ([ref]$systemErrors)
     }
@@ -63,9 +63,41 @@ function Invoke-PermissionMatrix {
         # 3. END STAGE (Always runs to guarantee reporting/cleanup)
         # ================================================================
         if ($context) {
+            # We have at least a partial configuration! 
+            # Run the full END stage (Emails, Logs, ServiceNow)
             Invoke-PermissionMatrixEndHC `
                 -Context $context `
                 -SystemErrors ([ref]$systemErrors)
+        }
+        elseif ($systemErrors.Count -gt 0) {
+            # FATAL EARLY ERROR (e.g., JSON file missing/corrupt). 
+            # We have NO email or log folder configuration, so we must fall back to the Host/EventLog.
+            foreach ($err in $systemErrors) {
+                $msg = "[$($err.Type)] $($err.Name): $($err.Message) $($err.Description)"
+                
+                # Output to the PowerShell Host (Standard Error Stream) 
+                Write-Error $msg
+                
+                # Fallback Event Log write (using a hardcoded source since we couldn't read the config) 
+                try {
+                    if (-not [System.Diagnostics.EventLog]::SourceExists('Permission Matrix')) {
+                        New-EventLog `
+                            -LogName 'Application' `
+                            -Source 'Permission Matrix' `
+                            -ErrorAction 'SilentlyContinue'
+                    }
+                    Write-EventLog `
+                        -LogName 'Application' `
+                        -Source 'Permission Matrix' `
+                        -EntryType Error `
+                        -EventId 2 `
+                        -Message $msg `
+                        -ErrorAction 'SilentlyContinue'
+                }
+                catch { 
+                    # Swallow error: If the event log fallback fails, we don't want to crash the finally block
+                }
+            }
         }
 
         # ================================================================

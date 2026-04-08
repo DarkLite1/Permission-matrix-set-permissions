@@ -29,10 +29,8 @@ function Invoke-PermissionMatrixBeginHC {
         }
 
         $json = Get-Content -LiteralPath $ConfigurationJsonFile -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
+   
         
-        Validate-ConfigurationStructureHC -Json $json -SystemErrors $SystemErrors
-        if ($SystemErrors.Value.Count -gt 0) { return $null }
-
         $Context = [pscustomobject]@{
             Settings      = $json.Settings
             Matrix        = $json.Matrix
@@ -41,12 +39,14 @@ function Invoke-PermissionMatrixBeginHC {
             MaxConcurrent = $json.MaxConcurrent
             ScriptPath    = $ScriptPath
             StartTime     = Get-Date
-            Counter       = New-CounterObjectHC
             ExportedFiles = @{}
             FoundMatrices = $false
             Matrices      = @()
             Defaults      = $null
         }
+
+        Validate-ConfigurationStructureHC -Json $json -SystemErrors $SystemErrors
+        if ($SystemErrors.Value.Count -gt 0) { return $Context }
 
         # =====================================================================
         # 2. PARALLEL: Read, Validate, and Archive Matrix Files
