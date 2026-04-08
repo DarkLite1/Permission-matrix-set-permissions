@@ -141,3 +141,72 @@ function Test-HasFatalErrorsHC {
 
     return $SystemErrors.Value.Type -contains 'FatalError'
 }
+
+function New-CounterObjectHC {
+    <#
+    .SYNOPSIS
+        Initializes an empty counter object for tracking errors and warnings.
+    #>
+    [CmdletBinding()]
+    param()
+
+    return [PSCustomObject]@{
+        TotalErrors   = 0
+        TotalWarnings = 0
+        FormData      = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
+        Permissions   = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
+        Settings      = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
+        File          = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
+    }
+}
+
+function Update-MatrixCounterHC {
+    <#
+    .SYNOPSIS
+        Calculates the total errors and warnings across all matrices and system errors.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Context,
+        [Parameter(Mandatory)][array]$SystemErrors
+    )
+
+    # Reset counter to ensure a clean tally
+    $Context.Counter = New-CounterObjectHC
+
+    if ($Context.Matrices) {
+        foreach ($matrix in $Context.Matrices) {
+            # File Checks
+            $Context.Counter.File.Errors += @($matrix.File.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
+            $Context.Counter.File.Warnings += @($matrix.File.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+
+            # FormData Checks
+            $Context.Counter.FormData.Errors += @($matrix.FormData.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
+            $Context.Counter.FormData.Warnings += @($matrix.FormData.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+
+            # Permissions Checks
+            $Context.Counter.Permissions.Errors += @($matrix.Permissions.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
+            $Context.Counter.Permissions.Warnings += @($matrix.Permissions.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+
+            # Settings Checks
+            foreach ($setting in $matrix.Settings) {
+                $Context.Counter.Settings.Errors += @($setting.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
+                $Context.Counter.Settings.Warnings += @($setting.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+            }
+        }
+    }
+
+    # Tally Totals (Including Orchestrator SystemErrors) [cite: 1612-1616]
+    $Context.Counter.TotalErrors = $Context.Counter.File.Errors + 
+    $Context.Counter.FormData.Errors + 
+    $Context.Counter.Permissions.Errors + 
+    $Context.Counter.Settings.Errors + 
+    $SystemErrors.Count
+
+    $Context.Counter.TotalWarnings = $Context.Counter.File.Warnings + 
+    $Context.Counter.FormData.Warnings + 
+    $Context.Counter.Permissions.Warnings + 
+    $Context.Counter.Settings.Warnings
+                                     
+    return $Context.Counter
+}

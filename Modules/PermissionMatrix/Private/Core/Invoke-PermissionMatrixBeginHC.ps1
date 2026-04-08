@@ -39,6 +39,7 @@ function Invoke-PermissionMatrixBeginHC {
             MaxConcurrent = $json.MaxConcurrent
             ScriptPath    = $ScriptPath
             StartTime     = Get-Date
+            Counter       = New-CounterObjectHC
             ExportedFiles = @{}
             FoundMatrices = $false
             Matrices      = @()
