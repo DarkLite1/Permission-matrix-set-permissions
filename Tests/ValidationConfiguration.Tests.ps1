@@ -182,7 +182,7 @@ Describe 'Input Validation Tests' {
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                -Pattern "*ScriptPath.$ScriptKey 'x:\doesnotexist.ps1' not found*"
+                -Pattern "*The required script '$ScriptKey' was not found at 'x:\doesnotexist.ps1'*"
         }
     } -Tag test
 

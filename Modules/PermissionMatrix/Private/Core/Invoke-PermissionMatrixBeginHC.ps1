@@ -46,7 +46,24 @@ function Invoke-PermissionMatrixBeginHC {
             Defaults      = $null
         }
 
-        Validate-ConfigurationStructureHC -Json $json -SystemErrors $SystemErrors
+        Validate-ConfigurationStructureHC `
+            -Json $json `
+            -SystemErrors $SystemErrors
+
+        # Validate Script Paths
+        foreach ($key in $ScriptPath.Keys) {
+            $path = $ScriptPath[$key]
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+                Add-ErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing Script File' `
+                    -Message "The required script '$key' was not found at '$path'." `
+                    -Category 'RuntimeSettings' `
+                    -SystemErrors $SystemErrors
+            }
+        }
+        #endregion
+
         if ($SystemErrors.Value.Count -gt 0) { return $Context }
 
         # =====================================================================
