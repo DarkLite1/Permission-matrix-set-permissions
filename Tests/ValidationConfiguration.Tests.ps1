@@ -184,7 +184,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*The required script '$ScriptKey' was not found at 'x:\doesnotexist.ps1'*"
         }
-    } -Tag test
+    }
 
     Describe 'log folder creation failure' {
         It 'fails if SaveLogFiles.Where.Folder cannot be created' {
@@ -206,5 +206,5 @@ Describe 'Input Validation Tests' {
                 $LiteralPath -like "$fallback\*\System errors log.json"
             }
         }
-    }
+    } -Tag test
 }
