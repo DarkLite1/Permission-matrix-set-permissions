@@ -179,7 +179,11 @@ function Invoke-PermissionMatrixBeginHC {
         $allAdObjects = $Context.Matrices.Settings.Matrix.ACL.Keys | Sort-Object -Unique
 
         if ($allAdObjects.Count -gt 0) {
-            $adObjectDetails = @(Get-ADObjectDetailHC -ADObjectName $allAdObjects -Type 'SamAccountName')
+            $adObjectDetails = @(
+                Get-ADObjectDetailHC `
+                    -ADObjectName $allAdObjects `
+                    -Type 'SamAccountName'
+            )
             
             # 3d. Combine AD info with matrix data (Expanded Matrix Validation)
             foreach ($matrixObj in $Context.Matrices) {
