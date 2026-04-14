@@ -63,7 +63,7 @@ begin {
             -SystemErrors ([ref]$systemErrors)
     }
     catch {
-        Write-Error "BEGIN stage crashed before orchestrator could run: $_"
+        Write-Warning "BEGIN stage crashed before orchestrator could run: $_"
         exit 1
     }
 }
@@ -77,7 +77,7 @@ end {
             -ScriptPath $ScriptPath
     }
     catch {
-        Write-Error "Unhandled fatal error: $_"
+        Write-Warning "Unhandled fatal error: $_"
         exit 1
     }
 }

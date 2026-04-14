@@ -21,13 +21,16 @@ function Assert-LogContainsSystemErrorHC {
         [string]$LogFolderPath,
 
         [Parameter(Mandatory)]
-        [string]$Pattern
+        [string]$Pattern,
+
+        [Parameter(Mandatory = $false)]
+        [string]$FileName = 'SystemErrors.json'
     )
 
     #
     # 1. Locate system error log file
     #
-    $logFiles = Get-ChildItem -Path $LogFolderPath -File -Filter 'System errors log.json' -Recurse
+    $logFiles = Get-ChildItem -Path $LogFolderPath -File -Filter $FileName -Recurse
 
     if ($logFiles.Count -eq 0) {
         throw "Assert-LogContainsSystemErrorHC: No system error log file found in '$LogFolderPath'."
