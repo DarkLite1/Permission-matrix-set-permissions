@@ -164,7 +164,7 @@ function Validate-ConfigurationStructureHC {
             if ($null -eq $val -or $val -notmatch '^\d+$') {
                 Add-JsonSchemaErrorHC -Type 'FatalError' `
                     -Name "Incorrect 'MaxConcurrent.$prop'" `
-                    -Message "$prop must be numeric." `
+                    -Message "Property 'MaxConcurrent.$prop' must be numeric." `
                     -SystemErrors $SystemErrors
             }
         }

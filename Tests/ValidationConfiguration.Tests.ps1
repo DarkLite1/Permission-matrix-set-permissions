@@ -111,7 +111,7 @@ Describe 'Input Validation Tests' {
                     -Pattern "*Property '$Property' not found*"
             }
         }
-    } -Tag test
+    }
 
     Describe 'missing MaxConcurrent sub-properties' {
         It 'MaxConcurrent.<Property> not found' -TestCases $MissingMaxConcurrentProps {
@@ -127,9 +127,9 @@ Describe 'Input Validation Tests' {
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                -Pattern "*Property 'MaxConcurrent.$Property' not found*"
+                -Pattern "*Property 'MaxConcurrent.$Property' must be numeric*"
         }
-    }
+    } -Tag test
 
     Describe 'missing Matrix sub-properties' {
         It 'Matrix.<Property> not found' -TestCases $MissingMatrixProps {
