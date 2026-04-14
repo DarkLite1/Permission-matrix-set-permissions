@@ -23,12 +23,6 @@ function Invoke-PermissionMatrix {
     $systemErrors = [System.Collections.Generic.List[object]]::new()
     $context = $null
 
-    $result = [ordered]@{
-        Success = $false
-        Files   = @{}
-        Errors  = $systemErrors
-    }
-
     try {
         # ================================================================
         # 1. BEGIN STAGE
@@ -101,13 +95,15 @@ function Invoke-PermissionMatrix {
         }
 
         # ================================================================
-        # 4. FINAL RESULT
+        # 4. EXIT HANDLING
         # ================================================================
-        if ($context -and $context.ExportedFiles.Count -gt 0) {
-            $result.Files = $context.ExportedFiles
+        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
+            Write-Warning 'Exit script with error code 1'
+            
+            throw 'Permission Matrix execution completed with fatal errors.'
         }
-
-        $result.Success = -not (Test-HasFatalErrorsHC ([ref]$systemErrors))
-        $result
+        else {
+            Write-Verbose 'Script finished successfully'
+        }
     }
 }
