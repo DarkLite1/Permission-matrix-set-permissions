@@ -99,7 +99,7 @@ function Invoke-PermissionMatrixBeginHC {
         
         $Context.FoundMatrices = $true
 
-        # Setup Archive Folder
+        #region Setup Archive Folder
         $archivePath = $null
         if ($Context.Matrix.Archive) {
             $archivePath = Join-Path -Path $Context.Matrix.FolderPath -ChildPath 'Archive'
@@ -107,10 +107,11 @@ function Invoke-PermissionMatrixBeginHC {
                 $null = New-Item -ItemType Directory -Path $archivePath -Force -ErrorAction SilentlyContinue
             }
         }
+        #endregion
 
         $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
 
-        # Read and Archive in Parallel
+        #region Read and Archive in Parallel
         $parallelResults = Invoke-WithOptionalParallelismHC -InputObject $matrixFiles -ThrottleLimit $throttle -ArgumentList $Context, $archivePath -ScriptBlock {
             param($file, $context, $archiveFolder)
 
@@ -137,6 +138,7 @@ function Invoke-PermissionMatrixBeginHC {
             }
             return $fileResult
         }
+        #endregion
 
         $importedMatrices = [System.Collections.Generic.List[pscustomobject]]::new()
         foreach ($res in $parallelResults) {
