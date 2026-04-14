@@ -117,26 +117,26 @@ function Validate-ConfigurationStructureHC {
         if (-not $Json.Matrix.FolderPath) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Matrix.FolderPath'" `
-                -Message 'FolderPath is required.' `
+                -Message "Property 'Matrix.FolderPath' not found" `
                 -SystemErrors $SystemErrors
         }
         elseif (-not (Test-Path -LiteralPath $Json.Matrix.FolderPath -PathType Leaf)) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Matrix.FolderPath'" `
-                -Message "FolderPath '$($Matrix.FolderPath)' not found" `
+                -Message "Property 'Matrix.FolderPath' '$($Matrix.FolderPath)' not found" `
                 -SystemErrors $SystemErrors
         }
 
         if (-not $Json.Matrix.DefaultsFile) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Matrix.DefaultsFile'" `
-                -Message 'DefaultsFile is required.' `
+                -Message "Property 'Matrix.DefaultsFile' not found" `
                 -SystemErrors $SystemErrors
         }
         elseif (-not (Test-Path -LiteralPath $Json.Matrix.DefaultsFile -PathType Leaf)) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Matrix.DefaultsFile'" `
-                -Message "DefaultsFile '$($Matrix.DefaultsFile)' not found" `
+                -Message "Property 'Matrix.DefaultsFile' '$($Matrix.DefaultsFile)' not found" `
                 -SystemErrors $SystemErrors
         }
 
@@ -144,14 +144,14 @@ function Validate-ConfigurationStructureHC {
             $Json.Matrix.ExcludedSamAccountName -isnot [array]) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Matrix.ExcludedSamAccountName'" `
-                -Message 'Must be an array.' `
+                -Message "Property 'Matrix.ExcludedSamAccountName' must be an array." `
                 -SystemErrors $SystemErrors
         }
 
         if ($null -eq $Json.Matrix.Archive -or $Json.Matrix.Archive -isnot [bool]) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Matrix.Archive'" `
-                -Message 'Must be boolean.' `
+                -Message "Property 'Matrix.Archive' must be boolean." `
                 -SystemErrors $SystemErrors
         }
     } 

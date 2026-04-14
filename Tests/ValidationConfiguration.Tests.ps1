@@ -129,7 +129,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property 'MaxConcurrent.$Property' must be numeric*"
         }
-    } -Tag test
+    }
 
     Describe 'missing Matrix sub-properties' {
         It 'Matrix.<Property> not found' -TestCases $MissingMatrixProps {
@@ -147,7 +147,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property 'Matrix.$Property' not found*"
         }
-    }
+    } -Tag test
 
     Describe 'invalid filesystem paths' {
         It 'fails when <Property> path is invalid' -TestCases $InvalidPathTests {
