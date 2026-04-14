@@ -148,8 +148,11 @@ function Invoke-PermissionMatrixBeginHC {
         # 3. SEQUENTIAL: Cross-Matrix Checks & AD Lookups
         # =====================================================================
         
-        # 3a. Duplicate ComputerName/Path Validation
-        $duplicateSettings = $Context.Matrices.Settings | Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | Where-Object Count -GE 2
+        #region Duplicate ComputerName/Path Validation
+        $duplicateSettings = $Context.Matrices.Settings | 
+        Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
+        Where-Object Count -GE 2
+
         foreach ($DupGroup in $duplicateSettings) {
             foreach ($Setting in $DupGroup.Group) {
                 $Setting.Check += [PSCustomObject]@{
@@ -160,11 +163,17 @@ function Invoke-PermissionMatrixBeginHC {
                 }
             }
         }
+        #endregion
 
-        # 3b. Read Defaults Excel file and validate
-        $defaults = Import-MatrixDefaultsHC -Matrix $Context.Matrix -SystemErrors $SystemErrors
+        #region Read Defaults Excel file and validate
+        $defaults = Import-MatrixDefaultsHC `
+            -Matrix $Context.Matrix `
+            -SystemErrors $SystemErrors
+
         if (Test-HasFatalErrorsHC $SystemErrors) { return $Context }
+
         $Context.Defaults = $defaults
+        #endregion
 
         # 3c. One AD query for all objects combined
         $allAdObjects = $Context.Matrices.Settings.Matrix.ACL.Keys | Sort-Object -Unique
@@ -193,7 +202,12 @@ function Invoke-PermissionMatrixBeginHC {
         return $Context
     }
     catch {
-        Add-ErrorHC -Type 'FatalError' -Category 'Runtime' -Name 'BEGIN stage failure' -Message "Unhandled exception: $_" -SystemErrors $SystemErrors
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Category 'Runtime' `
+            -Name 'BEGIN stage failure' `
+            -Message "Unhandled exception: $_" `
+            -SystemErrors $SystemErrors
         return $null
     }
 }
