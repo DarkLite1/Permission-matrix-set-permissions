@@ -165,7 +165,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property '$Property' path '$Value' not found*"
         }
-    } -Tag test
+    }
 
     Describe 'ScriptPath validation' {
         It 'ScriptPath.<Property> not found' -ForEach @(
@@ -184,7 +184,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*ScriptPath.$ScriptKey 'x:\doesnotexist.ps1' not found*"
         }
-    }
+    } -Tag test
 
     Describe 'log folder creation failure' {
         It 'fails if SaveLogFiles.Where.Folder cannot be created' {
