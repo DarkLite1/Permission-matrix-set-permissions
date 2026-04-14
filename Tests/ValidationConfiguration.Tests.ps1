@@ -204,5 +204,5 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $fallback `
                 -Pattern "*Failed to create configured log folder 'x:\nope'*"
         }
-    } -Tag test
+    }
 }
