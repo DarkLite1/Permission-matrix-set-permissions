@@ -18,11 +18,24 @@ function Invoke-PermissionMatrixEndHC {
     # 1. BUILD HTML BODY (Best Effort)
     # =====================================================================
     try {
-        $matrixHtml = if ($Context.FoundMatrices) { Build-MatrixEmailHtmlHC -ImportedMatrix $Context.Matrices -Html $htmlTemplates } else { '' }
+        $matrixHtml = if ($Context.FoundMatrices) { 
+            Build-MatrixEmailHtmlHC `
+                -ImportedMatrix $Context.Matrices `
+                -Html $htmlTemplates 
+        }
+        else { '' }
         $fullHtmlBody = Generate-MailBodyHtmlHC `
             -Settings $Context.Settings `
-            -Html @{ Style = $htmlTemplates.Style; ErrorWarningTable = (Build-ErrorWarningTableHC -CounterData $Context.Counter -SystemErrors $SystemErrors); MatrixTables = $matrixHtml } `
-            -ScriptStartTime $Context.StartTime
+            -ScriptStartTime $Context.StartTime `
+            -Html @{ 
+            Style             = $htmlTemplates.Style 
+            MatrixTables      = $matrixHtml 
+            ErrorWarningTable = (
+                Build-ErrorWarningTableHC `
+                    -CounterData $Context.Counter `
+                    -SystemErrors $SystemErrors
+            )
+        }
     }
     catch {
         Add-ErrorHC -Type 'Warning' -Name 'HTML Generation' -Message "Failed to build HTML body: $_" -Category 'Reporting' -SystemErrors $SystemErrors
@@ -49,17 +62,54 @@ function Invoke-PermissionMatrixEndHC {
     # 3. WRITE LOGS (Best Effort)
     # =====================================================================
     $logFolder = $Context.Settings.SaveLogFiles.Where.Folder
-
-    if (-not $logFolder) {
-        $logFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
+    $tempLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
+    
+    # 1. When settings has no log folder, we use the temp folder
+    if ([string]::IsNullOrWhiteSpace($logFolder)) {
+        $logFolder = $tempLogFolder
     }
 
+    # Attempt to create/validate the chosen log folder
+    try {
+        if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
+            $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
+        }
+    }
+    catch {
+        if ($logFolder -ne $tempLogFolder) {
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'Log Folder Fallback' `
+                -Message "Failed to create configured log folder '$logFolder': $_" `
+                -Description "Falling back to temporary log folder '$tempLogFolder'." `
+                -Category 'Logging' `
+                -SystemErrors $SystemErrors
+
+            $logFolder = $tempLogFolder
+
+            # Try to create the temp folder
+            try {
+                if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
+                    $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
+                }
+            }
+            catch {
+                $logFolder = $null # Absolute failure, even TEMP is broken
+            }
+        } 
+        else {
+            $logFolder = $null # The configured path WAS the temp path, and it failed
+        }
+    }
+
+    # Update the Context so the Email and Cleanup logic know the correct, working path
+    if ($Context.Settings.SaveLogFiles.Where) {
+        $Context.Settings.SaveLogFiles.Where.Folder = $logFolder
+    }
+
+    # 3. Normal / Write the logs to the verified folder
     if ($logFolder) {
         try {
-            if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
-                $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
-            }
-
             if ($Context.FoundMatrices) {
                 foreach ($matrix in $Context.Matrices) {
                     $null = Write-MatrixTroubleshootingLogHC `
@@ -85,6 +135,14 @@ function Invoke-PermissionMatrixEndHC {
                 -Category 'Logging' `
                 -SystemErrors $SystemErrors
         }
+    }
+    else {
+        Add-ErrorHC `
+            -Type 'Warning' `
+            -Name 'Log Folder Unavailable' `
+            -Message "No valid log folder available. Logs will not be saved to disk: $_" `
+            -Category 'Logging' `
+            -SystemErrors $SystemErrors
     }
 
     # =====================================================================

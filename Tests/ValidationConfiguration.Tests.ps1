@@ -194,17 +194,15 @@ Describe 'Input Validation Tests' {
 
             Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
 
-            Mock Out-File
-
             & $TestScript @TestParams
 
             $LASTEXITCODE | Should -Be 1
 
             $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
 
-            Should -Invoke Out-File -Times 1 -Exactly -ParameterFilter {
-                $LiteralPath -like "$fallback\*\SystemErrors.json"
-            }
+            Assert-LogContainsSystemErrorHC `
+                -LogFolderPath $fallback `
+                -Pattern "*Failed to create configured log folder 'x:\nope'*"
         }
     } -Tag test
 }
