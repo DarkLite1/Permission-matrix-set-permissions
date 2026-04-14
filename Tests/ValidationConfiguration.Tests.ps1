@@ -203,7 +203,7 @@ Describe 'Input Validation Tests' {
             $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
 
             Should -Invoke Out-File -Times 1 -Exactly -ParameterFilter {
-                $LiteralPath -like "$fallback\*\System errors log.json"
+                $LiteralPath -like "$fallback\*\SystemErrors.json"
             }
         }
     } -Tag test

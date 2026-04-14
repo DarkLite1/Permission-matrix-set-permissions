@@ -24,13 +24,17 @@ function Invoke-PermissionMatrixBeginHC {
         # 1. SEQUENTIAL: Test input file & create context
         # =====================================================================
         if (-not (Test-Path -LiteralPath $ConfigurationJsonFile -PathType Leaf)) {
-            Add-ErrorHC -Type 'FatalError' -Name 'Configuration file not found' -Message "File '$ConfigurationJsonFile' does not exist." -Category 'RuntimeSettings' -SystemErrors $SystemErrors
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Configuration file not found' `
+                -Message "File '$ConfigurationJsonFile' does not exist." `
+                -Category 'RuntimeSettings' `
+                -SystemErrors $SystemErrors
             return $null
         }
 
         $json = Get-Content -LiteralPath $ConfigurationJsonFile -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
    
-        
         $Context = [pscustomobject]@{
             Settings      = $json.Settings
             Matrix        = $json.Matrix
@@ -46,11 +50,13 @@ function Invoke-PermissionMatrixBeginHC {
             Defaults      = $null
         }
 
+        #region Validate Configuration Structure
         Validate-ConfigurationStructureHC `
             -Json $json `
             -SystemErrors $SystemErrors
+        #endregion
 
-        # Validate Script Paths
+        #region Validate Script Paths
         foreach ($key in $ScriptPath.Keys) {
             $path = $ScriptPath[$key]
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
@@ -73,12 +79,19 @@ function Invoke-PermissionMatrixBeginHC {
             $matrixFiles = Get-ChildItem -Path $Context.Matrix.FolderPath -Filter '*.xlsx' -File -ErrorAction Stop
         }
         catch {
-            Add-ErrorHC -Type 'FatalError' -Name 'Matrix folder access failed' -Message "Cannot access '$($Context.Matrix.FolderPath)'." -Category 'Matrix' -SystemErrors $SystemErrors
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Matrix folder access failed' `
+                -Message "Cannot access '$($Context.Matrix.FolderPath)'." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
             return $Context
         }
 
         # Exclude Defaults file from the processing list
-        $matrixFiles = $matrixFiles | Where-Object { $_.FullName -ne $Context.Matrix.DefaultsFile }
+        $matrixFiles = $matrixFiles | Where-Object { 
+            $_.FullName -ne $Context.Matrix.DefaultsFile 
+        }
 
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
             return $Context # No files found, exit BEGIN gracefully
@@ -113,8 +126,12 @@ function Invoke-PermissionMatrixBeginHC {
                     Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
                 }
                 catch {
-                    $fileResult.File.Check.Add([pscustomobject]@{
-                            Type = 'Warning'; Name = 'Archiving failed'; Description = 'File could not be moved to archive.'; Value = $_
+                    $fileResult.File.Check.Add(
+                        [pscustomobject]@{
+                            Type        = 'Warning' 
+                            Name        = 'Archiving failed'
+                            Description = 'File could not be moved to archive.'
+                            Value       = $_
                         })
                 }
             }
