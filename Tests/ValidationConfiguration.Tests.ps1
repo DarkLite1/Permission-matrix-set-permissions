@@ -187,7 +187,7 @@ Describe 'Input Validation Tests' {
     }
 
     Describe 'log folder creation failure' {
-        It 'fails if SaveLogFiles.Where.Folder cannot be created' {
+        It 'fallback to temp folder when log folder creation fails' {
 
             $updated = Copy-ObjectHC $TestInput
             $updated.Settings.SaveLogFiles.Where.Folder = 'x:\nope'
