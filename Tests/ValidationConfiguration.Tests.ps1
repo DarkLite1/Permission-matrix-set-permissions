@@ -147,7 +147,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property 'Matrix.$Property' not found*"
         }
-    } -Tag test
+    }
 
     Describe 'invalid filesystem paths' {
         It 'fails when <Property> path is invalid' -TestCases $InvalidPathTests {
@@ -165,7 +165,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property '$Property' path '$Value' not found*"
         }
-    }
+    } -Tag test
 
     Describe 'ScriptPath validation' {
         It 'ScriptPath.<Property> not found' -ForEach @(
