@@ -193,7 +193,8 @@ function Invoke-PermissionMatrixBeginHC {
                         -ExcludedSamAccountName $Context.Matrix.ExcludedSamAccountName
 
                     if ($expandedCheck) {
-                        $S.Check += $expandedCheck | ConvertTo-StructuredObjectHC
+                        $S.Check += $expandedCheck | 
+                        ConvertTo-StructuredObjectHC
                     }
                 }
             }
