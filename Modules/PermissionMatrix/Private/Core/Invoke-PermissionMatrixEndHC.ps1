@@ -49,6 +49,17 @@ function Invoke-PermissionMatrixEndHC {
     # 3. WRITE LOGS (Best Effort)
     # =====================================================================
     $logFolder = $Context.Settings.SaveLogFiles.Where.Folder
+
+    if (-not $logFolder) {
+        $fallBackLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
+
+        if (-not (Test-Path -LiteralPath $fallBackLogFolder -PathType Container)) {
+            $null = New-Item -ItemType Directory -Path $fallBackLogFolder -Force -ErrorAction Stop
+        }
+
+        $logFolder = $fallBackLogFolder
+    }
+
     if ($logFolder) {
         try {
             if ($Context.FoundMatrices) {

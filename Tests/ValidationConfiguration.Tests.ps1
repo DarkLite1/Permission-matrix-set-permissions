@@ -111,7 +111,7 @@ Describe 'Input Validation Tests' {
                     -Pattern "*Property '$Property' not found*"
             }
         }
-    }
+    } -Tag test
 
     Describe 'missing MaxConcurrent sub-properties' {
         It 'MaxConcurrent.<Property> not found' -TestCases $MissingMaxConcurrentProps {
