@@ -51,31 +51,39 @@ function Invoke-PermissionMatrixEndHC {
     $logFolder = $Context.Settings.SaveLogFiles.Where.Folder
 
     if (-not $logFolder) {
-        $fallBackLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
-
-        if (-not (Test-Path -LiteralPath $fallBackLogFolder -PathType Container)) {
-            $null = New-Item -ItemType Directory -Path $fallBackLogFolder -Force -ErrorAction Stop
-        }
-
-        $logFolder = $fallBackLogFolder
+        $logFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
     }
 
     if ($logFolder) {
         try {
+            if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
+                $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
+            }
+
             if ($Context.FoundMatrices) {
                 foreach ($matrix in $Context.Matrices) {
-                    $null = Write-MatrixTroubleshootingLogHC -Matrix $matrix -Html $htmlTemplates
+                    $null = Write-MatrixTroubleshootingLogHC `
+                        -Matrix $matrix `
+                        -Html $htmlTemplates
                 }
             }
-            # Only attempt to write system errors to disk if there is a log folder defined
+            
             if ($SystemErrors.Value.Count -gt 0) {
-                # We will hold the generated attachments path here to pass to MailKit
                 $sysErrAttachments = @() 
-                Write-SystemErrorLogHC -SystemErrors $SystemErrors.Value -LogFolder $logFolder -MailParams ([ref]@{Attachments = $sysErrAttachments }) -ScriptStartTime $Context.StartTime
+                Write-SystemErrorLogHC `
+                    -SystemErrors $SystemErrors.Value `
+                    -LogFolder $logFolder `
+                    -MailParams ([ref]@{Attachments = $sysErrAttachments }) `
+                    -ScriptStartTime $Context.StartTime
             }
         }
         catch {
-            Add-ErrorHC -Type 'Warning' -Name 'Logging' -Message "Failed to write local logs to '$logFolder': $_" -Category 'Logging' -SystemErrors $SystemErrors
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'Logging' `
+                -Message "Failed to write local logs to '$logFolder': $_" `
+                -Category 'Logging' `
+                -SystemErrors $SystemErrors
         }
     }
 
