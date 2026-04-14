@@ -103,7 +103,7 @@ function Invoke-PermissionMatrix {
         # ================================================================
         # 4. FINAL RESULT
         # ================================================================
-        if ($context -and $context.ExportedFiles) {
+        if ($context -and $context.ExportedFiles.Count -gt 0) {
             $result.Files = $context.ExportedFiles
         }
 
