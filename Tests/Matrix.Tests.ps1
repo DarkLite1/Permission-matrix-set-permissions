@@ -72,6 +72,12 @@ Describe 'Matrix Logic Tests' {
             -ConfiguredLogFolder $TestInput.Settings.SaveLogFiles.Where.Folder
     }
 
+    AfterEach {
+        # Pester memory release workaround for runspace cleanup between tests, to prevent out of memory errors when running the full suite
+        [System.GC]::Collect()
+        [System.GC]::WaitForPendingFinalizers()
+    }
+
     Describe 'Matrix: Settings sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixSettingsFixtures {
             param($Issue, $SheetMutation, $ExpectedMessage)
@@ -82,7 +88,7 @@ Describe 'Matrix Logic Tests' {
             Save-TestJson $updated $TestJsonFile
 
             & $TestScript @TestParams
-            
+
             $LASTEXITCODE | Should -Be 1
 
             Assert-LogContainsSystemErrorHC `

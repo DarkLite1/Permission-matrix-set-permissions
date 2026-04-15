@@ -83,6 +83,12 @@ Describe 'Input Validation Tests' {
             -ConfiguredLogFolder $TestInput.Settings.SaveLogFiles.Where.Folder
     }
 
+    AfterEach {
+        # Pester memory release workaround for runspace cleanup between tests, to prevent out of memory errors when running the full suite
+        [System.GC]::Collect()
+        [System.GC]::WaitForPendingFinalizers()
+    }
+
     Describe 'missing top-level JSON properties' {
         It '<Property> should produce an error' -TestCases $MissingTopLevelProps {
             param($Property)
@@ -200,6 +206,6 @@ Describe 'Input Validation Tests' {
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $fallback `
                 -Pattern "*Failed to create configured log folder 'x:\nope'*"
-        } -Tag test
+        }
     }
 }
