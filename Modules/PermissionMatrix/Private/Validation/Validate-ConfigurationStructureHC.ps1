@@ -120,7 +120,7 @@ function Validate-ConfigurationStructureHC {
                 -Message "Property 'Matrix.FolderPath' not found" `
                 -SystemErrors $SystemErrors
         }
-        elseif (-not (Test-Path -LiteralPath $Json.Matrix.FolderPath -PathType Leaf)) {
+        elseif (-not (Test-Path -LiteralPath $Json.Matrix.FolderPath -PathType Container)) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Matrix.FolderPath'" `
                 -Message "Property 'Matrix.FolderPath' path '$($Json.Matrix.FolderPath)' not found" `
