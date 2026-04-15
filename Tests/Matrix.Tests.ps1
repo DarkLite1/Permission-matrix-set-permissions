@@ -2,10 +2,8 @@
 #Requires -Modules Pester
 
 Describe 'Matrix Logic Tests' {
-
     BeforeDiscovery {
-        # Load static fixture definitions (NO I/O)
-        . "$PSScriptRoot/../Helpers/Fixtures.Matrix.ps1"
+        . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
 
         $script:MatrixSettingsFixtures = Get-MatrixSettingsFixtures
         $script:MatrixPermissionsFixtures = Get-MatrixPermissionsFixtures
@@ -16,37 +14,34 @@ Describe 'Matrix Logic Tests' {
         $script:ADBuildFixtures = Get-AdObjectBuildFixtures
         $script:MatrixBuildFixtures = Get-MatrixBuildFixtures
 
-        $script:testScript = Join-Path $PSScriptRoot '..\..\Permission matrix.ps1'
+        $script:testScript = Join-Path `
+            $PSScriptRoot `
+            '..\Scripts\Entrypoints\PermissionMatrix.ps1'
     }
 
     BeforeAll {
-        # Load helpers and Excel builders
-        . "$PSScriptRoot/../Helpers/Helpers.HC.ps1"
-        . "$PSScriptRoot/../Helpers/Fixtures.Json.ps1"
-        . "$PSScriptRoot/../Helpers/Fixtures.Matrix.ps1"
-        . "$PSScriptRoot/../Helpers/Fixtures.Excel.ps1"
-
+        . "$PSScriptRoot\Helpers\Helpers.HC.ps1"
+        . "$PSScriptRoot\Helpers\Fixtures.Json.ps1"
+        . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
+        . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
+        
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
         }
 
-        #
-        # Build base JSON
-        #
         $jsonFile = New-Item 'TestDrive:\Input.json' -ItemType File
-        $base = New-JsonFixture
 
-        # Matrix folder
-        $base.Matrix.FolderPath = (New-Item 'TestDrive:\Matrix' -ItemType Directory).FullName
+        $testInputTemplate = New-JsonFixture
 
-        # Valid Defaults file
-        $base.Matrix.DefaultsFile = New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx'
+        $testInputTemplate.Matrix.FolderPath =
+        (New-Item 'TestDrive:\Matrix' -ItemType Directory).FullName
 
-        # Log folder
-        $base.Settings.SaveLogFiles.Where.Folder =
+        $testInputTemplate.Matrix.DefaultsFile =
+        (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
+
+        $testInputTemplate.Settings.SaveLogFiles.Where.Folder =
         (New-Item 'TestDrive:\MatrixLogs' -ItemType Directory).FullName
 
-        # ScriptPath dummy files
         $scriptPath = @{
             TestRequirementsFile = (New-Item 'TestDrive:\TestReq.ps1' -ItemType File).FullName
             SetPermissionFile    = (New-Item 'TestDrive:\SetPerm.ps1' -ItemType File).FullName
@@ -58,11 +53,12 @@ Describe 'Matrix Logic Tests' {
             ScriptPath            = $scriptPath
         }
 
-        $base | ConvertTo-Json -Depth 20 | Set-Content $jsonFile.FullName
+        $testInputTemplate | 
+        ConvertTo-Json -Depth 20 | Set-Content $jsonFile.FullName
 
         # Share objects for tests
         $script:TestJsonFile = $jsonFile
-        $script:TestInput = $base
+        $script:TestInput = $testInputTemplate
         $script:TestScript = $testScript
         $script:TestParams = $testParams
     }
@@ -76,22 +72,17 @@ Describe 'Matrix Logic Tests' {
             -ConfiguredLogFolder $TestInput.Settings.SaveLogFiles.Where.Folder
     }
 
-    # ------------------------------------------------------------------
-    # 1. Settings Sheet Validation
-    # ------------------------------------------------------------------
     Describe 'Matrix: Settings sheet validation' {
-
         It '<Issue> should be detected' -TestCases $MatrixSettingsFixtures {
             param($Issue, $SheetMutation, $ExpectedMessage)
 
-            # Apply fixture — creates a mutated Settings sheet
             Invoke-Expression $SheetMutation | Out-Null
 
-            # JSON remains identical except the matrix folder contents
             $updated = Copy-ObjectHC $TestInput
             Save-TestJson $updated $TestJsonFile
 
             & $TestScript @TestParams
+            
             $LASTEXITCODE | Should -Be 1
 
             Assert-LogContainsSystemErrorHC `
@@ -100,11 +91,7 @@ Describe 'Matrix Logic Tests' {
         } -Tag test
     }
 
-    # ------------------------------------------------------------------
-    # 2. Permissions Sheet Validation
-    # ------------------------------------------------------------------
     Describe 'Matrix: Permissions sheet validation' {
-
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
             param($Issue, $Mutation, $Expected)
 

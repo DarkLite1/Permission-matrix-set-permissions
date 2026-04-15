@@ -65,12 +65,9 @@ Describe 'Input Validation Tests' {
         }
 
         $testInputTemplate |
-        ConvertTo-Json -Depth 20 |
-        Set-Content $jsonFile.FullName
-
-        # ------------------------------------------------------------------
-        # Shared state
-        # ------------------------------------------------------------------
+        ConvertTo-Json -Depth 20 | Set-Content $jsonFile.FullName
+        
+        # Share objects for tests
         $script:TestJsonFile = $jsonFile
         $script:TestInput = $testInputTemplate
         $script:TestScript = $TestScript
