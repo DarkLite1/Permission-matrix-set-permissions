@@ -200,6 +200,6 @@ Describe 'Input Validation Tests' {
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $fallback `
                 -Pattern "*Failed to create configured log folder 'x:\nope'*"
-        }
+        } -Tag test
     }
 }

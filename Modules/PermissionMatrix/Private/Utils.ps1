@@ -168,7 +168,7 @@ function Update-MatrixCounterHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Context,
-        [Parameter(Mandatory)][array]$SystemErrors
+        [Parameter(Mandatory)][ref]$SystemErrors
     )
 
     # Reset counter to ensure a clean tally
@@ -201,7 +201,7 @@ function Update-MatrixCounterHC {
     $Context.Counter.FormData.Errors + 
     $Context.Counter.Permissions.Errors + 
     $Context.Counter.Settings.Errors + 
-    $SystemErrors.Count
+    $SystemErrors.Value.Count
 
     $Context.Counter.TotalWarnings = $Context.Counter.File.Warnings + 
     $Context.Counter.FormData.Warnings + 
