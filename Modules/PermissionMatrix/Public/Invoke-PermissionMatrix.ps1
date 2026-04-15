@@ -24,25 +24,22 @@ function Invoke-PermissionMatrix {
     $context = $null
 
     try {
-        # ================================================================
-        # 1. BEGIN STAGE
-        # ================================================================
+        #region Check for input errors
         $context = Invoke-PermissionMatrixBeginHC `
             -ConfigurationJsonFile $ConfigurationJsonFile `
             -ScriptPath $ScriptPath `
             -SystemErrors ([ref]$systemErrors)
+        #endregion
 
         $hasFatal = Test-HasFatalErrorsHC ([ref]$systemErrors)
 
-        # ================================================================
-        # 2. PROCESS STAGE
-        # ================================================================
+        #region Process matrix files
         if ($context -and $context.FoundMatrices -and -not $hasFatal) {
-            
             $context = Invoke-PermissionMatrixProcessHC `
                 -Context $context `
                 -SystemErrors ([ref]$systemErrors)
         }
+        #endregion
     }
     catch {
         Add-ErrorHC `
@@ -53,26 +50,18 @@ function Invoke-PermissionMatrix {
             -SystemErrors ([ref]$systemErrors)
     }
     finally {
-        # ================================================================
-        # 3. END STAGE (Always runs to guarantee reporting/cleanup)
-        # ================================================================
+        #region Report results via email and logs (best effort)
         if ($context) {
-            # We have at least a partial configuration! 
-            # Run the full END stage (Emails, Logs, ServiceNow)
             Invoke-PermissionMatrixEndHC `
                 -Context $context `
                 -SystemErrors ([ref]$systemErrors)
         }
         elseif ($systemErrors.Count -gt 0) {
-            # FATAL EARLY ERROR (e.g., JSON file missing/corrupt). 
-            # We have NO email or log folder configuration, so we must fall back to the Host/EventLog.
             foreach ($err in $systemErrors) {
                 $msg = "[$($err.Type)] $($err.Name): $($err.Message) $($err.Description)"
                 
-                # Output to the PowerShell Host (Standard Error Stream) 
                 Write-Error $msg
                 
-                # Fallback Event Log write (using a hardcoded source since we couldn't read the config) 
                 try {
                     if (-not [System.Diagnostics.EventLog]::SourceExists('Permission Matrix')) {
                         New-EventLog `
@@ -93,10 +82,9 @@ function Invoke-PermissionMatrix {
                 }
             }
         }
+        #endregion
 
-        # ================================================================
-        # 4. EXIT HANDLING
-        # ================================================================
+        #region Final fatal error check and exit code
         if ($systemErrors.Count -gt 0) {
             $systemErrors | ForEach-Object {
                 Write-Warning "Logged System Error: [$($_.Type)] $($_.Name) - $($_.Message)"
@@ -111,5 +99,6 @@ function Invoke-PermissionMatrix {
         else {
             Write-Verbose 'Script finished successfully'
         }
+        #endregion
     }
 }
