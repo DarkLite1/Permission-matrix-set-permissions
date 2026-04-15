@@ -20,7 +20,7 @@ function New-JsonFixture {
         MaxConcurrent          = @{
             Computers             = 1
             JobsPerRemoteComputer = 1
-            FoldersPerMatrix      = 2
+            FoldersPerMatrix      = 1
         }
         Matrix                 = @{
             FolderPath             = ''      # Filled in tests

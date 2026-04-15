@@ -119,7 +119,16 @@ function Invoke-PermissionMatrixBeginHC {
             -ScriptBlock {
             param($file, $context, $archiveFolder)
 
-            Import-Module $context.ScriptPath.PermissionMatrixModule -Force -ErrorAction Stop
+            #region Load module and helper functions inside runspace
+            Import-Module ImportExcel -ErrorAction Stop
+
+            $privateFolder = Join-Path `
+                -Path (Split-Path $context.ScriptPath.PermissionMatrixModule) `
+                -ChildPath 'Private'
+
+            Get-ChildItem -Path $privateFolder -Recurse -Filter '*.ps1' | 
+            ForEach-Object { . $_.FullName }
+            #endregion
             
             # Read and validate the matrix
             $fileResult = Import-MatrixFileHC -MatrixFile $file -Context $context
