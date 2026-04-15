@@ -24,8 +24,11 @@ function Invoke-WithOptionalParallelismHC {
     else {
         Write-Verbose "Running in parallel (ThrottleLimit = $ThrottleLimit)"
 
-        $InputObject | ForEach-Object -Parallel $ScriptBlock `
-            -ThrottleLimit $ThrottleLimit `
-            -ArgumentList $ArgumentList
+        $scriptBlockString = $ScriptBlock.ToString()
+
+        $InputObject | ForEach-Object -Parallel {
+            $rehydratedBlock = [scriptblock]::Create($using:scriptBlockString)
+            & $rehydratedBlock $_ @($using:ArgumentList)
+        } -ThrottleLimit $ThrottleLimit
     }
 }
