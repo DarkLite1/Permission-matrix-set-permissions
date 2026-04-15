@@ -2,7 +2,7 @@ function Invoke-WithOptionalParallelismHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [IEnumerable]$InputObject,
+        [array]$InputObject,
 
         [Parameter(Mandatory)]
         [scriptblock]$ScriptBlock,

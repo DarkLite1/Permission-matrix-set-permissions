@@ -50,7 +50,11 @@ function Invoke-PermissionMatrixProcessHC {
             }
         }
 
-        $reqResults = Invoke-WithOptionalParallelismHC -InputObject $safeReqGroups -ThrottleLimit $throttleComputers -ArgumentList $Context.ScriptPath, $psSessionConfig -ScriptBlock {
+        $reqResults = Invoke-WithOptionalParallelismHC `
+            -InputObject $safeReqGroups `
+            -ThrottleLimit $throttleComputers `
+            -ArgumentList $Context.ScriptPath, $psSessionConfig `
+            -ScriptBlock {
             param($dto, $scriptPaths, $sessionConfig)
             try {
                 $result = Invoke-Command -FilePath $scriptPaths.TestRequirementsFile `

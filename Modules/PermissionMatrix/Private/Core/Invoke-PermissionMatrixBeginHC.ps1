@@ -112,7 +112,11 @@ function Invoke-PermissionMatrixBeginHC {
         $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
 
         #region Read and Archive in Parallel
-        $parallelResults = Invoke-WithOptionalParallelismHC -InputObject $matrixFiles -ThrottleLimit $throttle -ArgumentList $Context, $archivePath -ScriptBlock {
+        $parallelResults = Invoke-WithOptionalParallelismHC `
+            -InputObject $matrixFiles `
+            -ThrottleLimit $throttle `
+            -ArgumentList $Context, $archivePath `
+            -ScriptBlock {
             param($file, $context, $archiveFolder)
 
             Import-Module $context.ScriptPath.PermissionMatrixModule -Force -ErrorAction Stop
