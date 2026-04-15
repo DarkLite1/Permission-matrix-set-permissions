@@ -170,12 +170,17 @@ $settings
 }
 #endregion
 
-#region Write-MatrixTroubleshootingLogHC
 function Write-MatrixTroubleshootingLogHC {
-    param($Matrix, $Html)
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Matrix,
+        [Parameter(Mandatory)][hashtable]$Html
+    )
 
     $folder = $Matrix.File.LogFolder
-    if (-not (Test-Path $folder)) { return $null }
+    if ([string]::IsNullOrWhiteSpace($folder) -or -not (Test-Path -LiteralPath $folder -PathType Container)) { 
+        return $null 
+    }
 
     $sections = @(
         New-HtmlSectionHC 'File' $Matrix.File.Check
@@ -183,7 +188,7 @@ function Write-MatrixTroubleshootingLogHC {
         New-HtmlSectionHC 'Permissions' $Matrix.Permissions.Check
     ) -join ''
 
-    $html = @"
+    $htmlOut = @"
 <!DOCTYPE html>
 <html><head>
 $($Html.Style)
@@ -198,10 +203,10 @@ $($Html.Templates.LegendTable)
 "@
 
     $path = Join-Path $folder '00 - Troubleshooting Log.html'
-    $html | Out-File $path -Encoding UTF8 -Force
+    $htmlOut | Out-File -FilePath $path -Encoding UTF8 -Force
+    
     return $path
 }
-#endregion
 
 #region Build-ErrorWarningTableHC
 function Build-ErrorWarningTableHC {

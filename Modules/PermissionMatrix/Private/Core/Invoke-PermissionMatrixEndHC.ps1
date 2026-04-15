@@ -93,13 +93,9 @@ function Invoke-PermissionMatrixEndHC {
                     $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
                 }
             }
-            catch {
-                $logFolder = $null # Absolute failure, even TEMP is broken
-            }
+            catch { $logFolder = $null }
         } 
-        else {
-            $logFolder = $null # The configured path WAS the temp path, and it failed
-        }
+        else { $logFolder = $null }
     }
 
     # Update the Context so the Email and Cleanup logic know the correct, working path
@@ -111,10 +107,26 @@ function Invoke-PermissionMatrixEndHC {
     if ($logFolder) {
         try {
             if ($Context.FoundMatrices) {
+                $dateStr = $Context.StartTime.ToString('yyyy_MM_dd_HHmmss')
+
                 foreach ($matrix in $Context.Matrices) {
+                    #region Create matrix-specific log folder
+                    $matrixBaseName = [System.IO.Path]::GetFileNameWithoutExtension($matrix.File.Name)
+
+                    $specificFolder = Join-Path `
+                        -Path $logFolder `
+                        -ChildPath "$dateStr - $matrixBaseName"
+                    
+                    if (-not (Test-Path -LiteralPath $specificFolder -PathType Container)) {
+                        $null = New-Item -ItemType Directory -Path $specificFolder -Force -ErrorAction Stop
+                    }
+                    #endregion
+                    
+                    $matrix.File.LogFolder = $specificFolder
+
                     $null = Write-MatrixTroubleshootingLogHC `
                         -Matrix $matrix `
-                        -Html $htmlTemplates
+                        -Html $htmlTemplates 
                 }
             }
             
@@ -162,14 +174,25 @@ function Invoke-PermissionMatrixEndHC {
                 -ScriptStartTime $Context.StartTime
             
             # Re-attach the JSON error log if it was successfully created in Step 3
-            if ($sysErrAttachments) { $mailParams.Attachments = $sysErrAttachments }
+            if ($sysErrAttachments) { 
+                $mailParams.Attachments = $sysErrAttachments 
+            }
 
             Send-MailKitMessageHC @mailParams
             
-            if ($logFolder) { $null = Save-MailBodyToLogHC -MailParams $mailParams -LogFolder $logFolder }
+            if ($logFolder) { 
+                $null = Save-MailBodyToLogHC `
+                    -MailParams $mailParams `
+                    -LogFolder $logFolder 
+            }
         }
         catch {
-            Add-ErrorHC -Type 'Warning' -Name 'Email Failed' -Message "Failed to send summary email: $_" -Category 'Reporting' -SystemErrors $SystemErrors
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'Email Failed' `
+                -Message "Failed to send summary email: $_" `
+                -Category 'Reporting' `
+                -SystemErrors $SystemErrors
         }
     }
 
@@ -179,10 +202,19 @@ function Invoke-PermissionMatrixEndHC {
     try {
         if ($Context.Settings.SaveInEventLog.Save) {
             $eventData = [System.Collections.Generic.List[PSObject]]::new()
-            Write-EventLogSafe -EventLogData $eventData -ScriptName ($Context.Settings.ScriptName ?? 'Permission Matrix') -Settings $Context.Settings -SystemErrors $SystemErrors
+
+            Write-EventLogSafe `
+                -EventLogData $eventData `
+                -ScriptName (
+                $Context.Settings.ScriptName ?? 'Permission Matrix') `
+                -Settings $Context.Settings `
+                -SystemErrors $SystemErrors
         }
         if ($Context.Settings.SaveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
-            Cleanup-OldLogsHC -LogFolder $logFolder -RetentionDays $Context.Settings.SaveLogFiles.DeleteLogsAfterDays -SystemErrors $SystemErrors
+            Cleanup-OldLogsHC `
+                -LogFolder $logFolder `
+                -RetentionDays $Context.Settings.SaveLogFiles.DeleteLogsAfterDays `
+                -SystemErrors $SystemErrors
         }
     }
     catch {
