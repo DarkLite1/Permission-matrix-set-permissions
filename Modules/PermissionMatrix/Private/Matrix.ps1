@@ -6,20 +6,25 @@ function Format-PermissionsStringsHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
+        # Allow the function to accept rows directly from the pipeline
+        [Parameter(Mandatory, ValueFromPipeline = $true)]
         $Row
     )
 
-    $new = @{}
-    foreach ($prop in $Row.PSObject.Properties) {
-        $val = $prop.Value
-        if ($val -is [string]) {
-            $val = $val.Trim().ToUpper()
+    process {
+        # MUST use [ordered] to preserve the exact Excel column layout!
+        $new = [ordered]@{} 
+        
+        foreach ($prop in $Row.PSObject.Properties) {
+            $val = $prop.Value
+            if ($val -is [string]) {
+                $val = $val.Trim().ToUpper()
+            }
+            $new[$prop.Name] = $val
         }
-        $new[$prop.Name] = $val
-    }
 
-    return [pscustomobject]$new
+        return [pscustomobject]$new
+    }
 }
 
 function Format-SettingStringsHC {

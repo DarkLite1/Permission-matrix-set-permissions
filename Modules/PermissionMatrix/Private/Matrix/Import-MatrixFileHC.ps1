@@ -67,11 +67,8 @@ function Import-MatrixFileHC {
             -ErrorAction Stop
 
         $fileResult.Sheets.Permissions.Raw = $permissionsSheet 
-            
-        $formattedPermissionsSheet = Format-PermissionsStringsHC `
-            -Permissions $fileResult.Sheets.Permissions.Raw
 
-        $fileResult.Sheets.Permissions.Formatted = $formattedPermissionsSheet
+        $fileResult.Sheets.Permissions.Formatted = $fileResult.Sheets.Permissions.Raw | Format-PermissionsStringsHC
         #endregion
 
         #region Import optional FormData
