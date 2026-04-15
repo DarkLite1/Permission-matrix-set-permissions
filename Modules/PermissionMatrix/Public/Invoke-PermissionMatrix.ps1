@@ -97,6 +97,12 @@ function Invoke-PermissionMatrix {
         # ================================================================
         # 4. EXIT HANDLING
         # ================================================================
+        if ($systemErrors.Count -gt 0) {
+            $systemErrors | ForEach-Object {
+                Write-Warning "Logged System Error: [$($_.Type)] $($_.Name) - $($_.Message)"
+            }
+        }
+
         if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
             Write-Warning 'Exit script with error code 1'
             
