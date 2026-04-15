@@ -50,33 +50,47 @@ function Invoke-PermissionMatrixProcessHC {
             }
         }
 
-        $reqResults = Invoke-WithOptionalParallelismHC `
-            -InputObject $safeReqGroups `
-            -ThrottleLimit $throttleComputers `
-            -ArgumentList $Context.ScriptPath, $psSessionConfig `
-            -ScriptBlock {
-            param($dto, $scriptPaths, $sessionConfig)
-            try {
-                $result = Invoke-Command -FilePath $scriptPaths.TestRequirementsFile `
-                    -ArgumentList $dto.PathsToCheck, $true `
-                    -ConfigurationName $sessionConfig `
-                    -ComputerName $dto.ComputerName `
-                    -ErrorAction Stop
+        if ($safeReqGroups) {
+            $reqResults = Invoke-WithOptionalParallelismHC `
+                -InputObject $safeReqGroups `
+                -ThrottleLimit $throttleComputers `
+                -ArgumentList $Context.ScriptPath, $psSessionConfig `
+                -ScriptBlock {
+                param($dto, $scriptPaths, $sessionConfig)
+                try {
+                    $result = Invoke-Command `
+                        -FilePath $scriptPaths.TestRequirementsFile `
+                        -ArgumentList $dto.PathsToCheck, $true `
+                        -ConfigurationName $sessionConfig `
+                        -ComputerName $dto.ComputerName `
+                        -ErrorAction Stop
                 
-                return [PSCustomObject]@{ ComputerName = $dto.ComputerName; Result = $result }
+                    return [PSCustomObject]@{ 
+                        ComputerName = $dto.ComputerName 
+                        Result       = $result 
+                    }
+                }
+                catch {
+                    $errObj = [PSCustomObject]@{ 
+                        Type        = 'FatalError'
+                        Name        = 'Computer requirements'
+                        Description = 'Failed checking computer requirements.' 
+                        Value       = $_ 
+                    } 
+                    return [PSCustomObject]@{ 
+                        ComputerName = $dto.ComputerName
+                        Result       = $errObj 
+                    }
+                }
             }
-            catch {
-                $errObj = [PSCustomObject]@{ Type = 'FatalError'; Name = 'Computer requirements'; Description = 'Failed checking computer requirements.'; Value = $_ } 
-                return [PSCustomObject]@{ ComputerName = $dto.ComputerName; Result = $errObj }
-            }
-        }
 
-        # Main Thread Application: Add results back to the live objects
-        foreach ($output in $reqResults) {
-            if ($output.Result) {
-                $targetSettings = $executableSettings.Where({ $_.Import.ComputerName -eq $output.ComputerName })
-                foreach ($setting in $targetSettings) {
-                    $setting.Check += $output.Result | ConvertTo-StructuredObjectHC 
+            # Main Thread Application: Add results back to the live objects
+            foreach ($output in $reqResults) {
+                if ($output.Result) {
+                    $targetSettings = $executableSettings.Where({ $_.Import.ComputerName -eq $output.ComputerName })
+                    foreach ($setting in $targetSettings) {
+                        $setting.Check += $output.Result | ConvertTo-StructuredObjectHC 
+                    }
                 }
             }
         }
@@ -110,52 +124,72 @@ function Invoke-PermissionMatrixProcessHC {
                             ComputerName = $S.Import.ComputerName
                             Path         = $S.Import.Path
                             Action       = $S.Import.Action
-                            MatrixJson   = ($S.Matrix | ConvertTo-Json -Depth 10 -Compress)
+                            MatrixJson   = (
+                                $S.Matrix | 
+                                ConvertTo-Json -Depth 10 -Compress
+                            )
                         }
                     }
                 )
             }
         }
 
-        # Run parallel across computers. We process jobs per computer sequentially inside the runspace
-        # to avoid WinRM connection exhaustion/overloads on a single target.
-        $permResults = Invoke-WithOptionalParallelismHC -InputObject $safePermGroups -ThrottleLimit $throttleComputers -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.MaxConcurrent, $Context.Settings.SaveLogFiles.Detailed -ScriptBlock {
-            param($compDto, $scriptPaths, $sessionConfig, $maxConc, $detailedLog)
+        if ($safePermGroups) {
+            $permResults = Invoke-WithOptionalParallelismHC `
+                -InputObject $safePermGroups `
+                -ThrottleLimit $throttleComputers `
+                -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.MaxConcurrent, $Context.Settings.SaveLogFiles.Detailed `
+                -ScriptBlock {
+                param(
+                    $compDto, $scriptPaths, 
+                    $sessionConfig, $maxConc, $detailedLog
+                )
 
-            $innerResults = @()
+                $innerResults = @()
             
-            foreach ($job in $compDto.Matrices) {
-                $startTime = Get-Date
-                try {
-                    $restoredMatrix = if (-not [string]::IsNullOrWhiteSpace($job.MatrixJson)) { @($job.MatrixJson | ConvertFrom-Json) } else { @() } 
+                foreach ($job in $compDto.Matrices) {
+                    $startTime = Get-Date
+                    try {
+                        $restoredMatrix = if (-not [string]::IsNullOrWhiteSpace($job.MatrixJson)) { @($job.MatrixJson | ConvertFrom-Json) } else { @() } 
                     
-                    $res = Invoke-Command -FilePath $scriptPaths.SetPermissionFile `
-                        -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
-                        -ConfigurationName $sessionConfig `
-                        -ComputerName $job.ComputerName `
-                        -ErrorAction Stop
+                        $res = Invoke-Command -FilePath $scriptPaths.SetPermissionFile `
+                            -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
+                            -ConfigurationName $sessionConfig `
+                            -ComputerName $job.ComputerName `
+                            -ErrorAction Stop
                     
-                    $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $res; Start = $startTime; End = (Get-Date) }
-                }
-                catch {
-                    $errObj = [PSCustomObject]@{ Type = 'FatalError'; Name = 'Set permissions'; Description = 'Failed applying action.'; Value = $_ }
-                    $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $errObj; Start = $startTime; End = (Get-Date) }
-                }
-            }
-            return $innerResults
-        }
-
-        # Main Thread Application: Add Job Times and Results back to Live Objects
-        foreach ($resArray in $permResults) {
-            foreach ($res in $resArray) {
-                $liveSetting = $validSettings.Where({ $_.ID -eq $res.ID }) 
-                if ($liveSetting) {
-                    if ($res.Result) {
-                        $liveSetting.Check += $res.Result | ConvertTo-StructuredObjectHC 
+                        $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $res; Start = $startTime; End = (Get-Date) }
                     }
-                    $liveSetting.JobTime.Start = $res.Start
-                    $liveSetting.JobTime.End = $res.End
-                    $liveSetting.JobTime.Duration = New-TimeSpan -Start $res.Start -End $res.End 
+                    catch {
+                        $errObj = [PSCustomObject]@{ 
+                            Type        = 'FatalError' 
+                            Name        = 'Set permissions'
+                            Description = 'Failed applying action.' 
+                            Value       = $_ 
+                        }
+                        $innerResults += [PSCustomObject]@{
+                            ID     = $job.ID
+                            Result = $errObj
+                            Start  = $startTime
+                            End    = (Get-Date) 
+                        }
+                    }
+                }
+                return $innerResults
+            }
+
+            # Main Thread Application: Add Job Times and Results back to Live Objects
+            foreach ($resArray in $permResults) {
+                foreach ($res in $resArray) {
+                    $liveSetting = $validSettings.Where({ $_.ID -eq $res.ID }) 
+                    if ($liveSetting) {
+                        if ($res.Result) {
+                            $liveSetting.Check += $res.Result | ConvertTo-StructuredObjectHC 
+                        }
+                        $liveSetting.JobTime.Start = $res.Start
+                        $liveSetting.JobTime.End = $res.End
+                        $liveSetting.JobTime.Duration = New-TimeSpan -Start $res.Start -End $res.End 
+                    }
                 }
             }
         }
@@ -164,7 +198,12 @@ function Invoke-PermissionMatrixProcessHC {
 
     }
     catch {
-        Add-ErrorHC -Type 'FatalError' -Category 'Runtime' -Name 'PROCESS stage failure' -Message "Unhandled exception occurred: $_" -SystemErrors $SystemErrors 
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Category 'Runtime' `
+            -Name 'PROCESS stage failure' `
+            -Message "Unhandled exception occurred: $_" `
+            -SystemErrors $SystemErrors 
         return $Context
     }
 }
