@@ -47,7 +47,7 @@ function Invoke-PermissionMatrixBeginHC {
             Counter       = New-CounterObjectHC
             ExportedFiles = @{}
             FoundMatrices = $false
-            Matrices      = @()
+            AllMatrices   = @()
             Defaults      = $null
         }
 
@@ -158,14 +158,14 @@ function Invoke-PermissionMatrixBeginHC {
         foreach ($res in $parallelResults) {
             if ($res.Matrices) { $importedMatrices.AddRange($res.Matrices) }
         }
-        $Context.Matrices = $importedMatrices
+        $Context.AllMatrices = $importedMatrices
 
         # =====================================================================
         # 3. SEQUENTIAL: Cross-Matrix Checks & AD Lookups
         # =====================================================================
         
         #region Duplicate ComputerName/Path Validation
-        $duplicateSettings = $Context.Matrices.Settings | 
+        $duplicateSettings = $Context.AllMatrices.Settings | 
         Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
         Where-Object Count -GE 2
 
@@ -192,7 +192,7 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         # 3c. One AD query for all objects combined
-        $allAdObjects = $Context.Matrices.Settings.Matrix.ACL.Keys | Sort-Object -Unique
+        $allAdObjects = $Context.AllMatrices.Settings.Matrix.ACL.Keys | Sort-Object -Unique
 
         if ($allAdObjects.Count -gt 0) {
             $adObjectDetails = @(
@@ -202,7 +202,7 @@ function Invoke-PermissionMatrixBeginHC {
             )
             
             # 3d. Combine AD info with matrix data (Expanded Matrix Validation)
-            foreach ($matrixObj in $Context.Matrices) {
+            foreach ($matrixObj in $Context.AllMatrices) {
                 foreach ($S in $matrixObj.Settings) {
                     if (-not $S.Matrix) { continue }
 
