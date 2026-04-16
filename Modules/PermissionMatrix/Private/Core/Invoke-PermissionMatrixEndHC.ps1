@@ -94,8 +94,6 @@ function Invoke-PermissionMatrixEndHC {
         } 
         else { $logFolder = $null }
     }
-    
-    $Context.Config.Settings.SaveLogFiles.Where.Folder = $logFolder
     #endregion
 
     # 3. Normal / Write the logs to the verified folder

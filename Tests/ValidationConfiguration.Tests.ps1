@@ -90,6 +90,10 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             $updated.$Property = $null
 
+            if ($Property -eq 'Settings') {
+                'pause'
+            }
+
             Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
             & $TestScript @TestParams
 
@@ -107,7 +111,7 @@ Describe 'Input Validation Tests' {
                     -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                     -Pattern "*Property '$Property' not found*"
             }
-        }
+        } -Tag test
     }
 
     Describe 'missing MaxConcurrent sub-properties' {
