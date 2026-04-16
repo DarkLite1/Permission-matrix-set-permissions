@@ -108,18 +108,18 @@ function Import-MatrixFileHC {
         #region Create ONE matrix per enabled Settings row
         foreach ($enabledSetting in $enabledSettings) {
             $matrix = [pscustomobject]@{
-                ID             = $null
-                EnabledSetting = @{
+                ID          = $null
+                Setting     = @{
                     Raw       = $enabledSetting
                     Formatted = Format-SettingStringsHC `
                         -Settings $enabledSetting
                 }
-                Check          = [System.Collections.Generic.List[pscustomobject]]::new()
-                Matrix         = [System.Collections.Generic.List[pscustomobject]]::new()
-                AdObjects      = @{}
-                JobTime        = @{}
+                Check       = [System.Collections.Generic.List[pscustomobject]]::new()
+                Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
+                AdObjects   = @{}
+                JobTime     = @{}
                 # Reference back to file-level data
-                FileContext    = $fileResult
+                FileContext = $fileResult
             }
           
             # Optional: validate settings row here

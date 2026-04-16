@@ -127,24 +127,34 @@ function Invoke-PermissionMatrixEndHC {
                     -Force -ErrorAction Stop
                 #endregion
 
-                foreach ($matrix in $Context.Matrices) {
+                foreach ($matrix in $Context.AllMatrices) {
                     #region Create matrix-specific log folder
-                    $matrix.LogFolder = New-Item -ItemType Directory `
-                        -Path (Join-Path `
-                            -Path $datedLogFolder.FullName `
-                            -ChildPath $matrix.File.Item.BaseName) `
-                        -Force -ErrorAction Stop
+                    $matrixLogFolder = Join-Path `
+                        -Path $datedLogFolder.FullName `
+                        -ChildPath $matrix.File.Item.BaseName
+
+                    if (
+                        -not (Test-Path `
+                                -LiteralPath $matrixLogFolder `
+                                -PathType Container)
+                    ) {
+                        $null = New-Item -ItemType Directory `
+                            -Path $matrixLogFolder `
+                            -Force -ErrorAction Stop
+                    }
+
+                    $matrix.FileContext.LogFolder = $matrixLogFolder
                     #endregion
                     
                     Write-MatrixTroubleshootingLogHC `
                         -Matrix $matrix `
                         -Html $htmlTemplates `
-                        -LogFolder $matrix.LogFolder.FullName
+                        -LogFolder $matrix.FileContext.LogFolder
 
                     Write-MatrixSettingLogHC `
                         -Matrix $matrix `
                         -Html $htmlTemplates `
-                        -LogFolder $matrix.LogFolder.FullName
+                        -LogFolder $matrix.FileContext.LogFolder
                 }
             }
             
