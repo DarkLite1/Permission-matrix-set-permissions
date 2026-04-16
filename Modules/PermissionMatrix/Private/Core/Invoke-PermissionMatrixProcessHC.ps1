@@ -170,7 +170,8 @@ function Invoke-PermissionMatrixProcessHC {
                         }
                         else { @() } 
                     
-                        $res = Invoke-Command -FilePath $scriptPaths.SetPermissionFile `
+                        $res = Invoke-Command `
+                            -FilePath $scriptPaths.SetPermissionFile `
                             -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
                             -ConfigurationName $sessionConfig `
                             -ComputerName $job.ComputerName `
@@ -204,7 +205,9 @@ function Invoke-PermissionMatrixProcessHC {
             # Main Thread Application: Add Job Times and Results back to Live Objects
             foreach ($resArray in $permResults) {
                 foreach ($res in $resArray) {
-                    $liveSetting = $validSettings.Where({ $_.ID -eq $res.ID }) 
+                    $liveSetting = $validSettings.Where(
+                        { $_.ID -eq $res.ID }, 'First'
+                    ) 
                     if ($liveSetting) {
                         if ($res.Result) {
                             $liveSetting.Check += $res.Result | ConvertTo-StructuredObjectHC 
