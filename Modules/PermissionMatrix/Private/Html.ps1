@@ -174,11 +174,11 @@ function Write-MatrixTroubleshootingLogHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Matrix,
-        [Parameter(Mandatory)][hashtable]$Html
+        [Parameter(Mandatory)][hashtable]$Html,
+        [Parameter(Mandatory)][string]$LogFolderPath
     )
 
-    $folder = $Matrix.File.LogFolder
-    if ([string]::IsNullOrWhiteSpace($folder) -or -not (Test-Path -LiteralPath $folder -PathType Container)) { 
+    if (-not (Test-Path -LiteralPath $LogFolderPath -PathType Container)) { 
         return $null 
     }
 
@@ -202,10 +202,11 @@ $($Html.Templates.LegendTable)
 </body></html>
 "@
 
-    $path = Join-Path $folder '00 - Troubleshooting Log.html'
-    $htmlOut | Out-File -FilePath $path -Encoding UTF8 -Force
-    
-    return $path
+    $logFilePath = Join-Path `
+        -Path $LogFolderPath `
+        -ChildPath 'TroubleshootingLog.html'
+
+    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
 
 #region Build-ErrorWarningTableHC

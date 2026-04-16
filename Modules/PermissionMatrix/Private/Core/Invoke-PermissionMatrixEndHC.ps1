@@ -58,18 +58,15 @@ function Invoke-PermissionMatrixEndHC {
         }
     }
 
-    # =====================================================================
-    # 3. WRITE LOGS (Best Effort)
-    # =====================================================================
+    #region Create log folder
     $logFolder = $Context.Settings.SaveLogFiles.Where.Folder
     $tempLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
     
-    # 1. When settings has no log folder, we use the temp folder
+    # Use temp folder if no log folder is specified
     if ([string]::IsNullOrWhiteSpace($logFolder)) {
         $logFolder = $tempLogFolder
     }
 
-    # Attempt to create/validate the chosen log folder
     try {
         if (-not (Test-Path -LiteralPath $logFolder -PathType Container)) {
             $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
@@ -97,36 +94,37 @@ function Invoke-PermissionMatrixEndHC {
         } 
         else { $logFolder = $null }
     }
-
-    # Update the Context so the Email and Cleanup logic know the correct, working path
-    if ($Context.Settings.SaveLogFiles.Where) {
-        $Context.Settings.SaveLogFiles.Where.Folder = $logFolder
-    }
+    
+    $Context.Settings.SaveLogFiles.Where.Folder = $logFolder
+    #endregion
 
     # 3. Normal / Write the logs to the verified folder
     if ($logFolder) {
         try {
             if ($Context.FoundMatrices) {
+                #region Create dated log folder
                 $dateStr = $Context.StartTime.ToString('yyyy_MM_dd_HHmmss')
+
+                $datedLogFolder = New-Item -ItemType Directory `
+                    -Path (Join-Path `
+                        -Path $logFolder `
+                        -ChildPath "$dateStr - $($Context.JsonFileName)" ) `
+                    -Force -ErrorAction Stop
+                #endregion
 
                 foreach ($matrix in $Context.Matrices) {
                     #region Create matrix-specific log folder
-                    $matrixBaseName = [System.IO.Path]::GetFileNameWithoutExtension($matrix.File.Name)
-
-                    $specificFolder = Join-Path `
-                        -Path $logFolder `
-                        -ChildPath "$dateStr - $matrixBaseName"
-                    
-                    if (-not (Test-Path -LiteralPath $specificFolder -PathType Container)) {
-                        $null = New-Item -ItemType Directory -Path $specificFolder -Force -ErrorAction Stop
-                    }
+                    $matrix.LogFolder = New-Item -ItemType Directory `
+                        -Path (Join-Path `
+                            -Path $datedLogFolder.FullName `
+                            -ChildPath $matrix.File.Item.BaseName) `
+                        -Force -ErrorAction Stop
                     #endregion
                     
-                    $matrix.File.LogFolder = $specificFolder
-
-                    $null = Write-MatrixTroubleshootingLogHC `
+                    Write-MatrixTroubleshootingLogHC `
                         -Matrix $matrix `
-                        -Html $htmlTemplates 
+                        -Html $htmlTemplates `
+                        -LogFolderPath $matrix.LogFolder.FullName
                 }
             }
             

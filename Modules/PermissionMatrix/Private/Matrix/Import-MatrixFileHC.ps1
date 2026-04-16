@@ -9,12 +9,11 @@ function Import-MatrixFileHC {
     )
 
     $fileResult = [pscustomobject]@{
-        File     = @{
-            Name  = $MatrixFile.Name
-            Path  = $MatrixFile.FullName
+        File      = @{
+            Item  = $MatrixFile
             Check = [System.Collections.Generic.List[pscustomobject]]::new()
         }
-        Sheets   = @{
+        Sheets    = @{
             Permissions = @{
                 Raw       = $null
                 Formatted = $null
@@ -28,7 +27,8 @@ function Import-MatrixFileHC {
                 Formatted = $null
             }
         }
-        Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
+        Matrices  = [System.Collections.Generic.List[pscustomobject]]::new()
+        LogFolder = $null
     }
 
     try {

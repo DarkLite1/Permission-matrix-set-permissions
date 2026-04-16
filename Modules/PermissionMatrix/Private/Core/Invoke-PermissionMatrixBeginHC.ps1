@@ -36,6 +36,7 @@ function Invoke-PermissionMatrixBeginHC {
         $json = Get-Content -LiteralPath $ConfigurationJsonFile -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
    
         $Context = [pscustomobject]@{
+            JsonFileName  = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationJsonFile)
             Settings      = $json.Settings
             Matrix        = $json.Matrix
             Export        = $json.Export
