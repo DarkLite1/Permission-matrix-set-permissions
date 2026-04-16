@@ -183,23 +183,23 @@ function Write-MatrixExecutionReportHC {
                 -PathType Container)
     ) { return $null }
 
-    # 1. FILE-LEVEL CHECKS (We only need to grab this once from the first item)
     $firstMatrix = $FileMatrices[0]
     $fileSections = @(
         New-HtmlSectionHC 'File Checks' $firstMatrix.File.Check
         if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+            New-HtmlSectionHC 'FormData Checks' `
+                $firstMatrix.FileContext.Sheets.FormData.Check
         }
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+            New-HtmlSectionHC 'Permissions Checks' `
+                $firstMatrix.FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
-    # 2. ROW-LEVEL SETTINGS CHECKS (Loop through all enabled rows)
     $settingsSections = ''
     foreach ($matrix in $FileMatrices) {
         $safeId = if ($matrix.ID) { $matrix.ID } else { 'Unknown' }
-        $header = "Settings Row (ID: $safeId) - $($matrix.EnabledSetting.Raw.ComputerName)"
+        $header = "Settings Row (ID: $safeId) - $($matrix.Setting.Raw.ComputerName)"
         
         $settingsSections += New-HtmlSectionHC $header $matrix.Check
     }
