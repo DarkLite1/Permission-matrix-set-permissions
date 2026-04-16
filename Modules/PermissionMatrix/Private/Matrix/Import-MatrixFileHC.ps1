@@ -10,8 +10,9 @@ function Import-MatrixFileHC {
 
     $fileResult = [pscustomobject]@{
         File      = @{
-            Item  = $MatrixFile
-            Check = [System.Collections.Generic.List[pscustomobject]]::new()
+            Item      = $MatrixFile
+            ExcelInfo = $null
+            Check     = [System.Collections.Generic.List[pscustomobject]]::new()
         }
         Sheets    = @{
             Permissions = @{
@@ -32,6 +33,12 @@ function Import-MatrixFileHC {
     }
 
     try {
+        #region Get Excel workbook info
+        $fileResult.File.ExcelInfo = Get-ExcelWorkbookInfo `
+            -Path $matrixFile.FullName `
+            -ErrorAction Stop
+        #endregion
+
         #region Import Settings sheet
         $settingsSheet = @(
             Import-Excel `
