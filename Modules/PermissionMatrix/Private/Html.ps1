@@ -3,7 +3,6 @@
     Consolidated HTML rendering logic for Toolbox.PermissionMatrixHC
 #>
 
-#region Initialize-HtmlStructureHC
 function Initialize-HtmlStructureHC {
 
     $style = @'
@@ -54,9 +53,7 @@ function Initialize-HtmlStructureHC {
         }
     }
 }
-#endregion
 
-#region Helper functions
 function Get-HtmlClassProbTypeHC {
     param([string]$Type)
     switch ($Type) {
@@ -77,7 +74,10 @@ function New-HtmlCheckRowHC {
 }
 
 function New-HtmlSectionHC {
-    param([string]$Title, [object]$Checks)
+    param(
+        [string]$Title,
+        [object]$Checks
+    )
 
     if (-not $Checks) { return '' }
 
@@ -88,49 +88,41 @@ function New-HtmlSectionHC {
     "<tr><th class='matrixHeader' colspan='8'>$Title</th></tr>$($rows -join '')"
 }
 
-function New-SettingsTableHtmlHC {
-    param($MatrixItem, $Html)
+function New-SettingsOverviewHtmlHC {
+    param(
+        [array]$MatrixRows, 
+        [hashtable]$Html
+    )
 
-    if (-not $MatrixItem.Settings) { return '' }
-
-    $fatalFile = @($MatrixItem.File.Check?.Type) -contains 'FatalError'
-    $fatalPerms = @($MatrixItem.Permissions.Check?.Type) -contains 'FatalError'
-    if ($fatalFile -or $fatalPerms) { return '' }
-
-    $rows = foreach ($S in $MatrixItem.Settings | Sort-Object ID) {
-
-        if (-not $S.Check) { continue }
-
+    $rowsHtml = foreach ($S in $MatrixRows | Sort-Object ExcelID) {
         $types = @($S.Check.Type)
         $cls = Get-HtmlClassProbTypeHC ($types | Select-Object -First 1)
 
         $dur = if ($S.JobTime.Duration) {
-            '{0:00}:{1:00}:{2:00}' -f
-            $S.JobTime.Duration.Hours,
-            $S.JobTime.Duration.Minutes,
-            $S.JobTime.Duration.Seconds
+            '{0:00}:{1:00}:{2:00}' -f $S.JobTime.Duration.Hours, $S.JobTime.Duration.Minutes, $S.JobTime.Duration.Seconds
         }
         else { 'NA' }
 
-        $link = $MatrixItem.TroubleshootingLogPath ?? '#'
+        $safeId = if ($S.ExcelID) { $S.ExcelID } else { 'Unknown' }
+        
+        # We can link the row directly to the consolidated log folder we made earlier!
+        $link = if ($S.FileContext.LogFolder) { "$($S.FileContext.LogFolder)\00 - Execution Report.html" } else { '#' }
 
         "<tr>
             <td class='$cls'></td>
-            <td><a href='$link'>$($S.ID)</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Import.ComputerName))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Import.Path))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Import.Action))</a></td>
+            <td><a href='$link'>$safeId</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.ComputerName))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.Path))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.Action))</a></td>
             <td><a href='$link'>$dur</a></td>
         </tr>"
     }
 
-    if (-not $rows) { return '' }
-
-    $Html.Templates.SettingsHeader + ($rows -join '')
+    if (-not $rowsHtml) { return '' }
+    
+    return $Html.Templates.SettingsHeader + ($rowsHtml -join '')
 }
-#endregion
 
-#region Build-MatrixEmailHtmlHC
 function Build-MatrixEmailHtmlHC {
     param(
         [array]$ImportedMatrix,
@@ -168,7 +160,6 @@ $settings
 
     return $output
 }
-#endregion
 
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
@@ -311,7 +302,6 @@ $($Html.Templates.LegendTable)
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
 
-#region Build-ErrorWarningTableHC
 function Build-ErrorWarningTableHC {
     param($CounterData, $SystemErrors)
 
@@ -321,9 +311,7 @@ function Build-ErrorWarningTableHC {
 
     '<p><b>Detected issues:</b></p>'
 }
-#endregion
 
-#region Generate-MailBodyHtmlHC
 function Generate-MailBodyHtmlHC {
     param(
         $Settings,
@@ -350,4 +338,3 @@ $($Html.MatrixTables)
 </html>
 "@
 }
-#endregion
