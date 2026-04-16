@@ -123,7 +123,7 @@ function Invoke-PermissionMatrixEndHC {
                 $datedLogFolder = New-Item -ItemType Directory `
                     -Path (Join-Path `
                         -Path $logFolder `
-                        -ChildPath "$dateStr - $($Context.JsonFileName)" ) `
+                        -ChildPath "$dateStr ($($Context.JsonFileName))" ) `
                     -Force -ErrorAction Stop
                 #endregion
 
