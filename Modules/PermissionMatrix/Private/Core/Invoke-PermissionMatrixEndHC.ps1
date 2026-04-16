@@ -46,15 +46,32 @@ function Invoke-PermissionMatrixEndHC {
     # =====================================================================
     if (-not $hasFatalErrors -and $Context.FoundMatrices) {
         try {
-            $Context.ExportedFiles = Export-FilesHC -ImportedMatrix $Context.Matrices -ExportSettings $Context.Config.Export -HtmlOverview $fullHtmlBody -Counters $Context.Counter
+            $Context.ExportedFiles = Export-FilesHC `
+                -ImportedMatrix $Context.AllMatrices `
+                -ExportSettings $Context.Config.Export `
+                -HtmlOverview $fullHtmlBody `
+                -Counters $Context.Counter
             
-            if ($Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath) {
-                $snowParams = @{ CredentialsFilePath = $Context.Config.ServiceNow.CredentialsFilePath; Environment = $Context.Config.ServiceNow.Environment; TableName = $Context.Config.ServiceNow.TableName; FormDataExcelFilePath = $Context.Config.Export.ServiceNowFormDataExcelFile; ExcelFileWorksheetName = 'SnowFormData' }
+            if (
+                $Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath
+            ) {
+                $snowParams = @{ 
+                    CredentialsFilePath    = $Context.Config.ServiceNow.CredentialsFilePath
+                    Environment            = $Context.Config.ServiceNow.Environment 
+                    TableName              = $Context.Config.ServiceNow.TableName 
+                    FormDataExcelFilePath  = $Context.Config.Export.ServiceNowFormDataExcelFile 
+                    ExcelFileWorksheetName = 'SnowFormData' 
+                }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
             }
         }
         catch {
-            Add-ErrorHC -Type 'Warning' -Name 'Exports/ServiceNow' -Message "Failed during export phase: $_" -Category 'Reporting' -SystemErrors $SystemErrors
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'Exports/ServiceNow' `
+                -Message "Failed during export phase: $_" `
+                -Category 'Reporting' `
+                -SystemErrors $SystemErrors
         }
     }
 
