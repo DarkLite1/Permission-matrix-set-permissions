@@ -37,11 +37,7 @@ function Invoke-PermissionMatrixBeginHC {
    
         $Context = [pscustomobject]@{
             JsonFileName  = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationJsonFile)
-            Settings      = $json.Settings
-            Matrix        = $json.Matrix
-            Export        = $json.Export
-            ServiceNow    = $json.ServiceNow
-            MaxConcurrent = $json.MaxConcurrent
+            Config        = $json
             ScriptPath    = $ScriptPath
             StartTime     = Get-Date
             Counter       = New-CounterObjectHC
@@ -77,13 +73,13 @@ function Invoke-PermissionMatrixBeginHC {
         # 2. PARALLEL: Read, Validate, and Archive Matrix Files
         # =====================================================================
         try {
-            $matrixFiles = Get-ChildItem -Path $Context.Matrix.FolderPath -Filter '*.xlsx' -File -ErrorAction Stop
+            $matrixFiles = Get-ChildItem -Path $Context.Config.Matrix.FolderPath -Filter '*.xlsx' -File -ErrorAction Stop
         }
         catch {
             Add-ErrorHC `
                 -Type 'FatalError' `
                 -Name 'Matrix folder access failed' `
-                -Message "Cannot access '$($Context.Matrix.FolderPath)'." `
+                -Message "Cannot access '$($Context.Config.Matrix.FolderPath)'." `
                 -Category 'Matrix' `
                 -SystemErrors $SystemErrors
             return $Context
@@ -91,7 +87,7 @@ function Invoke-PermissionMatrixBeginHC {
 
         # Exclude Defaults file from the processing list
         $matrixFiles = $matrixFiles | Where-Object { 
-            $_.FullName -ne $Context.Matrix.DefaultsFile 
+            $_.FullName -ne $Context.Config.Matrix.DefaultsFile 
         }
 
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
@@ -102,15 +98,15 @@ function Invoke-PermissionMatrixBeginHC {
 
         #region Setup Archive Folder
         $archivePath = $null
-        if ($Context.Matrix.Archive) {
-            $archivePath = Join-Path -Path $Context.Matrix.FolderPath -ChildPath 'Archive'
+        if ($Context.Config.Matrix.Archive) {
+            $archivePath = Join-Path -Path $Context.Config.Matrix.FolderPath -ChildPath 'Archive'
             if (-not (Test-Path -LiteralPath $archivePath -PathType Container)) {
                 $null = New-Item -ItemType Directory -Path $archivePath -Force -ErrorAction SilentlyContinue
             }
         }
         #endregion
 
-        $throttle = $Context.MaxConcurrent.FoldersPerMatrix ?? 4
+        $throttle = $Context.Config.MaxConcurrent.FoldersPerMatrix ?? 4
 
         #region Read and Archive in Parallel
         $parallelResults = Invoke-WithOptionalParallelismHC `
@@ -183,7 +179,7 @@ function Invoke-PermissionMatrixBeginHC {
 
         #region Read Defaults Excel file and validate
         $defaults = Import-MatrixDefaultsHC `
-            -Matrix $Context.Matrix `
+            -Matrix $Context.Config.Matrix `
             -SystemErrors $SystemErrors
 
         if (Test-HasFatalErrorsHC $SystemErrors) { return $Context }
@@ -210,7 +206,7 @@ function Invoke-PermissionMatrixBeginHC {
                         -Matrix $S.Matrix `
                         -ADObject $adObjectDetails `
                         -DefaultAcl $Context.Defaults.DefaultAcl `
-                        -ExcludedSamAccountName $Context.Matrix.ExcludedSamAccountName
+                        -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
                     if ($expandedCheck) {
                         $S.Check += $expandedCheck | 

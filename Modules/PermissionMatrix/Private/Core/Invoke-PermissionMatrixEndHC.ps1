@@ -25,7 +25,7 @@ function Invoke-PermissionMatrixEndHC {
         }
         else { '' }
         $fullHtmlBody = Generate-MailBodyHtmlHC `
-            -Settings $Context.Settings `
+            -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -Html @{ 
             Style             = $htmlTemplates.Style 
@@ -46,10 +46,10 @@ function Invoke-PermissionMatrixEndHC {
     # =====================================================================
     if (-not $hasFatalErrors -and $Context.FoundMatrices) {
         try {
-            $Context.ExportedFiles = Export-FilesHC -ImportedMatrix $Context.Matrices -ExportSettings $Context.Export -HtmlOverview $fullHtmlBody -Counters $Context.Counter
+            $Context.ExportedFiles = Export-FilesHC -ImportedMatrix $Context.Matrices -ExportSettings $Context.Config.Export -HtmlOverview $fullHtmlBody -Counters $Context.Counter
             
-            if ($Context.Export.ServiceNowFormDataExcelFile -and $Context.ServiceNow.CredentialsFilePath) {
-                $snowParams = @{ CredentialsFilePath = $Context.ServiceNow.CredentialsFilePath; Environment = $Context.ServiceNow.Environment; TableName = $Context.ServiceNow.TableName; FormDataExcelFilePath = $Context.Export.ServiceNowFormDataExcelFile; ExcelFileWorksheetName = 'SnowFormData' }
+            if ($Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath) {
+                $snowParams = @{ CredentialsFilePath = $Context.Config.ServiceNow.CredentialsFilePath; Environment = $Context.Config.ServiceNow.Environment; TableName = $Context.Config.ServiceNow.TableName; FormDataExcelFilePath = $Context.Config.Export.ServiceNowFormDataExcelFile; ExcelFileWorksheetName = 'SnowFormData' }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
             }
         }
@@ -59,7 +59,7 @@ function Invoke-PermissionMatrixEndHC {
     }
 
     #region Create log folder
-    $logFolder = $Context.Settings.SaveLogFiles.Where.Folder
+    $logFolder = $Context.Config.Settings.SaveLogFiles.Where.Folder
     $tempLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
     
     # Use temp folder if no log folder is specified
@@ -95,7 +95,7 @@ function Invoke-PermissionMatrixEndHC {
         else { $logFolder = $null }
     }
     
-    $Context.Settings.SaveLogFiles.Where.Folder = $logFolder
+    $Context.Config.Settings.SaveLogFiles.Where.Folder = $logFolder
     #endregion
 
     # 3. Normal / Write the logs to the verified folder
@@ -158,10 +158,10 @@ function Invoke-PermissionMatrixEndHC {
     # =====================================================================
     # 4. SEND EMAIL (Best Effort)
     # =====================================================================
-    if ($Context.Settings.SendMail) {
+    if ($Context.Config.Settings.SendMail) {
         try {
             $mailParams = Build-MailParametersHC `
-                -Settings $Context.Settings `
+                -Settings $Context.Config.Settings `
                 -Html $fullHtmlBody `
                 -ExportedFiles $Context.ExportedFiles `
                 -Counter $Context.Counter `
@@ -198,20 +198,20 @@ function Invoke-PermissionMatrixEndHC {
     # 5. EVENT LOG & CLEANUP (Best Effort)
     # =====================================================================
     try {
-        if ($Context.Settings.SaveInEventLog.Save) {
+        if ($Context.Config.Settings.SaveInEventLog.Save) {
             $eventData = [System.Collections.Generic.List[PSObject]]::new()
 
             Write-EventLogSafe `
                 -EventLogData $eventData `
                 -ScriptName (
-                $Context.Settings.ScriptName ?? 'Permission Matrix') `
-                -Settings $Context.Settings `
+                $Context.Config.Settings.ScriptName ?? 'Permission Matrix') `
+                -Settings $Context.Config.Settings `
                 -SystemErrors $SystemErrors
         }
-        if ($Context.Settings.SaveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
+        if ($Context.Config.Settings.SaveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
             Cleanup-OldLogsHC `
                 -LogFolder $logFolder `
-                -RetentionDays $Context.Settings.SaveLogFiles.DeleteLogsAfterDays `
+                -RetentionDays $Context.Config.Settings.SaveLogFiles.DeleteLogsAfterDays `
                 -SystemErrors $SystemErrors
         }
     }

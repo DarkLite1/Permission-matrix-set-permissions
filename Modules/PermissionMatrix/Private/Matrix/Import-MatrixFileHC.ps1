@@ -73,8 +73,8 @@ function Import-MatrixFileHC {
 
         #region Import optional FormData
         $formData = $null
-        if ($Context.Export.ServiceNowFormDataExcelFile -or
-            $Context.Export.OverviewHtmlFile) {
+        if ($Context.Config.Export.ServiceNowFormDataExcelFile -or
+            $Context.Config.Export.OverviewHtmlFile) {
 
             try {
                 $formDataImport = Import-Excel `

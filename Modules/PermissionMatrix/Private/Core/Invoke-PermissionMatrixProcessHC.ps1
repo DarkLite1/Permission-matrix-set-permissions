@@ -34,8 +34,8 @@ function Invoke-PermissionMatrixProcessHC {
             return $Context
         }
 
-        $throttleComputers = $Context.MaxConcurrent.Computers ?? 10
-        $psSessionConfig = $Context.Settings.PSSessionConfiguration ?? 'PowerShell.7'
+        $throttleComputers = $Context.Config.MaxConcurrent.Computers ?? 10
+        $psSessionConfig = $Context.Config.Settings.PSSessionConfiguration ?? 'PowerShell.7'
 
         # =====================================================================
         # 1. PARALLEL: Test Requirements
@@ -138,7 +138,7 @@ function Invoke-PermissionMatrixProcessHC {
             $permResults = Invoke-WithOptionalParallelismHC `
                 -InputObject $safePermGroups `
                 -ThrottleLimit $throttleComputers `
-                -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.MaxConcurrent, $Context.Settings.SaveLogFiles.Detailed `
+                -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.Config.MaxConcurrent, $Context.Config.Settings.SaveLogFiles.Detailed `
                 -ScriptBlock {
                 param(
                     $compDto, $scriptPaths, 
