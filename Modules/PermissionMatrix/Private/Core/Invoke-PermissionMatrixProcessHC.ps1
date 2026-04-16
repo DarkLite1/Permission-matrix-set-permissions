@@ -21,9 +21,13 @@ function Invoke-PermissionMatrixProcessHC {
         }
 
         $executableSettings = @()
+
         foreach ($matrix in $Context.Matrices) {
             if ($matrix.Check.Type -notcontains 'FatalError') {
-                $executableSettings += @($matrix.Settings | Where-Object { $_.Check.Type -notcontains 'FatalError' })
+                $executableSettings += @(
+                    $matrix.Settings |
+                    Where-Object { $_.Check.Type -notcontains 'FatalError' }
+                )
             }
         }
 
@@ -113,7 +117,9 @@ function Invoke-PermissionMatrixProcessHC {
             ) {
                 $Context.Defaults.DefaultAcl.GetEnumerator().Where(
                     { -not $acl.ContainsKey($_.Key) }
-                ).ForEach({ $acl.Add($_.Key, $_.Value) }) 
+                ).ForEach(
+                    { $acl.Add($_.Key, $_.Value) }
+                ) 
             }
         }
 
@@ -157,7 +163,12 @@ function Invoke-PermissionMatrixProcessHC {
                 foreach ($job in $compDto.Matrices) {
                     $startTime = Get-Date
                     try {
-                        $restoredMatrix = if (-not [string]::IsNullOrWhiteSpace($job.MatrixJson)) { @($job.MatrixJson | ConvertFrom-Json) } else { @() } 
+                        $restoredMatrix = if (
+                            -not [string]::IsNullOrWhiteSpace($job.MatrixJson)
+                        ) {
+                            @($job.MatrixJson | ConvertFrom-Json) 
+                        }
+                        else { @() } 
                     
                         $res = Invoke-Command -FilePath $scriptPaths.SetPermissionFile `
                             -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
@@ -165,7 +176,12 @@ function Invoke-PermissionMatrixProcessHC {
                             -ComputerName $job.ComputerName `
                             -ErrorAction Stop
                     
-                        $innerResults += [PSCustomObject]@{ ID = $job.ID; Result = $res; Start = $startTime; End = (Get-Date) }
+                        $innerResults += [PSCustomObject]@{ 
+                            ID     = $job.ID
+                            Result = $res
+                            Start  = $startTime 
+                            End    = (Get-Date) 
+                        }
                     }
                     catch {
                         $errObj = [PSCustomObject]@{ 
