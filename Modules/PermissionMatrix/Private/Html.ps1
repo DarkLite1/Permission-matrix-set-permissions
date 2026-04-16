@@ -250,45 +250,6 @@ $($Html.Templates.LegendTable)
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
 
-function Write-MatrixTroubleshootingLogHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$Matrix,
-        [Parameter(Mandatory)][hashtable]$Html,
-        [Parameter(Mandatory)][string]$LogFolder
-    )
-
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { 
-        return $null 
-    }
-
-    $sections = @(
-        New-HtmlSectionHC 'File' $Matrix.File.Check
-        New-HtmlSectionHC 'FormData' $Matrix.FormData.Check
-        New-HtmlSectionHC 'Permissions' $Matrix.Permissions.Check
-    ) -join ''
-
-    $htmlOut = @"
-<!DOCTYPE html>
-<html><head>
-$($Html.Style)
-$($Html.TroubleshootingStyle)
-</head><body>
-<h1>Troubleshooting Log</h1>
-<table class="matrixTable" style="width:100%;">
-$sections
-</table>
-$($Html.Templates.LegendTable)
-</body></html>
-"@
-
-    $logFilePath = Join-Path `
-        -Path $LogFolder `
-        -ChildPath 'TroubleshootingLog.html'
-
-    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
-}
-
 function Write-MatrixSettingLogHC {
     [CmdletBinding()]
     param(
