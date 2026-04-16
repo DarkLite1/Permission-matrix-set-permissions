@@ -127,34 +127,24 @@ function Invoke-PermissionMatrixEndHC {
                     -Force -ErrorAction Stop
                 #endregion
 
-                foreach ($matrix in $Context.AllMatrices) {
-                    #region Create matrix-specific log folder
-                    $matrixLogFolder = Join-Path `
-                        -Path $datedLogFolder.FullName `
-                        -ChildPath $matrix.File.Item.BaseName
+                $matricesByFile = $Context.AllMatrices | 
+                Group-Object -Property { $_.File.Item.FullName }
 
-                    if (
-                        -not (Test-Path `
-                                -LiteralPath $matrixLogFolder `
-                                -PathType Container)
-                    ) {
-                        $null = New-Item -ItemType Directory `
-                            -Path $matrixLogFolder `
-                            -Force -ErrorAction Stop
-                    }
-
-                    $matrix.FileContext.LogFolder = $matrixLogFolder
-                    #endregion
+                foreach ($fileGroup in $matricesByFile) {
+                    $baseName = $fileGroup.Group[0].File.Item.BaseName
                     
-                    Write-MatrixTroubleshootingLogHC `
-                        -Matrix $matrix `
+                    $fileLogFolder = New-Item -ItemType Directory `
+                        -Path (Join-Path $datedLogFolder.FullName $baseName) `
+                        -Force -ErrorAction Stop
+                    
+                    foreach ($m in $fileGroup.Group) { 
+                        $m.LogFolder = $fileLogFolder 
+                    }
+                    
+                    Write-MatrixExecutionReportHC `
+                        -FileMatrices $fileGroup.Group `
                         -Html $htmlTemplates `
-                        -LogFolder $matrix.FileContext.LogFolder
-
-                    Write-MatrixSettingLogHC `
-                        -Matrix $matrix `
-                        -Html $htmlTemplates `
-                        -LogFolder $matrix.FileContext.LogFolder
+                        -LogFolder $fileLogFolder.FullName
                 }
             }
             

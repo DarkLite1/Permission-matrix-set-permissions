@@ -170,6 +170,69 @@ $settings
 }
 #endregion
 
+function Write-MatrixExecutionReportHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][array]$FileMatrices, 
+        [Parameter(Mandatory)][hashtable]$Html,
+        [Parameter(Mandatory)][string]$LogFolder
+    )
+
+    if (-not (Test-Path `
+                -LiteralPath $LogFolder `
+                -PathType Container)
+    ) { return $null }
+
+    # 1. FILE-LEVEL CHECKS (We only need to grab this once from the first item)
+    $firstMatrix = $FileMatrices[0]
+    $fileSections = @(
+        New-HtmlSectionHC 'File Checks' $firstMatrix.File.Check
+        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+        }
+        if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
+            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+        }
+    ) -join ''
+
+    # 2. ROW-LEVEL SETTINGS CHECKS (Loop through all enabled rows)
+    $settingsSections = ''
+    foreach ($matrix in $FileMatrices) {
+        $safeId = if ($matrix.ID) { $matrix.ID } else { 'Unknown' }
+        $header = "Settings Row (ID: $safeId) - $($matrix.EnabledSetting.Raw.ComputerName)"
+        
+        $settingsSections += New-HtmlSectionHC $header $matrix.Check
+    }
+
+    # 3. BUILD THE FINAL HTML
+    $htmlOut = @"
+<!DOCTYPE html>
+<html><head>
+$($Html.Style)
+$($Html.TroubleshootingStyle)
+</head><body>
+<h1>Execution & Troubleshooting Report</h1>
+<h2>File: $($firstMatrix.File.Item.Name)</h2>
+
+<h3>Global File Status</h3>
+<table class="matrixTable" style="width:100%;">
+$fileSections
+</table>
+
+<br>
+<h3>Settings Execution Status</h3>
+<table class="matrixTable" style="width:100%;">
+$settingsSections
+</table>
+
+$($Html.Templates.LegendTable)
+</body></html>
+"@
+
+    $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
+    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
+}
+
 function Write-MatrixTroubleshootingLogHC {
     [CmdletBinding()]
     param(
