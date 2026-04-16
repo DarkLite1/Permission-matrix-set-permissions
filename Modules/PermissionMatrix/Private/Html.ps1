@@ -195,29 +195,35 @@ function Write-MatrixExecutionReportHC {
         [Parameter(Mandatory)][string]$LogFolder
     )
 
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
+    if (-not (Test-Path `
+                -LiteralPath $LogFolder `
+                -PathType Container)
+    ) { return $null }
 
     $firstMatrix = $FileMatrices[0]
+    $fileContext = $firstMatrix.FileContext
 
-    # 1. EXTRACT EXCEL METADATA
-    $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.File.ExcelInfo.LastModifiedBy ?? 'Unknown')
+    $modBy = [System.Net.WebUtility]::HtmlEncode(
+        $fileContext.File.ExcelInfo.LastModifiedBy ?? 'Unknown'
+    )
     $modDt = if ($firstMatrix.File.ExcelInfo.Modified -is [datetime]) {
         $firstMatrix.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { 'Unknown' }
 
-    # 2. BUILD FILE SECTIONS
     $fileSections = @(
-        New-HtmlSectionHC 'File Checks' $firstMatrix.File.Check
-        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+        New-HtmlSectionHC 'File Checks' $fileContext.File.Check
+
+        if ($fileContext.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData Checks' `
+                $fileContext.Sheets.FormData.Check
         }
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+            New-HtmlSectionHC 'Permissions Checks' `
+                $fileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
-    # 3. BUILD SETTINGS SECTIONS (Sorted by ID)
     $settingsSections = ''
     foreach ($matrix in ($FileMatrices | Sort-Object ExcelID)) {
         $safeId = if ($matrix.ExcelID) { $matrix.ExcelID } else { 'Unknown' }
@@ -226,8 +232,6 @@ function Write-MatrixExecutionReportHC {
         $settingsSections += New-HtmlSectionHC $header $matrix.Check
     }
 
-    # 4. BUILD THE FINAL HTML
-    # Added the matrixFileInfo paragraph under the H2 tag!
     $htmlOut = @"
 <!DOCTYPE html>
 <html><head>
@@ -235,7 +239,7 @@ $($Html.Style)
 $($Html.TroubleshootingStyle)
 </head><body>
 <h1>Execution & Troubleshooting Report</h1>
-<h2>File: $($firstMatrix.File.Item.Name)</h2>
+<h2>File: $($fileContext.File.Item.Name)</h2>
 <p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:20px;">
     Last change: $modBy @ $modDt
 </p>
