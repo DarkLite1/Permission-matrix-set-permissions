@@ -20,8 +20,6 @@ function Invoke-PermissionMatrixProcessHC {
             return $Context
         }
 
-        # Retrieve all specific Settings blocks across all matrices that don't have a FatalError yet
-        # (Assuming Get-ExecutableMatrixHC essentially does this filtering)
         $executableSettings = @()
         foreach ($matrix in $Context.Matrices) {
             if ($matrix.Check.Type -notcontains 'FatalError') {
@@ -87,7 +85,10 @@ function Invoke-PermissionMatrixProcessHC {
             # Main Thread Application: Add results back to the live objects
             foreach ($output in $reqResults) {
                 if ($output.Result) {
-                    $targetSettings = $executableSettings.Where({ $_.Import.ComputerName -eq $output.ComputerName })
+                    $targetSettings = $executableSettings.Where(
+                        { $_.Import.ComputerName -eq $output.ComputerName }
+                    )
+
                     foreach ($setting in $targetSettings) {
                         $setting.Check += $output.Result | ConvertTo-StructuredObjectHC 
                     }
@@ -99,19 +100,25 @@ function Invoke-PermissionMatrixProcessHC {
         # 2. PARALLEL: Set Permissions
         # =====================================================================
         
-        # Re-filter matrices since some might have failed 'Test requirements.ps1'
-        $validSettings = $executableSettings.Where({ $_.Check.Type -notcontains 'FatalError' })
+        $validSettings = $executableSettings.Where(
+            { $_.Check.Type -notcontains 'FatalError' }
+        )
 
         if ($validSettings.Count -eq 0) { return $Context }
 
-        # Add default permissions just before execution
         if ($Context.Defaults.DefaultAcl.Count -gt 0) {
-            foreach ($acl in $validSettings.Matrix.ACL.Where({ $_.Count -gt 0 })) {
-                $Context.Defaults.DefaultAcl.GetEnumerator().Where({ -not $acl.ContainsKey($_.Key) }).ForEach({ $acl.Add($_.Key, $_.Value) }) 
+            foreach (
+                $acl in 
+                $validSettings.Matrix.ACL.Where({ $_.Count -gt 0 })
+            ) {
+                $Context.Defaults.DefaultAcl.GetEnumerator().Where(
+                    { -not $acl.ContainsKey($_.Key) }
+                ).ForEach({ $acl.Add($_.Key, $_.Value) }) 
             }
         }
 
-        $compGroupsForPerms = $validSettings | Group-Object -Property { $_.Import.ComputerName }
+        $compGroupsForPerms = $validSettings |
+        Group-Object -Property { $_.Import.ComputerName }
 
         # DTO FLATTENING: Build a shallow array and wrap the deep Matrix array in JSON 
         $safePermGroups = foreach ($group in $compGroupsForPerms) {
