@@ -125,35 +125,61 @@ function New-SettingsOverviewHtmlHC {
 
 function Build-MatrixEmailHtmlHC {
     param(
-        [array]$ImportedMatrix,
-        [object]$Html
+        [array]$AllMatrices, # Now accepts the flattened Context.AllMatrices array
+        [hashtable]$Html
     )
 
     $output = ''
 
-    foreach ($Item in $ImportedMatrix | Sort-Object { $_.File.Item.Name }) {
+    # Group the flat jobs back by their parent Excel file
+    $matricesByFile = $AllMatrices | Group-Object -Property { $_.File.Item.FullName } | Sort-Object Name
 
-        $sections = @(
-            New-HtmlSectionHC 'File' $Item.File.Check
-            New-HtmlSectionHC 'FormData' $Item.FormData.Check
-            New-HtmlSectionHC 'Permissions' $Item.Permissions.Check
-        ) -join ''
+    foreach ($fileGroup in $matricesByFile) {
+        $firstMatrix = $fileGroup.Group[0]
 
-        $settings = New-SettingsTableHtmlHC $Item $Html
-
-        $file = [System.Net.WebUtility]::HtmlEncode($Item.File.Item.Name)
-        $modBy = [System.Net.WebUtility]::HtmlEncode($Item.File.ExcelInfo.LastModifiedBy ?? 'Unknown')
-        $modDt = if ($Item.File.ExcelInfo.Modified -is [datetime]) {
-            $Item.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+        # 1. Metadata & Excel Info Header
+        $file = [System.Net.WebUtility]::HtmlEncode($firstMatrix.File.Item.Name)
+        $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.File.ExcelInfo.LastModifiedBy ?? 'Unknown')
+        $modDt = if ($firstMatrix.File.ExcelInfo.Modified -is [datetime]) {
+            $firstMatrix.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
         }
         else { 'Unknown' }
 
+        # 2. Global File/Sheet Checks
+        $globalSections = @(
+            New-HtmlSectionHC 'File Checks' $firstMatrix.File.Check
+            if ($firstMatrix.FileContext.Sheets.FormData.Check) {
+                New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+            }
+            if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
+                New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+            }
+        ) -join ''
+
+        # 3. Settings Overview Table (Calling our updated function)
+        $settingsOverview = New-SettingsOverviewHtmlHC -MatrixRows $fileGroup.Group -Html $Html
+
+        # 4. Settings Detailed Results (This adds the checks below the overview!)
+        $settingsDetails = ''
+        foreach ($matrixRow in ($fileGroup.Group | Sort-Object ExcelID)) {
+            if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
+                $safeId = if ($matrixRow.ExcelID) { $matrixRow.ExcelID } else { 'Unknown' }
+                $header = "Settings Details (ID: $safeId) - $($matrixRow.EnabledSetting.Raw.ComputerName)"
+                
+                $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
+            }
+        }
+
+        # 5. Assemble the HTML block for this specific Excel file
+        $saveLink = $firstMatrix.File.SaveFullName ?? '#' 
+        
         $output += @"
 <table class="matrixTable">
-<tr><th class="matrixTitle" colspan="8"><a href="$($Item.File.SaveFullName)">$file</a></th></tr>
+<tr><th class="matrixTitle" colspan="8"><a href="$saveLink">$file</a></th></tr>
 <tr><th class="matrixFileInfo" colspan="8">Last change: $modBy @ $modDt</th></tr>
-$sections
-$settings
+$globalSections
+$settingsOverview
+$settingsDetails
 </table><br><br>
 "@
     }
