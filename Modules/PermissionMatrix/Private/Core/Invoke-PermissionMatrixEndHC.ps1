@@ -138,7 +138,7 @@ function Invoke-PermissionMatrixEndHC {
                         -Force -ErrorAction Stop
                     
                     foreach ($m in $fileGroup.Group) { 
-                        $m.LogFolder = $fileLogFolder 
+                        $m.FileContext.LogFolder = $fileLogFolder.FullName
                     }
                     
                     Write-MatrixExecutionReportHC `
