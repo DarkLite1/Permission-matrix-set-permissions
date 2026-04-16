@@ -209,6 +209,45 @@ $($Html.Templates.LegendTable)
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
 
+function Write-MatrixSettingLogHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Matrix,
+        [Parameter(Mandatory)][hashtable]$Html,
+        [Parameter(Mandatory)][string]$LogFolder
+    )
+
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { 
+        return $null 
+    }
+
+    $sections = @(
+        New-HtmlSectionHC 'Setting Validation' $Matrix.Check
+    ) -join ''
+
+    $safeId = if ($Matrix.ID) { $Matrix.ID } else { 'Unknown' }
+
+    $htmlOut = @"
+<!DOCTYPE html>
+<html><head>
+$($Html.Style)
+$($Html.TroubleshootingStyle)
+</head><body>
+<h1>Settings Log - ID $safeId</h1>
+<table class="matrixTable" style="width:100%;">
+$sections
+</table>
+$($Html.Templates.LegendTable)
+</body></html>
+"@
+
+    $logFilePath = Join-Path `
+        -Path $LogFolder `
+        -ChildPath "ID $safeId - Settings.html"
+
+    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
+}
+
 #region Build-ErrorWarningTableHC
 function Build-ErrorWarningTableHC {
     param($CounterData, $SystemErrors)

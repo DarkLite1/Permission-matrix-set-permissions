@@ -67,6 +67,44 @@ function Assert-LogContainsSystemErrorHC {
     }
 }
 
+function Assert-HtmlLogContainsPatternHC {
+    <#
+    .SYNOPSIS
+        Scans all HTML files in the latest log run folder to verify an expected error or pattern was logged.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$LogFolderPath,
+
+        [Parameter(Mandatory)]
+        [string]$Pattern
+    )
+
+    $latestRunFolder = Get-LatestLogFolderHC -Root $LogFolderPath
+    $latestRunFolder | Should -Not -BeNullOrEmpty -Because "A log folder should have been created in '$LogFolderPath'"
+
+    $htmlFiles = Get-ChildItem -Path $latestRunFolder -Recurse -Filter '*.html'
+    $htmlFiles.Count | Should -BeGreaterThan 0 -Because 'At least one HTML log file should have been generated'
+
+    if ($htmlFiles.Count -eq 0) {
+        throw "Assert-HtmlLogContainsPatternHC: No HTML log file found in '$LogFolderPath'."
+    }
+
+    $foundMatch = $false
+
+    foreach ($file in $htmlFiles) {
+        $rawHtml = Get-Content -LiteralPath $file.FullName -Raw
+        
+        if ($rawHtml -like $Pattern) {
+            $foundMatch = $true
+            break
+        }
+    }
+
+    $foundMatch | Should -Be $true -Because "The HTML logs must contain the expected pattern: $Pattern"
+}
+
 function Clear-TestLogFoldersHC {
     <#
         .SYNOPSIS

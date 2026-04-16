@@ -140,6 +140,11 @@ function Invoke-PermissionMatrixEndHC {
                         -Matrix $matrix `
                         -Html $htmlTemplates `
                         -LogFolder $matrix.LogFolder.FullName
+
+                    Write-MatrixSettingLogHC `
+                        -Matrix $matrix `
+                        -Html $htmlTemplates `
+                        -LogFolder $matrix.LogFolder.FullName
                 }
             }
             
