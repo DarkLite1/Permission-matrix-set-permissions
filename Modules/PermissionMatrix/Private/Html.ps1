@@ -175,10 +175,10 @@ function Write-MatrixTroubleshootingLogHC {
     param(
         [Parameter(Mandatory)][object]$Matrix,
         [Parameter(Mandatory)][hashtable]$Html,
-        [Parameter(Mandatory)][string]$LogFolderPath
+        [Parameter(Mandatory)][string]$LogFolder
     )
 
-    if (-not (Test-Path -LiteralPath $LogFolderPath -PathType Container)) { 
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { 
         return $null 
     }
 
@@ -203,7 +203,7 @@ $($Html.Templates.LegendTable)
 "@
 
     $logFilePath = Join-Path `
-        -Path $LogFolderPath `
+        -Path $LogFolder `
         -ChildPath 'TroubleshootingLog.html'
 
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
