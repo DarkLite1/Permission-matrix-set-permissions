@@ -9,11 +9,9 @@ function Import-MatrixFileHC {
     )
 
     $fileResult = [pscustomobject]@{
-        File      = @{
-            Item      = $MatrixFile
-            ExcelInfo = $null
-            Check     = [System.Collections.Generic.List[pscustomobject]]::new()
-        }
+        Item      = $MatrixFile
+        ExcelInfo = $null
+        Check     = [System.Collections.Generic.List[pscustomobject]]::new()
         Sheets    = @{
             Permissions = @{
                 Raw       = $null
@@ -34,7 +32,7 @@ function Import-MatrixFileHC {
 
     try {
         #region Get Excel workbook info
-        $fileResult.File.ExcelInfo = Get-ExcelWorkbookInfo `
+        $fileResult.ExcelInfo = Get-ExcelWorkbookInfo `
             -Path $matrixFile.FullName `
             -ErrorAction Stop
         #endregion
@@ -52,7 +50,7 @@ function Import-MatrixFileHC {
         $enabledSettings = $settingsSheet.Where({ $_.Status -eq 'Enabled' })
 
         if (-not $enabledSettings) {
-            $fileResult.File.Check.Add(
+            $fileResult.Check.Add(
                 [pscustomobject]@{
                     Type        = 'Warning'
                     Name        = 'Matrix disabled'
@@ -93,14 +91,14 @@ function Import-MatrixFileHC {
                 $formDataCheck = Test-FormDataHC $formDataImport
 
                 if ($formDataCheck) {
-                    $fileResult.File.Check.Add($formDataCheck)
+                    $fileResult.Check.Add($formDataCheck)
                 }
                 else {
                     $formData = $formDataImport[0]
                 }
             }
             catch {
-                $fileResult.File.Check.Add(
+                $fileResult.Check.Add(
                     [pscustomobject]@{
                         Type        = 'FatalError'
                         Name        = "Worksheet 'FormData' not found"
@@ -125,7 +123,7 @@ function Import-MatrixFileHC {
                 Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
                 AdObjects   = @{}
                 JobTime     = @{}
-                # Reference back to file-level data
+                # Re`ference back to file-level data
                 FileContext = $fileResult
             }
           
@@ -137,7 +135,7 @@ function Import-MatrixFileHC {
         #endregion
     }
     catch {
-        $fileResult.File.Check.Add(
+        $fileResult.Check.Add(
             [pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Excel file incorrect'

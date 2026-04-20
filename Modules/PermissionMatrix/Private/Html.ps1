@@ -88,13 +88,85 @@ function New-HtmlSectionHC {
     "<tr><th class='matrixHeader' colspan='8'>$Title</th></tr>$($rows -join '')"
 }
 
+function New-SettingsCardHtmlHC {
+    param(
+        [object]$MatrixItem
+    )
+
+    $comp = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.ComputerName)
+    $path = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.Path)
+    $group = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.GroupName)
+    $site = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.SiteCode)
+
+    # Calculate Status & Colors
+    $errCount = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
+    $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
+        
+    if ($errCount -gt 0) {
+        $headerColor = '#ffcccc' # Light Red
+        $statusText = "Failed ($errCount Errors, $warnCount Warnings)"
+    }
+    elseif ($warnCount -gt 0) {
+        $headerColor = '#ffe6cc' # Light Orange
+        $statusText = "Completed with Warnings ($warnCount)"
+    }
+    else {
+        $headerColor = '#d9f2d9' # Light Green
+        $statusText = 'Success'
+    }
+
+    $start = if ($MatrixItem.JobTime.Start) { $MatrixItem.JobTime.Start.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'N/A' }
+    $end = if ($MatrixItem.JobTime.End) { $MatrixItem.JobTime.End.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'N/A' }
+
+    # Conditionally generate the HTML check table
+    $checkTable = if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
+        "<table class='matrixTable' style='width:100%; border:none; margin-top:10px;'>$(New-HtmlSectionHC 'Detailed Results' $MatrixItem.Check)</table>"
+    }
+    else {
+        "<p style='padding-top:10px; font-style:italic;'>No issues detected. Execution successful.</p>"
+    }
+
+    # Conditionally generate the JSON download link ONLY if there are errors
+    $jsonLink = ''
+    if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
+        $jsonFileName = "ID $($MatrixItem.ExcelID) - Details.json"
+        $jsonLink = @"
+        <div style="margin-top: 15px; text-align: right; font-size: 12px;">
+            <a href="$jsonFileName" style="color: blue;">View Raw JSON Details ($($MatrixItem.Check.Count) records)</a>
+        </div>
+"@
+    }
+
+    return @"
+<div style="border: 1px solid black; margin-bottom: 25px;">
+    <div style="background-color: $headerColor; padding: 10px; border-bottom: 1px solid black; font-weight: bold; font-size: 14px;">
+        ID $safeId | $comp | $path
+        <span style="float: right;">Status: $statusText</span>
+    </div>
+    <div style="padding: 10px; background-color: #f2f2f2; border-bottom: 1px solid #ccc;">
+        <h3 style="margin-top:0; margin-bottom:5px;">About</h3>
+        <table style="border:none; font-size:13px;">
+            <tr><td style="width:120px; font-weight:bold; color:#8f8c8c;">GroupName:</td><td>$group</td></tr>
+            <tr><td style="font-weight:bold; color:#8f8c8c;">SiteCode:</td><td>$site</td></tr>
+            <tr><td style="font-weight:bold; color:#8f8c8c;">Start time:</td><td>$start</td></tr>
+            <tr><td style="font-weight:bold; color:#8f8c8c;">End time:</td><td>$end</td></tr>
+        </table>
+    </div>
+    <div style="padding: 10px;">
+        $checkTable
+        $jsonLink
+    </div>
+</div>
+"@
+}
+
 function New-SettingsOverviewHtmlHC {
     param(
         [array]$MatrixRows, 
         [hashtable]$Html
     )
 
-    $rowsHtml = foreach ($S in $MatrixRows | Sort-Object ExcelID) {
+    $rowsHtml = foreach ($S in $MatrixRows | Sort-Object ID) {
         $types = @($S.Check.Type)
         $cls = Get-HtmlClassProbTypeHC ($types | Select-Object -First 1)
 
@@ -103,7 +175,7 @@ function New-SettingsOverviewHtmlHC {
         }
         else { 'NA' }
 
-        $safeId = if ($S.ExcelID) { $S.ExcelID } else { 'Unknown' }
+        $safeId = if ($S.ID) { $S.ID } else { 'Unknown' }
         
         # We can link the row directly to the consolidated log folder we made earlier!
         $link = if ($S.FileContext.LogFolder) { "$($S.FileContext.LogFolder)\00 - Execution Report.html" } else { '#' }
@@ -111,9 +183,9 @@ function New-SettingsOverviewHtmlHC {
         "<tr>
             <td class='$cls'></td>
             <td><a href='$link'>$safeId</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.ComputerName))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.Path))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.EnabledSetting.Raw.Action))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.ComputerName))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Path))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Action))</a></td>
             <td><a href='$link'>$dur</a></td>
         </tr>"
     }
@@ -132,22 +204,23 @@ function Build-MatrixEmailHtmlHC {
     $output = ''
 
     # Group the flat jobs back by their parent Excel file
-    $matricesByFile = $AllMatrices | Group-Object -Property { $_.File.Item.FullName } | Sort-Object Name
+    $matricesByFile = $AllMatrices | Group-Object -Property { 
+        $_.FileContext.Item.FullName } | Sort-Object Name
 
     foreach ($fileGroup in $matricesByFile) {
         $firstMatrix = $fileGroup.Group[0]
 
         # 1. Metadata & Excel Info Header
-        $file = [System.Net.WebUtility]::HtmlEncode($firstMatrix.File.Item.Name)
-        $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.File.ExcelInfo.LastModifiedBy ?? 'Unknown')
-        $modDt = if ($firstMatrix.File.ExcelInfo.Modified -is [datetime]) {
-            $firstMatrix.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+        $file = [System.Net.WebUtility]::HtmlEncode($firstMatrix.Item.Name)
+        $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.ExcelInfo.LastModifiedBy ?? 'Unknown')
+        $modDt = if ($firstMatrix.ExcelInfo.Modified -is [datetime]) {
+            $firstMatrix.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
         }
         else { 'Unknown' }
 
         # 2. Global File/Sheet Checks
         $globalSections = @(
-            New-HtmlSectionHC 'File Checks' $firstMatrix.File.Check
+            New-HtmlSectionHC 'File Checks' $firstMatrix.Check
             if ($firstMatrix.FileContext.Sheets.FormData.Check) {
                 New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
             }
@@ -157,21 +230,23 @@ function Build-MatrixEmailHtmlHC {
         ) -join ''
 
         # 3. Settings Overview Table (Calling our updated function)
-        $settingsOverview = New-SettingsOverviewHtmlHC -MatrixRows $fileGroup.Group -Html $Html
+        $settingsOverview = New-SettingsOverviewHtmlHC `
+            -MatrixRows $fileGroup.Group `
+            -Html $Html
 
         # 4. Settings Detailed Results (This adds the checks below the overview!)
         $settingsDetails = ''
-        foreach ($matrixRow in ($fileGroup.Group | Sort-Object ExcelID)) {
+        foreach ($matrixRow in ($fileGroup.Group | Sort-Object ID)) {
             if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
-                $safeId = if ($matrixRow.ExcelID) { $matrixRow.ExcelID } else { 'Unknown' }
-                $header = "Settings Details (ID: $safeId) - $($matrixRow.EnabledSetting.Raw.ComputerName)"
+                $safeId = if ($matrixRow.ID) { $matrixRow.ID } else { 'Unknown' }
+                $header = "Settings Details (ID: $safeId) - $($matrixRow.Setting.Raw.ComputerName)"
                 
                 $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
             }
         }
 
         # 5. Assemble the HTML block for this specific Excel file
-        $saveLink = $firstMatrix.File.SaveFullName ?? '#' 
+        $saveLink = $firstMatrix.SaveFullName ?? '#' 
         
         $output += @"
 <table class="matrixTable">
@@ -201,35 +276,38 @@ function Write-MatrixExecutionReportHC {
     ) { return $null }
 
     $firstMatrix = $FileMatrices[0]
-    $fileContext = $firstMatrix.FileContext
 
     $modBy = [System.Net.WebUtility]::HtmlEncode(
-        $fileContext.File.ExcelInfo.LastModifiedBy ?? 'Unknown'
+        $firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown'
     )
-    $modDt = if ($firstMatrix.File.ExcelInfo.Modified -is [datetime]) {
-        $firstMatrix.File.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+    $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
+        $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { 'Unknown' }
 
     $fileSections = @(
-        New-HtmlSectionHC 'File Checks' $fileContext.File.Check
+        New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
 
-        if ($fileContext.Sheets.FormData.Check) {
+        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
             New-HtmlSectionHC 'FormData Checks' `
-                $fileContext.Sheets.FormData.Check
+                $firstMatrix.FileContext.Sheets.FormData.Check
         }
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
             New-HtmlSectionHC 'Permissions Checks' `
-                $fileContext.Sheets.Permissions.Check
+                $firstMatrix.FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
     $settingsSections = ''
-    foreach ($matrix in ($FileMatrices | Sort-Object ExcelID)) {
-        $safeId = if ($matrix.ExcelID) { $matrix.ExcelID } else { 'Unknown' }
-        $header = "Settings Row (ID: $safeId) - $($matrix.EnabledSetting.Raw.ComputerName)"
-        
-        $settingsSections += New-HtmlSectionHC $header $matrix.Check
+    foreach (
+        $matrix in 
+        ($FileMatrices | Sort-Object `
+        { $_.Setting.Raw.ComputerName }, `
+        { $_.Setting.Raw.Path }, `
+        { $_.ID }
+        )
+    ) {
+        $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
     }
 
     $htmlOut = @"
@@ -239,7 +317,7 @@ $($Html.Style)
 $($Html.TroubleshootingStyle)
 </head><body>
 <h1>Execution & Troubleshooting Report</h1>
-<h2>File: $($fileContext.File.Item.Name)</h2>
+<h2>File: $($firstMatrix.FileContext.Item.Name)</h2>
 <p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:20px;">
     Last change: $modBy @ $modDt
 </p>
@@ -251,9 +329,7 @@ $fileSections
 
 <br>
 <h3>Settings Execution Status</h3>
-<table class="matrixTable" style="width:100%;">
 $settingsSections
-</table>
 
 $($Html.Templates.LegendTable)
 </body></html>

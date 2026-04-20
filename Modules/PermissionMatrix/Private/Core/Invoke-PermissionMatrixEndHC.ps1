@@ -128,10 +128,10 @@ function Invoke-PermissionMatrixEndHC {
                 #endregion
 
                 $matricesByFile = $Context.AllMatrices | 
-                Group-Object -Property { $_.File.Item.FullName }
+                Group-Object -Property { $_.FileContext.Item.FullName }
 
                 foreach ($fileGroup in $matricesByFile) {
-                    $baseName = $fileGroup.Group[0].File.Item.BaseName
+                    $baseName = $fileGroup.Group[0].FileContext.Item.BaseName
                     
                     $fileLogFolder = New-Item -ItemType Directory `
                         -Path (Join-Path $datedLogFolder.FullName $baseName) `
@@ -139,6 +139,19 @@ function Invoke-PermissionMatrixEndHC {
                     
                     foreach ($m in $fileGroup.Group) { 
                         $m.FileContext.LogFolder = $fileLogFolder.FullName
+                    }
+
+                    #region Create JSON files for rows with errors/warnings
+                    foreach ($m in $fileGroup.Group) {
+                        if ($m.Check -and $m.Check.Count -gt 0) {
+                            $m.Check | 
+                            ConvertTo-Json -Depth 10 | 
+                            Out-File -FilePath (
+                                Join-Path `
+                                    -Path $fileLogFolder.FullName `
+                                    -ChildPath "ID $($m.ID) - Details.json"
+                            ) -Encoding UTF8 -Force
+                        }
                     }
                     
                     Write-MatrixExecutionReportHC `
