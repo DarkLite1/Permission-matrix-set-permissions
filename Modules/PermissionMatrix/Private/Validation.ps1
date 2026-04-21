@@ -20,27 +20,29 @@ function New-HcError {
 
 function ConvertTo-StructuredObjectHC {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $Objects)
+    param(
+        [Parameter(Mandatory, ValueFromPipeline = $true)] 
+        $InputObject
+    )
 
-    $output = @()
+    process {
+        foreach ($obj in $InputObject) {
+            
+            if ($null -eq $obj) { continue }
 
-    foreach ($obj in @($Objects)) {
-        if ($null -eq $obj) { continue }
+            if ($obj -is [string]) {
+                New-HcError -Type 'Information' -Name 'Message' -Description $obj
+                continue
+            }
 
-        if ($obj -is [string]) {
-            $output += New-HcError -Type 'Information' -Name 'Message' -Description $obj
-            continue
+            if ($obj -is [hashtable] -or $obj -is [pscustomobject]) {
+                $obj
+                continue
+            }
+
+            New-HcError -Type 'Information' -Name 'UnknownObject' -Description "$obj"
         }
-
-        if ($obj -is [hashtable] -or $obj -is [pscustomobject]) {
-            $output += $obj
-            continue
-        }
-
-        $output += New-HcError -Type 'Information' -Name 'UnknownObject' -Description "$obj"
     }
-
-    return $output
 }
 
 function Test-MatrixFileHC {
