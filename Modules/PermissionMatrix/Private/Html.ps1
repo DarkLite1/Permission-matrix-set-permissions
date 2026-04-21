@@ -93,53 +93,53 @@ function New-SettingsCardHtmlHC {
         [object]$MatrixItem
     )
 
-    $displayId = if ($MatrixItem.ID) { $MatrixItem.ID.Substring(0, 8) } else { 
+    # Grab the FULL ID string for the About table
+    $fullId = if (-not [string]::IsNullOrWhiteSpace($MatrixItem.Setting.Raw.ID)) { 
+        $MatrixItem.Setting.Raw.ID 
+    }
+    elseif ($MatrixItem.ID) { 
+        $MatrixItem.ID 
+    }
+    else { 
         'N/A' 
     }
+        
+    $comp = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.ComputerName)
+    $path = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.Path)
+    $group = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.GroupName)
+    $site = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.SiteCode)
 
-    $comp = [System.Net.WebUtility]::HtmlEncode(
-        $MatrixItem.Setting.Formatted.ComputerName
-    )
-    $path = [System.Net.WebUtility]::HtmlEncode(
-        $MatrixItem.Setting.Formatted.Path
-    )
-    $group = [System.Net.WebUtility]::HtmlEncode(
-        $MatrixItem.Setting.Formatted.GroupName
-    )
-    $site = [System.Net.WebUtility]::HtmlEncode(
-        $MatrixItem.Setting.Formatted.SiteCode
-    )
-
-    #region Get Status & Colors
+    # Calculate Status & Colors
     $errCount = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
         
     if ($errCount -gt 0) {
-        $headerColor = '#fee2e2' # Light Red
+        $headerColor = '#fee2e2' # Softer Red
         $statusText = "Failed ($errCount Errors, $warnCount Warnings)"
     }
     elseif ($warnCount -gt 0) {
-        $headerColor = '#ffedd5' # Light Orange
+        $headerColor = '#ffedd5' # Softer Orange
         $statusText = "Completed with Warnings ($warnCount)"
     }
     else {
-        $headerColor = '#d9f2d9' # Light Green
+        $headerColor = '#dcfce7' # Softer Green
         $statusText = 'Success'
     }
-    #endregion
 
-    #region Get Start/End times
-    $start = if ($MatrixItem.JobTime.Start) { 
-        $MatrixItem.JobTime.Start.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
+    # Calculate Duration String
+    if ($MatrixItem.JobTime.Start -and $MatrixItem.JobTime.End) {
+        $ts = New-TimeSpan -Start $MatrixItem.JobTime.Start -End $MatrixItem.JobTime.End
+        $durVal = if ($ts.TotalMinutes -ge 1) { "$([math]::Round($ts.TotalMinutes)) min" } else { "$([math]::Round($ts.TotalSeconds)) sec" }
+        $startStr = $MatrixItem.JobTime.Start.ToString('HH:mm')
+        $endStr = $MatrixItem.JobTime.End.ToString('HH:mm')
+        
+        $timeStr = "$durVal ($startStr - $endStr)"
     }
-    else { 'N/A' }
-    $end = if ($MatrixItem.JobTime.End) { 
-        $MatrixItem.JobTime.End.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
+    else {
+        $timeStr = 'N/A'
     }
-    else { 'N/A' }
-    #endregion
 
-    # Create check rows
+    # Build custom lightweight check rows
     $checkTable = ''
     if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
         $checkRows = ''
@@ -178,9 +178,7 @@ function New-SettingsCardHtmlHC {
 <div style="border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
     <div style="background-color: $headerColor; padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;">
         <div style="font-size: 15px;">
-            <span style="background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-right: 10px; color: #1f2937;">ID: $displayId</span>
-            <span style="font-weight: 700; color: #111827;">$comp</span> 
-            <span style="color: #9ca3af; margin: 0 8px;">|</span> 
+            <span style="background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;">$comp</span>
             <span style="font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;">$path</span>
         </div>
         <div style="font-size: 13px; font-weight: 700; color: #111827;">
@@ -188,12 +186,12 @@ function New-SettingsCardHtmlHC {
         </div>
     </div>
     <div style="padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-        <h3 style="margin-top:0; margin-bottom:8px; font-size: 14px; color: #374151;">About</h3>
-        <table style="border:none; font-size:13px; border-collapse: separate; border-spacing: 0 4px;">
-            <tr><td style="width:100px; font-weight:600; color:#6b7280;">GroupName:</td><td style="color: #111827;">$group</td></tr>
+        <h3 style="margin-top:0; margin-bottom:15px; font-size: 14px; color: #374151;">About</h3>
+        <table style="border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;">
+            <tr><td style="width:100px; font-weight:600; color:#6b7280;">ID:</td><td style="color: #111827; font-family: Consolas, monospace; font-size: 12px;">$fullId</td></tr>
+            <tr><td style="font-weight:600; color:#6b7280;">GroupName:</td><td style="color: #111827;">$group</td></tr>
             <tr><td style="font-weight:600; color:#6b7280;">SiteCode:</td><td style="color: #111827;">$site</td></tr>
-            <tr><td style="font-weight:600; color:#6b7280;">Start time:</td><td style="color: #111827;">$start</td></tr>
-            <tr><td style="font-weight:600; color:#6b7280;">End time:</td><td style="color: #111827;">$end</td></tr>
+            <tr><td style="font-weight:600; color:#6b7280;">Duration:</td><td style="color: #111827;">$timeStr</td></tr>
         </table>
     </div>
     <div style="padding: 16px; background-color: #ffffff;">
@@ -312,16 +310,11 @@ function Write-MatrixExecutionReportHC {
         [Parameter(Mandatory)][string]$LogFolder
     )
 
-    if (-not (Test-Path `
-                -LiteralPath $LogFolder `
-                -PathType Container)
-    ) { return $null }
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
 
     $firstMatrix = $FileMatrices[0]
 
-    $modBy = [System.Net.WebUtility]::HtmlEncode(
-        $firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown'
-    )
+    $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
     $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
         $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
@@ -329,27 +322,16 @@ function Write-MatrixExecutionReportHC {
 
     $fileSections = @(
         New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
-
         if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Checks' `
-                $firstMatrix.FileContext.Sheets.FormData.Check
+            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
         }
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Checks' `
-                $firstMatrix.FileContext.Sheets.Permissions.Check
+            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
     $settingsSections = ''
-    foreach (
-        $matrix in 
-        (
-            $FileMatrices | Sort-Object `
-            { $_.Setting.Formatted.ComputerName }, `
-            { $_.Setting.Formatted.Path }, `
-            { $_.ID }
-        )
-    ) {
+    foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
         $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
     }
 
@@ -358,21 +340,21 @@ function Write-MatrixExecutionReportHC {
 <html><head>
 $($Html.Style)
 $($Html.TroubleshootingStyle)
-</head><body>
-<h1>Execution & Troubleshooting Report</h1>
-<h2>File: $($firstMatrix.FileContext.Item.Name)</h2>
-<p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:20px;">
+</head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #111827;">
+<h1 style="margin-bottom: 5px;">Execution & Troubleshooting Report</h1>
+<h2 style="margin-top: 5px; color: #374151;">File: $($firstMatrix.FileContext.Item.Name)</h2>
+<p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:25px; color: #6b7280; font-style: italic;">
     Last change: $modBy @ $modDt
 </p>
 
-<h3>Global File Status</h3>
-<table class="matrixTable" style="width:100%;">
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Global File Status</h3>
+<table class="matrixTable" style="width:100%; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
 $fileSections
 </table>
 
-<br>
-<h3>Settings Execution Status</h3>
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Settings Execution Status</h3>
 $settingsSections
+
 </body></html>
 "@
 
