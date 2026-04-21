@@ -9,10 +9,10 @@ function Import-MatrixFileHC {
     )
 
     $fileResult = [pscustomobject]@{
-        Item      = $MatrixFile
-        ExcelInfo = $null
-        Check     = [System.Collections.Generic.List[pscustomobject]]::new()
-        Sheets    = @{
+        Item           = $MatrixFile
+        ExcelInfo      = $null
+        Check          = [System.Collections.Generic.List[pscustomobject]]::new()
+        Sheets         = @{
             Permissions = @{
                 Raw       = $null
                 Formatted = $null
@@ -26,8 +26,10 @@ function Import-MatrixFileHC {
                 Formatted = $null
             }
         }
-        Matrices  = [System.Collections.Generic.List[pscustomobject]]::new()
-        LogFolder = $null
+        Matrices       = [System.Collections.Generic.List[pscustomobject]]::new()
+        LogFolder      = $null
+        ReportFileName = '00 - Execution Report.html'
+        ReportFilePath = $null
     }
 
     try {
@@ -112,19 +114,22 @@ function Import-MatrixFileHC {
 
         #region Create ONE matrix per enabled Settings row
         foreach ($enabledSetting in $enabledSettings) {
+            $uniqueId = [guid]::NewGuid().ToString()
+
             $matrix = [pscustomobject]@{
-                ID          = [guid]::NewGuid().ToString()
-                Setting     = @{
+                ID           = $unqiueId
+                Setting      = @{
                     Raw       = $enabledSetting
                     Formatted = Format-SettingStringsHC `
                         -Settings $enabledSetting
                 }
-                Check       = [System.Collections.Generic.List[pscustomobject]]::new()
-                Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
-                AdObjects   = @{}
-                JobTime     = @{}
-                # Re`ference back to file-level data
-                FileContext = $fileResult
+                Check        = [System.Collections.Generic.List[pscustomobject]]::new()
+                Matrix       = [System.Collections.Generic.List[pscustomobject]]::new()
+                AdObjects    = @{}
+                JobTime      = @{}
+                JsonFileName = "ID $uniqueId - Details.json"
+                JsonFilePath = $null
+                FileContext  = $fileResult
             }
           
             # Optional: validate settings row here

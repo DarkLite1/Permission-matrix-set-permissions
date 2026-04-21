@@ -98,7 +98,7 @@ function New-SettingsCardHtmlHC {
     $group = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.GroupName)
     $site = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.SiteCode)
 
-    # Calculate Status & Colors
+    #region Get Status & Colors
     $errCount = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
         
@@ -114,19 +114,29 @@ function New-SettingsCardHtmlHC {
         $headerColor = '#d9f2d9' # Light Green
         $statusText = 'Success'
     }
+    #endregion
 
-    $start = if ($MatrixItem.JobTime.Start) { $MatrixItem.JobTime.Start.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'N/A' }
-    $end = if ($MatrixItem.JobTime.End) { $MatrixItem.JobTime.End.ToString('dd/MM/yyyy HH:mm:ss (dddd)') } else { 'N/A' }
+    #region Get job start & end time
+    $start = if ($MatrixItem.JobTime.Start) {
+        $MatrixItem.JobTime.Start.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
+    }
+    else { 'N/A' }
+    $end = if ($MatrixItem.JobTime.End) {
+        $MatrixItem.JobTime.End.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
+    }
+    else { 'N/A' }
+    #endregion
 
-    # Conditionally generate the HTML check table
+    #region Create HTML check table
     $checkTable = if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
         "<table class='matrixTable' style='width:100%; border:none; margin-top:10px;'>$(New-HtmlSectionHC 'Detailed Results' $MatrixItem.Check)</table>"
     }
     else {
         "<p style='padding-top:10px; font-style:italic;'>No issues detected. Execution successful.</p>"
     }
+    #endregion
 
-    # Conditionally generate the JSON download link ONLY if there are errors
+    #region Create JSON file link ONLY if there are errors
     $jsonLink = ''
     if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
         $jsonFileName = "ID $($MatrixItem.ExcelID) - Details.json"
@@ -136,6 +146,7 @@ function New-SettingsCardHtmlHC {
         </div>
 "@
     }
+    #endregion
 
     return @"
 <div style="border: 1px solid black; margin-bottom: 25px;">
@@ -175,14 +186,14 @@ function New-SettingsOverviewHtmlHC {
         }
         else { 'NA' }
 
-        $safeId = if ($S.ID) { $S.ID } else { 'Unknown' }
-        
-        # We can link the row directly to the consolidated log folder we made earlier!
-        $link = if ($S.FileContext.LogFolder) { "$($S.FileContext.LogFolder)\00 - Execution Report.html" } else { '#' }
+        $link = if ($S.FileContext.LogFolder) { 
+            "$($S.FileContext.LogFolder)\00 - Execution Report.html"
+        }
+        else { '#' }
 
         "<tr>
             <td class='$cls'></td>
-            <td><a href='$link'>$safeId</a></td>
+            <td><a href='$link'>$($S.ID)</a></td>
             <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.ComputerName))</a></td>
             <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Path))</a></td>
             <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Action))</a></td>

@@ -113,7 +113,7 @@ function Invoke-PermissionMatrixEndHC {
     }
     #endregion
 
-    # 3. Normal / Write the logs to the verified folder
+    #region Create log files
     if ($logFolder) {
         try {
             if ($Context.FoundMatrices) {
@@ -136,22 +136,28 @@ function Invoke-PermissionMatrixEndHC {
                     $fileLogFolder = New-Item -ItemType Directory `
                         -Path (Join-Path $datedLogFolder.FullName $baseName) `
                         -Force -ErrorAction Stop
-                    
-                    foreach ($m in $fileGroup.Group) { 
-                        $m.FileContext.LogFolder = $fileLogFolder.FullName
-                    }
 
-                    #region Create JSON files for rows with errors/warnings
+                    $contextRef = $fileGroup.Group[0].FileContext
+                    $contextRef.LogFolder = $fileLogFolder.FullName
+                    $contextRef.ReportFilePath = Join-Path `
+                        -Path $fileLogFolder.FullName `
+                        -ChildPath $contextRef.ReportFileName
+                    
                     foreach ($m in $fileGroup.Group) {
+                        $m.FileContext.LogFolder = $fileLogFolder.FullName
+                        $m.JsonFilePath = Join-Path `
+                            -Path $fileLogFolder.FullName `
+                            -ChildPath $m.JsonFileName
+
+                        #region Create JSON files for rows with errors/warnings
                         if ($m.Check -and $m.Check.Count -gt 0) {
                             $m.Check | 
                             ConvertTo-Json -Depth 10 | 
-                            Out-File -FilePath (
-                                Join-Path `
-                                    -Path $fileLogFolder.FullName `
-                                    -ChildPath "ID $($m.ID) - Details.json"
-                            ) -Encoding UTF8 -Force
+                            Out-File `
+                                -FilePath $m.JsonFilePath `
+                                -Encoding UTF8 -Force
                         }
+                        #endregion
                     }
                     
                     Write-MatrixExecutionReportHC `
@@ -187,6 +193,7 @@ function Invoke-PermissionMatrixEndHC {
             -Category 'Logging' `
             -SystemErrors $SystemErrors
     }
+    #endregion
 
     # =====================================================================
     # 4. SEND EMAIL (Best Effort)
