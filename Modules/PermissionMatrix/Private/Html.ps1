@@ -93,6 +93,10 @@ function New-SettingsCardHtmlHC {
         [object]$MatrixItem
     )
 
+    $displayId = if ($MatrixItem.ID) { $MatrixItem.ID.Substring(0, 8) } else { 
+        'N/A' 
+    }
+
     $comp = [System.Net.WebUtility]::HtmlEncode(
         $MatrixItem.Setting.Formatted.ComputerName
     )
@@ -111,11 +115,11 @@ function New-SettingsCardHtmlHC {
     $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
         
     if ($errCount -gt 0) {
-        $headerColor = '#ffcccc' # Light Red
+        $headerColor = '#fee2e2' # Light Red
         $statusText = "Failed ($errCount Errors, $warnCount Warnings)"
     }
     elseif ($warnCount -gt 0) {
-        $headerColor = '#ffe6cc' # Light Orange
+        $headerColor = '#ffedd5' # Light Orange
         $statusText = "Completed with Warnings ($warnCount)"
     }
     else {
@@ -147,45 +151,52 @@ function New-SettingsCardHtmlHC {
             $linkTarget = if ($c.JsonFileName) { $c.JsonFileName } else { '#' }
             
             $checkRows += @"
-            <tr class='$cls' style='border-bottom: 1px solid #ccc;'>
-                <td style='width: 10px;'></td>
-                <td style='font-weight: bold; width: 30%; padding: 5px;'>
-                    <a href="$linkTarget" style="color: inherit; text-decoration: underline;" title="Click to view full JSON details">
+            <tr class='$cls' style='border-bottom: 1px solid #e5e7eb;'>
+                <td style='width: 8px;'></td>
+                <td style='font-weight: 600; width: 35%; padding: 8px 6px;'>
+                    <a href="$linkTarget" style="color: #111827; text-decoration: underline;" title="Click to view full JSON details">
                         $name
                     </a>
                 </td>
-                <td style='padding: 5px;'>$desc</td>
+                <td style='padding: 8px 6px; color: #374151;'>$desc</td>
             </tr>
 "@
         }
         
         $checkTable = @"
-        <h4 style="margin:0 0 5px 0;">Detailed Results</h4>
-        <table style='width:100%; border-collapse: collapse; margin-top: 5px; font-size: 13px; background-color: white; border: 1px solid black;'>
+        <h4 style="margin:0 0 8px 0; color: #374151;">Detailed Results</h4>
+        <table style='width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'>
             $checkRows
         </table>
 "@
     }
     else {
-        $checkTable = "<p style='padding-top:10px; font-style:italic;'>No issues detected. Execution successful.</p>"
+        $checkTable = "<p style='padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'>No issues detected. Execution successful.</p>"
     }
 
     return @"
-<div style="border: 1px solid black; margin-bottom: 25px; page-break-inside: avoid;">
-    <div style="background-color: $headerColor; padding: 10px; border-bottom: 1px solid black; font-weight: bold; font-size: 14px;">
-        ID $($MatrixItem.ID) | $comp | $path
-        <span style="float: right;">Status: $statusText</span>
+<div style="border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <div style="background-color: $headerColor; padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;">
+        <div style="font-size: 15px;">
+            <span style="background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; margin-right: 10px; color: #1f2937;">ID: $displayId</span>
+            <span style="font-weight: 700; color: #111827;">$comp</span> 
+            <span style="color: #9ca3af; margin: 0 8px;">|</span> 
+            <span style="font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;">$path</span>
+        </div>
+        <div style="font-size: 13px; font-weight: 700; color: #111827;">
+            $statusText
+        </div>
     </div>
-    <div style="padding: 10px; background-color: #f2f2f2; border-bottom: 1px solid #ccc;">
-        <h3 style="margin-top:0; margin-bottom:5px;">About</h3>
-        <table style="border:none; font-size:13px;">
-            <tr><td style="width:120px; font-weight:bold; color:#8f8c8c;">GroupName:</td><td>$group</td></tr>
-            <tr><td style="font-weight:bold; color:#8f8c8c;">SiteCode:</td><td>$site</td></tr>
-            <tr><td style="font-weight:bold; color:#8f8c8c;">Start time:</td><td>$start</td></tr>
-            <tr><td style="font-weight:bold; color:#8f8c8c;">End time:</td><td>$end</td></tr>
+    <div style="padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
+        <h3 style="margin-top:0; margin-bottom:8px; font-size: 14px; color: #374151;">About</h3>
+        <table style="border:none; font-size:13px; border-collapse: separate; border-spacing: 0 4px;">
+            <tr><td style="width:100px; font-weight:600; color:#6b7280;">GroupName:</td><td style="color: #111827;">$group</td></tr>
+            <tr><td style="font-weight:600; color:#6b7280;">SiteCode:</td><td style="color: #111827;">$site</td></tr>
+            <tr><td style="font-weight:600; color:#6b7280;">Start time:</td><td style="color: #111827;">$start</td></tr>
+            <tr><td style="font-weight:600; color:#6b7280;">End time:</td><td style="color: #111827;">$end</td></tr>
         </table>
     </div>
-    <div style="padding: 10px;">
+    <div style="padding: 16px; background-color: #ffffff;">
         $checkTable
     </div>
 </div>
@@ -362,8 +373,6 @@ $fileSections
 <br>
 <h3>Settings Execution Status</h3>
 $settingsSections
-
-$($Html.Templates.LegendTable)
 </body></html>
 "@
 
