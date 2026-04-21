@@ -114,10 +114,8 @@ function Import-MatrixFileHC {
 
         #region Create ONE matrix per enabled Settings row
         foreach ($enabledSetting in $enabledSettings) {
-            $uniqueId = [guid]::NewGuid().ToString()
-
             $matrix = [pscustomobject]@{
-                ID           = $unqiueId
+                ID           = [guid]::NewGuid().ToString()
                 Setting      = @{
                     Raw       = $enabledSetting
                     Formatted = Format-SettingStringsHC `
@@ -127,14 +125,9 @@ function Import-MatrixFileHC {
                 Matrix       = [System.Collections.Generic.List[pscustomobject]]::new()
                 AdObjects    = @{}
                 JobTime      = @{}
-                JsonFileName = "ID $uniqueId - Details.json"
-                JsonFilePath = $null
                 FileContext  = $fileResult
             }
           
-            # Optional: validate settings row here
-            # Add to $matrix.Check if needed
-
             $fileResult.Matrices.Add($matrix)
         }
         #endregion

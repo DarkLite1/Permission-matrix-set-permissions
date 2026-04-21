@@ -93,10 +93,18 @@ function New-SettingsCardHtmlHC {
         [object]$MatrixItem
     )
 
-    $comp = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.ComputerName)
-    $path = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.Path)
-    $group = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.GroupName)
-    $site = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.SiteCode)
+    $comp = [System.Net.WebUtility]::HtmlEncode(
+        $MatrixItem.Setting.Formatted.ComputerName
+    )
+    $path = [System.Net.WebUtility]::HtmlEncode(
+        $MatrixItem.Setting.Formatted.Path
+    )
+    $group = [System.Net.WebUtility]::HtmlEncode(
+        $MatrixItem.Setting.Formatted.GroupName
+    )
+    $site = [System.Net.WebUtility]::HtmlEncode(
+        $MatrixItem.Setting.Formatted.SiteCode
+    )
 
     #region Get Status & Colors
     $errCount = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
@@ -116,39 +124,52 @@ function New-SettingsCardHtmlHC {
     }
     #endregion
 
-    #region Get job start & end time
-    $start = if ($MatrixItem.JobTime.Start) {
+    #region Get Start/End times
+    $start = if ($MatrixItem.JobTime.Start) { 
         $MatrixItem.JobTime.Start.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
     }
     else { 'N/A' }
-    $end = if ($MatrixItem.JobTime.End) {
+    $end = if ($MatrixItem.JobTime.End) { 
         $MatrixItem.JobTime.End.ToString('dd/MM/yyyy HH:mm:ss (dddd)') 
     }
     else { 'N/A' }
     #endregion
 
-    #region Create HTML check table
-    $checkTable = if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
-        "<table class='matrixTable' style='width:100%; border:none; margin-top:10px;'>$(New-HtmlSectionHC 'Detailed Results' $MatrixItem.Check)</table>"
-    }
-    else {
-        "<p style='padding-top:10px; font-style:italic;'>No issues detected. Execution successful.</p>"
-    }
-    #endregion
-
-    #region Add JSON file link ONLY if there are errors/warnings
-    $jsonLink = ''
+    # Create check rows
+    $checkTable = ''
     if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
-        $jsonLink = @"
-        <div style="margin-top: 15px; text-align: right; font-size: 12px;">
-            <a href="$($MatrixItem.JsonFilePath)" style="color: blue;">View Raw JSON Details ($($MatrixItem.Check.Count) records)</a>
-        </div>
+        $checkRows = ''
+        foreach ($c in $MatrixItem.Check) {
+            $cls = Get-HtmlClassProbTypeHC $c.Type
+            $name = [System.Net.WebUtility]::HtmlEncode($c.Name)
+            $desc = [System.Net.WebUtility]::HtmlEncode($c.Description)
+            
+            $checkRows += @"
+            <tr class='$cls' style='border-bottom: 1px solid #ccc;'>
+                <td style='width: 10px;'></td>
+                <td style='font-weight: bold; width: 30%; padding: 5px;'>
+                    <a href="$($MatrixItem.JsonFileName)" style="color: inherit; text-decoration: underline;" title="Click to view full JSON details">
+                        $name
+                    </a>
+                </td>
+                <td style='padding: 5px;'>$desc</td>
+            </tr>
+"@
+        }
+        
+        $checkTable = @"
+        <h4 style="margin:0 0 5px 0;">Detailed Results</h4>
+        <table style='width:100%; border-collapse: collapse; margin-top: 5px; font-size: 13px; background-color: white; border: 1px solid black;'>
+            $checkRows
+        </table>
 "@
     }
-    #endregion
+    else {
+        $checkTable = "<p style='padding-top:10px; font-style:italic;'>No issues detected. Execution successful.</p>"
+    }
 
     return @"
-<div style="border: 1px solid black; margin-bottom: 25px;">
+<div style="border: 1px solid black; margin-bottom: 25px; page-break-inside: avoid;">
     <div style="background-color: $headerColor; padding: 10px; border-bottom: 1px solid black; font-weight: bold; font-size: 14px;">
         ID $($MatrixItem.ID) | $comp | $path
         <span style="float: right;">Status: $statusText</span>
@@ -164,7 +185,6 @@ function New-SettingsCardHtmlHC {
     </div>
     <div style="padding: 10px;">
         $checkTable
-        $jsonLink
     </div>
 </div>
 "@
@@ -193,9 +213,9 @@ function New-SettingsOverviewHtmlHC {
         "<tr>
             <td class='$cls'></td>
             <td><a href='$link'>$($S.ID)</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.ComputerName))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Path))</a></td>
-            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Raw.Action))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Formatted.ComputerName))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Formatted.Path))</a></td>
+            <td><a href='$link'>$([System.Net.WebUtility]::HtmlEncode($S.Setting.Formatted.Action))</a></td>
             <td><a href='$link'>$dur</a></td>
         </tr>"
     }
@@ -248,7 +268,7 @@ function Build-MatrixEmailHtmlHC {
         $settingsDetails = ''
         foreach ($matrixRow in ($fileGroup.Group | Sort-Object ID)) {
             if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
-                $header = "Settings Details (ID: $($matrixRow.ID)) - $($matrixRow.Setting.Raw.ComputerName)"
+                $header = "Settings Details (ID: $($matrixRow.ID)) - $($matrixRow.Setting.Formatted.ComputerName)"
                 
                 $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
             }
@@ -311,8 +331,8 @@ function Write-MatrixExecutionReportHC {
     foreach (
         $matrix in 
         ($FileMatrices | Sort-Object `
-        { $_.Setting.Raw.ComputerName }, `
-        { $_.Setting.Raw.Path }, `
+        { $_.Setting.Formatted.ComputerName }, `
+        { $_.Setting.Formatted.Path }, `
         { $_.ID }
         )
     ) {

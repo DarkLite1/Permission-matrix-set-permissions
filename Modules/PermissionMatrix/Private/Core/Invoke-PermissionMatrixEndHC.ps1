@@ -143,12 +143,22 @@ function Invoke-PermissionMatrixEndHC {
                         -Path $fileLogFolder.FullName `
                         -ChildPath $contextRef.ReportFileName
                  
-                    #regin Set JSON file paths
+                    #regin Create JSON file name & path for check details
                     foreach ($m in $fileGroup.Group) {
-                        $m.FileContext.LogFolder = $fileLogFolder.FullName
-                        $m.JsonFilePath = Join-Path `
-                            -Path $fileLogFolder.FullName `
-                            -ChildPath $m.JsonFileName
+                        $checkIndex = 0
+                        
+                        foreach ($c in $m.Check) {
+                            $checkIndex++
+
+                            $checkFileName = "ID $($m.ID) - Detail $checkIndex.json"
+                            
+                            $c | Add-Member -NotePropertyMembers @{
+                                JsonFileName = $checkFileName
+                                JsonFilePath = Join-Path `
+                                    -Path $fileLogFolder.FullName `
+                                    -ChildPath $checkFileName  
+                            } -Force
+                        }
                     }
                     #endregion
 
@@ -159,12 +169,13 @@ function Invoke-PermissionMatrixEndHC {
 
                     #region Create JSON files for rows with errors/warnings
                     foreach ($m in $fileGroup.Group) {
-                        if ($m.Check -and $m.Check.Count -gt 0) {
-                            $m.Check | 
-                            ConvertTo-Json -Depth 10 | 
-                            Out-File `
-                                -FilePath $m.JsonFilePath `
-                                -Encoding UTF8 -Force
+                        foreach ($c in $m.Check) {
+                            if ($c.JsonFilePath -and $c.Value) {
+                                $c | ConvertTo-Json -Depth 10 | 
+                                Out-File `
+                                    -FilePath $c.JsonFilePath `
+                                    -Encoding UTF8 -Force
+                            }
                         }
                     }
                     #endregion
