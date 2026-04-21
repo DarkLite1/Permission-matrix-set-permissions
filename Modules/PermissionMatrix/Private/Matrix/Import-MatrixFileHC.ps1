@@ -115,19 +115,19 @@ function Import-MatrixFileHC {
         #region Create ONE matrix per enabled Settings row
         foreach ($enabledSetting in $enabledSettings) {
             $matrix = [pscustomobject]@{
-                ID           = [guid]::NewGuid().ToString()
-                Setting      = @{
+                ID          = [guid]::NewGuid().ToString()
+                Setting     = @{
                     Raw       = $enabledSetting
                     Formatted = Format-SettingStringsHC `
                         -Settings $enabledSetting
                 }
-                Check        = [System.Collections.Generic.List[pscustomobject]]::new()
-                Matrix       = [System.Collections.Generic.List[pscustomobject]]::new()
-                AdObjects    = @{}
-                JobTime      = @{}
-                FileContext  = $fileResult
+                Check       = [System.Collections.Generic.List[pscustomobject]]::new()
+                Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
+                AdObjects   = @{}
+                JobTime     = @{}
+                FileContext = $fileResult
             }
-          
+
             $fileResult.Matrices.Add($matrix)
         }
         #endregion

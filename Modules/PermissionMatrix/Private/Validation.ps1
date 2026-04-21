@@ -84,28 +84,6 @@ function Test-MatrixFormDataHC {
     }
 }
 
-function Test-MatrixSettingHC {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] $Setting)
-
-    $checks = @()
-
-    if (-not $Setting.ComputerName) {
-        $checks += New-HcError -Type 'FatalError' -Name 'Missing ComputerName' `
-            -Description 'ComputerName is mandatory.' -Category 'Settings'
-    }
-    if (-not $Setting.Path) {
-        $checks += New-HcError -Type 'FatalError' -Name 'Missing Path' `
-            -Description 'Path is mandatory.' -Category 'Settings'
-    }
-    if (-not $Setting.Action) {
-        $checks += New-HcError -Type 'FatalError' -Name 'Missing Action' `
-            -Description 'Action is mandatory.' -Category 'Settings'
-    }
-
-    return $checks
-}
-
 function Test-AdObjectsHC {
     [CmdletBinding()]
     param(
