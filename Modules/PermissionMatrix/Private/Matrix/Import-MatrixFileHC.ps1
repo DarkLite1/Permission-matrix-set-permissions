@@ -116,7 +116,7 @@ function Import-MatrixFileHC {
         }
         #endregion
 
-        #region Create ONE matrix per enabled Settings row
+        #region Create matrix per enabled Settings row
         foreach ($enabledSetting in $enabledSettings) {
             $matrix = [pscustomobject]@{
                 ID          = [guid]::NewGuid().ToString()
