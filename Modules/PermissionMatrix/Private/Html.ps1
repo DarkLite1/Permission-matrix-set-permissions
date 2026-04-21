@@ -3,32 +3,58 @@
     Consolidated HTML rendering logic for Toolbox.PermissionMatrixHC
 #>
 
+# =====================================================================
+# GLOBAL HTML THEME
+# Centralized color palette used by all HTML generation functions
+# =====================================================================
+$Script:Theme = @{
+    # Status Colors (Cards & Table Rows)
+    StatusError    = '#fee2e2' # Light Red
+    StatusWarning  = '#ffedd5' # Light Orange
+    StatusSuccess  = '#dcfce7' # Light Green
+    
+    # Text Colors
+    TextMain       = '#111827' # Dark Gray/Black
+    TextMuted      = '#374151' # Medium Gray
+    TextLight      = '#6b7280' # Light Gray
+    
+    # Backgrounds & Borders
+    BgWhite        = '#ffffff'
+    BgAlt          = '#f9fafb' # Off-white for "About" sections
+    BorderMain     = '#d1d5db'
+    BorderLight    = '#e5e7eb'
+    
+    # Links
+    LinkColor      = '#2563eb' # Standard Blue
+    LinkHoverColor = '#2563eb' # Standard Blue
+}
+
 function Initialize-HtmlStructureHC {
 
-    $style = @'
+    $style = @"
 <style type="text/css">
-    a { color: black; text-decoration: underline; }
-    a:hover { color: blue; }
+    a { color: $($Script:Theme.LinkColor); text-decoration: underline; }
+    a:hover { color: $($Script:Theme.LinkHoverColor); }
     body { font-family:verdana; font-size:14px; background-color:white; }
     h1, h2, h3 { margin-bottom: 0; }
     p.italic { font-style: italic; font-size: 12px; }
     table { border-collapse:collapse; padding:3px; }
     td, th { border:1px none; padding:3px; }
-    .matrixTable { border:1px solid black; border-spacing:0 0.6em; width:600px; }
+    .matrixTable { border: 1px solid $($Script:Theme.BorderMain); border-spacing: 0; width: 600px; }
     .matrixTitle { background-color:lightgrey; text-align:center; padding:6px; }
     .matrixHeader { letter-spacing:5pt; font-style:italic; }
     .matrixFileInfo { font-size:12px; font-style:italic; text-align:center; }
     .legendTable { border:1px solid black; table-layout:fixed; }
     .legendTable td { text-align:center; }
-    .probTypeError { background-color:red; }
-    .probTypeWarning { background-color:orange; }
-    .probTypeInfo { background-color:lightgrey; }
-    .probTextError { color:red; font-weight:bold; }
-    .probTextWarning { color:orange; font-weight:bold; }
+    .probTypeError { background-color: $($Script:Theme.StatusError); }
+    .probTypeWarning { background-color: $($Script:Theme.StatusWarning); }
+    .probTypeInfo { background-color: $($Script:Theme.BgAlt); }
+    .probTextError { color:#fee2e2; font-weight:bold; }
+    .probTextWarning { color:#ffedd5; font-weight:bold; }
     .aboutTable th, .aboutTable td { color:#8f8c8c; }
     base { target="_blank" }
 </style>
-'@
+"@
 
     $troubleshooting = @'
 <style type="text/css">
@@ -98,24 +124,24 @@ function New-SettingsCardHtmlHC {
     # Edit these strings to quickly change the look of the card elements!
     # =====================================================================
     $css = @{
-        CardOuter   = "border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
+        CardOuter   = "border: 1px solid $($Script:Theme.BorderMain); border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
         CardHeader  = 'padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;'
         HeaderLeft  = 'font-size: 15px;'
         HeaderRight = 'font-size: 13px; font-weight: 700; color: #111827;'
         PillComp    = 'background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;'
         PathText    = 'font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;'
         
-        AboutOuter  = 'padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;'
+        AboutOuter  = "padding: 12px 16px; background-color: $($Script:Theme.BgAlt); border-bottom: 1px solid $($Script:Theme.BorderLight);"
         AboutTitle  = 'margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;'
         AboutTable  = 'border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;'
-        AboutLabel  = 'width:100px; font-weight:600; color:#6b7280;'
+        AboutLabel  = "width:100px; font-weight:600; color:$($Script:Theme.TextLight);"
         AboutVal    = 'color: #111827;'
         AboutIdVal  = 'color: #111827; font-family: Consolas, monospace; font-size: 12px;'
         
         CheckOuter  = 'padding: 16px; background-color: #ffffff;'
         CheckTitle  = 'margin:0 0 8px 0; color: #374151;'
         CheckTable  = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
-        CheckRow    = 'border-bottom: 1px solid #e5e7eb;'
+        CheckRow    = "border-bottom: 1px solid $($Script:Theme.BorderLight);"
         CheckLinkTd = 'font-weight: 600; width: 35%; padding: 8px 6px;'
         CheckLink   = 'color: #111827; text-decoration: underline;'
         CheckDesc   = 'padding: 8px 6px; color: #374151;'
