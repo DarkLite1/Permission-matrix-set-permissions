@@ -136,13 +136,12 @@ function New-SettingsCardHtmlHC {
     }
     #endregion
 
-    #region Create JSON file link ONLY if there are errors
+    #region Add JSON file link ONLY if there are errors/warnings
     $jsonLink = ''
     if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
-        $jsonFileName = "ID $($MatrixItem.ExcelID) - Details.json"
         $jsonLink = @"
         <div style="margin-top: 15px; text-align: right; font-size: 12px;">
-            <a href="$jsonFileName" style="color: blue;">View Raw JSON Details ($($MatrixItem.Check.Count) records)</a>
+            <a href="$($MatrixItem.JsonFilePath)" style="color: blue;">View Raw JSON Details ($($MatrixItem.Check.Count) records)</a>
         </div>
 "@
     }
@@ -186,8 +185,8 @@ function New-SettingsOverviewHtmlHC {
         }
         else { 'NA' }
 
-        $link = if ($S.FileContext.LogFolder) { 
-            "$($S.FileContext.LogFolder)\00 - Execution Report.html"
+        $link = if ($S.FileContext.ReportFilePath) { 
+            $S.FileContext.ReportFilePath
         }
         else { '#' }
 
