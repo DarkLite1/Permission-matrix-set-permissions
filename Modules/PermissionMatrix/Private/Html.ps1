@@ -144,11 +144,13 @@ function New-SettingsCardHtmlHC {
             $name = [System.Net.WebUtility]::HtmlEncode($c.Name)
             $desc = [System.Net.WebUtility]::HtmlEncode($c.Description)
             
+            $linkTarget = if ($c.JsonFileName) { $c.JsonFileName } else { '#' }
+            
             $checkRows += @"
             <tr class='$cls' style='border-bottom: 1px solid #ccc;'>
                 <td style='width: 10px;'></td>
                 <td style='font-weight: bold; width: 30%; padding: 5px;'>
-                    <a href="$($MatrixItem.JsonFileName)" style="color: inherit; text-decoration: underline;" title="Click to view full JSON details">
+                    <a href="$linkTarget" style="color: inherit; text-decoration: underline;" title="Click to view full JSON details">
                         $name
                     </a>
                 </td>
