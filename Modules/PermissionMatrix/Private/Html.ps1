@@ -150,7 +150,7 @@ function New-SettingsCardHtmlHC {
     return @"
 <div style="border: 1px solid black; margin-bottom: 25px;">
     <div style="background-color: $headerColor; padding: 10px; border-bottom: 1px solid black; font-weight: bold; font-size: 14px;">
-        ID $safeId | $comp | $path
+        ID $($MatrixItem.ID) | $comp | $path
         <span style="float: right;">Status: $statusText</span>
     </div>
     <div style="padding: 10px; background-color: #f2f2f2; border-bottom: 1px solid #ccc;">
@@ -248,8 +248,7 @@ function Build-MatrixEmailHtmlHC {
         $settingsDetails = ''
         foreach ($matrixRow in ($fileGroup.Group | Sort-Object ID)) {
             if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
-                $safeId = if ($matrixRow.ID) { $matrixRow.ID } else { 'Unknown' }
-                $header = "Settings Details (ID: $safeId) - $($matrixRow.Setting.Raw.ComputerName)"
+                $header = "Settings Details (ID: $($matrixRow.ID)) - $($matrixRow.Setting.Raw.ComputerName)"
                 
                 $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
             }
@@ -365,7 +364,6 @@ function Write-MatrixSettingLogHC {
         New-HtmlSectionHC 'Setting Validation' $Matrix.Check
     ) -join ''
 
-    $safeId = if ($Matrix.ID) { $Matrix.ID } else { 'Unknown' }
 
     $htmlOut = @"
 <!DOCTYPE html>
@@ -373,7 +371,7 @@ function Write-MatrixSettingLogHC {
 $($Html.Style)
 $($Html.TroubleshootingStyle)
 </head><body>
-<h1>Settings Log - ID $safeId</h1>
+<h1>Settings Log - ID $($Matrix.ID)</h1>
 <table class="matrixTable" style="width:100%;">
 $sections
 </table>
@@ -383,7 +381,7 @@ $($Html.Templates.LegendTable)
 
     $logFilePath = Join-Path `
         -Path $LogFolder `
-        -ChildPath "ID $safeId - Settings.html"
+        -ChildPath "ID $($Matrix.ID) - Settings.html"
 
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
