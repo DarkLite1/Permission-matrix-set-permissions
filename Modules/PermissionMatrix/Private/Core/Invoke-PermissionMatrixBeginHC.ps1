@@ -127,29 +127,66 @@ function Invoke-PermissionMatrixBeginHC {
             ForEach-Object { . $_.FullName }
             #endregion
             
-            # Read and validate the matrix
-            $fileResult = Import-MatrixFileHC -MatrixFile $file -Context $context
-            #endregion
+            try {
+                # Import & validate matrix
+                $fileResult = Import-MatrixFileHC `
+                    -MatrixFile $file `
+                    -Context $context
 
-            #region Archive immediately to prevent error loops on next schedule
-            if ($archiveFolder) {
-                try {
-                    $destination = Join-Path -Path $archiveFolder -ChildPath $file.Name
-                    Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+                if ($fileResult.Sheets.Permissions.Formatted) {
+                    $permErrors = Test-MatrixPermissionsHC `
+                        -Permissions $fileResult.Sheets.Permissions.Formatted
+
+                    if ($permErrors) { $fileResult.Check.AddRange($permErrors) }
                 }
-                catch {
-                    $fileResult.File.Check.Add(
-                        [pscustomobject]@{
-                            Type        = 'Warning' 
-                            Name        = 'Archiving failed'
-                            Description = 'File could not be moved to archive.'
-                            Value       = $_
-                        })
+
+                if ($fileResult.Matrices) {
+                    foreach ($m in $fileResult.Matrices) {
+                        $rowErrors = Test-MatrixSettingRowHC `
+                            -SettingRow $m.Setting.Raw
+
+                        if ($rowErrors) { $m.Check.AddRange($rowErrors) }
+                    }
                 }
+                #endregion
             }
-            #endregion
-
-            return $fileResult
+            catch {
+                if (-not $fileResult) {
+                    $fileResult = [pscustomobject]@{
+                        File     = $file
+                        Check    = [System.Collections.Generic.List[pscustomobject]]::new()
+                        Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
+                    }
+                }
+                
+                $fileResult.Check.Add([pscustomobject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Runspace processing failed'
+                        Description = 'An unexpected terminating error occurred during I/O or Validation.'
+                        Value       = $_
+                    })
+            }
+            finally {
+                #region Archive file
+                if ($archiveFolder) {
+                    try {
+                        $destination = Join-Path -Path $archiveFolder -ChildPath $file.Name
+                        Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+                    }
+                    catch {
+                        $fileResult.File.Check.Add(
+                            [pscustomobject]@{
+                                Type        = 'Warning' 
+                                Name        = 'Archiving failed'
+                                Description = 'File could not be moved to archive.'
+                                Value       = $_
+                            })
+                    }
+                }
+                #endregion
+    
+                $fileResult
+            }
         }
         #endregion
 
