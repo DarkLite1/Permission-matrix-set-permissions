@@ -137,7 +137,9 @@ function Invoke-PermissionMatrixBeginHC {
                     $permErrors = Test-MatrixPermissionsHC `
                         -Permissions $fileResult.Sheets.Permissions.Formatted
 
-                    if ($permErrors) { $fileResult.Check.AddRange($permErrors) }
+                    if ($permErrors) {
+                        $fileResult.Check.AddRange(@($permErrors))
+                    }
                 }
 
                 if ($fileResult.Matrices) {
@@ -145,7 +147,9 @@ function Invoke-PermissionMatrixBeginHC {
                         $rowErrors = Test-MatrixSettingRowHC `
                             -SettingRow $m.Setting.Raw
 
-                        if ($rowErrors) { $m.Check.AddRange($rowErrors) }
+                        if ($rowErrors) { 
+                            $m.Check.AddRange(@($rowErrors)) 
+                        }
                     }
                 }
                 #endregion
@@ -192,7 +196,9 @@ function Invoke-PermissionMatrixBeginHC {
 
         $importedMatrices = [System.Collections.Generic.List[pscustomobject]]::new()
         foreach ($res in $parallelResults) {
-            if ($res.Matrices) { $importedMatrices.AddRange($res.Matrices) }
+            if ($res.Matrices) {
+                $importedMatrices.AddRange(@($res.Matrices)) 
+            }
         }
         $Context.AllMatrices = $importedMatrices
 
