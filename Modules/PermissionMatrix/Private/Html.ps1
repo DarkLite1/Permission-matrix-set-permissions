@@ -93,6 +93,35 @@ function New-SettingsCardHtmlHC {
         [object]$MatrixItem
     )
 
+    # =====================================================================
+    # CSS STYLE DICTIONARY 
+    # Edit these strings to quickly change the look of the card elements!
+    # =====================================================================
+    $css = @{
+        CardOuter   = "border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
+        CardHeader  = 'padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;'
+        HeaderLeft  = 'font-size: 15px;'
+        HeaderRight = 'font-size: 13px; font-weight: 700; color: #111827;'
+        PillComp    = 'background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;'
+        PathText    = 'font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;'
+        
+        AboutOuter  = 'padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;'
+        AboutTitle  = 'margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;'
+        AboutTable  = 'border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;'
+        AboutLabel  = 'width:100px; font-weight:600; color:#6b7280;'
+        AboutVal    = 'color: #111827;'
+        AboutIdVal  = 'color: #111827; font-family: Consolas, monospace; font-size: 12px;'
+        
+        CheckOuter  = 'padding: 16px; background-color: #ffffff;'
+        CheckTitle  = 'margin:0 0 8px 0; color: #374151;'
+        CheckTable  = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
+        CheckRow    = 'border-bottom: 1px solid #e5e7eb;'
+        CheckLinkTd = 'font-weight: 600; width: 35%; padding: 8px 6px;'
+        CheckLink   = 'color: #111827; text-decoration: underline;'
+        CheckDesc   = 'padding: 8px 6px; color: #374151;'
+        SuccessText = 'padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'
+    }
+
     # Grab the FULL ID string for the About table
     $fullId = if (-not [string]::IsNullOrWhiteSpace($MatrixItem.Setting.Raw.ID)) { 
         $MatrixItem.Setting.Raw.ID 
@@ -151,50 +180,50 @@ function New-SettingsCardHtmlHC {
             $linkTarget = if ($c.JsonFileName) { $c.JsonFileName } else { '#' }
             
             $checkRows += @"
-            <tr class='$cls' style='border-bottom: 1px solid #e5e7eb;'>
+            <tr class='$cls' style='$($css.CheckRow)'>
                 <td style='width: 8px;'></td>
-                <td style='font-weight: 600; width: 35%; padding: 8px 6px;'>
-                    <a href="$linkTarget" style="color: #111827; text-decoration: underline;" title="Click to view full JSON details">
+                <td style='$($css.CheckLinkTd)'>
+                    <a href="$linkTarget" style="$($css.CheckLink)" title="Click to view full JSON details">
                         $name
                     </a>
                 </td>
-                <td style='padding: 8px 6px; color: #374151;'>$desc</td>
+                <td style='$($css.CheckDesc)'>$desc</td>
             </tr>
 "@
         }
         
         $checkTable = @"
-        <h4 style="margin:0 0 8px 0; color: #374151;">Detailed Results</h4>
-        <table style='width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'>
+        <h4 style="$($css.CheckTitle)">Detailed Results</h4>
+        <table style='$($css.CheckTable)'>
             $checkRows
         </table>
 "@
     }
     else {
-        $checkTable = "<p style='padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'>No issues detected. Execution successful.</p>"
+        $checkTable = "<p style='$($css.SuccessText)'>No issues detected. Execution successful.</p>"
     }
 
     return @"
-<div style="border: 1px solid #d1d5db; border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-    <div style="background-color: $headerColor; padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;">
-        <div style="font-size: 15px;">
-            <span style="background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;">$comp</span>
-            <span style="font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;">$path</span>
+<div style="$($css.CardOuter)">
+    <div style="background-color: $headerColor; $($css.CardHeader)">
+        <div style="$($css.HeaderLeft)">
+            <span style="$($css.PillComp)">$comp</span>
+            <span style="$($css.PathText)">$path</span>
         </div>
-        <div style="font-size: 13px; font-weight: 700; color: #111827;">
+        <div style="$($css.HeaderRight)">
             $statusText
         </div>
     </div>
-    <div style="padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-        <h3 style="margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;">About</h3>
-        <table style="border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;">
-            <tr><td style="width:100px; font-weight:600; color:#6b7280;">ID:</td><td style="color: #111827; font-family: Consolas, monospace; font-size: 12px;">$fullId</td></tr>
-            <tr><td style="font-weight:600; color:#6b7280;">GroupName:</td><td style="color: #111827;">$group</td></tr>
-            <tr><td style="font-weight:600; color:#6b7280;">SiteCode:</td><td style="color: #111827;">$site</td></tr>
-            <tr><td style="font-weight:600; color:#6b7280;">Duration:</td><td style="color: #111827;">$timeStr</td></tr>
+    <div style="$($css.AboutOuter)">
+        <h3 style="$($css.AboutTitle)">About</h3>
+        <table style="$($css.AboutTable)">
+            <tr><td style="$($css.AboutLabel)">ID:</td><td style="$($css.AboutIdVal)">$fullId</td></tr>
+            <tr><td style="$($css.AboutLabel)">GroupName:</td><td style="$($css.AboutVal)">$group</td></tr>
+            <tr><td style="$($css.AboutLabel)">SiteCode:</td><td style="$($css.AboutVal)">$site</td></tr>
+            <tr><td style="$($css.AboutLabel)">Duration:</td><td style="$($css.AboutVal)">$timeStr</td></tr>
         </table>
     </div>
-    <div style="padding: 16px; background-color: #ffffff;">
+    <div style="$($css.CheckOuter)">
         $checkTable
     </div>
 </div>
