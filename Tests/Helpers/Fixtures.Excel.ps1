@@ -121,13 +121,14 @@ function New-MatrixSettingsFixtureRows {
         'MissingColumn' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = 'BEL ROL-AGS-SAGREV'
-                    # Action missing
+                    Status    = 'Enabled'
+                    SiteName  = 'HQ South'
+                    SiteCode  = 'CS&L'
+                    # missing ComputerName
+                    # ComputerName = 'BEL$FFRAN0001' 
+                    Path      = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName = 'BEL ROL-AGS-SAGREV'
+                    Action    = 'Check'
                 }
             )
         }
@@ -234,14 +235,14 @@ function New-MatrixPermissionsExcelFixture {
 
     # Output to Excel
     $rows |
-        Export-Excel `
-            -Path $Path `
-            -WorksheetName 'Permissions' `
-            -TableName 'Permissions' `
-            -ClearSheet `
-            -FreezeTopRow:$false `
-            -AutoSize:$false `
-            -ErrorAction Stop
+    Export-Excel `
+        -Path $Path `
+        -WorksheetName 'Permissions' `
+        -TableName 'Permissions' `
+        -ClearSheet `
+        -FreezeTopRow:$false `
+        -AutoSize:$false `
+        -ErrorAction Stop
 
     return $Path
 }
@@ -252,39 +253,39 @@ function New-MatrixPermissionsFixtureRows {
 
         'Valid' {
             return @{
-                Row1 = @('','','')                    # ignored row
-                Row2 = @('','','')                    # ignored row
-                Row3 = @('','Bob','Mike')            # AD name fragments
-                Row4 = @('Path','L','L')             # column headers
+                Row1 = @('', '', '')                    # ignored row
+                Row2 = @('', '', '')                    # ignored row
+                Row3 = @('', 'Bob', 'Mike')            # AD name fragments
+                Row4 = @('Path', 'L', 'L')             # column headers
                 Data = @(
-                    @{ Path='Finance'       ; Col2='R' ; Col3='R' }
-                    @{ Path='Finance\Docs'  ; Col2='W' ; Col3='W' }
+                    @{ Path = 'Finance'       ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = 'Finance\Docs'  ; Col2 = 'W' ; Col3 = 'W' }
                 )
             }
         }
 
         'MissingADObjectName' {
             return @{
-                Row1 = @('','','')
-                Row2 = @('','','')
-                Row3 = @('','', 'Mike')               # Column 2 = missing
-                Row4 = @('Path','', 'L')              # Column 2 header = missing
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', '', 'Mike')               # Column 2 = missing
+                Row4 = @('Path', '', 'L')              # Column 2 header = missing
                 Data = @(
-                    @{ Path='Finance'      ; Col2='R' ; Col3='R' }
-                    @{ Path='Finance\Docs' ; Col2='W' ; Col3='W' }
+                    @{ Path = 'Finance'      ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'W' ; Col3 = 'W' }
                 )
             }
         }
 
         'InvalidPermissionChar' {
             return @{
-                Row1 = @('','','')
-                Row2 = @('','','')
-                Row3 = @('','Bob','Mike')
-                Row4 = @('Path','L','L')
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', 'Bob', 'Mike')
+                Row4 = @('Path', 'L', 'L')
                 Data = @(
-                    @{ Path='Finance'      ; Col2='X'   ; Col3='R'   }  # invalid
-                    @{ Path='Finance\Docs' ; Col2='R'   ; Col3='YYY' }  # invalid
+                    @{ Path = 'Finance'      ; Col2 = 'X'   ; Col3 = 'R' }  # invalid
+                    @{ Path = 'Finance\Docs' ; Col2 = 'R'   ; Col3 = 'YYY' }  # invalid
                 )
             }
         }
@@ -317,8 +318,8 @@ function New-MatrixExcelFixture {
 
     # SETTINGS
     $SettingsRows |
-        Export-Excel -Path $Path -WorksheetName 'Settings' -TableName 'Settings' `
-            -ClearSheet -AutoSize -FreezeTopRow
+    Export-Excel -Path $Path -WorksheetName 'Settings' -TableName 'Settings' `
+        -ClearSheet -AutoSize -FreezeTopRow
 
     # PERMISSIONS (NEW STRUCTURE)
     New-MatrixPermissionsExcelFixture -Path $Path -Spec $PermissionsRows | Out-Null
@@ -339,6 +340,6 @@ function New-MatrixExcelFixture {
     }
 
     $FormDataRows |
-        Export-Excel -Path $Path -WorksheetName 'FormData' -TableName 'FormData' `
-            -ClearSheet -AutoSize -FreezeTopRow
+    Export-Excel -Path $Path -WorksheetName 'FormData' -TableName 'FormData' `
+        -ClearSheet -AutoSize -FreezeTopRow
 }

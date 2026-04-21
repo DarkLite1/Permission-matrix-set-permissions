@@ -97,13 +97,22 @@ function Test-MatrixSettingRowHC {
     )
 
     $checks = [System.Collections.Generic.List[pscustomobject]]::new()
-
-    $validActions = @('Fix', 'New', 'Check')
-    if ($SettingRow.Action -notin $validActions) {
+   
+    if ([string]::IsNullOrWhiteSpace($SettingRow.Action)) {
+        $checks.Add([pscustomobject]@{
+                Type        = 'FatalError'
+                Name        = 'Missing mandatory column'
+                Description = "The column 'Action' cannot be empty."
+                Value       = $null
+            })
+    }
+    elseif ($SettingRow.Action -notin $validActions) {
+        $validActions = @('Fix', 'New', 'Check')
+        
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Invalid Action'
-                Description = "The Action must be one of: $($validActions -join ', ')"
+                Description = "Supported Action values are '$($validActions -join ', ')'."
                 Value       = "Found: '$($SettingRow.Action)'"
             })
     }
@@ -111,18 +120,18 @@ function Test-MatrixSettingRowHC {
     if ([string]::IsNullOrWhiteSpace($SettingRow.Path)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
-                Name        = 'Missing Path'
-                Description = 'The Path column cannot be empty.'
-                Value       = "Found: '$($SettingRow.Path)'"
+                Name        = 'Missing mandatory column'
+                Description = "The column 'Path' cannot be empty."
+                Value       = $null
             })
     }
 
     if ([string]::IsNullOrWhiteSpace($SettingRow.ComputerName)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
-                Name        = 'Missing ComputerName'
-                Description = 'The ComputerName column cannot be empty.'
-                Value       = "Found: '$($SettingRow.ComputerName)'"
+                Name        = 'Missing mandatory column'
+                Description = "The column 'ComputerName' cannot be empty."
+                Value       = $null
             })
     }
 

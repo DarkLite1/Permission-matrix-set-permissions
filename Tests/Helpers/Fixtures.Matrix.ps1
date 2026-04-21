@@ -88,7 +88,7 @@ function Get-MatrixSettingsFixtures {
         @{
             Issue           = 'Missing ComputerName'
             SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingComputerName')"
-            ExpectedMessage = 'ComputerName'
+            ExpectedMessage = "The column 'ComputerName' cannot be empty"
         }
 
         @{
