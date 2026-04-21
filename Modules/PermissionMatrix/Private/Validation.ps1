@@ -108,11 +108,11 @@ function Test-MatrixSettingRowHC {
     }
     elseif ($SettingRow.Action -notin $validActions) {
         $validActions = @('Fix', 'New', 'Check')
-        
+
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Invalid Action'
-                Description = "Supported Action values are '$($validActions -join ', ')'."
+                Description = "Supported Action values are '$($validActions -join "', '")'."
                 Value       = "Found: '$($SettingRow.Action)'"
             })
     }

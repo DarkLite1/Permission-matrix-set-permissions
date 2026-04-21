@@ -96,7 +96,9 @@ function Assert-HtmlLogContainsPatternHC {
     foreach ($file in $htmlFiles) {
         $rawHtml = Get-Content -LiteralPath $file.FullName -Raw
         
-        if ($rawHtml -like $Pattern) {
+        $decodedHtml = [System.Net.WebUtility]::HtmlDecode($rawHtml)
+
+        if ($decodedHtml -like $Pattern) {
             $foundMatch = $true
             break
         }
