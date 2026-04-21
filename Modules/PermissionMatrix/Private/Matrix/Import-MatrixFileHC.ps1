@@ -67,7 +67,7 @@ function Import-MatrixFileHC {
         $fileResult.Sheets.Settings.Formatted = $fileResult.Sheets.Settings.Raw | Format-SettingStringsHC
         #endregion
 
-        #region Import Permissions sheet ONCE
+        #region Import Permissions sheet
         $permissionsSheet = Import-Excel `
             -Path $MatrixFile.FullName `
             -Sheet 'Permissions' `
@@ -92,13 +92,15 @@ function Import-MatrixFileHC {
                     -DataOnly `
                     -ErrorAction Stop
 
-                $formDataCheck = Test-FormDataHC $formDataImport
+                $fileResult.Sheets.FormData.Raw = $formDataImport
+
+                $formDataCheck = Test-FormDataHC -FormData $formDataImport
 
                 if ($formDataCheck) {
                     $fileResult.Check.Add($formDataCheck)
                 }
                 else {
-                    $formData = $formDataImport[0]
+                    $fileResult.Sheets.FormData.Formatted = $formDataImport[0] | Format-FormDataStringsHC
                 }
             }
             catch {

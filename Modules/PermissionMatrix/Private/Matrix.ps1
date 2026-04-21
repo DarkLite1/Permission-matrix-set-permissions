@@ -1,3 +1,29 @@
+function Format-FormDataStringsHC {
+    <#
+    .SYNOPSIS
+        Normalizes a FormData row. Ensures all string values are cleanly trimmed.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline = $true)]
+        $Row
+    )
+
+    process {
+        # Use [ordered] to preserve the exact column layout from Excel
+        $new = [ordered]@{} 
+        
+        foreach ($prop in $Row.PSObject.Properties) {
+            $val = $prop.Value
+            if ($val -is [string]) {
+                $val = $val.Trim()
+            }
+            $new[$prop.Name] = $val
+        }
+
+        return [pscustomobject]$new
+    }
+}
 
 function Format-PermissionsStringsHC {
     <#
