@@ -129,8 +129,9 @@ function Invoke-PermissionMatrixBeginHC {
             
             # Read and validate the matrix
             $fileResult = Import-MatrixFileHC -MatrixFile $file -Context $context
+            #endregion
 
-            # Quarantine/Archive immediately to prevent error loops on next schedule
+            #region Archive immediately to prevent error loops on next schedule
             if ($archiveFolder) {
                 try {
                     $destination = Join-Path -Path $archiveFolder -ChildPath $file.Name
@@ -146,6 +147,8 @@ function Invoke-PermissionMatrixBeginHC {
                         })
                 }
             }
+            #endregion
+
             return $fileResult
         }
         #endregion
