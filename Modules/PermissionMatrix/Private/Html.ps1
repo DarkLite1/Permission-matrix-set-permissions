@@ -332,10 +332,11 @@ function Write-MatrixExecutionReportHC {
     $settingsSections = ''
     foreach (
         $matrix in 
-        ($FileMatrices | Sort-Object `
-        { $_.Setting.Formatted.ComputerName }, `
-        { $_.Setting.Formatted.Path }, `
-        { $_.ID }
+        (
+            $FileMatrices | Sort-Object `
+            { $_.Setting.Formatted.ComputerName }, `
+            { $_.Setting.Formatted.Path }, `
+            { $_.ID }
         )
     ) {
         $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
