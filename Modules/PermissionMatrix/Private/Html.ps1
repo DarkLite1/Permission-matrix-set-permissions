@@ -186,7 +186,7 @@ function New-SettingsCardHtmlHC {
         </div>
     </div>
     <div style="padding: 12px 16px; background-color: #f9fafb; border-bottom: 1px solid #e5e7eb;">
-        <h3 style="margin-top:0; margin-bottom:15px; font-size: 14px; color: #374151;">About</h3>
+        <h3 style="margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;">About</h3>
         <table style="border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;">
             <tr><td style="width:100px; font-weight:600; color:#6b7280;">ID:</td><td style="color: #111827; font-family: Consolas, monospace; font-size: 12px;">$fullId</td></tr>
             <tr><td style="font-weight:600; color:#6b7280;">GroupName:</td><td style="color: #111827;">$group</td></tr>
@@ -200,6 +200,67 @@ function New-SettingsCardHtmlHC {
 </div>
 "@
 }
+
+function Write-MatrixExecutionReportHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][array]$FileMatrices, 
+        [Parameter(Mandatory)][hashtable]$Html,
+        [Parameter(Mandatory)][string]$LogFolder
+    )
+
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
+
+    $firstMatrix = $FileMatrices[0]
+
+    $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
+    $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
+        $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+    }
+    else { 'Unknown' }
+
+    $fileSections = @(
+        New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
+        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+        }
+        if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
+            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+        }
+    ) -join ''
+
+    $settingsSections = ''
+    foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
+        $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
+    }
+
+    $htmlOut = @"
+<!DOCTYPE html>
+<html><head>
+$($Html.Style)
+$($Html.TroubleshootingStyle)
+</head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #111827;">
+<h1 style="margin-bottom: 5px;">Execution & Troubleshooting Report</h1>
+<h2 style="margin-top: 5px; color: #374151;">File: $($firstMatrix.FileContext.Item.Name)</h2>
+<p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:25px; color: #6b7280; font-style: italic;">
+    Last change: $modBy @ $modDt
+</p>
+
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Global File Status</h3>
+<table class="matrixTable" style="width:100%; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+$fileSections
+</table>
+
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Settings Execution Status</h3>
+$settingsSections
+
+</body></html>
+"@
+
+    $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
+    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
+}
+
 
 function New-SettingsOverviewHtmlHC {
     param(
@@ -300,66 +361,6 @@ $settingsDetails
     }
 
     return $output
-}
-
-function Write-MatrixExecutionReportHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][array]$FileMatrices, 
-        [Parameter(Mandatory)][hashtable]$Html,
-        [Parameter(Mandatory)][string]$LogFolder
-    )
-
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
-
-    $firstMatrix = $FileMatrices[0]
-
-    $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
-    $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
-        $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
-    }
-    else { 'Unknown' }
-
-    $fileSections = @(
-        New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
-        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
-        }
-        if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
-        }
-    ) -join ''
-
-    $settingsSections = ''
-    foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
-        $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
-    }
-
-    $htmlOut = @"
-<!DOCTYPE html>
-<html><head>
-$($Html.Style)
-$($Html.TroubleshootingStyle)
-</head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #111827;">
-<h1 style="margin-bottom: 5px;">Execution & Troubleshooting Report</h1>
-<h2 style="margin-top: 5px; color: #374151;">File: $($firstMatrix.FileContext.Item.Name)</h2>
-<p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:25px; color: #6b7280; font-style: italic;">
-    Last change: $modBy @ $modDt
-</p>
-
-<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Global File Status</h3>
-<table class="matrixTable" style="width:100%; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-$fileSections
-</table>
-
-<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Settings Execution Status</h3>
-$settingsSections
-
-</body></html>
-"@
-
-    $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
-    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
 
 function Write-MatrixSettingLogHC {
