@@ -93,7 +93,9 @@ function Test-MatrixFormDataHC {
 function Test-MatrixSettingRowHC {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][object]$SettingRow
+        [Parameter(Mandatory)][object]$SettingRow,
+        [Parameter()][bool]$RequireGroupName = $false,
+        [Parameter()][bool]$RequireSiteCode = $false
     )
 
     $checks = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -135,36 +137,39 @@ function Test-MatrixSettingRowHC {
             })
     }
 
-    <# 
-        # Only required when permissions header hold this
+    # if ([string]::IsNullOrWhiteSpace($SettingRow.SiteName)) {
+    #     $checks.Add([pscustomobject]@{
+    #             Type        = 'FatalError'
+    #             Name        = 'Missing SiteName'
+    #             Description = 'The SiteName column cannot be empty.'
+    #             Value       = "Found: '$($SettingRow.SiteName)'"
+    #         })
+    # }
 
-        if ([string]::IsNullOrWhiteSpace($SettingRow.SiteName)) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing SiteName'
-                    Description = 'The SiteName column cannot be empty.'
-                    Value       = "Found: '$($SettingRow.SiteName)'"
-                })
-        }
+    if (
+        $RequireSiteCode -and 
+        [string]::IsNullOrWhiteSpace($SettingRow.SiteCode)
+    ) {
+        $checks.Add([pscustomobject]@{
+                Type        = 'FatalError'
+                Name        = 'Missing SiteCode'
+                Description = 'The SiteCode column cannot be empty.'
+                Value       = "Found: '$($SettingRow.SiteCode)'"
+            })
+    }
 
-        if ([string]::IsNullOrWhiteSpace($SettingRow.SiteCode)) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing SiteCode'
-                    Description = 'The SiteCode column cannot be empty.'
-                    Value       = "Found: '$($SettingRow.SiteCode)'"
-                })
-        }
-
-        if ([string]::IsNullOrWhiteSpace($SettingRow.GroupName)) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing GroupName'
-                    Description = 'The GroupName column cannot be empty.'
-                    Value       = "Found: '$($SettingRow.GroupName)'"
-                })
-        } 
-    #>
+    if (
+        $RequireGroupName -and
+        [string]::IsNullOrWhiteSpace($SettingRow.GroupName)
+    ) {
+        $checks.Add([pscustomobject]@{
+                Type        = 'FatalError'
+                Name        = 'Missing GroupName'
+                Description = 'The GroupName column cannot be empty.'
+                Value       = "Found: '$($SettingRow.GroupName)'"
+            })
+    } 
+    
 
     return $checks
 }
