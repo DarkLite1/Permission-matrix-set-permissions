@@ -144,6 +144,7 @@ function Import-MatrixFileHC {
             }
         )
     }
-
-    return $fileResult
+    finally {
+        $fileResult
+    }
 }
