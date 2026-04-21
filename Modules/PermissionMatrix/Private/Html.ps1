@@ -90,13 +90,28 @@ function Get-HtmlClassProbTypeHC {
 }
 
 function New-HtmlCheckRowHC {
-    param([object]$CheckObject)
+    param(
+        [object]$CheckItem
+    )
 
-    $cls = Get-HtmlClassProbTypeHC $CheckObject.Type
-    $msg = [System.Net.WebUtility]::HtmlEncode($CheckObject.Message)
-    $desc = [System.Net.WebUtility]::HtmlEncode($CheckObject.Description)
+    $cls = Get-HtmlClassProbTypeHC $CheckItem.Type
+    $name = [System.Net.WebUtility]::HtmlEncode($CheckItem.Name)
+    $desc = [System.Net.WebUtility]::HtmlEncode($CheckItem.Description)
+    
+    # Grab the JSON filename we just injected!
+    if ($CheckItem.JsonFileName) {
+        $nameHtml = "<a href='$($CheckItem.JsonFileName)' style='color: $($Script:Theme.TextMain); text-decoration: underline;' title='View JSON Details'>$name</a>"
+    }
+    else {
+        $nameHtml = $name
+    }
 
-    "<tr class='$cls'><td></td><td>$($CheckObject.Name)</td><td>$msg</td><td>$desc</td></tr>"
+    return @"
+    <tr class='$cls' style='border-bottom: 1px solid $($Script:Theme.BorderLight);'>
+        <td style='width: 30%; padding: 8px 6px; font-weight: 600;'>$nameHtml</td>
+        <td style='padding: 8px 6px;'>$desc</td>
+    </tr>
+"@
 }
 
 function New-HtmlSectionHC {
@@ -315,7 +330,6 @@ $settingsSections
     $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force   
 }
-
 
 function New-SettingsOverviewHtmlHC {
     param(

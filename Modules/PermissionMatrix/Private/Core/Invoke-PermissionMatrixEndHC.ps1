@@ -142,11 +142,35 @@ function Invoke-PermissionMatrixEndHC {
                     $contextRef.ReportFilePath = Join-Path `
                         -Path $fileLogFolder.FullName `
                         -ChildPath $contextRef.ReportFileName
-                 
-                    #regin Create JSON file name & path for check details
-                    foreach ($m in $fileGroup.Group) {
-                        $checkIndex = 0
+
+                    #region Create JSON files for file-level checks
+                    $checkIndex = 0
+
+                    foreach ($fc in $contextRef.Check) {
+                        $checkIndex++
+
+                        $checkFileName = "File - Detail $checkIndex.json"
                         
+                        $fc | Add-Member -NotePropertyMembers @{
+                            JsonFileName = $checkFileName
+                            JsonFilePath = Join-Path `
+                                -Path $fileLogFolder.FullName `
+                                -ChildPath $checkFileName  
+                        } -Force
+                        
+                        $fc | ConvertTo-Json -Depth 10 | 
+                        Out-File `
+                            -FilePath $fc.JsonFilePath `
+                            -Encoding UTF8 -Force
+                    }
+                    
+                    #endregion
+
+                 
+                    #region Create JSON file for matrix-level checks
+                    $checkIndex = 0
+
+                    foreach ($m in $fileGroup.Group) {
                         foreach ($c in $m.Check) {
                             $checkIndex++
 
@@ -158,19 +182,8 @@ function Invoke-PermissionMatrixEndHC {
                                     -Path $fileLogFolder.FullName `
                                     -ChildPath $checkFileName  
                             } -Force
-                        }
-                    }
-                    #endregion
 
-                    Write-MatrixExecutionReportHC `
-                        -FileMatrices $fileGroup.Group `
-                        -Html $htmlTemplates `
-                        -LogFolder $fileLogFolder.FullName
-
-                    #region Create JSON files for rows with errors/warnings
-                    foreach ($m in $fileGroup.Group) {
-                        foreach ($c in $m.Check) {
-                            if ($c.JsonFilePath -and $c.Value) {
+                            if ($c.Value) {
                                 $c | ConvertTo-Json -Depth 10 | 
                                 Out-File `
                                     -FilePath $c.JsonFilePath `
@@ -179,6 +192,11 @@ function Invoke-PermissionMatrixEndHC {
                         }
                     }
                     #endregion
+
+                    Write-MatrixExecutionReportHC `
+                        -FileMatrices $fileGroup.Group `
+                        -Html $htmlTemplates `
+                        -LogFolder $fileLogFolder.FullName
                 }
             }
             
