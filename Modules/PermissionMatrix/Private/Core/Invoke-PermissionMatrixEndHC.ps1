@@ -158,10 +158,17 @@ function Invoke-PermissionMatrixEndHC {
                                 -ChildPath $checkFileName  
                         } -Force
                         
-                        $fc | ConvertTo-Json -Depth 10 | 
-                        Out-File `
-                            -FilePath $fc.JsonFilePath `
-                            -Encoding UTF8 -Force
+                        try {
+                            $fc | ConvertTo-Json -Depth 10 | 
+                            Out-File `
+                                -FilePath $fc.JsonFilePath `
+                                -Encoding UTF8 -Force
+                        }
+                        catch {
+                            $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
+                            $fc.JsonFileName = $null
+                            $fc.JsonFilePath = $null   
+                        }
                     }
                     
                     #endregion
@@ -184,10 +191,17 @@ function Invoke-PermissionMatrixEndHC {
                             } -Force
 
                             if ($c.Value) {
-                                $c | ConvertTo-Json -Depth 10 | 
-                                Out-File `
-                                    -FilePath $c.JsonFilePath `
-                                    -Encoding UTF8 -Force
+                                try {
+                                    $c | ConvertTo-Json -Depth 10 | 
+                                    Out-File `
+                                        -FilePath $c.JsonFilePath `
+                                        -Encoding UTF8 -Force
+                                }
+                                catch {
+                                    $c.Description += "[Detailed JSON log failed to generate: $($_)]"
+                                    $c.JsonFileName = $null
+                                    $c.JsonFilePath = $null
+                                }
                             }
                         }
                     }
