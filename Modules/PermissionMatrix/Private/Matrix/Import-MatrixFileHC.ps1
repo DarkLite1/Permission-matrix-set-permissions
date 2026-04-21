@@ -63,6 +63,8 @@ function Import-MatrixFileHC {
 
             return $fileResult
         }
+
+        $fileResult.Sheets.Settings.Formatted = $fileResult.Sheets.Settings.Raw | Format-SettingStringsHC
         #endregion
 
         #region Import Permissions sheet ONCE

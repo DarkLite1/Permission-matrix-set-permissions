@@ -29,33 +29,46 @@ function Format-PermissionsStringsHC {
 
 function Format-SettingStringsHC {
     <#
-        Normalizes a Settings row. Ensures trimming, clean paths, normalized action.
+    .SYNOPSIS
+        Normalizes a Settings row. Ensures trimming, clean paths, and 
+        normalized action casing.
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
-        $Settings
+        [Parameter(Mandatory, ValueFromPipeline = $true)]
+        [object]$Settings
     )
 
-    $S = $Settings.PSObject.Copy()
+    process {
+        # Create a shallow copy so we don't mutate the raw object
+        $S = $Settings.PSObject.Copy()
 
-    foreach ($p in $S.PSObject.Properties) {
-        if ($p.Value -is [string]) {
-            $p.Value = $p.Value.Trim()
+        # Universally trim ALL string properties
+        foreach ($p in $S.PSObject.Properties) {
+            if ($p.Value -is [string]) {
+                $p.Value = $p.Value.Trim()
+            }
         }
-    }
 
-    if ($S.Path) {
-        # Remove trailing slash
-        $S.Path = $S.Path.TrimEnd('\', '/')
-    }
+        # Clean Path: Strip trailing slashes
+        if (-not [string]::IsNullOrWhiteSpace($S.Path)) {
+            $S.Path = $S.Path.TrimEnd([char[]]@('\', '/'))
+        }
 
-    if ($S.Action) {
-        $S.Action = $S.Action.Trim()
-        $S.Action = (Get-Culture).TextInfo.ToTitleCase($S.Action.ToLower())
-    }
+        # ComputerName to uppercase
+        if (-not [string]::IsNullOrWhiteSpace($S.ComputerName)) {
+            $S.ComputerName = $S.ComputerName.ToUpper()
+        }
 
-    return $S
+
+        # Clean Action: TitleCase for clean UI reporting
+        # (e.g., 'fIx' -> 'Fix', 'REPORT' -> 'Report')
+        if (-not [string]::IsNullOrWhiteSpace($S.Action)) {
+            $S.Action = (Get-Culture).TextInfo.ToTitleCase($S.Action.ToLower())
+        }
+
+        return $S
+    }
 }
 
 function ConvertTo-MatrixADNamesHC {
