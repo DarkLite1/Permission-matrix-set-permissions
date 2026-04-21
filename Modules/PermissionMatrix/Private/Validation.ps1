@@ -77,10 +77,12 @@ function Test-MatrixPermissionsHC {
 
 function Test-MatrixFormDataHC {
     [CmdletBinding()]
-    param([Parameter(Mandatory)] $FormData)
+    param([Parameter(Mandatory = $false)] $FormData)
 
     if (-not $FormData) {
-        return New-HcError -Type 'Warning' -Name 'FormData missing' `
+        return New-HcError `
+            -Type 'Warning' `
+            -Name 'FormData missing' `
             -Description 'FormData is required for specific exports.' `
             -Category 'FormData'
     }
