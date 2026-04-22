@@ -175,6 +175,20 @@ function New-MatrixSettingsFixtureRows {
             )
         }
 
+        'MissingSiteCode' {
+            return @(
+                [pscustomobject]@{
+                    Status       = 'Enabled'
+                    SiteName     = 'HQ South'
+                    SiteCode     = $null
+                    ComputerName = 'BEL$FFRAN0001'
+                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName    = $null
+                    Action       = 'Fix'
+                }
+            )
+        }
+
         'MissingPath' {
             return @(
                 [pscustomobject]@{
