@@ -143,6 +143,7 @@ function Invoke-PermissionMatrixBeginHC {
 
                     foreach ($row in $headerRows) {
                         foreach ($p in $row.PSObject.Properties) {
+                            Write-Verbose "Checking Permissions header: $($p.Name) = '$($p.Value)'"
                             if ($p.Value -is [string]) {
                                 if ($p.Value -match 'GroupName') { 
                                     $reqGroupName = $true 

@@ -141,7 +141,7 @@ function Test-MatrixSettingRowHC {
     #     $checks.Add([pscustomobject]@{
     #             Type        = 'FatalError'
     #             Name        = 'Missing SiteName'
-    #             Description = 'The SiteName column cannot be empty.'
+    #             Description = "The column 'SiteName' cannot be empty."
     #             Value       = "Found: '$($SettingRow.SiteName)'"
     #         })
     # }
@@ -153,8 +153,8 @@ function Test-MatrixSettingRowHC {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Missing SiteCode'
-                Description = 'The SiteCode column cannot be empty.'
-                Value       = "Found: '$($SettingRow.SiteCode)'"
+                Description = "The column 'SiteCode' cannot be empty because it is used as a placeholder in the Permissions sheet."
+                Value       = $null
             })
     }
 
@@ -165,8 +165,8 @@ function Test-MatrixSettingRowHC {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Missing GroupName'
-                Description = 'The GroupName column cannot be empty.'
-                Value       = "Found: '$($SettingRow.GroupName)'"
+                Description = "The column 'GroupName' cannot be empty because it is used as a placeholder in the Permissions sheet."
+                Value       = $null
             })
     } 
     

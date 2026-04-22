@@ -72,7 +72,6 @@ function _FakeMatrixPermissionsRows {
 function Get-MatrixSettingsFixtures {
 
     return @(
-
         @{
             Issue           = 'Missing mandatory Settings column'
             SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingColumn')"
@@ -92,15 +91,21 @@ function Get-MatrixSettingsFixtures {
         }
 
         @{
-            Issue           = 'Missing GroupName'
-            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingGroupName')"
-            ExpectedMessage = 'GroupName'
-        }
-
-        @{
             Issue           = 'Missing Path'
             SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingPath')"
             ExpectedMessage = 'Path'
+        }
+
+        @{
+            Issue           = 'Missing GroupName (Required by Permissions Sheet)'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingGroupName') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'WithGroupNamePlaceholder')"
+            ExpectedMessage = "The column 'GroupName' cannot be empty because it is used as a placeholder in the Permissions sheet."
+        }
+
+        @{
+            Issue           = 'Missing SiteCode (Required by Permissions Sheet)'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingSiteCode') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'WithSiteCodePlaceholder')"
+            ExpectedMessage = "The column 'SiteCode' cannot be empty because it is used as a placeholder in the Permissions sheet."
         }
     )
 }
@@ -112,7 +117,7 @@ function Get-MatrixPermissionsFixtures {
         # 1. Missing AD group name (column header)
         # ---------------------------------------------------------------
         @{
-            Issue = 'Missing ADObjectName'
+            Issue    = 'Missing ADObjectName'
             Mutation = @"
 New-MatrixExcelFixture `
     -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `
@@ -127,7 +132,7 @@ New-MatrixExcelFixture `
         # 2. Invalid permission characters
         # ---------------------------------------------------------------
         @{
-            Issue = 'Invalid permission characters'
+            Issue    = 'Invalid permission characters'
             Mutation = @"
 New-MatrixExcelFixture `
     -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `

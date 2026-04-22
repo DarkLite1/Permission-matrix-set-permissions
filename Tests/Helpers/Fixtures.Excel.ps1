@@ -238,28 +238,56 @@ function New-MatrixPermissionsExcelFixture {
     Export-Excel `
         -Path $Path `
         -WorksheetName 'Permissions' `
-        -TableName 'Permissions' `
         -ClearSheet `
         -FreezeTopRow:$false `
         -AutoSize:$false `
+        -NoHeader `
         -ErrorAction Stop
 
     return $Path
 }
 function New-MatrixPermissionsFixtureRows {
-    param([Parameter(Mandatory)][string]$Scenario)
+    param([Parameter()][string]$Scenario = 'Valid')
 
     switch ($Scenario) {
 
         'Valid' {
             return @{
-                Row1 = @('', '', '')                    # ignored row
-                Row2 = @('', '', '')                    # ignored row
-                Row3 = @('', 'Bob', 'Mike')            # AD name fragments
-                Row4 = @('Path', 'L', 'L')             # column headers
+                Row1 = @('', '', '')                 
+                Row2 = @('', '', '')                 
+                Row3 = @('', 'Bob', 'Mike')          
+                Row4 = @('Path', 'L', 'L')           
                 Data = @(
                     @{ Path = 'Finance'       ; Col2 = 'R' ; Col3 = 'R' }
                     @{ Path = 'Finance\Docs'  ; Col2 = 'W' ; Col3 = 'W' }
+                )
+            }
+        }
+
+        'WithGroupNamePlaceholder' {
+            # No GroupName or SiteCode
+            return @{
+                Row1 = @('', '')
+                Row2 = @('', 'Director')
+                Row3 = @('', 'GroupName')  # placeholder that should be replaced by actual GroupName from Settings         
+                Row4 = @('Path', '')
+                Data = @(
+                    @{ Path = 'Finance'      ; Col2 = 'L' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'W' }
+                )
+            }
+        }
+
+        'WithSiteCodePlaceholder' {
+            # No GroupName or SiteCode
+            return @{
+                Row1 = @('', 'Director')
+                Row2 = @('', 'SiteCode')
+                Row3 = @('', 'BEL')  # placeholder that should be replaced by actual SiteCode from Settings         
+                Row4 = @('Path', '')
+                Data = @(
+                    @{ Path = 'Finance'      ; Col2 = 'L' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'W' }
                 )
             }
         }
@@ -297,7 +325,9 @@ function New-MatrixExcelFixture {
     param(
         [Parameter(Mandatory)][string]$Path,
         [array]$SettingsRows,
-        [hashtable]$PermissionsRows,
+        [hashtable]$PermissionsRows = (
+            New-MatrixPermissionsFixtureRows -Scenario 'Valid'
+        ),
         [array]$FormDataRows,
         [switch]$Disabled
     )
@@ -321,7 +351,7 @@ function New-MatrixExcelFixture {
     Export-Excel -Path $Path -WorksheetName 'Settings' -TableName 'Settings' `
         -ClearSheet -AutoSize -FreezeTopRow
 
-    # PERMISSIONS (NEW STRUCTURE)
+    # PERMISSIONS
     New-MatrixPermissionsExcelFixture -Path $Path -Spec $PermissionsRows | Out-Null
 
     # FORMDATA
