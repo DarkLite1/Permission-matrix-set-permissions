@@ -108,7 +108,7 @@ function Invoke-PermissionMatrixBeginHC {
 
         $throttle = $Context.Config.MaxConcurrent.FoldersPerMatrix ?? 4
 
-        #region Read and Archive in Parallel
+        #region Import, validate and archive in Parallel
         $parallelResults = Invoke-WithOptionalParallelismHC `
             -InputObject $matrixFiles `
             -ThrottleLimit $throttle `
@@ -133,21 +133,49 @@ function Invoke-PermissionMatrixBeginHC {
                     -MatrixFile $file `
                     -Context $context
 
-                if ($fileResult.Sheets.Permissions.Formatted) {
-                    $permErrors = Test-MatrixPermissionsHC `
-                        -Permissions $fileResult.Sheets.Permissions.Formatted
+                $reqGroupName = $false
+                $reqSiteCode = $false
 
-                    if ($permErrors) {
-                        $fileResult.Check.AddRange(
-                            [pscustomobject[]]@($permErrors)
-                        )
+                if ($fileResult.Sheets.Permissions.Raw) {
+                    #region Check if GroupName and SiteCode columns are required
+                    $headerRows = $fileResult.Sheets.Permissions.Raw | 
+                    Select-Object -First 3
+
+                    foreach ($row in $headerRows) {
+                        foreach ($p in $row.PSObject.Properties) {
+                            if ($p.Value -is [string]) {
+                                if ($p.Value -match 'GroupName') { 
+                                    $reqGroupName = $true 
+                                }
+                                if ($p.Value -match 'SiteCode') { 
+                                    $reqSiteCode = $true 
+                                }
+                            }
+                        }
                     }
+                    #endregion
+
+                    #region Validate Permissions and add any errors to the file result
+                    if ($fileResult.Sheets.Permissions.Formatted) {
+                        $permErrors = Test-MatrixPermissionsHC `
+                            -Permissions $fileResult.Sheets.Permissions.Formatted
+    
+                        if ($permErrors) {
+                            $fileResult.Check.AddRange(
+                                [pscustomobject[]]@($permErrors)
+                            )
+                        }
+                    }
+                    #endregion
                 }
+
 
                 if ($fileResult.Matrices) {
                     foreach ($m in $fileResult.Matrices) {
                         $rowErrors = Test-MatrixSettingRowHC `
-                            -SettingRow $m.Setting.Raw
+                            -SettingRow $m.Setting.Raw `
+                            -RequireGroupName $reqGroupName `
+                            -RequireSiteCode $reqSiteCode
 
                         if ($rowErrors) { 
                             $m.Check.AddRange(
