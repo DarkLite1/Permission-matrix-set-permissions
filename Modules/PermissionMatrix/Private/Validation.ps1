@@ -64,7 +64,7 @@ function Test-MatrixFileHC {
     return $checks
 }
 
-function Test-MatrixPermissionsHC {
+<# function Test-MatrixPermissionsHC {
     [CmdletBinding()]
     param([Parameter(Mandatory)][array]$Permissions)
 
@@ -74,6 +74,179 @@ function Test-MatrixPermissionsHC {
             -Name 'Invalid Permissions Sheet' `
             -Description 'Permissions sheet must contain at least 4 rows.' `
             -Category 'Permissions'
+    }
+} #>
+
+function Test-MatrixPermissionsHC {
+    <#
+    .SYNOPSIS
+        Verify input for the Excel sheet 'Permissions'.
+
+    .DESCRIPTION
+        Verify if all input in the Excel sheet 'Permissions' is correct. When
+        incorrect input is detected an object is returned containing all the
+        details about the issue. 
+        This test is best run before expanding the matrix as it will save time.
+
+    .PARAMETER Permissions
+        The objects coming from the Excel sheet 'Permissions', as retrieved by
+        Import-Excel.
+    #>
+
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param (
+        [parameter(Mandatory)]
+        [PSCustomObject[]]$Permissions
+    )
+
+    $checks = [System.Collections.Generic.List[pscustomobject]]::new()
+
+    try {
+        $Props = $Permissions[0].PSObject.Properties.Name
+        $FirstProperty = $Props[0]
+
+        #region Structural Validation (Fatal - Exits Immediately)
+        if ($Permissions.Count -lt 4) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Missing rows'
+                    Description = 'At least 4 rows are required: 3 header rows and 1 row for the parent folder.'
+                    Value       = "$($Permissions.Count) rows"
+                })
+            return $checks
+        }
+
+        if ($Props.Count -lt 2) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Missing columns'
+                    Description = 'At least 2 columns are required: 1 for the folder names and 1 where the permissions are defined.'
+                    Value       = "$($Props.Count) column"
+                })
+            return $checks
+        }
+        #endregion
+
+        #region Missing header SamAccountName
+        foreach ($col in $Props) {
+            if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and 
+                [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and 
+                [string]::IsNullOrWhiteSpace($Permissions[2].$col)) {
+                
+                $checks.Add([pscustomobject]@{
+                        Type        = 'FatalError'
+                        Name        = 'SamAccountName missing'
+                        Description = 'Missing SamAccountName in the header row'
+                        Value       = "Column number $($col.TrimStart('P'))"
+                    })
+            }
+        }
+        #endregion
+
+        # Separate Headers from Data
+        $NonHeaderRows = $Permissions | Select-Object -Skip 3
+        $FolderNames = $NonHeaderRows | Select-Object -Skip 1
+
+        #region Permission character unknown
+        $InvalidChars = [System.Collections.Generic.List[string]]::new()
+        
+        foreach ($Row in $NonHeaderRows) {
+            $PermColumns = $Row.PSObject.Properties.Where({ $_.Name -ne $FirstProperty })
+            foreach ($Col in $PermColumns) {
+                $Ace = $Col.Value
+                if (
+                    -not [string]::IsNullOrWhiteSpace($Ace) -and 
+                    $Ace -notmatch '^(L|R|W|I|F)$'
+                ) {
+                    $InvalidChars.Add($Ace)
+                }
+            }
+        }
+
+        if ($InvalidChars.Count -gt 0) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Permission character unknown'
+                    Description = "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank."
+                    Value       = ($InvalidChars | Select-Object -Unique) -join ', '
+                })
+        }
+        #endregion
+
+        #region Folder name missing
+        $MissingFolders = $FolderNames.Where({ [string]::IsNullOrWhiteSpace($_.$FirstProperty) })
+        if ($MissingFolders.Count -gt 0) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Folder name missing'
+                    Description = 'Missing folder name in the first column.'
+                    Value       = "$($MissingFolders.Count) missing folder name(s)"
+                })
+        }
+        #endregion
+
+        #region Duplicate folder name
+        $NotUniqueFolder = $FolderNames.$FirstProperty | Group-Object | Where-Object Count -GE 2
+        if ($NotUniqueFolder) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Duplicate folder name'
+                    Description = 'Every folder name in the first column needs to be unique.'
+                    Value       = ($NotUniqueFolder.Name) -join ', '
+                })
+        }
+        #endregion
+
+        #region Deepest folder has only List permissions or none at all
+        $FolderRows = $Permissions | Select-Object -Skip 4
+        $Paths = @($FolderRows.$FirstProperty)
+
+        # Faster check for deepest folders
+        $DeepestFolders = foreach ($P in $Paths) {
+            if (-not ($Paths.Where({ $_ -ne $P -and $_ -like "$P\*" }))) {
+                $P
+            }
+        }
+
+        # Parent folder permissions (Row index 3)
+        $ParentFolderPermissions = $Permissions[3].PSObject.Properties.Where({ 
+                $_.Name -ne $FirstProperty -and -not [string]::IsNullOrWhiteSpace($_.Value) 
+            }).Value
+
+        $ParentFolderHasPermission = [bool]($ParentFolderPermissions.Where({ $_ -ne 'L' }))
+        $inAccessibleFolders = [System.Collections.Generic.List[string]]::new()
+
+        foreach ($Row in $FolderRows.Where({ $_.$FirstProperty -in $DeepestFolders })) {
+            $Perms = $Row.PSObject.Properties.Where({
+                    $_.Name -ne $FirstProperty -and 
+                    -not [string]::IsNullOrWhiteSpace($_.Value) -and 
+                    $_.Value -ne 'L'
+                }).Value
+
+            if ((-not $Perms) -and (-not $ParentFolderHasPermission)) {
+                $inAccessibleFolders.Add($Row.$FirstProperty)
+            }
+        }
+
+        if ($inAccessibleFolders.Count -gt 0) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'Warning'
+                    Name        = 'Matrix design flaw'
+                    Description = 'All folders need to be accessible by the end user. Please define at least (R)ead or (W)rite on the deepest folder.'
+                    Value       = $inAccessibleFolders -join ', '
+                })
+        }
+        #endregion
+
+        # Output all collected errors at the end
+        if ($checks.Count -gt 0) {
+            return $checks
+        }
+
+    }
+    catch {
+        throw "Failed testing the Excel sheet 'Permissions' for incorrect data: $_"
     }
 }
 
