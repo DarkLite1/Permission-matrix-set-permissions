@@ -117,6 +117,8 @@ function Test-MatrixPermissionsHC {
 
         #region Missing header SamAccountName
         foreach ($col in $Props) {
+            if ($col -eq $FirstProperty) { continue }
+            
             if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and 
                 [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and 
                 [string]::IsNullOrWhiteSpace($Permissions[2].$col)) {
