@@ -109,6 +109,8 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
+            # start (ls $TestInput.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
+
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"

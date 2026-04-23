@@ -159,7 +159,9 @@ function Invoke-PermissionMatrixEndHC {
                         } -Force
                         
                         try {
-                            $fc | ConvertTo-Json -Depth 10 | 
+                            $fc | Select-Object `
+                                -ExcludeProperty JsonFilePath, JsonFileName | 
+                            ConvertTo-Json -Depth 10 | 
                             Out-File `
                                 -FilePath $fc.JsonFilePath `
                                 -Encoding UTF8 -Force
@@ -192,7 +194,9 @@ function Invoke-PermissionMatrixEndHC {
 
                             if ($c.Value) {
                                 try {
-                                    $c | ConvertTo-Json -Depth 10 | 
+                                    $c | Select-Object `
+                                        -ExcludeProperty JsonFilePath, JsonFileName | 
+                                    ConvertTo-Json -Depth 10 | 
                                     Out-File `
                                         -FilePath $c.JsonFilePath `
                                         -Encoding UTF8 -Force
@@ -206,6 +210,8 @@ function Invoke-PermissionMatrixEndHC {
                         }
                     }
                     #endregion
+
+                    # start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
 
                     Write-MatrixExecutionReportHC `
                         -FileMatrices $fileGroup.Group `
