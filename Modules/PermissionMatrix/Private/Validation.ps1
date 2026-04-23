@@ -111,7 +111,6 @@ function Test-MatrixSettingRowHC {
             })
     }
     elseif ($SettingRow.Action -notin $validActions) {
-
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
                 Name        = 'Invalid Action'
