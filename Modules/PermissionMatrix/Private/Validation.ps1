@@ -116,20 +116,26 @@ function Test-MatrixPermissionsHC {
         #endregion
 
         #region Missing header SamAccountName
+        $missingSamAccountNames = [System.Collections.Generic.List[string]]::new()
+
         foreach ($col in $Props) {
             if ($col -eq $FirstProperty) { continue }
-            
+
             if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and 
                 [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and 
                 [string]::IsNullOrWhiteSpace($Permissions[2].$col)) {
-                
-                $checks.Add([pscustomobject]@{
-                        Type        = 'FatalError'
-                        Name        = 'SamAccountName missing'
-                        Description = 'Missing SamAccountName in the header row'
-                        Value       = "Column number $($col.TrimStart('P'))"
-                    })
+                $missingSamAccountNames.Add($col)
             }
+        }
+
+        if ($missingSamAccountNames.Count -gt 0) {
+            $checks.Add([pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Missing header SamAccountName'
+                    Description = 'The header rows need to contain the SamAccountName of the AD object for which permissions are defined in the column.'
+                    Value       = "Columns: $($missingSamAccountNames -join ', ')"
+                })
+            return $checks
         }
         #endregion
 
@@ -158,7 +164,7 @@ function Test-MatrixPermissionsHC {
                     Type        = 'FatalError'
                     Name        = 'Permission character unknown'
                     Description = "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank."
-                    Value       = ($InvalidChars | Select-Object -Unique) -join ', '
+                    Value       = "Characters: $($InvalidChars | Select-Object -Unique) -join ', '"
                 })
         }
         #endregion
