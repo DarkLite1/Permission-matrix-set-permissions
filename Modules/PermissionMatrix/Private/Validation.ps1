@@ -137,15 +137,6 @@ function Test-MatrixSettingRowHC {
             })
     }
 
-    # if ([string]::IsNullOrWhiteSpace($SettingRow.SiteName)) {
-    #     $checks.Add([pscustomobject]@{
-    #             Type        = 'FatalError'
-    #             Name        = 'Missing SiteName'
-    #             Description = "The column 'SiteName' cannot be empty."
-    #             Value       = "Found: '$($SettingRow.SiteName)'"
-    #         })
-    # }
-
     if (
         $RequireSiteCode -and 
         [string]::IsNullOrWhiteSpace($SettingRow.SiteCode)
