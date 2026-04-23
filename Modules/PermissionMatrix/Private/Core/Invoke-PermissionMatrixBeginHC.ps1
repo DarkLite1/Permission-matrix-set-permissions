@@ -85,10 +85,11 @@ function Invoke-PermissionMatrixBeginHC {
             return $Context
         }
 
-        # Exclude Defaults file from the processing list
+        #region Exclude Defaults file from the processing list
         $matrixFiles = $matrixFiles | Where-Object { 
             $_.FullName -ne $Context.Config.Matrix.DefaultsFile 
         }
+        #endregion
 
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
             return $Context # No files found, exit BEGIN gracefully
