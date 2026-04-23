@@ -139,31 +139,32 @@ function New-SettingsCardHtmlHC {
     # Edit these strings to quickly change the look of the card elements!
     # =====================================================================
     $css = @{
-        CardOuter   = "border: 1px solid $($Script:Theme.BorderMain); border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
-        CardHeader  = 'padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center;'
-        HeaderLeft  = 'font-size: 15px;'
-        HeaderRight = 'font-size: 13px; font-weight: 700; color: #111827;'
-        PillComp    = 'background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;'
-        PathText    = 'font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;'
+        CardOuter    = "border: 1px solid $($Script:Theme.BorderMain); border-radius: 8px; margin-bottom: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;"
+        CardHeader   = 'padding: 12px 16px; border-bottom: 1px solid #d1d5db; display: flex; justify-content: space-between; align-items: center; gap: 20px;'
+        HeaderLeft   = 'font-size: 15px;'
+        HeaderRight  = 'font-size: 13px; font-weight: 700; color: #111827;'
+        PillComp     = 'background-color: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 3px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; margin-right: 10px; color: #1f2937;'
+        PathText     = 'font-family: Consolas, monospace; font-size: 13.5px; color: #374151; background-color: rgba(255,255,255,0.4); padding: 2px 6px; border-radius: 4px;'
         
-        AboutOuter  = "padding: 12px 16px; background-color: $($Script:Theme.BgAlt); border-bottom: 1px solid $($Script:Theme.BorderLight);"
-        AboutTitle  = 'margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;'
-        AboutTable  = 'border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;'
-        AboutLabel  = "width:100px; font-weight:600; color:$($Script:Theme.TextLight);"
-        AboutVal    = 'color: #111827;'
-        AboutIdVal  = 'color: #111827; font-family: Consolas, monospace; font-size: 12px;'
+        AboutOuter   = "padding: 12px 16px; background-color: $($Script:Theme.BgAlt); border-bottom: 1px solid $($Script:Theme.BorderLight);"
+        AboutTitle   = 'margin-top:0; margin-bottom:0px; font-size: 14px; color: #374151;'
+        AboutTable   = 'border:none; font-size:13px; border-collapse: separate; border-spacing: 0 6px;'
+        AboutLabel   = "width:100px; font-weight:600; color:$($Script:Theme.TextLight);"
+        AboutVal     = 'color: #111827;'
+        AboutIdVal   = 'color: #111827; font-family: Consolas, monospace; font-size: 12px;'
         
-        CheckOuter  = 'padding: 16px; background-color: #ffffff;'
-        CheckTitle  = 'margin:0 0 8px 0; color: #374151;'
-        CheckTable  = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
-        CheckRow    = "border-bottom: 1px solid $($Script:Theme.BorderLight);"
-        CheckLinkTd = 'font-weight: 600; width: 35%; padding: 8px 6px;'
-        CheckLink   = 'color: #111827; text-decoration: underline;'
-        CheckDesc   = 'padding: 8px 6px; color: #374151;'
-        SuccessText = 'padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'
+        CheckOuter   = 'padding: 16px; background-color: #ffffff;'
+        CheckTitle   = 'margin:0 0 8px 0; color: #374151;'
+        CheckTable   = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
+        CheckRow     = "border-bottom: 1px solid $($Script:Theme.BorderLight);"
+        CheckLinkTd  = 'font-weight: 600; width: 35%; padding: 8px 6px;'
+        CheckLink    = 'color: #111827; text-decoration: underline;'
+        CheckDesc    = 'padding: 8px 6px; color: #374151;'
+        CheckBadgeTd = 'width: 80px; text-align: right; padding: 8px 16px 8px 6px; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;'
+        SuccessText  = 'padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'
     }
 
-    # Grab the FULL ID string for the About table
+    #region Get ID, ComputerName, Path, GroupName, SiteCode
     $fullId = if (-not [string]::IsNullOrWhiteSpace($MatrixItem.Setting.Raw.ID)) { 
         $MatrixItem.Setting.Raw.ID 
     }
@@ -178,11 +179,15 @@ function New-SettingsCardHtmlHC {
     $path = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.Path)
     $group = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.GroupName)
     $site = [System.Net.WebUtility]::HtmlEncode($MatrixItem.Setting.Raw.SiteCode)
+    #endregion
 
-    # Calculate Status & Colors
+    #region Calculate Status & Colors
     $errCount = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
         
+    $statusSymbol = $null
+    $statusText = $null
+
     if ($errCount -gt 0) {
         $headerColor = $Script:Theme.StatusError
         
@@ -191,17 +196,23 @@ function New-SettingsCardHtmlHC {
         }
         
         $statusText = "Failed ($errCount $(Plural $errCount 'Error')$warnText)"
+        $statusSymbol = '✖'
     }
     elseif ($warnCount -gt 0) {
         $headerColor = $Script:Theme.StatusWarning
+        
         $statusText = "Completed with $warnCount $(Plural $warnCount 'Warning')"
+        $statusSymbol = '⚠'
     }
     else {
         $headerColor = $Script:Theme.StatusSuccess
+        
         $statusText = 'Success'
+        $statusSymbol = '✓'
     }
+    #endregion
 
-    # Calculate Duration String
+    #region Calculate Duration String
     if ($MatrixItem.JobTime.Start -and $MatrixItem.JobTime.End) {
         $ts = New-TimeSpan -Start $MatrixItem.JobTime.Start -End $MatrixItem.JobTime.End
         $durVal = if ($ts.TotalMinutes -ge 1) { "$([math]::Round($ts.TotalMinutes)) min" } else { "$([math]::Round($ts.TotalSeconds)) sec" }
@@ -213,8 +224,9 @@ function New-SettingsCardHtmlHC {
     else {
         $timeStr = 'N/A'
     }
+    #endregion
 
-    # Build custom lightweight check rows
+    #region Create Check Table or Success Message
     $checkTable = ''
     if ($MatrixItem.Check -and $MatrixItem.Check.Count -gt 0) {
         $checkRows = ''
@@ -223,17 +235,35 @@ function New-SettingsCardHtmlHC {
             $name = [System.Net.WebUtility]::HtmlEncode($c.Name)
             $desc = [System.Net.WebUtility]::HtmlEncode($c.Description)
             
+            # Determine Icon and Badge Text dynamically based on error type
+            if ($c.Type -eq 'FatalError') {
+                $rowIcon = '✖'
+                $rowBadge = 'ERROR'
+                $rowColor = '#b91c1c' # Deeper red for readability
+            }
+            elseif ($c.Type -eq 'Warning') {
+                $rowIcon = '⚠'
+                $rowBadge = 'WARNING'
+                $rowColor = '#c2410c' # Deeper orange for readability
+            }
+            else {
+                $rowIcon = 'ℹ'
+                $rowBadge = 'INFO'
+                $rowColor = '#1d4ed8' # Standard blue
+            }
+            
             $linkTarget = if ($c.JsonFileName) { $c.JsonFileName } else { '#' }
             
             $checkRows += @"
             <tr class='$cls' style='$($css.CheckRow)'>
-                <td style='width: 8px;'></td>
+                <td style='width: 30px; text-align: center; font-weight: bold; color: $rowColor; font-size: 14px;'>$rowIcon</td>
                 <td style='$($css.CheckLinkTd)'>
                     <a href="$linkTarget" style="$($css.CheckLink)" title="Click to view full JSON details">
                         $name
                     </a>
                 </td>
                 <td style='$($css.CheckDesc)'>$desc</td>
+                <td style='$($css.CheckBadgeTd) color: $rowColor;'>$rowBadge</td>
             </tr>
 "@
         }
@@ -248,11 +278,13 @@ function New-SettingsCardHtmlHC {
     else {
         $checkTable = "<p style='$($css.SuccessText)'>No issues detected. Execution successful.</p>"
     }
+    #endregion
 
     return @"
 <div style="$($css.CardOuter)">
     <div style="background-color: $headerColor; $($css.CardHeader)">
         <div style="$($css.HeaderLeft)">
+            $statusSymbol
             <span style="$($css.PillComp)">$comp</span>
             <span style="$($css.PathText)">$path</span>
         </div>
