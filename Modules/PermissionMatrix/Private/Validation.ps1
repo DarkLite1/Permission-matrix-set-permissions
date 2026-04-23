@@ -135,7 +135,6 @@ function Test-MatrixPermissionsHC {
                     Description = 'The header rows need to contain the SamAccountName of the AD object for which permissions are defined in the column.'
                     Value       = "Columns: $($missingSamAccountNames -join ', ')"
                 })
-            return $checks
         }
         #endregion
 
