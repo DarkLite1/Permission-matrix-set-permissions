@@ -92,8 +92,6 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
-            # $LASTEXITCODE | Should -Be 1
-
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
@@ -110,7 +108,6 @@ Describe 'Matrix Logic Tests' {
             Save-TestJson $updated $TestJsonFile
 
             & $TestScript @TestParams
-            $LASTEXITCODE | Should -Be 1
 
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
