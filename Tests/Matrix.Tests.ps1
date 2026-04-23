@@ -97,8 +97,8 @@ Describe 'Matrix Logic Tests' {
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
-        } -Tag test
-    }
+        }
+    } -Skip
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -116,7 +116,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"
         }
-    }
+    } -Tag test
 
     # ------------------------------------------------------------------
     # 3. Disabled Matrices

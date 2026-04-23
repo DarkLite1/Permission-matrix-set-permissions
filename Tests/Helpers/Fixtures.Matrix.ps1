@@ -119,10 +119,7 @@ function Get-MatrixPermissionsFixtures {
         @{
             Issue    = 'Missing ADObjectName'
             Mutation = @"
-New-MatrixExcelFixture `
-    -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `
-    -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') `
-    -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingADObjectName')
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingADObjectName')
 "@
             Expected = 'Missing group name'
         }
@@ -134,10 +131,7 @@ New-MatrixExcelFixture `
         @{
             Issue    = 'Invalid permission characters'
             Mutation = @"
-New-MatrixExcelFixture `
-    -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' `
-    -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') `
-    -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'InvalidPermissionChar')
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'InvalidPermissionChar')
 "@
             Expected = 'Invalid permission'
         }
