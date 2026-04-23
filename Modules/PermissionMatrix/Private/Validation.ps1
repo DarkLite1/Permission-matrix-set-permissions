@@ -169,13 +169,16 @@ function Test-MatrixPermissionsHC {
         #endregion
 
         #region Folder name missing
-        $MissingFolders = $FolderNames.Where({ [string]::IsNullOrWhiteSpace($_.$FirstProperty) })
+        $MissingFolders = $FolderNames.Where(
+            { [string]::IsNullOrWhiteSpace($_.$FirstProperty) }
+        )
+
         if ($MissingFolders.Count -gt 0) {
             $checks.Add([pscustomobject]@{
                     Type        = 'FatalError'
                     Name        = 'Folder name missing'
                     Description = 'Missing folder name in the first column.'
-                    Value       = "$($MissingFolders.Count) missing folder name(s)"
+                    Value       = "$($MissingFolders.Count) missing folder name(s) in column 1"
                 })
         }
         #endregion
