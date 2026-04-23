@@ -109,7 +109,14 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
-            # start (ls $TestInput.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
+            
+            <# 
+            start (ls $TestInput.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
+
+            Import-Excel (ls $TestInput.Matrix.FolderPath).FullName -Sheet 'Permissions' -NoHeader
+            
+            Import-Excel (ls $TestInput.Matrix.FolderPath).FullName -Sheet 'Settings' -NoHeader 
+            #>
 
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `

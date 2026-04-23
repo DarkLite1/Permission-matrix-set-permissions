@@ -99,7 +99,9 @@ function Test-MatrixSettingRowHC {
     )
 
     $checks = [System.Collections.Generic.List[pscustomobject]]::new()
-   
+    
+    $validActions = @('Fix', 'New', 'Check')   
+
     if ([string]::IsNullOrWhiteSpace($SettingRow.Action)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
@@ -109,7 +111,6 @@ function Test-MatrixSettingRowHC {
             })
     }
     elseif ($SettingRow.Action -notin $validActions) {
-        $validActions = @('Fix', 'New', 'Check')
 
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
