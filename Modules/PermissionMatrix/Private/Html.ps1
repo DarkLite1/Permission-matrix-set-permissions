@@ -157,9 +157,8 @@ function New-SettingsCardHtmlHC {
         CheckTitle   = 'margin:0 0 8px 0; color: #374151;'
         CheckTable   = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
         CheckRow     = "border-bottom: 1px solid $($Script:Theme.BorderLight);"
-        CheckLinkTd  = 'font-weight: 600; width: 35%; padding: 8px 6px;'
-        CheckLink    = 'color: #111827; text-decoration: underline;'
-        CheckDesc    = 'padding: 8px 6px; color: #374151;'
+        CheckLinkTd = 'font-weight: 600; white-space: nowrap; width: 1%; padding: 8px 15px 8px 6px; text-align: left;'
+        CheckDesc   = 'padding: 8px 6px; color: #374151; text-align: left; width: auto;'
         CheckBadgeTd = 'width: 80px; text-align: right; padding: 8px 16px 8px 6px; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;'
         SuccessText  = 'padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'
     }
