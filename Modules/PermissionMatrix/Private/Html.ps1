@@ -279,7 +279,7 @@ function New-SettingsCardHtmlHC {
         }
         
         $checkTable = @"
-        <h4 style="$($css.CheckTitle)">Detailed Results</h4>
+        <h4 style="$($css.CheckTitle)">Settings sheet details</h4>
         <table style='$($css.CheckTable)'>
             $checkRows
         </table>
@@ -344,14 +344,19 @@ function Write-MatrixExecutionReportHC {
     }
     else { 'Unknown' }
 
-    # 1. Gather all the file-level sections
     $fileSections = @(
-        New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
-        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+        if ($firstMatrix.FileContext.Check) {
+            New-HtmlSectionHC 'Excel file details' $firstMatrix.FileContext.Check
         }
+        
+        # 2. FormData Details (If you are still checking it)
+        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData sheet details' $firstMatrix.FileContext.Sheets.FormData.Check
+        }
+        
+        # 3. Permissions Details
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+            New-HtmlSectionHC 'Permissions sheet details' $firstMatrix.FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
@@ -404,7 +409,7 @@ $($Html.TroubleshootingStyle)
 <h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">Global File Status</h3>
 $globalFileTableHtml
 
-<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Settings Execution Status</h3>
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Execution Status</h3>
 $settingsSections
 
 </body></html>
