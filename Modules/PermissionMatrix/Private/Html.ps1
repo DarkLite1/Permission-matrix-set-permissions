@@ -26,7 +26,7 @@ $Script:Theme = @{
     
     # Links
     LinkColor      = '#2563eb' # Standard Blue
-    LinkHoverColor = '#2563eb' # Standard Blue
+    LinkHoverColor = '#1d4ed8' # Darker Blue for hover effect
 }
 
 function Initialize-HtmlStructureHC {
@@ -284,16 +284,20 @@ function Write-MatrixExecutionReportHC {
         [Parameter(Mandatory)][string]$LogFolder
     )
 
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
+        return $null 
+    }
 
     $firstMatrix = $FileMatrices[0]
 
     $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
+
     $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
         $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { 'Unknown' }
 
+    # 1. Gather all the file-level sections
     $fileSections = @(
         New-HtmlSectionHC 'File Checks' $firstMatrix.FileContext.Check
         if ($firstMatrix.FileContext.Sheets.FormData.Check) {
@@ -304,11 +308,31 @@ function Write-MatrixExecutionReportHC {
         }
     ) -join ''
 
+    if ([string]::IsNullOrWhiteSpace($fileSections)) {
+        $globalFileTableHtml = @"
+<table class="matrixTable" style="width:100%; margin-bottom: 25px; background-color: $($Script:Theme.StatusSuccess); border: 1px solid $($Script:Theme.BorderLight); border-radius: 6px;">
+    <tr>
+        <td style="padding: 12px; font-weight: 600; color: $($Script:Theme.TextMain); width: 30%;">✓ Validation Passed</td>
+        <td style="padding: 12px; color: $($Script:Theme.TextMuted);">No global file issues detected. All required sheets and data formats are valid.</td>
+    </tr>
+</table>
+"@
+    } 
+    else {
+        # Errors found! Wrap them in your standard table
+        $globalFileTableHtml = @"
+<table class="matrixTable" style="width:100%; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+$fileSections
+</table>
+"@
+    }
+
     $settingsSections = ''
     foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
         $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
     }
 
+    # 3. Inject $globalFileTableHtml instead of wrapping $fileSections directly
     $htmlOut = @"
 <!DOCTYPE html>
 <html><head>
@@ -321,10 +345,8 @@ $($Html.TroubleshootingStyle)
     Last change: $modBy @ $modDt
 </p>
 
-<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Global File Status</h3>
-<table class="matrixTable" style="width:100%; margin-bottom: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-$fileSections
-</table>
+<h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 15px;">Global File Status</h3>
+$globalFileTableHtml
 
 <h3 style="border-bottom: 2px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 25px;">Settings Execution Status</h3>
 $settingsSections
