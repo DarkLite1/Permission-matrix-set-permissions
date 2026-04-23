@@ -64,19 +64,6 @@ function Test-MatrixFileHC {
     return $checks
 }
 
-<# function Test-MatrixPermissionsHC {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][array]$Permissions)
-
-    if ($Permissions.Count -lt 4) {
-        return New-HcError `
-            -Type 'FatalError' `
-            -Name 'Invalid Permissions Sheet' `
-            -Description 'Permissions sheet must contain at least 4 rows.' `
-            -Category 'Permissions'
-    }
-} #>
-
 function Test-MatrixPermissionsHC {
     <#
     .SYNOPSIS
