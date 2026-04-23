@@ -184,15 +184,20 @@ function New-SettingsCardHtmlHC {
     $warnCount = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
         
     if ($errCount -gt 0) {
-        $headerColor = '#fee2e2' # Softer Red
-        $statusText = "Failed ($errCount Errors, $warnCount Warnings)"
+        $headerColor = $Script:Theme.StatusError
+        
+        $warnText = if ($warnCount -gt 0) {
+            ", $warnCount $(Plural $warnCount 'Warning')"
+        }
+        
+        $statusText = "Failed ($errCount $(Plural $errCount 'Error')$warnText)"
     }
     elseif ($warnCount -gt 0) {
-        $headerColor = '#ffedd5' # Softer Orange
-        $statusText = "Completed with Warnings ($warnCount)"
+        $headerColor = $Script:Theme.StatusWarning
+        $statusText = "Completed with $warnCount $(Plural $warnCount 'Warning')"
     }
     else {
-        $headerColor = '#dcfce7' # Softer Green
+        $headerColor = $Script:Theme.StatusSuccess
         $statusText = 'Success'
     }
 
