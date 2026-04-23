@@ -31,7 +31,7 @@ function New-MatrixSettingsExcelFixture {
 
     switch ($Scenario) {
 
-        'MissingColumn' {
+        'MissingAction' {
             $rows = @(
                 [pscustomobject]@{
                     Status       = 'Enabled'
@@ -118,17 +118,16 @@ function New-MatrixSettingsFixtureRows {
 
     switch ($Scenario) {
 
-        'MissingColumn' {
+        'MissingAction' {
             return @(
                 [pscustomobject]@{
                     Status    = 'Enabled'
                     SiteName  = 'HQ South'
                     SiteCode  = 'CS&L'
-                    # missing ComputerName
-                    # ComputerName = 'BEL$FFRAN0001' 
+                    ComputerName = 'BEL$FFRAN0001'
                     Path      = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
                     GroupName = 'BEL ROL-AGS-SAGREV'
-                    Action    = 'Check'
+                    # Action    = 'Check'
                 }
             )
         }

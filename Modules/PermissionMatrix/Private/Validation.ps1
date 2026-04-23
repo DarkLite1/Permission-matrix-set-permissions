@@ -103,7 +103,7 @@ function Test-MatrixSettingRowHC {
     if ([string]::IsNullOrWhiteSpace($SettingRow.Action)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
-                Name        = 'Missing mandatory column'
+                Name        = 'Missing Action'
                 Description = "The column 'Action' cannot be empty."
                 Value       = $null
             })
@@ -122,7 +122,7 @@ function Test-MatrixSettingRowHC {
     if ([string]::IsNullOrWhiteSpace($SettingRow.Path)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
-                Name        = 'Missing mandatory column'
+                Name        = 'Missing Path'
                 Description = "The column 'Path' cannot be empty."
                 Value       = $null
             })
@@ -131,7 +131,7 @@ function Test-MatrixSettingRowHC {
     if ([string]::IsNullOrWhiteSpace($SettingRow.ComputerName)) {
         $checks.Add([pscustomobject]@{
                 Type        = 'FatalError'
-                Name        = 'Missing mandatory column'
+                Name        = 'Missing ComputerName'
                 Description = "The column 'ComputerName' cannot be empty."
                 Value       = $null
             })

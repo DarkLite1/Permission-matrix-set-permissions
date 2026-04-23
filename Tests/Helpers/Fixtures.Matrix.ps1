@@ -74,8 +74,8 @@ function Get-MatrixSettingsFixtures {
     return @(
         @{
             Issue           = 'Missing mandatory Settings column'
-            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingColumn')"
-            ExpectedMessage = 'Missing mandatory column'
+            SheetMutation   = "New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingAction')"
+            ExpectedMessage = "The column 'Action' cannot be empty"
         }
 
         @{
