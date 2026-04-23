@@ -157,8 +157,8 @@ function New-SettingsCardHtmlHC {
         CheckTitle   = 'margin:0 0 8px 0; color: #374151;'
         CheckTable   = 'width:100%; border-collapse: collapse; font-size: 13px; background-color: white; border: 1px solid #d1d5db; border-radius: 4px; overflow: hidden;'
         CheckRow     = "border-bottom: 1px solid $($Script:Theme.BorderLight);"
-        CheckLinkTd = 'font-weight: 600; white-space: nowrap; width: 1%; padding: 8px 15px 8px 6px; text-align: left;'
-        CheckDesc   = 'padding: 8px 6px; color: #374151; text-align: left; width: auto;'
+        CheckLinkTd  = 'font-weight: 600; white-space: nowrap; width: 1%; padding: 8px 15px 8px 6px; text-align: left;'
+        CheckDesc    = 'padding: 8px 6px; color: #374151; text-align: left; width: auto;'
         CheckBadgeTd = 'width: 80px; text-align: right; padding: 8px 16px 8px 6px; font-weight: 700; font-size: 12px; letter-spacing: 0.5px;'
         SuccessText  = 'padding-top:5px; font-style:italic; color: #6b7280; margin: 0;'
     }
@@ -343,7 +343,7 @@ function Write-MatrixExecutionReportHC {
         $globalFileTableHtml = @"
 <table class="matrixTable" style="width:100%; margin-bottom: 25px; background-color: $($Script:Theme.StatusSuccess); border: 1px solid $($Script:Theme.BorderLight); border-radius: 6px;">
     <tr>
-        <td style="padding: 12px; font-weight: 600; color: $($Script:Theme.TextMain); width: 30%;">✓ Validation Passed</td>
+        <td style="padding: 12px 20px 12px 12px; font-weight: 600; color: $($Script:Theme.TextMain); width: 1%; white-space: nowrap;">✓ Validation Passed</td>
         <td style="padding: 12px; color: $($Script:Theme.TextMuted);">No global file issues detected. All required sheets and data formats are valid.</td>
     </tr>
 </table>
