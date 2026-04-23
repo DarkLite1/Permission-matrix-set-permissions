@@ -12,6 +12,7 @@ $Script:Theme = @{
     StatusError    = '#fee2e2' # Light Red
     StatusWarning  = '#ffedd5' # Light Orange
     StatusSuccess  = '#dcfce7' # Light Green
+    StatusSkipped  = '#f3f4f6' # Light Gray
     
     # Text Colors
     TextMain       = '#111827' # Dark Gray/Black
@@ -131,7 +132,8 @@ function New-HtmlSectionHC {
 
 function New-SettingsCardHtmlHC {
     param(
-        [object]$MatrixItem
+        [Parameter(Mandatory)][object]$MatrixItem,
+        [Parameter()][bool]$FileHasFatalError = $false
     )
 
     # =====================================================================
@@ -188,6 +190,7 @@ function New-SettingsCardHtmlHC {
     $statusText = $null
 
     if ($errCount -gt 0) {
+        # 1. Row has errors -> RED
         $headerColor = $Script:Theme.StatusError
         
         $warnText = if ($warnCount -gt 0) {
@@ -197,13 +200,21 @@ function New-SettingsCardHtmlHC {
         $statusText = "Failed ($errCount $(Plural $errCount 'Error')$warnText)"
         $statusSymbol = '✖'
     }
+    elseif ($FileHasFatalError) {
+        # 2. Row is fine, but File is broken -> GREY
+        $headerColor = $Script:Theme.StatusSkipped
+        $statusText = 'Skipped (File Error)'
+        $statusSymbol = '⊘' # The "blocked/skipped" symbol
+    }
     elseif ($warnCount -gt 0) {
+        # 3. Row has warnings -> ORANGE
         $headerColor = $Script:Theme.StatusWarning
         
         $statusText = "Completed with $warnCount $(Plural $warnCount 'Warning')"
         $statusSymbol = '⚠'
     }
     else {
+        # 4. Everything is perfect -> GREEN
         $headerColor = $Script:Theme.StatusSuccess
         
         $statusText = 'Success'
@@ -275,7 +286,12 @@ function New-SettingsCardHtmlHC {
 "@
     }
     else {
-        $checkTable = "<p style='$($css.SuccessText)'>No issues detected. Execution successful.</p>"
+        if ($FileHasFatalError) {
+            $checkTable = "<p style='$($css.SuccessText)'>Row syntax is valid, but execution was skipped due to global file errors.</p>"
+        }
+        else {
+            $checkTable = "<p style='$($css.SuccessText)'>No issues detected. Execution successful.</p>"
+        }
     }
     #endregion
 
@@ -358,10 +374,19 @@ $fileSections
 "@
     }
 
+    # Determine if ANY global file check threw a FatalError
+    $fileHasFatalError = @(
+        $firstMatrix.FileContext.Check
+        $firstMatrix.FileContext.Sheets.Permissions.Check
+    ).Where({ $_.Type -eq 'FatalError' }).Count -gt 0
+
     $settingsSections = ''
     foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
-        $settingsSections += New-SettingsCardHtmlHC -MatrixItem $matrix
+        $settingsSections += New-SettingsCardHtmlHC `
+            -MatrixItem $matrix `
+            -FileHasFatalError $fileHasFatalError
     }
+
 
     # 3. Inject $globalFileTableHtml instead of wrapping $fileSections directly
     $htmlOut = @"

@@ -211,7 +211,7 @@ function Invoke-PermissionMatrixEndHC {
                     }
                     #endregion
 
-                    # start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName
+                    # start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
 
                     Write-MatrixExecutionReportHC `
                         -FileMatrices $fileGroup.Group `
