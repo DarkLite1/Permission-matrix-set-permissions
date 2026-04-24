@@ -378,7 +378,7 @@ function New-MatrixPermissionsFixtureRows {
             }
         }
 
-        'MatrixDesignFlaw' {
+        'InaccessibleFolders' {
             # Parent folder has no valid permission ('L'), and deep folder also only has 'L'
             return @{
                 Row1 = @('', '', '')

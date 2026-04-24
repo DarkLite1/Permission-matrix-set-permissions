@@ -166,7 +166,7 @@ New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -Settin
             Mutation = @'
 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingFolderName')
 '@
-            Expected = 'Folder name missing'
+            Expected = 'Missing folder name'
         }
 
         # ---------------------------------------------------------------
@@ -184,11 +184,11 @@ New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -Settin
         # 7. Matrix design flaw (Warning - Inaccessible deepest folder)
         # ---------------------------------------------------------------
         @{
-            Issue    = 'MatrixDesignFlaw'
+            Issue    = 'InaccessibleFolders'
             Mutation = @'
-New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MatrixDesignFlaw')
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'InaccessibleFolders')
 '@
-            Expected = 'Matrix design flaw'
+            Expected = 'Inaccessible folders'
         }
 
     )

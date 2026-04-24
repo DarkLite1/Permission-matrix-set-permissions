@@ -176,8 +176,8 @@ function Test-MatrixPermissionsHC {
         if ($MissingFolders.Count -gt 0) {
             $checks.Add([pscustomobject]@{
                     Type        = 'FatalError'
-                    Name        = 'Folder name missing'
-                    Description = 'Missing folder name in the first column.'
+                    Name        = 'Missing folder name'
+                    Description = 'Each row needs a folder name in the first column.'
                     Value       = "$($MissingFolders.Count) missing folder name(s) in column 1"
                 })
         }
@@ -189,7 +189,7 @@ function Test-MatrixPermissionsHC {
             $checks.Add([pscustomobject]@{
                     Type        = 'FatalError'
                     Name        = 'Duplicate folder name'
-                    Description = 'Every folder name in the first column needs to be unique.'
+                    Description = 'Folder names in the first column need to be unique.'
                     Value       = ($NotUniqueFolder.Name) -join ', '
                 })
         }
@@ -229,8 +229,8 @@ function Test-MatrixPermissionsHC {
         if ($inAccessibleFolders.Count -gt 0) {
             $checks.Add([pscustomobject]@{
                     Type        = 'Warning'
-                    Name        = 'Matrix design flaw'
-                    Description = 'All folders need to be accessible by the end user. Please define at least (R)ead or (W)rite on the deepest folder.'
+                    Name        = 'Inaccessible folders'
+                    Description = 'The deepest folders have no permissions or only List permissions, and the parent folder does not have permissions that allow access. This means these folders will be inaccessible.'
                     Value       = $inAccessibleFolders -join ', '
                 })
         }
