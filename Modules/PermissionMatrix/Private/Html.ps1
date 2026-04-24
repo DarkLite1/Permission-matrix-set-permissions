@@ -262,15 +262,21 @@ function New-SettingsCardHtmlHC {
                 $rowColor = '#1d4ed8' # Standard blue
             }
             
-            $linkTarget = if ($c.JsonFileName) { $c.JsonFileName } else { '#' }
+            $linkTarget = if ($c.JsonFileName) { 
+                @"
+                <a href="$($c.JsonFileName)" style="$($css.CheckLink)" title="Click to view full JSON details">
+                        $name
+                </a>
+"@
+
+            }
+            else { $name }
             
             $checkRows += @"
             <tr class='$cls' style='$($css.CheckRow)'>
                 <td style='width: 30px; text-align: center; font-weight: bold; color: $rowColor; font-size: 14px;'>$rowIcon</td>
                 <td style='$($css.CheckLinkTd)'>
-                    <a href="$linkTarget" style="$($css.CheckLink)" title="Click to view full JSON details">
-                        $name
-                    </a>
+                    $linkTarget
                 </td>
                 <td style='$($css.CheckDesc)'>$desc</td>
                 <td style='$($css.CheckBadgeTd) color: $rowColor;'>$rowBadge</td>

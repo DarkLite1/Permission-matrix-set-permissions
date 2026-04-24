@@ -163,7 +163,7 @@ function Test-MatrixPermissionsHC {
                     Type        = 'FatalError'
                     Name        = 'Permission character unknown'
                     Description = "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank."
-                    Value       = "Characters: $($InvalidChars | Select-Object -Unique) -join ', '"
+                    Value       = "Characters: $(($InvalidChars | Select-Object -Unique) -join ', ')"
                 })
         }
         #endregion
