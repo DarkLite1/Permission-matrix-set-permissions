@@ -131,8 +131,8 @@ function Test-MatrixPermissionsHC {
         if ($missingSamAccountNames.Count -gt 0) {
             $checks.Add([pscustomobject]@{
                     Type        = 'FatalError'
-                    Name        = 'Missing header SamAccountName'
-                    Description = 'The header rows need to contain the SamAccountName of the AD object for which permissions are defined in the column.'
+                    Name        = 'Missing AD object name'
+                    Description = 'The first 3 rows of the Permissions sheet are reserved for header information. Please provide the SamAccountName of the AD object in at least one of these rows for each column.'
                     Value       = "Columns: $($missingSamAccountNames -join ', ')"
                 })
         }
@@ -161,7 +161,7 @@ function Test-MatrixPermissionsHC {
         if ($InvalidChars.Count -gt 0) {
             $checks.Add([pscustomobject]@{
                     Type        = 'FatalError'
-                    Name        = 'Permission character unknown'
+                    Name        = 'Invalid permission character'
                     Description = "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank."
                     Value       = "Characters: $(($InvalidChars | Select-Object -Unique) -join ', ')"
                 })
