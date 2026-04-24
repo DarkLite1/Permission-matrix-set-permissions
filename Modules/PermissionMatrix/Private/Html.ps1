@@ -279,7 +279,7 @@ function New-SettingsCardHtmlHC {
         }
         
         $checkTable = @"
-        <h4 style="$($css.CheckTitle)">Settings sheet details</h4>
+        <h4 style="$($css.CheckTitle)">Settings Sheet</h4>
         <table style='$($css.CheckTable)'>
             $checkRows
         </table>
@@ -346,17 +346,17 @@ function Write-MatrixExecutionReportHC {
 
     $fileSections = @(
         if ($firstMatrix.FileContext.Check) {
-            New-HtmlSectionHC 'Excel file details' $firstMatrix.FileContext.Check
+            New-HtmlSectionHC 'Excel File' $firstMatrix.FileContext.Check
         }
         
         # 2. FormData Details (If you are still checking it)
         if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData sheet details' $firstMatrix.FileContext.Sheets.FormData.Check
+            New-HtmlSectionHC 'FormData Sheet' $firstMatrix.FileContext.Sheets.FormData.Check
         }
         
         # 3. Permissions Details
         if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions sheet details' $firstMatrix.FileContext.Sheets.Permissions.Check
+            New-HtmlSectionHC 'Permissions Sheet' $firstMatrix.FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
