@@ -44,7 +44,7 @@ function Invoke-PermissionMatrixEndHC {
     # =====================================================================
     # 2. EXPORTS & SERVICENOW (Skip if Fatal Errors)
     # =====================================================================
-    if (-not $hasFatalErrors -and $Context.FoundMatrices) {
+    if (-not $hasFatalErrors -and $Context.AllMatrices) {
         try {
             $Context.ExportedFiles = Export-FilesHC `
                 -ImportedMatrix $Context.AllMatrices `

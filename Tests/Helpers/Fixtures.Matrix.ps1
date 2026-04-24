@@ -201,7 +201,8 @@ function Get-DisabledMatrixFixtures {
                 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix1.xlsx' -Disabled
                 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix2.xlsx' -Disabled
             }
-            ExpectedCount  = 0
+            Expected       = 'This matrix file does not contain any enabled matrix settings row and will be skipped.'
+            NotExpected    = $null
         }
         @{
             Description    = 'One disabled, one enabled'
@@ -209,7 +210,8 @@ function Get-DisabledMatrixFixtures {
                 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix1.xlsx' -Disabled
                 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\Matrix2.xlsx'
             }
-            ExpectedCount  = 1
+            Expected       = $null
+            NotExpected    = 'This matrix file does not contain any enabled matrix settings row and will be skipped.'
         }
     )
 }

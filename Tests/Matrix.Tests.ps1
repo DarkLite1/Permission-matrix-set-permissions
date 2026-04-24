@@ -121,7 +121,7 @@ Describe 'Matrix Logic Tests' {
     Describe 'Matrix: Disabled matrices' {
 
         It '<Description>' -TestCases $DisabledMatrixFixtures {
-            param($Description, $FixtureBuilder, $ExpectedCount)
+            param($Description, $FixtureBuilder, $Expected, $NotExpected)
 
             & $FixtureBuilder  # creates .xlsx files in TestDrive:\Matrix
 
@@ -130,13 +130,18 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
-            $logFolder = Get-LatestLogFolderHC -Root $TestInput.Settings.SaveLogFiles.Where.Folder
-            $htmlFile = Get-ChildItem -Path $logFolder -Recurse -Filter '*.html' | Select-Object -First 1
+            if ($Expected) {
+                Assert-HtmlLogContainsPatternHC `
+                    -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
+                    -Pattern "*$Expected*"
+            }
 
-            $htmlFile | Should -Not -BeNullOrEmpty
-
-            (Get-Content $htmlFile.FullName -Raw) |
-            Should -Match "Processed $ExpectedCount enabled matrix"
+            if ($NotExpected) {
+                Assert-HtmlLogContainsPatternHC `
+                    -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
+                    -Pattern "*$NotExpected*" `
+                    -Not
+            }
         }
     } -Tag test
 

@@ -78,7 +78,9 @@ function Assert-HtmlLogContainsPatternHC {
         [string]$LogFolderPath,
 
         [Parameter(Mandatory)]
-        [string]$Pattern
+        [string]$Pattern,
+
+        [switch]$Not
     )
 
     $latestRunFolder = Get-LatestLogFolderHC -Root $LogFolderPath
@@ -104,7 +106,12 @@ function Assert-HtmlLogContainsPatternHC {
         }
     }
 
-    $foundMatch | Should -Be $true -Because "The HTML logs must contain the expected pattern: $Pattern"
+    if ($Not) {
+        $foundMatch | Should -Be $false -Because "The HTML logs must NOT contain the pattern: $Pattern"
+    }
+    else {
+        $foundMatch | Should -Be $true -Because "The HTML logs must contain the expected pattern: $Pattern"
+    }
 }
 
 function Clear-TestLogFoldersHC {

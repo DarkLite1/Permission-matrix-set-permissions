@@ -55,9 +55,9 @@ function Import-MatrixFileHC {
             $fileResult.Check.Add(
                 [pscustomobject]@{
                     Type        = 'Warning'
-                    Name        = 'Matrix disabled'
-                    Description = 'Every Excel file needs at least one enabled matrix.'
-                    Value       = 'No rows with Status = Enabled'
+                    Name        = 'No enabled matrix settings'
+                    Description = 'This matrix file does not contain any enabled matrix settings row and will be skipped.'
+                    Value       = "No Settings row with `Status = Enabled'"
                 }
             )
 
