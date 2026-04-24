@@ -332,7 +332,7 @@ function New-SettingsCardHtmlHC {
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][array]$FileMatrices, 
+        [Parameter(Mandatory)][object]$FileContext,
         [Parameter(Mandatory)][hashtable]$Html,
         [Parameter(Mandatory)][string]$LogFolder
     )
@@ -341,28 +341,26 @@ function Write-MatrixExecutionReportHC {
         return $null 
     }
 
-    $firstMatrix = $FileMatrices[0]
+    $modBy = [System.Net.WebUtility]::HtmlEncode($FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
 
-    $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
-
-    $modDt = if ($firstMatrix.FileContext.ExcelInfo.Modified -is [datetime]) {
-        $firstMatrix.FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+    $modDt = if ($FileContext.ExcelInfo.Modified -is [datetime]) {
+        $FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { 'Unknown' }
 
     $fileSections = @(
-        if ($firstMatrix.FileContext.Check) {
-            New-HtmlSectionHC 'Excel File' $firstMatrix.FileContext.Check
+        if ($FileContext.Check) {
+            New-HtmlSectionHC 'Excel File' $FileContext.Check
         }
         
         # 2. FormData Details (If you are still checking it)
-        if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Sheet' $firstMatrix.FileContext.Sheets.FormData.Check
+        if ($FileContext.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData Sheet' $FileContext.Sheets.FormData.Check
         }
         
         # 3. Permissions Details
-        if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Sheet' $firstMatrix.FileContext.Sheets.Permissions.Check
+        if ($FileContext.Sheets.Permissions.Check) {
+            New-HtmlSectionHC 'Permissions Sheet' $FileContext.Sheets.Permissions.Check
         }
     ) -join ''
 
@@ -385,21 +383,31 @@ $fileSections
 "@
     }
 
-    # Determine if ANY global file check threw a FatalError
     $fileHasFatalError = @(
-        $firstMatrix.FileContext.Check
-        $firstMatrix.FileContext.Sheets.Permissions.Check
+        $FileContext.Check
+        $FileContext.Sheets.Permissions.Check
     ).Where({ $_.Type -eq 'FatalError' }).Count -gt 0
 
+
     $settingsSections = ''
-    foreach ($matrix in ($FileMatrices | Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID })) {
-        $settingsSections += New-SettingsCardHtmlHC `
-            -MatrixItem $matrix `
-            -FileHasFatalError $fileHasFatalError
+
+    if ($FileContext.Matrices) {
+        foreach (
+            $matrix in 
+            (
+                $FileContext.Matrices | 
+                Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID }
+            )
+        ) {
+            $settingsSections += New-SettingsCardHtmlHC `
+                -MatrixItem $matrix `
+                -FileHasFatalError $fileHasFatalError
+        }
+    }
+    else {
+        $settingsSections = "<p style='font-style: italic; color: #6b7280;'>No settings matrices were imported from this file, so no execution details are available.</p>"
     }
 
-
-    # 3. Inject $globalFileTableHtml instead of wrapping $fileSections directly
     $htmlOut = @"
 <!DOCTYPE html>
 <html><head>
@@ -407,7 +415,7 @@ $($Html.Style)
 $($Html.TroubleshootingStyle)
 </head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #111827;">
 <h1 style="margin-bottom: 5px;">Execution & Troubleshooting Report</h1>
-<h2 style="margin-top: 5px; color: #374151;">File: $($firstMatrix.FileContext.Item.Name)</h2>
+<h2 style="margin-top: 5px; color: #374151;">File: $($FileContext.Item.Name)</h2>
 <p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:25px; color: #6b7280; font-style: italic;">
     Last change: $modBy @ $modDt
 </p>
@@ -462,55 +470,59 @@ function New-SettingsOverviewHtmlHC {
 
 function Build-MatrixEmailHtmlHC {
     param(
-        [array]$AllMatrices, # Now accepts the flattened Context.AllMatrices array
-        [hashtable]$Html
+        [Parameter(Mandatory)][array]$FileResults, # Now accepts the array of file objects directly
+        [Parameter(Mandatory)][hashtable]$Html
     )
 
     $output = ''
 
-    # Group the flat jobs back by their parent Excel file
-    $matricesByFile = $AllMatrices | Group-Object -Property { 
-        $_.FileContext.Item.FullName } | Sort-Object Name
-
-    foreach ($fileGroup in $matricesByFile) {
-        $firstMatrix = $fileGroup.Group[0]
-
+    # Loop directly through each imported Excel file
+    foreach ($fileContext in $FileResults) {
+        
         # 1. Metadata & Excel Info Header
-        $file = [System.Net.WebUtility]::HtmlEncode($firstMatrix.Item.Name)
-        $modBy = [System.Net.WebUtility]::HtmlEncode($firstMatrix.ExcelInfo.LastModifiedBy ?? 'Unknown')
-        $modDt = if ($firstMatrix.ExcelInfo.Modified -is [datetime]) {
-            $firstMatrix.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+        $file = [System.Net.WebUtility]::HtmlEncode($fileContext.Item.Name)
+        $modBy = [System.Net.WebUtility]::HtmlEncode($fileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
+        
+        $modDt = if ($fileContext.ExcelInfo.Modified -is [datetime]) {
+            $fileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
         }
         else { 'Unknown' }
 
-        # 2. Global File/Sheet Checks
+        # 2. Global File/Sheet Checks (Using your new naming convention!)
         $globalSections = @(
-            New-HtmlSectionHC 'File Checks' $firstMatrix.Check
-            if ($firstMatrix.FileContext.Sheets.FormData.Check) {
-                New-HtmlSectionHC 'FormData Checks' $firstMatrix.FileContext.Sheets.FormData.Check
+            if ($fileContext.Check) {
+                New-HtmlSectionHC 'Excel File' $fileContext.Check
             }
-            if ($firstMatrix.FileContext.Sheets.Permissions.Check) {
-                New-HtmlSectionHC 'Permissions Checks' $firstMatrix.FileContext.Sheets.Permissions.Check
+            if ($fileContext.Sheets.FormData.Check) {
+                New-HtmlSectionHC 'FormData Sheet' $fileContext.Sheets.FormData.Check
+            }
+            if ($fileContext.Sheets.Permissions.Check) {
+                New-HtmlSectionHC 'Permissions Sheet' $fileContext.Sheets.Permissions.Check
             }
         ) -join ''
 
-        # 3. Settings Overview Table (Calling our updated function)
-        $settingsOverview = New-SettingsOverviewHtmlHC `
-            -MatrixRows $fileGroup.Group `
-            -Html $Html
-
-        # 4. Settings Detailed Results (This adds the checks below the overview!)
+        $settingsOverview = ''
         $settingsDetails = ''
-        foreach ($matrixRow in ($fileGroup.Group | Sort-Object ID)) {
-            if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
-                $header = "Settings Details (ID: $($matrixRow.ID)) - $($matrixRow.Setting.Formatted.ComputerName)"
-                
-                $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
+
+        # 3 & 4. Settings Overview and Details (Only if the file actually has matrices!)
+        if ($fileContext.Matrices -and $fileContext.Matrices.Count -gt 0) {
+            
+            $settingsOverview = New-SettingsOverviewHtmlHC `
+                -MatrixRows $fileContext.Matrices `
+                -Html $Html
+
+            foreach ($matrixRow in ($fileContext.Matrices | Sort-Object ID)) {
+                if ($matrixRow.Check -and $matrixRow.Check.Count -gt 0) {
+                    $compName = if ($matrixRow.Setting.Formatted.ComputerName) { $matrixRow.Setting.Formatted.ComputerName } else { 'Unknown' }
+                    $header = "Settings sheet details (ID: $($matrixRow.ID)) - $compName"
+                    
+                    $settingsDetails += New-HtmlSectionHC $header $matrixRow.Check
+                }
             }
         }
 
         # 5. Assemble the HTML block for this specific Excel file
-        $saveLink = $firstMatrix.SaveFullName ?? '#' 
+        $saveLink = $fileContext.Item.FullName ?? '#' 
         
         $output += @"
 <table class="matrixTable">

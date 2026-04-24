@@ -18,12 +18,15 @@ function Invoke-PermissionMatrixEndHC {
     # 1. BUILD HTML BODY (Best Effort)
     # =====================================================================
     try {
-        $matrixHtml = if ($Context.FoundMatrices) { 
+        $matrixHtml = if (
+            $Context.FileResults -and $Context.FileResults.Count -gt 0
+        ) { 
             Build-MatrixEmailHtmlHC `
-                -ImportedMatrix $Context.Matrices `
+                -FileContext $Context.FileResults `
                 -Html $htmlTemplates 
         }
         else { '' }
+
         $fullHtmlBody = Generate-MailBodyHtmlHC `
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
@@ -127,45 +130,35 @@ function Invoke-PermissionMatrixEndHC {
                     -Force -ErrorAction Stop
                 #endregion
 
-                $matricesByFile = $Context.AllMatrices | 
-                Group-Object -Property { $_.FileContext.Item.FullName }
-
-                foreach ($fileGroup in $matricesByFile) {
-                    $baseName = $fileGroup.Group[0].FileContext.Item.BaseName
+                foreach ($fileResult in $Context.FileResults) {
+                    $baseName = $fileResult.Item.BaseName
                     
                     $fileLogFolder = New-Item -ItemType Directory `
                         -Path (Join-Path $datedLogFolder.FullName $baseName) `
                         -Force -ErrorAction Stop
 
-                    $contextRef = $fileGroup.Group[0].FileContext
-                    $contextRef.LogFolder = $fileLogFolder.FullName
-                    $contextRef.ReportFilePath = Join-Path `
+                    $fileResult.LogFolder = $fileLogFolder.FullName
+                    $fileResult.ReportFilePath = Join-Path `
                         -Path $fileLogFolder.FullName `
-                        -ChildPath $contextRef.ReportFileName
+                        -ChildPath $fileResult.ReportFileName
 
                     #region Create JSON files for file-level checks
                     $checkIndex = 0
 
-                    foreach ($fc in $contextRef.Check) {
+                    foreach ($fc in $fileResult.Check) {
                         $checkIndex++
-
                         $checkFileName = "File - Detail $checkIndex.json"
                         
                         $fc | Add-Member -NotePropertyMembers @{
                             JsonFileName = $checkFileName
-                            JsonFilePath = Join-Path `
-                                -Path $fileLogFolder.FullName `
-                                -ChildPath $checkFileName  
+                            JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName  
                         } -Force
                         
                         if ($fc.Value) {
                             try {
-                                $fc | Select-Object `
-                                    -ExcludeProperty JsonFilePath, JsonFileName | 
+                                $fc | Select-Object -ExcludeProperty JsonFilePath, JsonFileName | 
                                 ConvertTo-Json -Depth 10 | 
-                                Out-File `
-                                    -FilePath $fc.JsonFilePath `
-                                    -Encoding UTF8 -Force
+                                Out-File -FilePath $fc.JsonFilePath -Encoding UTF8 -Force
                             }
                             catch {
                                 $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
@@ -178,34 +171,26 @@ function Invoke-PermissionMatrixEndHC {
                             $fc.JsonFilePath = $null
                         }
                     }
-                    
                     #endregion
 
-                 
                     #region Create JSON file for matrix-level checks
                     $checkIndex = 0
 
-                    foreach ($m in $fileGroup.Group) {
+                    foreach ($m in $fileResult.Matrices) {
                         foreach ($c in $m.Check) {
                             $checkIndex++
-
                             $checkFileName = "ID $($m.ID) - Detail $checkIndex.json"
                             
                             $c | Add-Member -NotePropertyMembers @{
                                 JsonFileName = $checkFileName
-                                JsonFilePath = Join-Path `
-                                    -Path $fileLogFolder.FullName `
-                                    -ChildPath $checkFileName  
+                                JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName  
                             } -Force
 
                             if ($c.Value) {
                                 try {
-                                    $c | Select-Object `
-                                        -ExcludeProperty JsonFilePath, JsonFileName | 
+                                    $c | Select-Object -ExcludeProperty JsonFilePath, JsonFileName | 
                                     ConvertTo-Json -Depth 10 | 
-                                    Out-File `
-                                        -FilePath $c.JsonFilePath `
-                                        -Encoding UTF8 -Force
+                                    Out-File -FilePath $c.JsonFilePath -Encoding UTF8 -Force
                                 }
                                 catch {
                                     $c.Description += "[Detailed JSON log failed to generate: $($_)]"
@@ -221,12 +206,8 @@ function Invoke-PermissionMatrixEndHC {
                     }
                     #endregion
 
-                    <# 
-                    start ((ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | select -First 1) 
-                    #>
-
                     Write-MatrixExecutionReportHC `
-                        -FileMatrices $fileGroup.Group `
+                        -FileContext $fileResult `
                         -Html $htmlTemplates `
                         -LogFolder $fileLogFolder.FullName
                 }

@@ -43,6 +43,7 @@ function Invoke-PermissionMatrixBeginHC {
             Counter       = New-CounterObjectHC
             ExportedFiles = @{}
             FoundMatrices = $false
+            FileResults   = @()
             AllMatrices   = @()
             Defaults      = $null
         }
@@ -129,7 +130,7 @@ function Invoke-PermissionMatrixBeginHC {
             #endregion
             
             try {
-                # Import & validate matrix
+                #region Import & validate matrix
                 $fileResult = Import-MatrixFileHC `
                     -MatrixFile $file `
                     -Context $context
@@ -228,6 +229,9 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
+        #region Collect results and store in context
+        $Context.FileResults = $parallelResults
+
         $importedMatrices = [System.Collections.Generic.List[pscustomobject]]::new()
         foreach ($res in $parallelResults) {
             if ($res.Matrices) {
@@ -237,6 +241,7 @@ function Invoke-PermissionMatrixBeginHC {
             }
         }
         $Context.AllMatrices = $importedMatrices
+        #endregion
 
         # =====================================================================
         # 3. SEQUENTIAL: Cross-Matrix Checks & AD Lookups
