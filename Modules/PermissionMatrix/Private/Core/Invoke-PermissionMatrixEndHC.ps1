@@ -158,18 +158,24 @@ function Invoke-PermissionMatrixEndHC {
                                 -ChildPath $checkFileName  
                         } -Force
                         
-                        try {
-                            $fc | Select-Object `
-                                -ExcludeProperty JsonFilePath, JsonFileName | 
-                            ConvertTo-Json -Depth 10 | 
-                            Out-File `
-                                -FilePath $fc.JsonFilePath `
-                                -Encoding UTF8 -Force
+                        if ($fc.Value) {
+                            try {
+                                $fc | Select-Object `
+                                    -ExcludeProperty JsonFilePath, JsonFileName | 
+                                ConvertTo-Json -Depth 10 | 
+                                Out-File `
+                                    -FilePath $fc.JsonFilePath `
+                                    -Encoding UTF8 -Force
+                            }
+                            catch {
+                                $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
+                                $fc.JsonFileName = $null
+                                $fc.JsonFilePath = $null   
+                            }
                         }
-                        catch {
-                            $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
+                        else {
                             $fc.JsonFileName = $null
-                            $fc.JsonFilePath = $null   
+                            $fc.JsonFilePath = $null
                         }
                     }
                     
@@ -206,12 +212,16 @@ function Invoke-PermissionMatrixEndHC {
                                     $c.JsonFileName = $null
                                     $c.JsonFilePath = $null
                                 }
+                            } 
+                            else {
+                                $c.JsonFileName = $null
+                                $c.JsonFilePath = $null
                             }
                         }
                     }
                     #endregion
 
-                    # start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
+                    # start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | select -First 1
 
                     Write-MatrixExecutionReportHC `
                         -FileMatrices $fileGroup.Group `
