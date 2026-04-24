@@ -117,10 +117,10 @@ function Get-MatrixPermissionsFixtures {
         # 1. Missing AD group name (column header)
         # ---------------------------------------------------------------
         @{
-            Issue    = 'Missing ADObjectName'
-            Mutation = @"
+            Issue    = 'MissingADObjectName'
+            Mutation = @'
 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingADObjectName')
-"@
+'@
             Expected = 'Missing AD object name'
         }
 
@@ -129,11 +129,66 @@ New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -Settin
         # 2. Invalid permission characters
         # ---------------------------------------------------------------
         @{
-            Issue    = 'Invalid permission characters'
-            Mutation = @"
+            Issue    = 'InvalidPermissionChar'
+            Mutation = @'
 New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'InvalidPermissionChar')
-"@
+'@
             Expected = 'Invalid permission character'
+        }
+
+        # ---------------------------------------------------------------
+        # 3. Missing rows (Less than 4 rows in sheet)
+        # ---------------------------------------------------------------
+        @{
+            Issue    = 'MissingRows'
+            Mutation = @'
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingRows')
+'@
+            Expected = 'Missing rows'
+        }
+
+        # ---------------------------------------------------------------
+        # 4. Missing columns (Less than 2 columns in sheet)
+        # ---------------------------------------------------------------
+        @{
+            Issue    = 'MissingColumns'
+            Mutation = @'
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingColumns')
+'@
+            Expected = 'Missing columns'
+        }
+
+        # ---------------------------------------------------------------
+        # 5. Folder name missing (Blank Path)
+        # ---------------------------------------------------------------
+        @{
+            Issue    = 'MissingFolderName'
+            Mutation = @'
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MissingFolderName')
+'@
+            Expected = 'Folder name missing'
+        }
+
+        # ---------------------------------------------------------------
+        # 6. Duplicate folder name
+        # ---------------------------------------------------------------
+        @{
+            Issue    = 'DuplicateFolderName'
+            Mutation = @'
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'DuplicateFolderName')
+'@
+            Expected = 'Duplicate folder name'
+        }
+
+        # ---------------------------------------------------------------
+        # 7. Matrix design flaw (Warning - Inaccessible deepest folder)
+        # ---------------------------------------------------------------
+        @{
+            Issue    = 'MatrixDesignFlaw'
+            Mutation = @'
+New-MatrixExcelFixture -Path 'TestDrive:\Matrix\MutatedPermissions.xlsx' -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'Valid') -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'MatrixDesignFlaw')
+'@
+            Expected = 'Matrix design flaw'
         }
 
     )

@@ -121,12 +121,12 @@ function New-MatrixSettingsFixtureRows {
         'MissingAction' {
             return @(
                 [pscustomobject]@{
-                    Status    = 'Enabled'
-                    SiteName  = 'HQ South'
-                    SiteCode  = 'CS&L'
+                    Status       = 'Enabled'
+                    SiteName     = 'HQ South'
+                    SiteCode     = 'CS&L'
                     ComputerName = 'BEL$FFRAN0001'
-                    Path      = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName = 'BEL ROL-AGS-SAGREV'
+                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName    = 'BEL ROL-AGS-SAGREV'
                     # Action    = 'Check'
                 }
             )
@@ -266,23 +266,22 @@ function New-MatrixPermissionsFixtureRows {
 
         'Valid' {
             return @{
-                Row1 = @('', '', '')                 
-                Row2 = @('', '', '')                 
-                Row3 = @('', 'Bob', 'Mike')          
-                Row4 = @('Path', 'L', 'L')           
+                Row1 = @('', '', '')                
+                Row2 = @('', '', '')                
+                Row3 = @('', 'Bob', 'Mike')         
+                Row4 = @('Path', 'L', 'L')          
                 Data = @(
-                    @{ Path = 'Finance'       ; Col2 = 'R' ; Col3 = 'R' }
-                    @{ Path = 'Finance\Docs'  ; Col2 = 'W' ; Col3 = 'W' }
+                    @{ Path = 'Finance'      ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'W' ; Col3 = 'W' }
                 )
             }
         }
 
         'WithGroupNamePlaceholder' {
-            # No GroupName or SiteCode
             return @{
                 Row1 = @('', '')
                 Row2 = @('', 'Director')
-                Row3 = @('', 'GroupName')  # placeholder that should be replaced by actual GroupName from Settings         
+                Row3 = @('', 'GroupName') 
                 Row4 = @('Path', '')
                 Data = @(
                     @{ Path = 'Finance'      ; Col2 = 'L' }
@@ -292,11 +291,10 @@ function New-MatrixPermissionsFixtureRows {
         }
 
         'WithSiteCodePlaceholder' {
-            # No GroupName or SiteCode
             return @{
                 Row1 = @('', 'Director')
                 Row2 = @('', 'SiteCode')
-                Row3 = @('', 'BEL')  # placeholder that should be replaced by actual SiteCode from Settings         
+                Row3 = @('', 'BEL') 
                 Row4 = @('Path', '')
                 Data = @(
                     @{ Path = 'Finance'      ; Col2 = 'L' }
@@ -309,8 +307,8 @@ function New-MatrixPermissionsFixtureRows {
             return @{
                 Row1 = @('', '', '')
                 Row2 = @('', '', '')
-                Row3 = @('', '', 'Mike')               # Column 2 = missing
-                Row4 = @('Path', '', 'L')              # Column 2 header = missing
+                Row3 = @('', '', 'Mike')               
+                Row4 = @('Path', '', 'L')              
                 Data = @(
                     @{ Path = 'Finance'      ; Col2 = 'R' ; Col3 = 'R' }
                     @{ Path = 'Finance\Docs' ; Col2 = 'W' ; Col3 = 'W' }
@@ -325,8 +323,71 @@ function New-MatrixPermissionsFixtureRows {
                 Row3 = @('', 'Bob', 'Mike')
                 Row4 = @('Path', 'L', 'L')
                 Data = @(
-                    @{ Path = 'Finance'      ; Col2 = 'X'   ; Col3 = 'R' }  # invalid
-                    @{ Path = 'Finance\Docs' ; Col2 = 'R'   ; Col3 = 'YYY' }  # invalid
+                    @{ Path = 'Finance'      ; Col2 = 'X'   ; Col3 = 'R' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'R'   ; Col3 = 'YYY' } 
+                )
+            }
+        }
+
+        # NEW SCENARIOS ADDED BELOW:
+
+        'MissingRows' {
+            # Only sending 2 rows total to trigger the '< 4' check
+            return @{
+                Row1 = @('', 'Bob', 'Mike')
+                Row2 = @('Path', 'L', 'L')
+            }
+        }
+
+        'MissingColumns' {
+            # Only sending the Path column to trigger the '< 2' check
+            return @{
+                Row1 = @('')
+                Row2 = @('')
+                Row3 = @('')
+                Row4 = @('Path')
+                Data = @(
+                    @{ Path = 'Finance' }
+                )
+            }
+        }
+
+        'MissingFolderName' {
+            return @{
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', 'Bob', 'Mike')
+                Row4 = @('Path', 'L', 'L')
+                Data = @(
+                    @{ Path = 'Finance' ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = ''        ; Col2 = 'W' ; Col3 = 'W' } # Blank path
+                )
+            }
+        }
+
+        'DuplicateFolderName' {
+            return @{
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', 'Bob', 'Mike')
+                Row4 = @('Path', 'L', 'L')
+                Data = @(
+                    @{ Path = 'Finance' ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = 'Finance' ; Col2 = 'W' ; Col3 = 'W' } # Exact duplicate
+                )
+            }
+        }
+
+        'MatrixDesignFlaw' {
+            # Parent folder has no valid permission ('L'), and deep folder also only has 'L'
+            return @{
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', 'Bob', 'Mike')
+                Row4 = @('Path', 'L', 'L')
+                Data = @(
+                    @{ Path = 'Finance'      ; Col2 = 'L' ; Col3 = 'L' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'L' ; Col3 = '' } 
                 )
             }
         }
