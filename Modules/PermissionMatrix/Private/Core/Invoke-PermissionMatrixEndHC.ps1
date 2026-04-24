@@ -22,7 +22,7 @@ function Invoke-PermissionMatrixEndHC {
             $Context.FileResults -and $Context.FileResults.Count -gt 0
         ) { 
             Build-MatrixEmailHtmlHC `
-                -FileContext $Context.FileResults `
+                -FileResults $Context.FileResults `
                 -Html $htmlTemplates 
         }
         else { '' }
