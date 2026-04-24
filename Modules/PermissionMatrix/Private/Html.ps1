@@ -121,50 +121,80 @@ function New-HtmlSectionHC {
         [array]$Checks
     )
     
+    # 1. Calculate Summary Badges (e.g., "1 Error, 2 Warnings")
+    $errCount = @($Checks | Where-Object Type -EQ 'FatalError').Count
+    $warnCount = @($Checks | Where-Object Type -EQ 'Warning').Count
+    
+    $badges = [System.Collections.Generic.List[string]]::new()
+    if ($errCount -gt 0) { $badges.Add("$errCount Error$(if ($errCount -ne 1) { 's' })") }
+    if ($warnCount -gt 0) { $badges.Add("$warnCount Warning$(if ($warnCount -ne 1) { 's' })") }
+    
+    $badgeHtml = ''
+    if ($badges.Count -gt 0) {
+        $badgeText = "($($badges -join ', '))"
+        $badgeHtml = "<span style='color: #6b7280; font-size: 12px; font-weight: bold; font-style: normal; letter-spacing: normal;'>$badgeText</span>"
+    }
+
     $sectionHtml = ''
     if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $sectionHtml += "<tr><td colspan='2' style='text-align:center; font-weight:bold; font-style:italic; letter-spacing: 5px; padding: 6px;'>$Title</td></tr>"
+        # 2. Modern Web Layout: Using Flexbox to perfectly center the title and right-align the badge!
+        $sectionHtml += @"
+<tr>
+    <td colspan='3' style='padding: 8px 15px;'>
+        <div style='display: flex; justify-content: space-between; align-items: center;'>
+            <div style='flex: 1;'></div> <div style='text-align: center; font-weight: bold; font-style: italic; letter-spacing: 5px; white-space: nowrap; color: $($Script:Theme.TextMain);'>$Title</div>
+            <div style='flex: 1; text-align: right;'>$badgeHtml</div>
+        </div>
+    </td>
+</tr>
+"@
     }
 
     foreach ($check in $Checks) {
         
-        # 1. Calculate Theme & Symbol based on Type
+        # 3. Calculate Theme, Symbol, and ROW BADGE based on Type
         if ($check.Type -eq 'FatalError') {
-            $bgColor = $Script:Theme.StatusError
-            $symbol = '✖'
+            $bgColor  = $Script:Theme.StatusError
+            $symbol   = '✖'
             $symColor = '#dc2626' # Bold Red
+            $rowBadge = 'ERROR'
         }
         elseif ($check.Type -eq 'Warning') {
-            $bgColor = $Script:Theme.StatusWarning
-            $symbol = '⚠'
+            $bgColor  = $Script:Theme.StatusWarning
+            $symbol   = '⚠'
             $symColor = '#ea580c' # Bold Orange
+            $rowBadge = 'WARNING'
         }
         else {
-            $bgColor = $Script:Theme.StatusSkipped
-            $symbol = '⊘'
+            $bgColor  = $Script:Theme.StatusSkipped
+            $symbol   = '⊘'
             $symColor = '#6b7280' # Bold Grey
+            $rowBadge = 'INFO'
         }
 
-        # 2. Add the Value string if it exists
+        # 4. Add the Value string if it exists
         $descText = $check.Description
         # if (-not [string]::IsNullOrWhiteSpace($check.Value)) {
         #     $descText += "<br><span style='font-size: 0.9em; color: $($Script:Theme.TextMuted); margin-top: 4px; display: inline-block;'>$($check.Value)</span>"
         # }
 
-        # 3. Restore the clickable JSON link!
+        # 5. Restore the clickable JSON link!
         $nameDisplay = $check.Name
         if (-not [string]::IsNullOrWhiteSpace($check.JsonFileName)) {
             $nameDisplay = "<a href='$($check.JsonFileName)' style='color: $($Script:Theme.LinkColor); text-decoration: underline;'>$($check.Name)</a>"
         }
 
-        # 4. Build the styled row HTML
+        # 6. Build the styled row HTML with the 3rd Badge Column
         $sectionHtml += @"
 <tr style='background-color: $bgColor; border-bottom: 1px solid $($Script:Theme.BorderLight);'>
-    <td style='padding: 10px 12px; font-weight: 600; width: 1%; white-space: nowrap; padding-right: 40px; vertical-align: top; color: $($Script:Theme.TextMain);'>
+    <td style='padding: 10px 12px; font-weight: 600; width: 1%; white-space: nowrap; padding-right: 40px; vertical-align: middle; color: $($Script:Theme.TextMain);'>
         <span style='color: $symColor; margin-right: 6px; font-weight: bold;'>$symbol</span>$nameDisplay
     </td>
-    <td style='padding: 10px 12px; vertical-align: top; color: $($Script:Theme.TextMain);'>
+    <td style='padding: 10px 12px; vertical-align: middle; color: $($Script:Theme.TextMain);'>
         $descText
+    </td>
+    <td style='padding: 10px 15px 10px 12px; font-weight: 700; font-size: 12px; text-align: right; vertical-align: middle; width: 80px; color: $symColor;'>
+        $rowBadge
     </td>
 </tr>
 "@

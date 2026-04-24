@@ -113,7 +113,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"
         }
-    } -Skip
+    } #-Skip
 
     # ------------------------------------------------------------------
     # 3. Disabled Matrices
