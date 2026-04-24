@@ -61,7 +61,7 @@ function Import-MatrixFileHC {
                 }
             )
 
-            return $fileResult
+            return
         }
 
         $fileResult.Sheets.Settings.Formatted = $fileResult.Sheets.Settings.Raw | Format-SettingStringsHC
