@@ -160,7 +160,7 @@ function New-HtmlSectionHC {
         # 4. Build the styled row HTML
         $sectionHtml += @"
 <tr style='background-color: $bgColor; border-bottom: 1px solid $($Script:Theme.BorderLight);'>
-    <td style='padding: 10px 12px; font-weight: 600; width: 35%; vertical-align: top; color: $($Script:Theme.TextMain);'>
+    <td style='padding: 10px 12px; font-weight: 600; width: 1%; white-space: nowrap; padding-right: 40px; vertical-align: top; color: $($Script:Theme.TextMain);'>
         <span style='color: $symColor; margin-right: 6px; font-weight: bold;'>$symbol</span>$nameDisplay
     </td>
     <td style='padding: 10px 12px; vertical-align: top; color: $($Script:Theme.TextMain);'>
@@ -451,11 +451,11 @@ $fileSections
         $settingsSections = @"
 <table style="width: 100%; background-color: $($Script:Theme.StatusSkipped); border: 1px solid $($Script:Theme.BorderLight); border-radius: 6px; border-collapse: separate; border-spacing: 0;">
     <tr>
-        <td style="padding: 12px 15px; font-weight: 600; color: $($Script:Theme.TextMain); width: 30%;">
+        <td style="padding: 12px 15px; font-weight: 600; color: $($Script:Theme.TextMain); width: 1%; white-space: nowrap; padding-right: 40px;">
             <span style="margin-right: 8px; font-weight: bold; color: #6b7280;">⊘</span>Execution Skipped
         </td>
-        <td style="padding: 12px 15px; color: $($Script:Theme.TextMuted); font-style: italic; text-align: right;">
-            No settings matrices were imported from this file.
+        <td style="padding: 12px 15px; color: $($Script:Theme.TextMuted); font-style: italic; text-align: left;">
+            No settings rows were imported from this file.
         </td>
     </tr>
 </table>
