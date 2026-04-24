@@ -109,20 +109,11 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
-            
-            <# 
-            start (ls $TestInput.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName[0]
-
-            Import-Excel (ls $TestInput.Matrix.FolderPath).FullName -Sheet 'Permissions' -NoHeader
-            
-            Import-Excel (ls $TestInput.Matrix.FolderPath).FullName -Sheet 'Settings' -NoHeader 
-            #>
-
             Assert-HtmlLogContainsPatternHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"
         }
-    } -Tag test
+    }
 
     # ------------------------------------------------------------------
     # 3. Disabled Matrices
@@ -148,7 +139,7 @@ Describe 'Matrix Logic Tests' {
             (Get-Content $htmlFile.FullName -Raw) |
             Should -Match "Processed $ExpectedCount enabled matrix"
         }
-    }
+    } -Tag test
 
     # ------------------------------------------------------------------
     # 4. Duplicate combinations
