@@ -118,16 +118,59 @@ function New-HtmlCheckRowHC {
 function New-HtmlSectionHC {
     param(
         [string]$Title,
-        [object]$Checks
+        [array]$Checks
     )
+    
+    $sectionHtml = ''
+    if (-not [string]::IsNullOrWhiteSpace($Title)) {
+        $sectionHtml += "<tr><td colspan='2' style='text-align:center; font-weight:bold; font-style:italic; letter-spacing: 5px; padding: 6px;'>$Title</td></tr>"
+    }
 
-    if (-not $Checks) { return '' }
+    foreach ($check in $Checks) {
+        
+        # 1. Calculate Theme & Symbol based on Type
+        if ($check.Type -eq 'FatalError') {
+            $bgColor = $Script:Theme.StatusError
+            $symbol = '✖'
+            $symColor = '#dc2626' # Bold Red
+        }
+        elseif ($check.Type -eq 'Warning') {
+            $bgColor = $Script:Theme.StatusWarning
+            $symbol = '⚠'
+            $symColor = '#ea580c' # Bold Orange
+        }
+        else {
+            $bgColor = $Script:Theme.StatusSkipped
+            $symbol = '⊘'
+            $symColor = '#6b7280' # Bold Grey
+        }
 
-    $rows = $Checks |
-    ConvertTo-StructuredObjectHC |
-    ForEach-Object { New-HtmlCheckRowHC $_ }
+        # 2. Add the Value string if it exists
+        $descText = $check.Description
+        # if (-not [string]::IsNullOrWhiteSpace($check.Value)) {
+        #     $descText += "<br><span style='font-size: 0.9em; color: $($Script:Theme.TextMuted); margin-top: 4px; display: inline-block;'>$($check.Value)</span>"
+        # }
 
-    "<tr><th class='matrixHeader' colspan='8'>$Title</th></tr>$($rows -join '')"
+        # 3. Restore the clickable JSON link!
+        $nameDisplay = $check.Name
+        if (-not [string]::IsNullOrWhiteSpace($check.JsonFileName)) {
+            $nameDisplay = "<a href='$($check.JsonFileName)' style='color: $($Script:Theme.LinkColor); text-decoration: underline;'>$($check.Name)</a>"
+        }
+
+        # 4. Build the styled row HTML
+        $sectionHtml += @"
+<tr style='background-color: $bgColor; border-bottom: 1px solid $($Script:Theme.BorderLight);'>
+    <td style='padding: 10px 12px; font-weight: 600; width: 35%; vertical-align: top; color: $($Script:Theme.TextMain);'>
+        <span style='color: $symColor; margin-right: 6px; font-weight: bold;'>$symbol</span>$nameDisplay
+    </td>
+    <td style='padding: 10px 12px; vertical-align: top; color: $($Script:Theme.TextMain);'>
+        $descText
+    </td>
+</tr>
+"@
+    }
+    
+    return $sectionHtml
 }
 
 function New-SettingsCardHtmlHC {
@@ -405,7 +448,18 @@ $fileSections
         }
     }
     else {
-        $settingsSections = "<p style='font-style: italic; color: #6b7280;'>No settings matrices were imported from this file, so no execution details are available.</p>"
+        $settingsSections = @"
+<table style="width: 100%; background-color: $($Script:Theme.StatusSkipped); border: 1px solid $($Script:Theme.BorderLight); border-radius: 6px; border-collapse: separate; border-spacing: 0;">
+    <tr>
+        <td style="padding: 12px 15px; font-weight: 600; color: $($Script:Theme.TextMain); width: 30%;">
+            <span style="margin-right: 8px; font-weight: bold; color: #6b7280;">⊘</span>Execution Skipped
+        </td>
+        <td style="padding: 12px 15px; color: $($Script:Theme.TextMuted); font-style: italic; text-align: right;">
+            No settings matrices were imported from this file.
+        </td>
+    </tr>
+</table>
+"@
     }
 
     $htmlOut = @"

@@ -54,9 +54,9 @@ function Import-MatrixFileHC {
         if (-not $enabledSettings) {
             $fileResult.Check.Add(
                 [pscustomobject]@{
-                    Type        = 'Warning'
+                    Type        = 'FatalError'
                     Name        = 'No enabled matrix settings'
-                    Description = 'This matrix file does not contain any enabled matrix settings row and will be skipped.'
+                    Description = 'This matrix file does not contain any enabled matrix settings row and is skipped.'
                     Value       = "No Settings row with `Status = Enabled'"
                 }
             )
