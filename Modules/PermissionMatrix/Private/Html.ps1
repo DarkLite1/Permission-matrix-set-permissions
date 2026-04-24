@@ -121,18 +121,25 @@ function New-HtmlSectionHC {
         [array]$Checks
     )
     
-    # 1. Calculate Summary Badges (e.g., "1 Error, 2 Warnings")
+    # 1. Calculate Summary Badges to perfectly match the Settings cards
     $errCount = @($Checks | Where-Object Type -EQ 'FatalError').Count
     $warnCount = @($Checks | Where-Object Type -EQ 'Warning').Count
     
-    $badges = [System.Collections.Generic.List[string]]::new()
-    if ($errCount -gt 0) { $badges.Add("$errCount Error$(if ($errCount -ne 1) { 's' })") }
-    if ($warnCount -gt 0) { $badges.Add("$warnCount Warning$(if ($warnCount -ne 1) { 's' })") }
-    
+    $badgeText = ''
+    if ($errCount -gt 0) {
+        $errStr = "$errCount Error$(if ($errCount -ne 1) { 's' })"
+        $warnStr = if ($warnCount -gt 0) { ", $warnCount Warning$(if ($warnCount -ne 1) { 's' })" }
+        $badgeText = "Failed ($errStr$warnStr)"
+    }
+    elseif ($warnCount -gt 0) {
+        $warnStr = "$warnCount Warning$(if ($warnCount -ne 1) { 's' })"
+        $badgeText = "Warning ($warnStr)"
+    }
+
     $badgeHtml = ''
-    if ($badges.Count -gt 0) {
-        $badgeText = "($($badges -join ', '))"
-        $badgeHtml = "<span style='color: #6b7280; font-size: 12px; font-weight: bold; font-style: normal; letter-spacing: normal;'>$badgeText</span>"
+    if (-not [string]::IsNullOrWhiteSpace($badgeText)) {
+        # Using the EXACT CSS from your Settings Card's "HeaderRight" property
+        $badgeHtml = "<span style='font-size: 13px; font-weight: 700; color: #111827;'>$badgeText</span>"
     }
 
     $sectionHtml = ''
@@ -190,7 +197,7 @@ function New-HtmlSectionHC {
     <td style='padding: 10px 12px; font-weight: 600; width: 1%; white-space: nowrap; padding-right: 40px; vertical-align: middle; color: $($Script:Theme.TextMain);'>
         <span style='color: $symColor; margin-right: 6px; font-weight: bold;'>$symbol</span>$nameDisplay
     </td>
-    <td style='padding: 10px 12px; vertical-align: middle; color: $($Script:Theme.TextMain);'>
+    <td style='padding: 10px 12px; vertical-align: top; color: $($Script:Theme.TextMain);'>
         $descText
     </td>
     <td style='padding: 10px 15px 10px 12px; font-weight: 700; font-size: 12px; text-align: right; vertical-align: middle; width: 80px; color: $symColor;'>
