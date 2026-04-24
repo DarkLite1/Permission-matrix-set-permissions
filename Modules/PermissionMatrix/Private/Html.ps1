@@ -332,7 +332,7 @@ function New-SettingsCardHtmlHC {
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][object]$FileContext,
+        [Parameter(Mandatory)][object]$FileResult,
         [Parameter(Mandatory)][hashtable]$Html,
         [Parameter(Mandatory)][string]$LogFolder
     )
@@ -341,26 +341,26 @@ function Write-MatrixExecutionReportHC {
         return $null 
     }
 
-    $modBy = [System.Net.WebUtility]::HtmlEncode($FileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
+    $modBy = [System.Net.WebUtility]::HtmlEncode($FileResult.ExcelInfo.LastModifiedBy ?? 'Unknown')
 
-    $modDt = if ($FileContext.ExcelInfo.Modified -is [datetime]) {
-        $FileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
+    $modDt = if ($FileResult.ExcelInfo.Modified -is [datetime]) {
+        $FileResult.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { 'Unknown' }
 
     $fileSections = @(
-        if ($FileContext.Check) {
-            New-HtmlSectionHC 'Excel File' $FileContext.Check
+        if ($FileResult.Check) {
+            New-HtmlSectionHC 'Excel File' $FileResult.Check
         }
         
         # 2. FormData Details (If you are still checking it)
-        if ($FileContext.Sheets.FormData.Check) {
-            New-HtmlSectionHC 'FormData Sheet' $FileContext.Sheets.FormData.Check
+        if ($FileResult.Sheets.FormData.Check) {
+            New-HtmlSectionHC 'FormData Sheet' $FileResult.Sheets.FormData.Check
         }
         
         # 3. Permissions Details
-        if ($FileContext.Sheets.Permissions.Check) {
-            New-HtmlSectionHC 'Permissions Sheet' $FileContext.Sheets.Permissions.Check
+        if ($FileResult.Sheets.Permissions.Check) {
+            New-HtmlSectionHC 'Permissions Sheet' $FileResult.Sheets.Permissions.Check
         }
     ) -join ''
 
@@ -384,18 +384,18 @@ $fileSections
     }
 
     $fileHasFatalError = @(
-        $FileContext.Check
-        $FileContext.Sheets.Permissions.Check
+        $FileResult.Check
+        $FileResult.Sheets.Permissions.Check
     ).Where({ $_.Type -eq 'FatalError' }).Count -gt 0
 
 
     $settingsSections = ''
 
-    if ($FileContext.Matrices) {
+    if ($FileResult.Matrices) {
         foreach (
             $matrix in 
             (
-                $FileContext.Matrices | 
+                $FileResult.Matrices | 
                 Sort-Object { $_.Setting.Raw.ComputerName }, { $_.Setting.Raw.Path }, { $_.ID }
             )
         ) {
@@ -415,7 +415,7 @@ $($Html.Style)
 $($Html.TroubleshootingStyle)
 </head><body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #111827;">
 <h1 style="margin-bottom: 5px;">Execution & Troubleshooting Report</h1>
-<h2 style="margin-top: 5px; color: #374151;">File: $($FileContext.Item.Name)</h2>
+<h2 style="margin-top: 5px; color: #374151;">File: $($FileResult.Item.Name)</h2>
 <p class="matrixFileInfo" style="text-align:left; margin-top:5px; margin-bottom:25px; color: #6b7280; font-style: italic;">
     Last change: $modBy @ $modDt
 </p>

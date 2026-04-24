@@ -207,7 +207,7 @@ function Invoke-PermissionMatrixEndHC {
                     #endregion
 
                     Write-MatrixExecutionReportHC `
-                        -FileContext $fileResult `
+                        -FileResult $fileResult `
                         -Html $htmlTemplates `
                         -LogFolder $fileLogFolder.FullName
                 }
