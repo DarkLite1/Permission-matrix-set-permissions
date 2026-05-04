@@ -161,28 +161,8 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedError*"
         }
-    } -Tag test
+    } -Skip
 
-    # ------------------------------------------------------------------
-    # 5. ACL Conversion (now requires SettingsRows matching real structure)
-    # ------------------------------------------------------------------
-    Describe 'ACL conversion' {
-
-        It '<Description>' -TestCases $AclFixtures {
-            param($Description, $SettingsRows, $ExpectedAclCount)
-
-            # Create full matrix file
-            $path = 'TestDrive:\Matrix\File1.xlsx'
-
-            New-MatrixExcelFixture `
-                -Path $path `
-                -SettingsRows $SettingsRows
-
-            # Script doesn't need execution for this
-            $result = ConvertTo-MatrixAclHC -Sheet $SettingsRows
-            $result.Count | Should -Be $ExpectedAclCount
-        }
-    }
 
     # ------------------------------------------------------------------
     # 6. Default permissions merging

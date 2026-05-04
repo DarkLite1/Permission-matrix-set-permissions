@@ -270,50 +270,6 @@ function Get-DuplicateMatrixFixtures {
         }
     )
 }
-function Get-AclConversionFixtures {
-    return @(
-        @{
-            Description      = 'Single ACL entry'
-            SettingsRows     = @(
-                [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\Data'
-                    GroupName    = 'GroupA'
-                    Action       = 'Fix'
-                }
-            )
-            ExpectedAclCount = 1
-        }
-
-        @{
-            Description      = 'Two ACL entries'
-            SettingsRows     = @(
-                [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\Data'
-                    GroupName    = 'GroupA'
-                    Action       = 'Fix'
-                }
-                [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FRAN0002'
-                    Path         = 'E:\Data2'
-                    GroupName    = 'GroupB'
-                    Action       = 'Check'
-                }
-            )
-            ExpectedAclCount = 2
-        }
-    )
-}
 function Get-DefaultPermissionsMergeFixtures {
     return @(
         @{

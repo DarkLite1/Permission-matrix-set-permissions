@@ -198,12 +198,14 @@ function Invoke-PermissionMatrixBeginHC {
                     }
                 }
                 
-                $fileResult.Check.Add([pscustomobject]@{
+                $fileResult.Check.Add(
+                    [pscustomobject]@{
                         Type        = 'FatalError'
                         Name        = 'Runspace processing failed'
                         Description = 'An unexpected terminating error occurred during I/O or Validation.'
                         Value       = $_
-                    })
+                    }
+                )
             }
             finally {
                 #region Archive file
