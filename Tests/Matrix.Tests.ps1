@@ -95,7 +95,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
-    } -Skip
+    } -Tag test #-Skip
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -162,10 +162,6 @@ Describe 'Matrix Logic Tests' {
         }
     } -Skip
 
-
-    # ------------------------------------------------------------------
-    # 6. Default permissions merging
-    # ------------------------------------------------------------------
     Describe 'Default permissions merging' {
 
         It '<Description>' -TestCases $DefaultMergeFixtures {

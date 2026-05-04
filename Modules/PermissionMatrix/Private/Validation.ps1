@@ -331,6 +331,31 @@ function Test-MatrixSettingRowHC {
             })
     } 
     
+    $applyDefaults = $SettingRow.ApplyDefaultPermissions
+    if ([string]::IsNullOrWhiteSpace($applyDefaults)) {
+        $checks.Add(
+            [pscustomobject]@{
+                Type        = 'FatalError'
+                Name        = 'Missing ApplyDefaultPermissions'
+                Description = "The column 'ApplyDefaultPermissions' cannot be empty."
+                Value       = $null
+            }
+        )
+    }
+    else {
+        # Safely test if the value can be evaluated as a true/false boolean
+        $parsedBool = $false
+        if (-not [bool]::TryParse($applyDefaults.ToString(), [ref]$parsedBool)) {
+            $checks.Add(
+                [pscustomobject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Invalid ApplyDefaultPermissions'
+                    Description = "The column 'ApplyDefaultPermissions' must be a valid boolean (True or False)."
+                    Value       = "Found: '$applyDefaults'"
+                }
+            )
+        }
+    }
 
     return $checks
 }
@@ -362,7 +387,6 @@ function Test-ExpandedMatrixHC {
     param(
         [Parameter(Mandatory)][array]$Matrix,
         [Parameter(Mandatory)]       $ADObject,
-        [Parameter(Mandatory)]       $DefaultAcl,
         [Parameter(Mandatory)][string[]]$ExcludedSamAccountName
     )
 

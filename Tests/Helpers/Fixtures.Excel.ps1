@@ -121,13 +121,14 @@ function New-MatrixSettingsFixtureRows {
         'MissingAction' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = 'BEL ROL-AGS-SAGREV'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = 'BEL ROL-AGS-SAGREV'
                     # Action    = 'Check'
+                    ApplyDefaultPermissions = $false
                 }
             )
         }
@@ -135,13 +136,14 @@ function New-MatrixSettingsFixtureRows {
         'InvalidAction' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = 'BEL ROL-AGS-SAGREV'
-                    Action       = 'INVALID'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = 'BEL ROL-AGS-SAGREV'
+                    Action                  = 'INVALID'
+                    ApplyDefaultPermissions = $false
                 }
             )
         }
@@ -149,13 +151,14 @@ function New-MatrixSettingsFixtureRows {
         'MissingComputerName' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = $null
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = 'BEL ROL-AGS-SAGREV'
-                    Action       = 'Fix'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = $null
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = 'BEL ROL-AGS-SAGREV'
+                    Action                  = 'Fix'
+                    ApplyDefaultPermissions = $true
                 }
             )
         }
@@ -163,13 +166,15 @@ function New-MatrixSettingsFixtureRows {
         'MissingGroupName' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = $null
-                    Action       = 'Fix'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = $null
+                    Action                  = 'Fix'
+                    ApplyDefaultPermissions = $true
+
                 }
             )
         }
@@ -177,13 +182,14 @@ function New-MatrixSettingsFixtureRows {
         'MissingSiteCode' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = $null
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
-                    GroupName    = $null
-                    Action       = 'Fix'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = $null
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = $null
+                    Action                  = 'Fix'
+                    ApplyDefaultPermissions = $true
                 }
             )
         }
@@ -191,18 +197,19 @@ function New-MatrixSettingsFixtureRows {
         'MissingPath' {
             return @(
                 [pscustomobject]@{
-                    Status       = 'Enabled'
-                    SiteName     = 'HQ South'
-                    SiteCode     = 'CS&L'
-                    ComputerName = 'BEL$FFRAN0001'
-                    Path         = $null
-                    GroupName    = 'BEL ROL-AGS-SAGREV'
-                    Action       = 'Fix'
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = $null
+                    GroupName               = 'BEL ROL-AGS-SAGREV'
+                    Action                  = 'Fix'
+                    ApplyDefaultPermissions = $true
                 }
             )
         }
 
-        'Valid' {
+        'MissingApplyDefaultPermissions' {
             return @(
                 [pscustomobject]@{
                     Status       = 'Enabled'
@@ -212,6 +219,22 @@ function New-MatrixSettingsFixtureRows {
                     Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
                     GroupName    = 'BEL ROL-AGS-SAGREV'
                     Action       = 'Fix'
+                    # ApplyDefaultPermissions = $true
+                }
+            )
+        }
+
+        'Valid' {
+            return @(
+                [pscustomobject]@{
+                    Status                  = 'Enabled'
+                    SiteName                = 'HQ South'
+                    SiteCode                = 'CS&L'
+                    ComputerName            = 'BEL$FFRAN0001'
+                    Path                    = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                    GroupName               = 'BEL ROL-AGS-SAGREV'
+                    Action                  = 'Fix'
+                    ApplyDefaultPermissions = $false
                 }
             )
         }

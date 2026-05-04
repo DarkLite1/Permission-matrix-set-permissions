@@ -296,10 +296,15 @@ function Invoke-PermissionMatrixBeginHC {
                 foreach ($S in $matrixObj.Settings) {
                     if (-not $S.Matrix) { continue }
 
+                    if ($Context.Defaults.DefaultAcl) {
+                        $S.Matrix.ACL = Merge-DefaultPermissionsHC `
+                            -Defaults $Context.Defaults.DefaultAcl `
+                            -Matrix $S.Matrix.ACL
+                    }
+
                     $expandedCheck = Test-ExpandedMatrixHC `
                         -Matrix $S.Matrix `
                         -ADObject $adObjectDetails `
-                        -DefaultAcl $Context.Defaults.DefaultAcl `
                         -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
                     if ($expandedCheck) {
