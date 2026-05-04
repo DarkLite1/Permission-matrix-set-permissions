@@ -76,10 +76,9 @@ function Assert-HtmlLogContainsPatternHC {
     param(
         [Parameter(Mandatory)]
         [string]$LogFolderPath,
-
         [Parameter(Mandatory)]
         [string]$Pattern,
-
+        [string]$FileMatch,
         [switch]$Not
     )
 
@@ -87,11 +86,12 @@ function Assert-HtmlLogContainsPatternHC {
     $latestRunFolder | Should -Not -BeNullOrEmpty -Because "A log folder should have been created in '$LogFolderPath'"
 
     $htmlFiles = Get-ChildItem -Path $latestRunFolder -Recurse -Filter '*.html'
-    $htmlFiles.Count | Should -BeGreaterThan 0 -Because 'At least one HTML log file should have been generated'
-
-    if ($htmlFiles.Count -eq 0) {
-        throw "Assert-HtmlLogContainsPatternHC: No HTML log file found in '$LogFolderPath'."
+    
+    if (-not [string]::IsNullOrWhiteSpace($FileMatch)) {
+        $htmlFiles = $htmlFiles | Where-Object { $_.FullName -match $FileMatch }
     }
+
+    $htmlFiles.Count | Should -BeGreaterThan 0 -Because 'At least one HTML log file should have been generated'
 
     $foundMatch = $false
 

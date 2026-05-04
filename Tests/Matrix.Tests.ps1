@@ -130,17 +130,20 @@ Describe 'Matrix Logic Tests' {
 
             & $TestScript @TestParams
 
-            if ($Expected) {
-                Assert-HtmlLogContainsPatternHC `
-                    -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                    -Pattern "*$Expected*"
-            }
+            foreach ($assert in $Assertions) {
+                $assertParams = @{
+                    LogFolderPath = $TestInput.Settings.SaveLogFiles.Where.Folder
+                    Pattern       = $assert.Pattern
+                }
+                
+                if ($assert.FileMatch) { 
+                    $assertParams.FileMatch = $assert.FileMatch
+                }
+                if ($assert.Not) { 
+                    $assertParams.Not = $true 
+                }
 
-            if ($NotExpected) {
-                Assert-HtmlLogContainsPatternHC `
-                    -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                    -Pattern "*$NotExpected*" `
-                    -Not
+                Assert-HtmlLogContainsPatternHC @assertParams
             }
         }
     } -Tag test

@@ -208,6 +208,8 @@ function Invoke-PermissionMatrixEndHC {
 
                     <# 
                     start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file | select -First 1).FullName
+
+                    (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | ForEach-Object {start $_}
                     #>
 
                     Write-MatrixExecutionReportHC `
