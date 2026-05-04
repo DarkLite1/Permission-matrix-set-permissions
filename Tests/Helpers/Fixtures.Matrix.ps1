@@ -258,7 +258,7 @@ function Get-DuplicateMatrixFixtures {
                         SiteName     = 'HQ South'
                         SiteCode     = 'CS&L'
                         ComputerName = 'BEL$FFRAN0001'   # DUPLICATE
-                        Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L'
+                        Path         = 'E:\DEPARTMENTS\Sagrev\GROUPS\C&S&L' # DUPLICATE
                         GroupName    = 'BEL ROL-AGS-SAGREV'
                         Action       = 'Check'
                     }
@@ -266,7 +266,7 @@ function Get-DuplicateMatrixFixtures {
 
                 New-MatrixExcelFixture -Path $path -SettingsRows $settings
             }
-            ExpectedError  = 'Duplicate.*ComputerName.*Path'
+            ExpectedError  = 'Duplicate ComputerName/Path'
         }
     )
 }

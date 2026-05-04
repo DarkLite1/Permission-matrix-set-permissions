@@ -248,18 +248,23 @@ function Invoke-PermissionMatrixBeginHC {
         # =====================================================================
         
         #region Duplicate ComputerName/Path Validation
-        $duplicateSettings = $Context.AllMatrices.Settings | 
-        Group-Object -Property { $_.Import.ComputerName }, { $_.Import.Path } | 
+        $duplicateMatrices = $Context.AllMatrices | 
+        Group-Object -Property { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path } | 
         Where-Object Count -GE 2
 
-        foreach ($DupGroup in $duplicateSettings) {
-            foreach ($Setting in $DupGroup.Group) {
-                $Setting.Check += [PSCustomObject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Duplicate ComputerName/Path combination'
-                    Description = 'The combination must be unique across all active matrix files.'
-                    Value       = "Computer: $($Setting.Import.ComputerName), Path: $($Setting.Import.Path)"
-                }
+        foreach ($DupGroup in $duplicateMatrices) {
+            foreach ($MatrixObj in $DupGroup.Group) {
+                $conflictingFiles = ($DupGroup.Group | ForEach-Object { $_.FileContext.Item.Name }) | Select-Object -Unique
+                $fileListString = $conflictingFiles -join "', '"
+
+                $MatrixObj.Check.Add(
+                    [PSCustomObject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Duplicate ComputerName/Path'
+                        Description = "Multiple settings across the matrices have the same 'ComputerName' and 'Path' combination, which can lead to conflicts during permission application."
+                        Value       = "File '$fileListString', ComputerName '$($MatrixObj.Setting.Formatted.ComputerName)', Path '$($MatrixObj.Setting.Formatted.Path)'"
+                    }
+                )
             }
         }
         #endregion
