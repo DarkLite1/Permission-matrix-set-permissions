@@ -9,7 +9,6 @@ Describe 'Matrix Logic Tests' {
         $script:MatrixPermissionsFixtures = Get-MatrixPermissionsFixtures
         $script:DisabledMatrixFixtures = Get-DisabledMatrixFixtures
         $script:DuplicatePathFixtures = Get-DuplicateMatrixFixtures
-        $script:AclFixtures = Get-AclConversionFixtures
         $script:DefaultMergeFixtures = Get-DefaultPermissionsMergeFixtures
         $script:ADBuildFixtures = Get-AdObjectBuildFixtures
         $script:MatrixBuildFixtures = Get-MatrixBuildFixtures
