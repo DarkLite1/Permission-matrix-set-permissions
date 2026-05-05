@@ -135,11 +135,24 @@ function Plural {
     return "$Word`s"
 }
 
-function Test-HasFatalErrorsHC {
-    [CmdletBinding()]
-    param([ref]$SystemErrors)
+function Test-ItemHasFatalErrorHC {
+    <#
+    .SYNOPSIS
+        Checks if a localized validation list (like $MatrixObj.Check or 
+        $Setting.Check) contains any terminating FatalErrors.
+    #>
 
-    return $SystemErrors.Value.Type -contains 'FatalError'
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [array]$CheckList
+    )
+
+    if (-not $CheckList -or $CheckList.Count -eq 0) { 
+        return $false 
+    }
+
+    return ($CheckList.Type -contains 'FatalError')
 }
 
 function New-CounterObjectHC {

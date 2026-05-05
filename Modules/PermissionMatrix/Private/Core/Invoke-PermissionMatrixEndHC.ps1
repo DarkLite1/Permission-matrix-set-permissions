@@ -10,7 +10,7 @@ function Invoke-PermissionMatrixEndHC {
         -Context $Context `
         -SystemErrors $SystemErrors
 
-    $hasFatalErrors = Test-HasFatalErrorsHC $SystemErrors
+    $hasFatalErrors = Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value
     $htmlTemplates = Initialize-HtmlStructureHC
     $fullHtmlBody = ''
 

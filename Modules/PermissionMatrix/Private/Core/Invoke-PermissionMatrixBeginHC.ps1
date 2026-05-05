@@ -276,7 +276,9 @@ function Invoke-PermissionMatrixBeginHC {
             -Matrix $Context.Config.Matrix `
             -SystemErrors $SystemErrors
 
-        if (Test-HasFatalErrorsHC $SystemErrors) { return $Context }
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) { 
+            return $Context 
+        }
 
         $Context.Defaults = $defaults
         #endregion
@@ -293,8 +295,17 @@ function Invoke-PermissionMatrixBeginHC {
             
             # 3d. Combine AD info with matrix data (Expanded Matrix Validation)
             foreach ($matrixObj in $Context.AllMatrices) {
+                $isMatrixBroken = Test-ItemHasFatalErrorHC `
+                    -CheckList $matrixObj.Check
+
                 foreach ($S in $matrixObj.Settings) {
-                    if (-not $S.Matrix) { continue }
+                    if (
+                        (-not $S.Matrix) -or
+                        $isMatrixBroken -or 
+                        (Test-ItemHasFatalErrorHC -CheckList $S.Check)
+                    ) {
+                        continue
+                    }
 
                     if ($Context.Defaults.DefaultAcl) {
                         try {

@@ -69,13 +69,13 @@ Describe 'Utils.ps1 - Shared Utility Functions' {
     }
 
 
-    Context 'Test-HasFatalErrorsHC' {
+    Context 'Test-ItemHasFatalErrorHC' {
         It 'Detects FatalError in error list' {
             $errors = @(
                 @{ Type = 'Warning' },
                 @{ Type = 'FatalError' }
             )
-            Test-HasFatalErrorsHC -SystemErrors ([ref]$errors) | Should -BeTrue
+            Test-ItemHasFatalErrorHC -CheckList $errors | Should -BeTrue
         }
     }
 

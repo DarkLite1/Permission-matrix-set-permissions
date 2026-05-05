@@ -31,7 +31,7 @@ function Invoke-PermissionMatrix {
             -SystemErrors ([ref]$systemErrors)
         #endregion
 
-        $hasFatal = Test-HasFatalErrorsHC ([ref]$systemErrors)
+        $hasFatal = Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value
 
         #region Process matrix files
         if ($context -and $context.FoundMatrices -and -not $hasFatal) {
@@ -91,7 +91,7 @@ function Invoke-PermissionMatrix {
             }
         }
 
-        if (Test-HasFatalErrorsHC ([ref]$systemErrors)) {
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
             Write-Warning 'Exit script with error code 1'
             
             throw 'Permission Matrix execution completed with fatal errors.'
