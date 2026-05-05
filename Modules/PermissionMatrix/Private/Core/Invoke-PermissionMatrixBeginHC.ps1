@@ -372,7 +372,15 @@ function Invoke-PermissionMatrixBeginHC {
                     -SystemErrors $SystemErrors
             }
             
-            # 3c. Run Expanded Checks sequentially
+            # 3c. Build name → SID lookup for ACL key rewriting
+            $nameToSid = @{}
+            foreach ($detail in $adObjectDetails) {
+                if ($detail.adObject -and $detail.adObject.ObjectSid) {
+                    $nameToSid[$detail.SamAccountName] = $detail.adObject.ObjectSid
+                }
+            }
+
+            # 3d. Run Expanded Checks sequentially, then rewrite ACL keys to SIDs
             foreach ($matrixObj in $Context.AllMatrices) {
                 $isFileBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.FileContext.Check
@@ -383,15 +391,49 @@ function Invoke-PermissionMatrixBeginHC {
                     continue
                 }
 
-                $adObjectCheck = Test-ADObjectInMatrixHC `
+                $adObjectCheck = Test-AdObjectInMatrixHC `
                     -Matrix $matrixObj.Matrix `
-                    -ADObject $adObjectDetails `
+                    -ADObject $adObjectDetails
 
                 if ($adObjectCheck) {
                     $matrixObj.Check.AddRange(
                         [pscustomobject[]]@($adObjectCheck)
                     )
+                    # If validation flagged a fatal error, skip the SID rewrite for this matrix
+                    if (Test-ItemHasFatalErrorHC -CheckList $matrixObj.Check) {
+                        continue
+                    }
                 }
+
+                # Rewrite ACL keys from SamAccountName to SID. SIDs are domain-portable
+                # and unambiguous, which lets Set_permissions.ps1 skip the NTAccount lookup
+                # and correctly resolve principals from any trusted domain.
+                foreach ($folder in $matrixObj.Matrix) {
+                    if (-not $folder.ACL -or $folder.ACL.Count -eq 0) { continue }
+                    $newAcl = @{}
+                    foreach ($name in @($folder.ACL.Keys)) {
+                        $sid = $nameToSid[$name]
+                        if ($sid) {
+                            $newAcl[$sid] = $folder.ACL[$name]
+                        }
+                        # Names with no SID would have been caught by Test-AdObjectInMatrixHC
+                        # and the matrix skipped above, so this branch should be unreachable.
+                    }
+                    $folder.ACL = $newAcl
+                }
+            }
+
+            # 3e. Rewrite the Defaults ACL keys to SIDs as well, so the merge step in
+            #     ProcessHC inserts SIDs instead of names into matrix ACLs.
+            if ($Context.Defaults.DefaultAcl -and $Context.Defaults.DefaultAcl.Count -gt 0) {
+                $newDefaults = @{}
+                foreach ($name in @($Context.Defaults.DefaultAcl.Keys)) {
+                    $sid = $nameToSid[$name]
+                    if ($sid) {
+                        $newDefaults[$sid] = $Context.Defaults.DefaultAcl[$name]
+                    }
+                }
+                $Context.Defaults.DefaultAcl = $newDefaults
             }
         }
         #endregion

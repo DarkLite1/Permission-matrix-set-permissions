@@ -61,7 +61,17 @@ begin {
             [String]$Type
         )
 
-        $identity = "$env:USERDOMAIN\$Name"
+        # Accept either a SID string ("S-1-5-...") or a bare SamAccountName.
+        # SIDs come from the orchestrator's pre-resolved AD lookup and are
+        # domain-portable; bare names get the legacy local-domain prefix for
+        # backwards compatibility with any caller still passing SamAccountNames.
+        if ($Name -match '^S-\d-\d+(-\d+)+$') {
+            $identity = [System.Security.Principal.SecurityIdentifier]::new($Name)
+        }
+        else {
+            $identity = [System.Security.Principal.NTAccount]::new("$env:USERDOMAIN\$Name")
+        }
+
         $allow = [System.Security.AccessControl.AccessControlType]::Allow
         $rules = [System.Collections.Generic.List[System.Security.AccessControl.FileSystemAccessRule]]::new()
 

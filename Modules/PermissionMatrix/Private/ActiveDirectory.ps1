@@ -68,7 +68,7 @@ function Get-ADObjectDetailHC {
 
         $propertiesToLoad = @(
             'distinguishedname', 'samaccountname', 'manager',
-            'managedby', 'name', 'objectclass'
+            'managedby', 'name', 'objectclass', 'objectsid'
         )
 
         $searcher = $null
@@ -107,6 +107,13 @@ function Get-ADObjectDetailHC {
                 $adObject = [PSCustomObject]@{
                     DistinguishedName = if ($props['distinguishedname'].Count) { $props['distinguishedname'][0] } else { $null }
                     SamAccountName    = if ($props['samaccountname'].Count) { $props['samaccountname'][0] } else { $null }
+                    ObjectSid         = if ($props['objectsid'].Count) {
+                        # objectSid comes back as a byte[] from the searcher; convert to S-1-5-... string form
+                        [System.Security.Principal.SecurityIdentifier]::new(
+                            [byte[]]$props['objectsid'][0], 0
+                        ).Value
+                    }
+                    else { $null }
                     ManagedBy         = if ($props['manager'].Count) { $props['manager'][0] }
                     elseif ($props['managedby'].Count) { $props['managedby'][0] }
                     else { $null }
@@ -260,142 +267,4 @@ function Get-AdUserPrincipalNameHC {
             throw "Failed converting email address or SamAccountName to userPrincipalName: $_"
         }
     }
-}
-
-function Get-ADObjectDetailHC {
-    <#
-    .SYNOPSIS
-        Retrieve details about an AD object.
-
-    .DESCRIPTION
-        Retrieve details about an AD object. If the object is not found the
-        property 'adObject' is blank. If it is a group, the group members are
-        retrieved and stored in the property 'adGroupMember'.
-        This function natively supports down-level logons (DOMAIN\User) and UPNs.
-
-    .PARAMETER ADObjectName
-        Name of the user or group objects to search for.
-
-    .PARAMETER Type
-        The type of strings passed to ADObjectName.
-
-        Valid values are:
-        - DistinguishedName
-        - SamAccountName
-
-    .PARAMETER MaxThreads
-        Maximum concurrent AD requests.
-    #>
-
-    [CmdletBinding()]
-    [OutputType([PSCustomObject[]])]
-    param (
-        [Parameter(Mandatory)]
-        [String[]]$ADObjectName,
-        [Parameter(Mandatory)]
-        [ValidateSet('SamAccountName', 'DistinguishedName')]
-        [String]$Type,
-        [Int]$MaxThreads = 7
-    )
-
-    $ADObjectName = $ADObjectName | Sort-Object -Unique
-
-    $ADObjectName | ForEach-Object -ThrottleLimit $MaxThreads -Parallel {
-        $propertyType = $using:Type
-        $name = $_
-
-        # Ensure required assemblies are loaded in the parallel runspace
-        Add-Type -AssemblyName 'System.DirectoryServices.AccountManagement'
-        Add-Type -AssemblyName 'System.DirectoryServices'
-
-        try {
-            Write-Verbose "Get AD details for '$name'"
-
-            $adObject = $null
-            $adGroupMember = $null
-
-            $ctx = [System.DirectoryServices.AccountManagement.PrincipalContext]::new([System.DirectoryServices.AccountManagement.ContextType]::Domain)
-
-            # Search for the principal.
-            # If Type is DistinguishedName, enforce that type. 
-            # Otherwise, allow FindByIdentity to flexibly parse DOMAIN\User, User@Domain.com, or SamAccountName.
-            if ($propertyType -eq 'DistinguishedName') {
-                $principal = [System.DirectoryServices.AccountManagement.Principal]::FindByIdentity($ctx, [System.DirectoryServices.AccountManagement.IdentityType]::DistinguishedName, $name)
-            } 
-            else {
-                $principal = [System.DirectoryServices.AccountManagement.Principal]::FindByIdentity($ctx, $name)
-            }
-
-            if ($principal) {
-                $isGroup = $principal -is [System.DirectoryServices.AccountManagement.GroupPrincipal]
-
-                # Retrieve ManagedBy/Manager from the underlying DirectoryEntry
-                $de = $principal.GetUnderlyingObject() -as [System.DirectoryServices.DirectoryEntry]
-                $managedBy = $null
-                
-                if ($de) {
-                    if ($de.Properties.Contains('manager')) {
-                        $managedBy = $de.Properties['manager'][0]
-                    } 
-                    elseif ($de.Properties.Contains('managedby')) {
-                        $managedBy = $de.Properties['managedby'][0]
-                    }
-                }
-
-                $adObject = [PSCustomObject]@{
-                    DistinguishedName = $principal.DistinguishedName
-                    SamAccountName    = $principal.SamAccountName
-                    ManagedBy         = $managedBy
-                    Name              = $principal.Name
-                    ObjectClass       = if ($isGroup) { 'group' } else { 'user' }
-                }
-
-                if ($isGroup) {
-                    if ($adObject.Name -eq 'Domain Users') {
-                        $adGroupMember = @([PSCustomObject]@{
-                                objectClass       = 'user'
-                                Name              = 'All users'
-                                SamAccountName    = 'All users'
-                                DistinguishedName = $null
-                            })
-                    }
-                    else {
-                        $adGroupMember = foreach ($m in $principal.GetMembers($true)) {
-                            [PSCustomObject]@{
-                                objectClass       = $m.StructuralObjectClass
-                                Name              = $m.Name
-                                SamAccountName    = $m.SamAccountName
-                                DistinguishedName = $m.DistinguishedName
-                            }
-                        }
-                    }
-                }
-                $principal.Dispose()
-            }
-            $ctx.Dispose()
-
-            $returnObj = [PSCustomObject]@{
-                adObject      = $adObject
-                adGroupMember = $adGroupMember
-            }
-            $returnObj | Add-Member -MemberType NoteProperty -Name $propertyType -Value $name
-
-            return $returnObj
-        }
-        catch {
-            $M = $_
-            Write-Warning "Failed retrieving AD object details for '$name': $M"
-            
-            # Return the blank object so the orchestrator can continue processing other accounts safely
-            $returnObj = [PSCustomObject]@{
-                adObject      = $null
-                adGroupMember = $null
-            }
-            $returnObj | Add-Member -MemberType NoteProperty -Name $propertyType -Value $name
-
-            return $returnObj
-        }
-    }
-
-    Write-Verbose 'All AD object details retrieved'
 }
