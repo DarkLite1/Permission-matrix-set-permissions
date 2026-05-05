@@ -382,7 +382,7 @@ function Test-AdObjectsHC {
     return $checks
 }
 
-function Test-AdObjectInMatrix {
+function Test-AdObjectInMatrixHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$Matrix,
