@@ -284,7 +284,8 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         # 3c. One AD query for all objects combined
-        $allAdObjects = $Context.AllMatrices.Settings.Matrix.ACL.Keys | Sort-Object -Unique
+        $allAdObjects = $Context.AllMatrices.Settings.Matrix.ACL.Keys | 
+        Sort-Object -Unique
 
         if ($allAdObjects.Count -gt 0) {
             $adObjectDetails = @(
@@ -295,48 +296,50 @@ function Invoke-PermissionMatrixBeginHC {
             
             # 3d. Combine AD info with matrix data (Expanded Matrix Validation)
             foreach ($matrixObj in $Context.AllMatrices) {
-                $isMatrixBroken = Test-ItemHasFatalErrorHC `
+                $isFileBroken = Test-ItemHasFatalErrorHC `
+                    -CheckList $matrixObj.FileContext.Check
+                
+                $isRowBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.Check
 
-                foreach ($S in $matrixObj.Settings) {
-                    if (
-                        (-not $S.Matrix) -or
-                        $isMatrixBroken -or 
-                        (Test-ItemHasFatalErrorHC -CheckList $S.Check)
-                    ) {
-                        continue
-                    }
+                if ($isFileBroken -or $isRowBroken) {
+                    continue
+                }
 
-                    if ($Context.Defaults.DefaultAcl) {
-                        try {
-                            $applyDefaultPerms = [System.Convert]::ToBoolean($S.Setting.Formatted.ApplyDefaultPermissions ?? $false)
-                            
-                            $S.Matrix.ACL = Merge-DefaultPermissionsHC `
-                                -Defaults $Context.Defaults.DefaultAcl `
-                                -Matrix $S.Matrix.ACL `
-                                -ApplyDefaultPermissions $applyDefaultPerms
+                # ====================================================================
+                # WARNING: $matrixObj.Matrix is currently EMPTY here! 
+                # You must populate it by converting the Permissions sheet into ACLs
+                # using your ConvertTo-MatrixAclHC function before you can merge defaults!
+                # ====================================================================
+
+                if ($Context.Defaults.DefaultAcl) {
+                    try {
+                        $applyDefaultPerms = [System.Convert]::ToBoolean($matrixObj.Setting.Formatted.ApplyDefaultPermissions ?? $false)
+                        
+                        $matrixObj.Matrix = Merge-DefaultPermissionsHC `
+                            -Defaults $Context.Defaults.DefaultAcl `
+                            -Matrix $matrixObj.Matrix `
+                            -ApplyDefaultPermissions $applyDefaultPerms
+                    }
+                    catch {
+                        $matrixObj.Check += [PSCustomObject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Defaults Conflict'
+                            Description = 'When ApplyDefaultPermissions is enabled, the matrix cannot explicitly define AD Objects that are already managed by the defaults.'
+                            Value       = $_.Exception.Message
                         }
-                        catch {
-                            $S.Check += [PSCustomObject]@{
-                                Type        = 'FatalError'
-                                Name        = 'Defaults Conflict'
-                                Description = 'When ApplyDefaultPermissions is enabled, the matrix cannot explicitly define AD Objects that are already managed by the defaults.'
-                                Value       = $_.Exception.Message
-                            }
-                            
-                            continue 
-                        }
+                        continue 
                     }
+                }
 
-                    $expandedCheck = Test-ExpandedMatrixHC `
-                        -Matrix $S.Matrix `
-                        -ADObject $adObjectDetails `
-                        -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
+                $expandedCheck = Test-ExpandedMatrixHC `
+                    -Matrix $MatrixObj.Matrix `
+                    -ADObject $adObjectDetails `
+                    -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
-                    if ($expandedCheck) {
-                        $S.Check += $expandedCheck | 
-                        ConvertTo-StructuredObjectHC
-                    }
+                if ($expandedCheck) {
+                    $MatrixObj.Check += $expandedCheck | 
+                    ConvertTo-StructuredObjectHC
                 }
             }
         }

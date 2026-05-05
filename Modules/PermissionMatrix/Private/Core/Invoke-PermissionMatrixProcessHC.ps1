@@ -23,12 +23,14 @@ function Invoke-PermissionMatrixProcessHC {
         $executableSettings = @()
 
         foreach ($matrix in $Context.Matrices) {
-            if ($matrix.Check.Type -notcontains 'FatalError') {
-                $executableSettings += @(
-                    $matrix.Settings |
-                    Where-Object { $_.Check.Type -notcontains 'FatalError' }
-                )
+            if (Test-ItemHasFatalErrorHC -CheckList $matrix.Check) {
+                continue
             }
+            
+            $executableSettings += @(
+                $matrix.Settings |
+                Where-Object { $_.Check.Type -notcontains 'FatalError' }
+            )
         }
 
         if ($executableSettings.Count -eq 0) {

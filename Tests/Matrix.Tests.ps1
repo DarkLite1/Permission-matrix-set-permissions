@@ -96,7 +96,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
-    } #-Skip
+    } -Skip
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -113,7 +113,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"
         }
-    } #-Skip
+    } -Skip
 
     Describe 'Matrix: Disabled matrices' {
 
@@ -143,7 +143,7 @@ Describe 'Matrix Logic Tests' {
                 Assert-HtmlLogContainsPatternHC @assertParams
             }
         }
-    } #-Skip
+    } -Skip
 
     Describe 'Matrix: Duplicate combinations' {
 
@@ -193,7 +193,7 @@ Describe 'Matrix Logic Tests' {
                 }
             }
         }
-    } 
+    } -Skip
 
     # ------------------------------------------------------------------
     # 7. AD Object Build Logic
