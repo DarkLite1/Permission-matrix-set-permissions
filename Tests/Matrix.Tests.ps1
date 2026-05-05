@@ -24,6 +24,10 @@ Describe 'Matrix Logic Tests' {
         . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
         . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
 
+        . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
+
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Matrix.ps1"
+
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
         }
@@ -142,7 +146,7 @@ Describe 'Matrix Logic Tests' {
                 Assert-HtmlLogContainsPatternHC @assertParams
             }
         }
-    } -Tag test #-Skip
+    } -Skip
 
     Describe 'Matrix: Duplicate combinations' {
 
@@ -160,7 +164,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedError*"
         }
-    } #-Skip
+    } -Skip
 
     Describe 'Default permissions merging' {
 
@@ -192,7 +196,7 @@ Describe 'Matrix Logic Tests' {
                 }
             }
         }
-    } #-Skip
+    } -Tag test #-Skip
 
     # ------------------------------------------------------------------
     # 7. AD Object Build Logic

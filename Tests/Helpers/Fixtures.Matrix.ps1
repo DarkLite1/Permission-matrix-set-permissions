@@ -281,29 +281,26 @@ function Get-DefaultPermissionsMergeFixtures {
         @{
             Description             = 'ApplyDefaultPermissions=$false: Only Matrix is returned'
             ApplyDefaultPermissions = $false
-            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
-            MatrixRows              = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
-            ExpectedMerged          = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
+            DefaultsRows            = @{ 'IT_Staff' = 'R' }
+            MatrixRows              = @{ 'HR_Team' = 'M' }
+            ExpectedMerged          = @{ 'HR_Team' = 'M' }
             ExpectedError           = $null
         }
 
         @{
             Description             = 'ApplyDefaultPermissions=$true (No Conflict): Defaults are appended'
             ApplyDefaultPermissions = $true
-            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
-            MatrixRows              = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
-            ExpectedMerged          = @( 
-                [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' },
-                [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } 
-            )
+            DefaultsRows            = @{ 'IT_Staff' = 'R' }
+            MatrixRows              = @{ 'HR_Team' = 'M' }
+            ExpectedMerged          = @{ 'HR_Team' = 'M'; 'IT_Staff' = 'R' }
             ExpectedError           = $null
         }
 
         @{
             Description             = 'ApplyDefaultPermissions=$true (Conflict): Throws terminating error'
             ApplyDefaultPermissions = $true
-            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
-            MatrixRows              = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'F' } )
+            DefaultsRows            = @{ 'IT_Staff' = 'R' }
+            MatrixRows              = @{ 'IT_Staff' = 'F' }
             ExpectedMerged          = $null
             ExpectedError           = 'Defaults conflict detected.*IT_Staff'
         }
