@@ -386,8 +386,12 @@ function Test-ExpandedMatrixHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$Matrix,
-        [Parameter(Mandatory)]       $ADObject,
-        [Parameter(Mandatory)][string[]]$ExcludedSamAccountName
+
+        [Parameter(Mandatory)]$ADObject,
+
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [string[]]$ExcludedSamAccountName
     )
 
     $checks = @()

@@ -92,11 +92,25 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
+        #region Exit before reading defaults if there are no matrix files
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
-            return $Context # No files found, exit BEGIN gracefully
+            return $Context 
         }
+        #endregion
         
         $Context.FoundMatrices = $true
+
+        #region Read Defaults Excel file and validate (Placed here to save I/O)
+        $defaults = Import-MatrixDefaultsHC `
+            -Matrix $Context.Config.Matrix `
+            -SystemErrors $SystemErrors
+
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) { 
+            return $Context 
+        }
+
+        $Context.Defaults = $defaults
+        #endregion
 
         #region Setup Archive Folder
         $archivePath = $null
@@ -174,6 +188,9 @@ function Invoke-PermissionMatrixBeginHC {
 
 
                 if ($fileResult.Matrices) {
+                    $permSheet = $fileResult.Sheets.Permissions.Formatted
+                    $dataRows = if ($permSheet) { $permSheet | Select-Object -Skip 4 } else { @() }
+
                     foreach ($m in $fileResult.Matrices) {
                         $rowErrors = Test-MatrixSettingRowHC `
                             -SettingRow $m.Setting.Raw `
@@ -181,9 +198,52 @@ function Invoke-PermissionMatrixBeginHC {
                             -RequireSiteCode $reqSiteCode
 
                         if ($rowErrors) { 
-                            $m.Check.AddRange(
-                                [pscustomobject[]]@($rowErrors)
-                            ) 
+                            $m.Check.AddRange([pscustomobject[]]@($rowErrors)) 
+                        }
+
+                        $isFileBroken = Test-ItemHasFatalErrorHC `
+                            -CheckList $fileResult.Check
+                        $isRowBroken = Test-ItemHasFatalErrorHC `
+                            -CheckList $m.Check
+
+                        if (
+                            -not $isFileBroken -and 
+                            -not $isRowBroken -and
+                            $permSheet
+                        ) {
+                            # A. Extract and Map AD Objects
+                            $adMap = Get-MatrixADObjectsMapHC `
+                                -PermissionsSheet $permSheet `
+                                -SettingRow $m.Setting.Formatted
+
+                            # B. Build the Matrix ACLs
+                            $m.Matrix = ConvertTo-MatrixAclHC `
+                                -DataRows $dataRows `
+                                -AdObjectsMap $adMap
+
+                            # C. Merge Defaults per Folder
+                            if ($context.Defaults.DefaultAcl) {
+                                try {
+                                    $applyDefaultPerms = [System.Convert]::ToBoolean($m.Setting.Formatted.ApplyDefaultPermissions ?? $false)
+                                    
+                                    foreach ($folder in $m.Matrix) {
+                                        $folder.ACL = Merge-DefaultPermissionsHC `
+                                            -Defaults $context.Defaults.DefaultAcl `
+                                            -MatrixAcl $folder.ACL `
+                                            -ApplyDefaultPermissions $applyDefaultPerms
+                                    }
+                                }
+                                catch {
+                                    $m.Check.Add(
+                                        [PSCustomObject]@{
+                                            Type        = 'FatalError'
+                                            Name        = 'Defaults Conflict'
+                                            Description = 'When ApplyDefaultPermissions is enabled, the matrix cannot explicitly define AD Objects already managed by defaults.'
+                                            Value       = $_.Exception.Message
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -271,34 +331,39 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
-        #region Read Defaults Excel file and validate
-        $defaults = Import-MatrixDefaultsHC `
-            -Matrix $Context.Config.Matrix `
-            -SystemErrors $SystemErrors
+        #region AD Lookups & Expanded Matrix Checks
 
-        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) { 
-            return $Context 
+        # 3a. Gather ALL AD Objects from built matrices and defaults
+        $allAdObjects = [System.Collections.Generic.List[string]]::new()
+        
+        foreach ($matrixObj in $Context.AllMatrices) {
+            foreach ($folder in $matrixObj.Matrix) {
+                if ($folder.ACL) {
+                    $allAdObjects.AddRange([string[]]@($folder.ACL.Keys))
+                }
+            }
+        }
+        
+        if ($Context.Defaults.DefaultAcl) {
+            $allAdObjects.AddRange(
+                [string[]]@($Context.Defaults.DefaultAcl.Keys)
+            )
         }
 
-        $Context.Defaults = $defaults
-        #endregion
+        $uniqueAdObjects = $allAdObjects | Sort-Object -Unique
 
-        # 3c. One AD query for all objects combined
-        $allAdObjects = $Context.AllMatrices.Settings.Matrix.ACL.Keys | 
-        Sort-Object -Unique
-
-        if ($allAdObjects.Count -gt 0) {
+        # 3b. Perform single bulk AD Query
+        if ($uniqueAdObjects.Count -gt 0) {
             $adObjectDetails = @(
                 Get-ADObjectDetailHC `
-                    -ADObjectName $allAdObjects `
+                    -ADObjectName $uniqueAdObjects `
                     -Type 'SamAccountName'
             )
             
-            # 3d. Combine AD info with matrix data (Expanded Matrix Validation)
+            # 3c. Run Expanded Checks sequentially
             foreach ($matrixObj in $Context.AllMatrices) {
                 $isFileBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.FileContext.Check
-                
                 $isRowBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.Check
 
@@ -306,43 +371,19 @@ function Invoke-PermissionMatrixBeginHC {
                     continue
                 }
 
-                # ====================================================================
-                # WARNING: $matrixObj.Matrix is currently EMPTY here! 
-                # You must populate it by converting the Permissions sheet into ACLs
-                # using your ConvertTo-MatrixAclHC function before you can merge defaults!
-                # ====================================================================
-
-                if ($Context.Defaults.DefaultAcl) {
-                    try {
-                        $applyDefaultPerms = [System.Convert]::ToBoolean($matrixObj.Setting.Formatted.ApplyDefaultPermissions ?? $false)
-                        
-                        $matrixObj.Matrix = Merge-DefaultPermissionsHC `
-                            -Defaults $Context.Defaults.DefaultAcl `
-                            -Matrix $matrixObj.Matrix `
-                            -ApplyDefaultPermissions $applyDefaultPerms
-                    }
-                    catch {
-                        $matrixObj.Check += [PSCustomObject]@{
-                            Type        = 'FatalError'
-                            Name        = 'Defaults Conflict'
-                            Description = 'When ApplyDefaultPermissions is enabled, the matrix cannot explicitly define AD Objects that are already managed by the defaults.'
-                            Value       = $_.Exception.Message
-                        }
-                        continue 
-                    }
-                }
-
                 $expandedCheck = Test-ExpandedMatrixHC `
-                    -Matrix $MatrixObj.Matrix `
+                    -Matrix $matrixObj.Matrix `
                     -ADObject $adObjectDetails `
                     -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
                 if ($expandedCheck) {
-                    $MatrixObj.Check += $expandedCheck | 
-                    ConvertTo-StructuredObjectHC
+                    $matrixObj.Check.AddRange(
+                        [pscustomobject[]]@($expandedCheck)
+                    )
                 }
             }
         }
+        #endregion
 
         return $Context
     }

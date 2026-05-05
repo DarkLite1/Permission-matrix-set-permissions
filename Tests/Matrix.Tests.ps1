@@ -23,7 +23,6 @@ Describe 'Matrix Logic Tests' {
         . "$PSScriptRoot\Helpers\Fixtures.Json.ps1"
         . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
         . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Matrix\Merge-DefaultPermissionsHC.ps1"      
 
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
@@ -143,7 +142,7 @@ Describe 'Matrix Logic Tests' {
                 Assert-HtmlLogContainsPatternHC @assertParams
             }
         }
-    } -Skip
+    } -Tag test #-Skip
 
     Describe 'Matrix: Duplicate combinations' {
 
@@ -193,7 +192,7 @@ Describe 'Matrix Logic Tests' {
                 }
             }
         }
-    } -Skip
+    } #-Skip
 
     # ------------------------------------------------------------------
     # 7. AD Object Build Logic
@@ -206,7 +205,7 @@ Describe 'Matrix Logic Tests' {
             $hash = & $FixtureBuilder
             $hash.Keys.Count | Should -Be $Expected
         }
-    } -Tag test
+    }
 
     # ------------------------------------------------------------------
     # 8. Matrix building logic

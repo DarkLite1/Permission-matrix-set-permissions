@@ -128,53 +128,53 @@ function ConvertTo-MatrixADNamesHC {
     return $list | Where-Object { $_ } | Sort-Object -Unique
 }
 
-function ConvertTo-MatrixAclHC {
-    <#
-        Converts the permissions sheet (minus header rows) and AD objects
-        into a structured matrix of ACL assignments.
+# function ConvertTo-MatrixAclHC {
+#     <#
+#         Converts the permissions sheet (minus header rows) and AD objects
+#         into a structured matrix of ACL assignments.
 
-        Params:
-            -NonHeaderRows = rows after first 3
-            -ADObjects     = array of AD identifiers
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][array]$NonHeaderRows,
-        [Parameter(Mandatory)][array]$ADObjects
-    )
+#         Params:
+#             -NonHeaderRows = rows after first 3
+#             -ADObjects     = array of AD identifiers
+#     #>
+#     [CmdletBinding()]
+#     param(
+#         [Parameter(Mandatory)][array]$NonHeaderRows,
+#         [Parameter(Mandatory)][array]$ADObjects
+#     )
 
-    $matrix = @()
+#     $matrix = @()
 
-    foreach ($row in $NonHeaderRows) {
+#     foreach ($row in $NonHeaderRows) {
 
-        $path = $row.P1
-        if (-not $path) {
-            continue
-        }
+#         $path = $row.P1
+#         if (-not $path) {
+#             continue
+#         }
 
-        $entry = [ordered]@{
-            Path = $path
-            ACL  = @{}
-        }
+#         $entry = [ordered]@{
+#             Path = $path
+#             ACL  = @{}
+#         }
 
-        # For each AD object, assign the permission
-        for ($i = 0; $i -lt $ADObjects.Count; $i++) {
+#         # For each AD object, assign the permission
+#         for ($i = 0; $i -lt $ADObjects.Count; $i++) {
 
-            $colName = "P$($i+2)"   # Permissions columns start at P2
-            if ($row.PSObject.Properties[$colName]) {
-                $perm = $row.$colName
-                if ($perm -and $perm -ne 'I') {
-                    # Ignore == skip
-                    $entry.ACL[$ADObjects[$i]] = $perm
-                }
-            }
-        }
+#             $colName = "P$($i+2)"   # Permissions columns start at P2
+#             if ($row.PSObject.Properties[$colName]) {
+#                 $perm = $row.$colName
+#                 if ($perm -and $perm -ne 'I') {
+#                     # Ignore == skip
+#                     $entry.ACL[$ADObjects[$i]] = $perm
+#                 }
+#             }
+#         }
 
-        $matrix += [pscustomobject]$entry
-    }
+#         $matrix += [pscustomobject]$entry
+#     }
 
-    return $matrix
-}
+#     return $matrix
+# }
 
 function Get-DefaultAclHC {
     <#
@@ -204,4 +204,103 @@ function Get-DefaultAclHC {
     }
 
     return $acl
+}
+
+function Get-MatrixADObjectsMapHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][array]$PermissionsSheet,
+        [Parameter(Mandatory)][object]$SettingRow
+    )
+
+    $headerRows = $PermissionsSheet | Select-Object -First 3
+    $adObjectsMap = [ordered]@{}
+    
+    $colIndex = 2
+    while ($true) {
+        $colName = "P$colIndex"
+        if (-not $headerRows[0].PSObject.Properties.Match($colName).Count) { 
+            break 
+        }
+        
+        # Scan down the 3 header rows for the name
+        $adName = $null
+        foreach ($h in $headerRows) {
+            if (-not [string]::IsNullOrWhiteSpace($h.$colName)) { 
+                $adName = $h.$colName 
+                break 
+            }
+        }
+        
+        # Resolve placeholders
+        if ($adName -eq 'GroupName') { $adName = $SettingRow.GroupName }
+        if ($adName -eq 'SiteCode') { $adName = $SettingRow.SiteCode }
+        
+        if ($adName) { 
+            $adObjectsMap[$colName] = $adName 
+        }
+        $colIndex++
+    }
+
+    return $adObjectsMap
+}
+
+function ConvertTo-MatrixAclHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][array]$DataRows,
+        [Parameter(Mandatory)][hashtable]$AdObjectsMap
+    )
+
+    $matrix = [System.Collections.Generic.List[pscustomobject]]::new()
+
+    foreach ($row in $DataRows) {
+        if (-not $row.P1) { continue }
+
+        $acl = @{}
+        foreach ($colName in $AdObjectsMap.Keys) {
+            $perm = $row.$colName
+            if ($perm -and $perm -ne 'I') {
+                # Map the permission to the resolved AD Object name
+                $acl[$AdObjectsMap[$colName]] = $perm
+            }
+        }
+
+        $matrix.Add(
+            [pscustomobject]@{
+                Path = $row.P1
+                ACL  = $acl
+            }
+        )
+    }
+
+    return $matrix.ToArray()
+}
+
+function Merge-DefaultPermissionsHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][hashtable]$Defaults,
+        [Parameter(Mandatory)][hashtable]$MatrixAcl,
+        [Parameter(Mandatory)][bool]$ApplyDefaultPermissions
+    )
+
+    # Note: .Clone() ensures we don't accidentally link objects in memory
+    if (-not $ApplyDefaultPermissions) {
+        return $MatrixAcl.Clone()
+    }
+
+    # Check for conflicts where the same key exists in both hashtables
+    $conflicts = $Defaults.Keys | Where-Object { $MatrixAcl.ContainsKey($_) }
+    if ($conflicts) {
+        throw "Defaults conflict detected. The following AD Objects are defined in both the Matrix and Defaults: $($conflicts -join ', ')"
+    }
+
+    # No conflicts, safely merge defaults into the Matrix ACL
+    $mergedAcl = $MatrixAcl.Clone()
+    foreach ($key in $Defaults.Keys) {
+        $mergedAcl[$key] = $Defaults[$key]
+    }
+
+    return $mergedAcl
 }
