@@ -196,20 +196,26 @@ Describe 'Matrix Logic Tests' {
                 }
             }
         }
-    } -Tag test #-Skip
+    } -Skip
 
-    # ------------------------------------------------------------------
-    # 7. AD Object Build Logic
-    # ------------------------------------------------------------------
     Describe 'AD Object build logic' {
 
         It '<Description>' -TestCases $ADBuildFixtures {
-            param($Description, $FixtureBuilder, $Expected)
+            param($Description, $PermissionsRows, $SettingRow, $ExpectedMap)
 
-            $hash = & $FixtureBuilder
-            $hash.Keys.Count | Should -Be $Expected
+            # Call the actual mapping function
+            $actualMap = Get-MatrixADObjectsMapHC `
+                -PermissionsSheet $PermissionsRows `
+                -SettingRow $SettingRow
+
+            $actualMap.Count | Should -Be $ExpectedMap.Count
+
+            foreach ($key in $ExpectedMap.Keys) {
+                $actualMap.Keys | Should -Contain $key -Because "Column '$key' should be mapped"
+                $actualMap[$key] | Should -Be $ExpectedMap[$key] -Because 'The AD Object name should be correctly constructed'
+            }
         }
-    }
+    } -Tag test
 
     # ------------------------------------------------------------------
     # 8. Matrix building logic

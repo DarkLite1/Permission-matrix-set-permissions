@@ -219,26 +219,37 @@ function Get-MatrixADObjectsMapHC {
     $colIndex = 2
     while ($true) {
         $colName = "P$colIndex"
+        
+        # Stop if the column doesn't exist
         if (-not $headerRows[0].PSObject.Properties.Match($colName).Count) { 
             break 
         }
         
-        # Scan down the 3 header rows for the name
-        $adName = $null
+        $adName = ''
+        
+        # Scan down the 3 header rows (Prefix, Root, Suffix) and concatenate
         foreach ($h in $headerRows) {
-            if (-not [string]::IsNullOrWhiteSpace($h.$colName)) { 
-                $adName = $h.$colName 
-                break 
+            $cellValue = $h.$colName
+            
+            if (-not [string]::IsNullOrWhiteSpace($cellValue)) { 
+                # Resolve placeholders, otherwise use the fixed string
+                if ($cellValue -eq 'GroupName') { 
+                    $adName += $SettingRow.GroupName 
+                }
+                elseif ($cellValue -eq 'SiteCode') { 
+                    $adName += $SettingRow.SiteCode 
+                }
+                else {
+                    $adName += $cellValue
+                }
             }
         }
         
-        # Resolve placeholders
-        if ($adName -eq 'GroupName') { $adName = $SettingRow.GroupName }
-        if ($adName -eq 'SiteCode') { $adName = $SettingRow.SiteCode }
-        
-        if ($adName) { 
+        # If the column yielded a valid AD Name, add it to the map
+        if (-not [string]::IsNullOrWhiteSpace($adName)) { 
             $adObjectsMap[$colName] = $adName 
         }
+        
         $colIndex++
     }
 
