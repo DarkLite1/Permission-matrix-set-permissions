@@ -20,17 +20,21 @@ function Invoke-PermissionMatrixProcessHC {
             return $Context
         }
 
-        $executableSettings = @()
+        $executableSettings = [System.Collections.Generic.List[pscustomobject]]::new()
 
-        foreach ($matrix in $Context.Matrices) {
-            if (Test-ItemHasFatalErrorHC -CheckList $matrix.Check) {
+        foreach ($file in $Context.FileResults) {
+            if (Test-ItemHasFatalErrorHC -CheckList $file.Check) {
                 continue
             }
             
-            $executableSettings += @(
-                $matrix.Settings |
-                Where-Object { $_.Check.Type -notcontains 'FatalError' }
-            )
+            foreach ($matrixObj in $file.Matrices) {
+                if (
+                    -not (Test-ItemHasFatalErrorHC `
+                            -CheckList $matrixObj.Check)
+                ) {
+                    $executableSettings.Add($matrixObj)
+                }
+            }
         }
 
         if ($executableSettings.Count -eq 0) {
