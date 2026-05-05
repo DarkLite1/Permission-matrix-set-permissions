@@ -977,7 +977,7 @@ begin {
         $Export = $jsonFileContent.Export
         $ServiceNow = $jsonFileContent.ServiceNow
         $MaxConcurrent = $jsonFileContent.MaxConcurrent
-        $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
+        $AdGroupPlaceHolders = $Matrix.AdGroupPlaceHolders
         $Settings = $jsonFileContent.Settings
 
         if (-not $Settings) {
@@ -1053,8 +1053,8 @@ begin {
             #endregion
 
             #region Test array
-            if (-not ($Matrix.ExcludedSamAccountName -is [array])) {
-                throw "Property 'Matrix.ExcludedSamAccountName' needs to be an array"
+            if (-not ($Matrix.AdGroupPlaceHolders -is [array])) {
+                throw "Property 'Matrix.AdGroupPlaceHolders' needs to be an array"
             }
             #endregion
         }
@@ -1587,7 +1587,7 @@ process {
 
                     $params = @{
                         Name                  = $namesToProcess
-                        ExcludeSamAccountName = $ExcludedSamAccountName
+                        ExcludeSamAccountName = $AdGroupPlaceHolders
                     }
                     $result = Get-AdUserPrincipalNameHC @params
 
@@ -1808,7 +1808,7 @@ process {
                         Matrix                 = $S.Matrix
                         ADObject               = $ADObjectDetails
                         DefaultAcl             = $DefaultAcl
-                        ExcludedSamAccountName = $ExcludedSamAccountName
+                        AdGroupPlaceHolders = $AdGroupPlaceHolders
                     }
 
                     $expandedCheck = Test-ExpandedMatrixHC @params
@@ -1856,8 +1856,8 @@ process {
             }
             #endregion
 
-            #region Remove group members that are in the ExcludedSamAccountName
-            if ($ExcludedSamAccountName) {
+            #region Remove group members that are in the AdGroupPlaceHolders
+            if ($AdGroupPlaceHolders) {
                 $allAdObjects = @($ADObjectDetails) + @($groupManagersAdDetails)
 
                 foreach ($adObject in $allAdObjects) {
@@ -1865,7 +1865,7 @@ process {
 
                     $adObject.adGroupMember = @(
                         $adObject.adGroupMember.Where(
-                            { $_.SamAccountName -notin $ExcludedSamAccountName }
+                            { $_.SamAccountName -notin $AdGroupPlaceHolders }
                         )
                     )
                 }

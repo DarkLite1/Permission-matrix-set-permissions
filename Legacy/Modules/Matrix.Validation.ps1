@@ -30,7 +30,7 @@ function Invoke-ExpandedMatrixCheckHC {
         [Parameter(Mandatory)]
         $DefaultAcl,
         [Parameter(Mandatory)]
-        $ExcludedSamAccountName
+        $AdGroupPlaceHolders
     )
 
     foreach ($S in $ImportedMatrix.Settings) {
@@ -41,7 +41,7 @@ function Invoke-ExpandedMatrixCheckHC {
             -Matrix $S.Matrix `
             -ADObject $ADObjectDetails `
             -DefaultAcl $DefaultAcl `
-            -ExcludedSamAccountName $ExcludedSamAccountName
+            -AdGroupPlaceHolders $AdGroupPlaceHolders
 
         if ($expandedCheck) {
             $S.Check += ($expandedCheck | ConvertTo-StructuredObjectHC)

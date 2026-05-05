@@ -150,7 +150,7 @@ function Invoke-MatrixPhase2ParallelHC {
         $DefaultAcl,
 
         [Parameter(Mandatory)]
-        [string[]]$ExcludedSamAccountName,
+        [string[]]$AdGroupPlaceHolders,
 
         [int]$Throttle = 8
     )
@@ -160,7 +160,7 @@ function Invoke-MatrixPhase2ParallelHC {
             $WorkItem,
             $AdInfo,
             $DefaultAcl,
-            $ExcludedSamAccountName
+            $AdGroupPlaceHolders
         )
 
         for ($i = 0; $i -lt $WorkItem.Settings.Count; $i++) {
@@ -182,7 +182,7 @@ function Invoke-MatrixPhase2ParallelHC {
                     -Matrix $S.Matrix `
                     -ADObject $AdInfo `
                     -DefaultAcl $DefaultAcl `
-                    -ExcludedSamAccountName $ExcludedSamAccountName
+                    -AdGroupPlaceHolders $AdGroupPlaceHolders
 
                 if ($exp) { $S.ExpandedChecks = $exp }
             }
@@ -194,7 +194,7 @@ function Invoke-MatrixPhase2ParallelHC {
     return $WorkItems |
     ForEach-Object -Parallel $block `
         -ThrottleLimit $Throttle `
-        -ArgumentList $AdInfo, $DefaultAcl, $ExcludedSamAccountName
+        -ArgumentList $AdInfo, $DefaultAcl, $AdGroupPlaceHolders
 }
 
 function Merge-CheckResultsHC {
@@ -263,7 +263,7 @@ function Invoke-MatrixChecksHC {
         $DefaultAcl,
 
         [Parameter(Mandatory)]
-        [string[]]$ExcludedSamAccountName,
+        [string[]]$AdGroupPlaceHolders,
 
         [int]$Throttle = 8
     )
@@ -285,7 +285,7 @@ function Invoke-MatrixChecksHC {
         -WorkItems $Phase1 `
         -AdInfo $AdInfo `
         -DefaultAcl $DefaultAcl `
-        -ExcludedSamAccountName $ExcludedSamAccountName `
+        -AdGroupPlaceHolders $AdGroupPlaceHolders `
         -Throttle $Throttle
 
     # 5. Merge

@@ -66,6 +66,6 @@ function Get-InvalidIntegerCases {
 
 function Get-InvalidArrayCases {
     return @(
-        @{ Path = 'Matrix.ExcludedSamAccountName' ; Value = 'not-an-array' }
+        @{ Path = 'Matrix.AdGroupPlaceHolders' ; Value = 'not-an-array' }
     )
 }

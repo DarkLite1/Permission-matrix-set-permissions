@@ -26,7 +26,7 @@ function New-JsonFixture {
             FolderPath             = ''      # Filled in tests
             DefaultsFile           = ''      # Filled in tests
             Archive                = $false
-            ExcludedSamAccountName = @()
+            AdGroupPlaceHolders = @()
         }
         Export                 = @{
             ServiceNowFormDataExcelFile = $null

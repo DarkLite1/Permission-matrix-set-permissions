@@ -33,9 +33,6 @@ function Get-ADObjectDetailHC {
         [Int]$MaxThreads = 7
     )
 
-    # Add-Type -AssemblyName 'System.DirectoryServices.AccountManagement'
-    # $contextType = [System.DirectoryServices.AccountManagement.ContextType]::Domain
-
     $ADObjectName = $ADObjectName | Sort-Object -Unique
 
     $ADObjectName | ForEach-Object -ThrottleLimit $MaxThreads -Parallel {
@@ -123,8 +120,17 @@ function Get-ADObjectDetailHC {
             return $returnObj
         }
         catch {
-            $M = $_; $Error.RemoveAt(0)
-            throw "Failed retrieving AD object details for '$name': $M"
+            $M = $_
+            Write-Warning "Failed retrieving AD object details for '$name': $M"
+            
+            # Return the blank object so the orchestrator can continue processing other accounts safely
+            $returnObj = [PSCustomObject]@{
+                adObject      = $null
+                adGroupMember = $null
+            }
+            $returnObj | Add-Member -MemberType NoteProperty -Name $propertyType -Value $name
+
+            return $returnObj
         }
     }
 

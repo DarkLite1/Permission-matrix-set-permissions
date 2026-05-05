@@ -92,7 +92,7 @@ Describe 'Core.ps1 - Parallel Check Engine' {
                 -WorkItems $phase1 `
                 -AdInfo 'AD Object' `
                 -DefaultAcl @{} `
-                -ExcludedSamAccountName @() `
+                -AdGroupPlaceHolders @() `
                 -Throttle 1
 
             Should -Invoke Test-AdObjectsHC -Times 1
@@ -167,7 +167,7 @@ Describe 'Core.ps1 - Parallel Check Engine' {
             $result = Invoke-MatrixChecksHC `
                 -ImportedMatrix $import `
                 -DefaultAcl @{} `
-                -ExcludedSamAccountName @() `
+                -AdGroupPlaceHolders @() `
                 -Throttle 1
 
             # Ensure pipeline executed

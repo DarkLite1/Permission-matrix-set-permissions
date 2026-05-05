@@ -382,32 +382,31 @@ function Test-AdObjectsHC {
     return $checks
 }
 
-function Test-ExpandedMatrixHC {
+function Test-AdObjectInMatrix {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$Matrix,
-
-        [Parameter(Mandatory)]$ADObject,
-
-        [Parameter(Mandatory)]
-        [AllowEmptyCollection()]
-        [string[]]$ExcludedSamAccountName
+        [Parameter(Mandatory)]$ADObject
     )
 
     $checks = @()
 
-    foreach ($row in $Matrix) {
-        foreach ($ad in $row.ACL.Keys) {
+    $matrixAdObjects = @($Matrix.ACL.Keys) | Select-Object -Unique
 
-            if ($ad -in $ExcludedSamAccountName) { continue }
+    if (-not $matrixAdObjects) { return $checks }
 
-            if ($ad -notin $ADObject) {
-                $checks += New-HcError `
-                    -Type 'Warning' `
-                    -Name 'Unknown AD Object in ACL' `
-                    -Description "Unknown AD object '$ad' in ACL." `
-                    -Category 'ExpandedMatrix'
-            }
+    $missingAdObjects = $matrixAdObjects | Where-Object { 
+        $name = $_
+        $match = $ADObject | Where-Object { $_.SamAccountName -eq $name }
+        $null -eq $match.adObject 
+    }
+
+    if ($missingAdObjects) {
+        $checks += [PSCustomObject]@{
+            Type        = 'FatalError'
+            Name        = ' Unknown AD Objects in Matrix'
+            Description = 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.'
+            Value       = "Not existing AD Objects: $($missingAdObjects -join ', ')"
         }
     }
 

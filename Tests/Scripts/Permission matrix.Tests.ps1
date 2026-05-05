@@ -63,7 +63,7 @@ Describe 'Permission Matrix Tests' {
                 FolderPath             = (New-Item 'TestDrive:/Matrix' -ItemType Directory).FullName
                 DefaultsFile           = (New-Item 'TestDrive:/Default.xlsx' -ItemType File).FullName
                 Archive                = $false
-                ExcludedSamAccountName = @()
+                AdGroupPlaceHolders = @()
             }
             Export                 = @{
                 ServiceNowFormDataExcelFile = $null
@@ -1375,7 +1375,7 @@ Describe 'Permission Matrix Tests' {
             ) | Export-Excel @testPermissionsParams
 
             $testNewInputFile = Copy-ObjectHC $testInputFile
-            $testNewInputFile.Matrix.ExcludedSamAccountName = @('IgnoreMe')
+            $testNewInputFile.Matrix.AdGroupPlaceHolders = @('IgnoreMe')
 
             Save-TestJson $testNewInputFile
 

@@ -140,11 +140,11 @@ function Validate-ConfigurationStructureHC {
                 -SystemErrors $SystemErrors
         }
 
-        if ($Json.Matrix.ExcludedSamAccountName -and
-            $Json.Matrix.ExcludedSamAccountName -isnot [array]) {
+        if ($Json.Matrix.AdGroupPlaceHolders -and
+            $Json.Matrix.AdGroupPlaceHolders -isnot [array]) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Incorrect 'Matrix.ExcludedSamAccountName'" `
-                -Message "Property 'Matrix.ExcludedSamAccountName' must be an array." `
+                -Name "Incorrect 'Matrix.AdGroupPlaceHolders'" `
+                -Message "Property 'Matrix.AdGroupPlaceHolders' must be an array." `
                 -SystemErrors $SystemErrors
         }
 

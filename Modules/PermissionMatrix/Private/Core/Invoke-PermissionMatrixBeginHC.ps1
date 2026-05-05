@@ -354,11 +354,23 @@ function Invoke-PermissionMatrixBeginHC {
 
         # 3b. Perform single bulk AD Query
         if ($uniqueAdObjects.Count -gt 0) {
-            $adObjectDetails = @(
-                Get-ADObjectDetailHC `
-                    -ADObjectName $uniqueAdObjects `
-                    -Type 'SamAccountName'
-            )
+            $adObjectDetails = @()
+            try {
+                $adObjectDetails = @(
+                    Get-ADObjectDetailHC `
+                        -ADObjectName $uniqueAdObjects `
+                        -Type 'SamAccountName' `
+                        -ErrorAction Stop
+                )
+            }
+            catch {
+                Add-ErrorHC `
+                    -Type 'Warning' `
+                    -Name 'AD Bulk Lookup Failure' `
+                    -Message "Failed during bulk AD lookup. Some AD objects may be marked as unknown. Error: $_" `
+                    -Category 'ExpandedMatrix' `
+                    -SystemErrors $SystemErrors
+            }
             
             # 3c. Run Expanded Checks sequentially
             foreach ($matrixObj in $Context.AllMatrices) {
@@ -371,14 +383,13 @@ function Invoke-PermissionMatrixBeginHC {
                     continue
                 }
 
-                $expandedCheck = Test-ExpandedMatrixHC `
+                $adObjectCheck = Test-ADObjectInMatrixHC `
                     -Matrix $matrixObj.Matrix `
                     -ADObject $adObjectDetails `
-                    -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
-                if ($expandedCheck) {
+                if ($adObjectCheck) {
                     $matrixObj.Check.AddRange(
-                        [pscustomobject[]]@($expandedCheck)
+                        [pscustomobject[]]@($adObjectCheck)
                     )
                 }
             }

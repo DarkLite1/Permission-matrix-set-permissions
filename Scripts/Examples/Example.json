@@ -8,7 +8,7 @@
     "FolderPath": "C:\\Permission matrix files",
     "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx",
     "Archive": false,
-    "ExcludedSamAccountName": ["cnorris"]
+    "AdGroupPlaceHolders": ["cnorris"]
   },
   "Export": {
     "ServiceNowFormDataExcelFile": "C:\\ServiceNow\\FromData.xlsx",
@@ -68,7 +68,7 @@
       "FolderPath": "(Mandatory) The folder path where the matrix Excel files are located.",
       "DefaultsFile": "(Mandatory) An Excel file containing general settings that apply to all matrix files. This file contains the worksheet 'Permissions', responsible for setting default permissions for all matrixes; and the worksheet 'MailTo', containing the e-mail addresses of users that need to receive the report on the results.",
       "Archive": "(Mandatory) Whether to move processed matrix files to the folder 'Archive' in the ImportDir folder. Possible values: true or false.",
-      "ExcludedSamAccountName": "(Optional) A list of AD SamAccountNames that will be excluded when checking for group memberships. These accounts are usually used as a place holder, so there are no empty groups in AD."
+      "AdGroupPlaceHolders": "(Optional) A list of AD SamAccountNames that will be excluded when checking for group memberships. These accounts are usually used as a place holder, so there are no empty groups in AD."
     },
     "Export": {
       "ServiceNowFormDataExcelFile": "(Optional) The path where to save the file that contains the data to upload to the ServiceNow ticketing tool.",

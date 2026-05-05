@@ -149,7 +149,7 @@ begin {
     $Export = $jsonFileContent.Export
     $ServiceNow = $jsonFileContent.ServiceNow
     $MaxConcurrent = $jsonFileContent.MaxConcurrent
-    $ExcludedSamAccountName = $Matrix.ExcludedSamAccountName
+    $AdGroupPlaceHolders = $Matrix.AdGroupPlaceHolders
     $Settings = $jsonFileContent.Settings
     $PSSessionConfiguration = $jsonFileContent.PSSessionConfiguration
     $DetailedLog = $Settings.SaveLogFiles.Detailed
@@ -675,7 +675,7 @@ process {
 
                     $params = @{
                         Name                  = $namesToProcess
-                        ExcludeSamAccountName = $ExcludedSamAccountName
+                        ExcludeSamAccountName = $AdGroupPlaceHolders
                     }
                     $result = Get-AdUserPrincipalNameHC @params
 
@@ -900,7 +900,7 @@ process {
                         Matrix                 = $S.Matrix
                         ADObject               = $ADObjectDetails
                         DefaultAcl             = $DefaultAcl
-                        ExcludedSamAccountName = $ExcludedSamAccountName
+                        AdGroupPlaceHolders = $AdGroupPlaceHolders
                     }
 
                     $expandedCheck = Test-ExpandedMatrixHC @params
@@ -948,8 +948,8 @@ process {
             }
             #endregion
 
-            #region Remove group members that are in the ExcludedSamAccountName
-            if ($ExcludedSamAccountName) {
+            #region Remove group members that are in the AdGroupPlaceHolders
+            if ($AdGroupPlaceHolders) {
                 $allAdObjects = @($ADObjectDetails) + @($groupManagersAdDetails)
 
                 foreach ($adObject in $allAdObjects) {
@@ -957,7 +957,7 @@ process {
 
                     $adObject.adGroupMember = @(
                         $adObject.adGroupMember.Where(
-                            { $_.SamAccountName -notin $ExcludedSamAccountName }
+                            { $_.SamAccountName -notin $AdGroupPlaceHolders }
                         )
                     )
                 }

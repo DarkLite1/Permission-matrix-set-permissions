@@ -78,7 +78,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 -Matrix $mat `
                 -ADObject @('GoodUser') `
                 -DefaultAcl @{} `
-                -ExcludedSamAccountName @()
+                -AdGroupPlaceHolders @()
 
             $res.Type | Should -Contain 'Warning'
         }
@@ -135,7 +135,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             $matrix = @{
                 DefaultsFile           = $PSCommandPath
                 FolderPath             = 'C:\'
-                ExcludedSamAccountName = @()
+                AdGroupPlaceHolders = @()
             }
 
             $export = @{}
