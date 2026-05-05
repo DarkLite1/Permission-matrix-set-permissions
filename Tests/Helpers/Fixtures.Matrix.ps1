@@ -279,29 +279,33 @@ function Get-DuplicateMatrixFixtures {
 function Get-DefaultPermissionsMergeFixtures {
     return @(
         @{
-            Description    = 'Defaults fill in missing values'
-            DefaultsRows   = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
-            )
-            MatrixRows     = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = $null }
-            )
-            ExpectedMerged = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
-            )
+            Description             = 'ApplyDefaultPermissions=$false: Only Matrix is returned'
+            ApplyDefaultPermissions = $false
+            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
+            MatrixRows              = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
+            ExpectedMerged          = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
+            ExpectedError           = $null
         }
 
         @{
-            Description    = 'Matrix overrides defaults'
-            DefaultsRows   = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'R' }
+            Description             = 'ApplyDefaultPermissions=$true (No Conflict): Defaults are appended'
+            ApplyDefaultPermissions = $true
+            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
+            MatrixRows              = @( [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' } )
+            ExpectedMerged          = @( 
+                [pscustomobject]@{ ADObject = 'HR_Team'  ; Permission = 'M' },
+                [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } 
             )
-            MatrixRows     = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'F' }
-            )
-            ExpectedMerged = @(
-                [pscustomobject]@{ ADObject = 'GroupA' ; Permission = 'F' }
-            )
+            ExpectedError           = $null
+        }
+
+        @{
+            Description             = 'ApplyDefaultPermissions=$true (Conflict): Throws terminating error'
+            ApplyDefaultPermissions = $true
+            DefaultsRows            = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'R' } )
+            MatrixRows              = @( [pscustomobject]@{ ADObject = 'IT_Staff' ; Permission = 'F' } )
+            ExpectedMerged          = $null
+            ExpectedError           = 'Defaults conflict detected.*IT_Staff'
         }
     )
 }

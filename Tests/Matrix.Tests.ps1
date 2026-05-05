@@ -23,7 +23,8 @@ Describe 'Matrix Logic Tests' {
         . "$PSScriptRoot\Helpers\Fixtures.Json.ps1"
         . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
         . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
-        
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Matrix\Merge-DefaultPermissionsHC.ps1"      
+
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
         }
@@ -95,7 +96,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
-    } -Tag test #-Skip
+    } -Skip
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -165,12 +166,34 @@ Describe 'Matrix Logic Tests' {
     Describe 'Default permissions merging' {
 
         It '<Description>' -TestCases $DefaultMergeFixtures {
-            param($Description, $DefaultsRows, $MatrixRows, $ExpectedMerged)
+            param($Description, $ApplyDefaultPermissions, $DefaultsRows, $MatrixRows, $ExpectedMerged, $ExpectedError)
 
-            $output = Merge-DefaultPermissionsHC -Defaults $DefaultsRows -Matrix $MatrixRows
-            $output | Should -Be $ExpectedMerged
+            if ($ExpectedError) {
+                { 
+                    Merge-DefaultPermissionsHC `
+                        -Defaults $DefaultsRows `
+                        -Matrix $MatrixRows `
+                        -ApplyDefaultPermissions $ApplyDefaultPermissions 
+                } | Should -Throw -ExpectedMessage $ExpectedError
+            }
+            else {
+                $output = Merge-DefaultPermissionsHC `
+                    -Defaults $DefaultsRows `
+                    -Matrix $MatrixRows `
+                    -ApplyDefaultPermissions $ApplyDefaultPermissions
+                
+                $output.Count | Should -Be $ExpectedMerged.Count
+                
+                foreach ($expected in $ExpectedMerged) {
+                    $match = $output | Where-Object { 
+                        $_.ADObject -eq $expected.ADObject 
+                    }
+                    $match | Should -Not -BeNullOrEmpty
+                    $match.Permission | Should -Be $expected.Permission
+                }
+            }
         }
-    }
+    } -Tag test
 
     # ------------------------------------------------------------------
     # 7. AD Object Build Logic

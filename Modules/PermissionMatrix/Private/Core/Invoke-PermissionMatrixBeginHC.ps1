@@ -297,9 +297,24 @@ function Invoke-PermissionMatrixBeginHC {
                     if (-not $S.Matrix) { continue }
 
                     if ($Context.Defaults.DefaultAcl) {
-                        $S.Matrix.ACL = Merge-DefaultPermissionsHC `
-                            -Defaults $Context.Defaults.DefaultAcl `
-                            -Matrix $S.Matrix.ACL
+                        try {
+                            $applyDefaultPerms = [System.Convert]::ToBoolean($S.Setting.Formatted.ApplyDefaultPermissions ?? $false)
+                            
+                            $S.Matrix.ACL = Merge-DefaultPermissionsHC `
+                                -Defaults $Context.Defaults.DefaultAcl `
+                                -Matrix $S.Matrix.ACL `
+                                -ApplyDefaultPermissions $applyDefaultPerms
+                        }
+                        catch {
+                            $S.Check += [PSCustomObject]@{
+                                Type        = 'FatalError'
+                                Name        = 'Defaults Conflict'
+                                Description = 'When ApplyDefaultPermissions is enabled, the matrix cannot explicitly define AD Objects that are already managed by the defaults.'
+                                Value       = $_.Exception.Message
+                            }
+                            
+                            continue 
+                        }
                     }
 
                     $expandedCheck = Test-ExpandedMatrixHC `
