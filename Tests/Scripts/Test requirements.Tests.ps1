@@ -17,7 +17,11 @@ BeforeAll {
         { New-SmbShare -Name $_.Name -Path $_.Path }
     )
 
-    $testScript = $PSCommandPath.Replace('.Tests.ps1', '.ps1')
+    $testScript = "$PSScriptRoot\..\..\Operations\Test requirements.ps1"
+
+    if (-not (Test-Path $testScript -PathType Leaf)) {
+        throw "Path '$testScript' not found"
+    }
 
     Function Test-IsAdminHC {}
 
