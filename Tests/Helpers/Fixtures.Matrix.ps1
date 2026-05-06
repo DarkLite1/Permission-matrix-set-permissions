@@ -309,67 +309,91 @@ function Get-DefaultPermissionsMergeFixtures {
 function Get-AdObjectBuildFixtures {
     return @(
         @{
-            Description     = 'Fixed strings only (No placeholders)'
+            Description     = 'Fixed strings only (No placeholders), all three rows populated'
             SettingRow      = [pscustomobject]@{ GroupName = 'HR'; SiteCode = 'BRU' }
             PermissionsRows = @(
-                [pscustomobject]@{ P1 = ''; P2 = 'Domain\' }
-                [pscustomobject]@{ P1 = ''; P2 = 'FixedGroup' }
-                [pscustomobject]@{ P1 = ''; P2 = '_RO' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Top' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Middle' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Bottom' }
                 [pscustomobject]@{ P1 = 'Path'; P2 = 'R' }
             )
-            ExpectedMap     = @{ 'P2' = 'Domain\FixedGroup_RO' }
+            ExpectedMap     = @{ 'P2' = 'Bottom Middle Top' }
         }
 
         @{
-            Description     = 'GroupName placeholder replacement with Prefix and Suffix'
-            SettingRow      = [pscustomobject]@{ GroupName = 'Finance_Team'; SiteCode = 'BRU' }
+            Description     = 'GroupName placeholder with literals above and below (bottom-up join)'
+            SettingRow      = [pscustomobject]@{ GroupName = 'Finance Team'; SiteCode = 'BRU' }
             PermissionsRows = @(
-                [pscustomobject]@{ P1 = ''; P2 = 'GG_' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Label' }
                 [pscustomobject]@{ P1 = ''; P2 = 'GroupName' }
-                [pscustomobject]@{ P1 = ''; P2 = '_RW' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Marker' }
                 [pscustomobject]@{ P1 = 'Path'; P2 = 'M' }
             )
-            ExpectedMap     = @{ 'P2' = 'GG_Finance_Team_RW' }
+            ExpectedMap     = @{ 'P2' = 'Marker Finance Team Label' }
         }
 
         @{
-            Description     = 'SiteCode placeholder replacement'
+            Description     = 'SiteCode placeholder only (single populated row)'
             SettingRow      = [pscustomobject]@{ GroupName = 'HR'; SiteCode = 'NYC' }
             PermissionsRows = @(
-                [pscustomobject]@{ P1 = ''; P2 = 'LOC_' }
+                [pscustomobject]@{ P1 = ''; P2 = '' }
                 [pscustomobject]@{ P1 = ''; P2 = 'SiteCode' }
                 [pscustomobject]@{ P1 = ''; P2 = '' }
                 [pscustomobject]@{ P1 = 'Path'; P2 = 'L' }
             )
-            ExpectedMap     = @{ 'P2' = 'LOC_NYC' }
+            ExpectedMap     = @{ 'P2' = 'NYC' }
         }
 
         @{
-            Description     = 'Multiple columns: Mixed fixed, GroupName, and SiteCode'
+            Description     = 'Real-world layout: literal label on top, SiteCode middle, GroupName bottom'
+            SettingRow      = [pscustomobject]@{ GroupName = 'BEL TEAM SOUTH'; SiteCode = 'BXL' }
+            PermissionsRows = @(
+                [pscustomobject]@{ P1 = ''; P2 = 'Administrative employee' }
+                [pscustomobject]@{ P1 = ''; P2 = 'SiteCode' }
+                [pscustomobject]@{ P1 = ''; P2 = 'GroupName' }
+                [pscustomobject]@{ P1 = 'Path'; P2 = 'W' }
+            )
+            ExpectedMap     = @{ 'P2' = 'BEL TEAM SOUTH BXL Administrative employee' }
+        }
+
+        @{
+            Description     = 'Multiple columns with mixed populated rows'
             SettingRow      = [pscustomobject]@{ GroupName = 'IT'; SiteCode = 'LON' }
             PermissionsRows = @(
-                [pscustomobject]@{ P1 = ''; P2 = 'GG_'; P3 = 'GG_'; P4 = 'Fixed_' }
-                [pscustomobject]@{ P1 = ''; P2 = 'SiteCode'; P3 = 'GroupName'; P4 = 'Admins' }
-                [pscustomobject]@{ P1 = ''; P2 = '_Users'; P3 = '_Managers'; P4 = '' }
+                [pscustomobject]@{ P1 = ''; P2 = 'Support'; P3 = 'Director'; P4 = '' }
+                [pscustomobject]@{ P1 = ''; P2 = ''; P3 = ''; P4 = 'SiteCode' }
+                [pscustomobject]@{ P1 = ''; P2 = 'GroupName'; P3 = 'GroupName'; P4 = 'GroupName' }
                 [pscustomobject]@{ P1 = 'Path'; P2 = 'R'; P3 = 'M'; P4 = 'F' }
             )
-            ExpectedMap     = @{ 
-                'P2' = 'GG_LON_Users'
-                'P3' = 'GG_IT_Managers'
-                'P4' = 'Fixed_Admins'
+            ExpectedMap     = @{
+                'P2' = 'IT Support'
+                'P3' = 'IT Director'
+                'P4' = 'IT LON'
             }
         }
 
         @{
-            Description     = 'Exact placeholder only (no prefix or suffix)'
-            SettingRow      = [pscustomobject]@{ GroupName = 'Sales_Team'; SiteCode = 'AMS' }
+            Description     = 'Empty row in the middle is skipped (no double space)'
+            SettingRow      = [pscustomobject]@{ GroupName = 'Sales'; SiteCode = 'AMS' }
             PermissionsRows = @(
+                [pscustomobject]@{ P1 = ''; P2 = 'Top' }
                 [pscustomobject]@{ P1 = ''; P2 = '' }
                 [pscustomobject]@{ P1 = ''; P2 = 'GroupName' }
-                [pscustomobject]@{ P1 = ''; P2 = '' }
                 [pscustomobject]@{ P1 = 'Path'; P2 = 'R' }
             )
-            ExpectedMap     = @{ 'P2' = 'Sales_Team' }
+            ExpectedMap     = @{ 'P2' = 'Sales Top' }
+        }
+
+        @{
+            Description     = 'Single placeholder, no surrounding rows'
+            SettingRow      = [pscustomobject]@{ GroupName = 'Sales Team'; SiteCode = 'AMS' }
+            PermissionsRows = @(
+                [pscustomobject]@{ P1 = ''; P2 = '' }
+                [pscustomobject]@{ P1 = ''; P2 = '' }
+                [pscustomobject]@{ P1 = ''; P2 = 'GroupName' }
+                [pscustomobject]@{ P1 = 'Path'; P2 = 'R' }
+            )
+            ExpectedMap     = @{ 'P2' = 'Sales Team' }
         }
     )
 }

@@ -215,41 +215,36 @@ function Get-MatrixADObjectsMapHC {
 
     $headerRows = $PermissionsSheet | Select-Object -First 3
     $adObjectsMap = [ordered]@{}
-    
+
     $colIndex = 2
     while ($true) {
         $colName = "P$colIndex"
-        
+
         # Stop if the column doesn't exist
-        if (-not $headerRows[0].PSObject.Properties.Match($colName).Count) { 
-            break 
+        if (-not $headerRows[0].PSObject.Properties.Match($colName).Count) {
+            break
         }
-        
-        $adName = ''
-        
-        # Scan down the 3 header rows (Prefix, Root, Suffix) and concatenate
-        foreach ($h in $headerRows) {
-            $cellValue = $h.$colName
-            
-            if (-not [string]::IsNullOrWhiteSpace($cellValue)) { 
-                # Resolve placeholders, otherwise use the fixed string
-                if ($cellValue -eq 'GroupName') { 
-                    $adName += $SettingRow.GroupName 
-                }
-                elseif ($cellValue -eq 'SiteCode') { 
-                    $adName += $SettingRow.SiteCode 
-                }
-                else {
-                    $adName += $cellValue
-                }
+
+        # Walk header rows bottom-to-top, resolving placeholders.
+        # Each non-empty row contributes one part; the parts are joined with
+        # a single space. Empty rows are skipped so we don't get double spaces.
+        $parts = for ($i = $headerRows.Count - 1; $i -ge 0; $i--) {
+            $cellValue = $headerRows[$i].$colName
+            if ([string]::IsNullOrWhiteSpace($cellValue)) { continue }
+
+            switch ($cellValue) {
+                'GroupName' { $SettingRow.GroupName }
+                'SiteCode' { $SettingRow.SiteCode }
+                default { $cellValue }
             }
         }
-        
-        # If the column yielded a valid AD Name, add it to the map
-        if (-not [string]::IsNullOrWhiteSpace($adName)) { 
-            $adObjectsMap[$colName] = $adName 
+
+        $adName = ($parts -join ' ').Trim()
+
+        if (-not [string]::IsNullOrWhiteSpace($adName)) {
+            $adObjectsMap[$colName] = $adName
         }
-        
+
         $colIndex++
     }
 
