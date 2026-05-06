@@ -52,7 +52,14 @@ begin {
             }
         }
 
-        $systemErrors = [System.Collections.Generic.List[object]]::new()
+        # Errors raised before the orchestrator can run (module load failures).
+        # These cannot flow through Invoke-PermissionMatrixEndHC because that
+        # function is defined inside the module that just failed to load.
+        $bootstrapErrors = [System.Collections.Generic.List[object]]::new()
+
+        # Errors raised by the orchestrator itself (config, AD, remote jobs).
+        # Passed by ref so Begin/Process/End all write to the same list.
+        $runtimeErrors = [System.Collections.Generic.List[object]]::new()
 
         $modulePath = Join-Path $PSScriptRoot '..\..\Modules\PermissionMatrix\PermissionMatrix.psm1'
 
@@ -60,7 +67,7 @@ begin {
 
         Import-PermissionMatrixModuleHC `
             -Path $modulePath `
-            -SystemErrors ([ref]$systemErrors)
+            -SystemErrors ([ref]$bootstrapErrors)
     }
     catch {
         Write-Warning "BEGIN stage crashed before orchestrator could run: $_"
@@ -71,13 +78,33 @@ begin {
 process { }
 
 end {
+    # Bootstrap failed — report locally and bail
+    # orchestrator functions are not available
+    if ($bootstrapErrors.Count -gt 0) {
+        foreach ($err in $bootstrapErrors) {
+            Write-Warning "[$($err.Category)] $($err.Message)"
+        }
+        exit 1
+    }
+    
     try {
         Invoke-PermissionMatrix `
             -ConfigurationJsonFile $ConfigurationJsonFile `
-            -ScriptPath $ScriptPath
+            -ScriptPath $ScriptPath `
+            -SystemErrors ([ref]$runtimeErrors)
     }
     catch {
         Write-Warning "Unhandled fatal error: $_"
         exit 1
+    }
+
+    if ($runtimeErrors.Count -gt 0) {
+        foreach ($err in $runtimeErrors) {
+            Write-Warning "[$($err.Type)] $($err.Name): $($err.Message)"
+        }
+
+        if ($runtimeErrors | Where-Object { $_.Type -eq 'FatalError' }) {
+            exit 1
+        }
     }
 }

@@ -14,13 +14,15 @@ function Invoke-PermissionMatrix {
         [string]$ConfigurationJsonFile,
 
         [Parameter(Mandatory)]
-        [hashtable]$ScriptPath
+        [hashtable]$ScriptPath,
+
+        [Parameter(Mandatory)]
+        [ref]$SystemErrors
     )
 
     # ---------------------------------------------------------------------
     # 0. Shared state
     # ---------------------------------------------------------------------
-    $systemErrors = [System.Collections.Generic.List[object]]::new()
     $context = $null
 
     try {
@@ -28,7 +30,7 @@ function Invoke-PermissionMatrix {
         $context = Invoke-PermissionMatrixBeginHC `
             -ConfigurationJsonFile $ConfigurationJsonFile `
             -ScriptPath $ScriptPath `
-            -SystemErrors ([ref]$systemErrors)
+            -SystemErrors $SystemErrors
         #endregion
 
         $hasFatal = Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value
@@ -37,7 +39,7 @@ function Invoke-PermissionMatrix {
         if ($context -and $context.FoundMatrices -and -not $hasFatal) {
             $context = Invoke-PermissionMatrixProcessHC `
                 -Context $context `
-                -SystemErrors ([ref]$systemErrors)
+                -SystemErrors $SystemErrors
         }
         #endregion
     }
@@ -47,17 +49,17 @@ function Invoke-PermissionMatrix {
             -Name 'Unhandled orchestrator failure' `
             -Message "Invoke-PermissionMatrix failed: $_" `
             -Category 'Runtime' `
-            -SystemErrors ([ref]$systemErrors)
+            -SystemErrors $SystemErrors
     }
     finally {
         #region Report results via email and logs (best effort)
         if ($context) {
             Invoke-PermissionMatrixEndHC `
                 -Context $context `
-                -SystemErrors ([ref]$systemErrors)
+                -SystemErrors $SystemErrors
         }
-        elseif ($systemErrors.Count -gt 0) {
-            foreach ($err in $systemErrors) {
+        elseif ($systemErrors.Value.Count -gt 0) {
+            foreach ($err in $systemErrors.Value) {
                 $msg = "[$($err.Type)] $($err.Name): $($err.Message) $($err.Description)"
                 
                 Write-Error $msg
@@ -81,23 +83,6 @@ function Invoke-PermissionMatrix {
                     # Swallow error: If the event log fallback fails, we don't want to crash the finally block
                 }
             }
-        }
-        #endregion
-
-        #region Final fatal error check and exit code
-        if ($systemErrors.Count -gt 0) {
-            $systemErrors | ForEach-Object {
-                Write-Warning "Logged System Error: [$($_.Type)] $($_.Name) - $($_.Message)"
-            }
-        }
-
-        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
-            Write-Warning 'Exit script with error code 1'
-            
-            throw 'Permission Matrix execution completed with fatal errors.'
-        }
-        else {
-            Write-Verbose 'Script finished successfully'
         }
         #endregion
     }
