@@ -116,19 +116,6 @@ function Invoke-PermissionMatrixProcessHC {
 
         if ($validSettings.Count -eq 0) { return $Context }
 
-        if ($Context.Defaults.DefaultAcl.Count -gt 0) {
-            foreach (
-                $acl in 
-                $validSettings.Matrix.ACL.Where({ $_.Count -gt 0 })
-            ) {
-                $Context.Defaults.DefaultAcl.GetEnumerator().Where(
-                    { -not $acl.ContainsKey($_.Key) }
-                ).ForEach(
-                    { $acl.Add($_.Key, $_.Value) }
-                ) 
-            }
-        }
-
         $compGroupsForPerms = $validSettings |
         Group-Object -Property { $_.Import.ComputerName }
 

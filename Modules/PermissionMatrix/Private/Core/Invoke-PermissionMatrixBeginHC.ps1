@@ -405,35 +405,24 @@ function Invoke-PermissionMatrixBeginHC {
                     }
                 }
 
-                # Rewrite ACL keys from SamAccountName to SID. SIDs are domain-portable
-                # and unambiguous, which lets Set_permissions.ps1 skip the NTAccount lookup
-                # and correctly resolve principals from any trusted domain.
+                # Add SID rewrite as a final step after all checks to ensure we have the necessary details for accurate error reporting
                 foreach ($folder in $matrixObj.Matrix) {
                     if (-not $folder.ACL -or $folder.ACL.Count -eq 0) { continue }
+
                     $newAcl = @{}
+                    $adNames = @{}
                     foreach ($name in @($folder.ACL.Keys)) {
                         $sid = $nameToSid[$name]
                         if ($sid) {
                             $newAcl[$sid] = $folder.ACL[$name]
+                            $adNames[$sid] = $name
                         }
-                        # Names with no SID would have been caught by Test-AdObjectInMatrixHC
-                        # and the matrix skipped above, so this branch should be unreachable.
                     }
                     $folder.ACL = $newAcl
+                    $folder | Add-Member `
+                        -NotePropertyName 'AdNames' `
+                        -NotePropertyValue $adNames -Force
                 }
-            }
-
-            # 3e. Rewrite the Defaults ACL keys to SIDs as well, so the merge step in
-            #     ProcessHC inserts SIDs instead of names into matrix ACLs.
-            if ($Context.Defaults.DefaultAcl -and $Context.Defaults.DefaultAcl.Count -gt 0) {
-                $newDefaults = @{}
-                foreach ($name in @($Context.Defaults.DefaultAcl.Keys)) {
-                    $sid = $nameToSid[$name]
-                    if ($sid) {
-                        $newDefaults[$sid] = $Context.Defaults.DefaultAcl[$name]
-                    }
-                }
-                $Context.Defaults.DefaultAcl = $newDefaults
             }
         }
         #endregion

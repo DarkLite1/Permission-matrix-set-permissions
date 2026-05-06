@@ -45,6 +45,31 @@ param (
 )
 
 begin {
+    #region Function Format-AclWithNamesHC
+    function Format-AclWithNamesHC {
+        [CmdletBinding()]
+        [OutputType([string])]
+        param (
+            [Parameter(Mandatory)]
+            [AllowEmptyString()]
+            [string]$AclText,
+
+            [Parameter()]
+            [hashtable]$AdNames
+        )
+
+        if ([string]::IsNullOrEmpty($AclText) -or -not $AdNames -or $AdNames.Count -eq 0) {
+            return $AclText
+        }
+
+        [regex]::Replace($AclText, 'S-\d-\d+(?:-\d+)+', {
+                param($match)
+                $sid = $match.Value
+                if ($AdNames.ContainsKey($sid)) { $AdNames[$sid] } else { $sid }
+            })
+    }
+    #endregion
+
     #region Function New-AceHC
     function New-AceHC {
         [CmdLetBinding()]
@@ -178,6 +203,10 @@ begin {
             [HashTable]$IgnoredFolderPaths,
             [Parameter(Mandatory)]
             [String]$TokenPrivileges,
+
+            [Parameter()]
+            [hashtable]$AdNames,
+    
             [Boolean]$DetailedLog
         )
 
@@ -219,6 +248,31 @@ begin {
             catch {
                 throw "Failed testing the ACL for equality: $_"
             }
+        }
+        #endregion
+
+        #region Function Format-AclWithNamesHC
+        function Format-AclWithNamesHC {
+            [CmdletBinding()]
+            [OutputType([string])]
+            param (
+                [Parameter(Mandatory)]
+                [AllowEmptyString()]
+                [string]$AclText,
+
+                [Parameter()]
+                [hashtable]$AdNames
+            )
+
+            if ([string]::IsNullOrEmpty($AclText) -or -not $AdNames -or $AdNames.Count -eq 0) {
+                return $AclText
+            }
+
+            [regex]::Replace($AclText, 'S-\d-\d+(?:-\d+)+', {
+                    param($match)
+                    $sid = $match.Value
+                    if ($AdNames.ContainsKey($sid)) { $AdNames[$sid] } else { $sid }
+                })
         }
         #endregion
 
@@ -324,12 +378,15 @@ begin {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
 
             if ($DetailedLog) {
-                $incorrectInheritedAcl[$child.FullName] = if ($accessDenied) {
+                $aclText = if ($accessDenied) {
                     'Access Denied'
                 }
                 else {
                     $acl.AccessToString
                 }
+                $incorrectInheritedAcl[$child.FullName] = Format-AclWithNamesHC `
+                    -AclText $aclText `
+                    -AdNames $AdNames
             }
             else {
                 $incorrectInheritedAcl.Add($child.FullName)
@@ -811,9 +868,16 @@ process {
                     #region Log Incorrect ACL
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
+                            $oldAcl = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+                            $newAcl = ($folder.FolderAcl).AccessToString
+
                             $incorrectAclNonInheritedFolders[$folder.Path] = @{
-                                'Old' = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
-                                'New' = ($folder.FolderAcl).AccessToString
+                                'Old' = Format-AclWithNamesHC `
+                                    -AclText $oldAcl `
+                                    -AdNames $folder.AdNames
+                                'New' = Format-AclWithNamesHC `
+                                    -AclText $newAcl `
+                                    -AdNames $folder.AdNames
                             }
                         }
                         else {
@@ -887,6 +951,7 @@ process {
                         IgnoredFolderPaths = $ignoredFolderPaths
                         TokenPrivileges    = $tokenPrivileges
                         DetailedLog        = $DetailedLog
+                        AdNames            = $folder.AdNames
                         ScriptString       = $scriptBlockString
                     }
                 }
@@ -901,6 +966,7 @@ process {
                         FileAclAccessList   = $folderDto.FileRules
                         IgnoredFolderPaths  = $folderDto.IgnoredFolderPaths
                         TokenPrivileges     = $folderDto.TokenPrivileges
+                        AdNames             = $folderDto.AdNames
                         DetailedLog         = $folderDto.DetailedLog
                     }
 
