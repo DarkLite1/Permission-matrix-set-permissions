@@ -2952,7 +2952,7 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             New-Item -Path $fixPath -ItemType Directory -Force | Out-Null
         }
 
-        It 'adds MatrixAdObjects with friendly names from AdNames' {
+        It 'links each SID to its matrix label, keyed by the display name' {
             New-Item -Path (Join-Path $fixPath 'FolderA') -ItemType Directory -Force | Out-Null
 
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
@@ -2971,11 +2971,18 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
 
             $actual | Should -Not -BeNullOrEmpty
 
-            $actual.Value[$fixPath].MatrixAdObjects |
-            Should -Match 'BEL TEAM SOUTH BXL Administrative employee'
+            $parentEntry = $actual.Value[$fixPath]
+            $parentEntry.MatrixAdObjects | Should -BeOfType [hashtable]
+            $parentEntry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser" `
+                -Because 'the SID translates to a DOMAIN\name display key'
+            $parentEntry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] |
+            Should -Be 'BEL TEAM SOUTH BXL Administrative employee'
 
-            $actual.Value["$fixPath\FolderA"].MatrixAdObjects |
-            Should -Match 'Finance Team Brussels'
+            $childEntry = $actual.Value["$fixPath\FolderA"]
+            $childEntry.MatrixAdObjects | Should -BeOfType [hashtable]
+            $childEntry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser2"
+            $childEntry.MatrixAdObjects["$env:USERDOMAIN\$testUser2"] |
+            Should -Be 'Finance Team Brussels'
         }
 
         It 'omits MatrixAdObjects when AdNames is missing' {
@@ -2983,13 +2990,44 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                 [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUserSid = 'L' }; Parent = $true }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual.Value[$fixPath].ContainsKey('MatrixAdObjects') | Should -BeFalse
+            $actual.Value[$fixPath].ContainsKey('MatrixAdObjects') | Should -BeFalse `
+                -Because 'no AdNames was supplied so the field should not appear'
+
             # Old/New still populated as before
             $actual.Value[$fixPath].New | Should -Not -BeNullOrEmpty
             $actual.Value[$fixPath].Old | Should -Not -BeNullOrEmpty
         }
 
-        It 'lists multiple AdNames entries comma-separated and sorted' {
+        It 'preserves the SID as the key when translation fails' {
+            # Fake SID that won't translate against the local LSA. The matrix's
+            # actual ACL still uses a real SID (so the script can apply it);
+            # we stub the fake into AdNames to verify the report-formatting
+            # fallback path for foreign-domain or orphaned SIDs.
+            $fakeSid = 'S-1-5-21-9999999999-9999999999-9999999999-9999'
+
+            $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'L' }
+                    AdNames = @{
+                        $testUserSid = 'Real Group'
+                        $fakeSid     = 'Untranslatable Group'
+                    }
+                    Parent  = $true
+                }
+            ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
+
+            $entry = $actual.Value[$fixPath]
+            $entry.MatrixAdObjects.Keys | Should -Contain $fakeSid `
+                -Because 'a SID that cannot be translated must remain as its raw SID string'
+            $entry.MatrixAdObjects[$fakeSid] | Should -Be 'Untranslatable Group'
+
+            # Real SID side still works
+            $entry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser"
+            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] | Should -Be 'Real Group'
+        }
+
+        It 'maps multiple matrix entries on the same folder' {
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
                 [PSCustomObject]@{
                     Path    = 'Path'
@@ -3002,8 +3040,27 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                 }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual.Value[$fixPath].MatrixAdObjects |
-            Should -Be 'Alpha Group, Zeta Group' -Because 'labels are sorted alphabetically and joined with ", "'
+            $entry = $actual.Value[$fixPath]
+            $entry.MatrixAdObjects.Count | Should -Be 2
+            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] | Should -Be 'Zeta Group'
+            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser2"] | Should -Be 'Alpha Group'
+        }
+
+        It 'keeps Old and New as raw AccessToString output for backward compatibility' {
+            $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'L' }
+                    AdNames = @{ $testUserSid = 'Some label' }
+                    Parent  = $true
+                }
+            ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
+
+            $entry = $actual.Value[$fixPath]
+            $entry.Old | Should -BeOfType [string]
+            $entry.New | Should -BeOfType [string]
+            # The Excel-side label is in MatrixAdObjects, not in New/Old
+            $entry.New | Should -Not -Match 'Some label'
         }
     }
 }

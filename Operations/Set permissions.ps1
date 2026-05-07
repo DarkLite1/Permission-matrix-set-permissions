@@ -291,7 +291,31 @@ begin {
                             Write-Warning $errorMessage
 
                             if ($DetailedLog) {
-                                $incorrectInheritedAcl[$child.FullName] = $errorMessage
+                                $aclText = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+
+                                $entry = @{
+                                    'Acl' = $aclText
+                                }
+
+                                # Mirror the non-inherited reporting shape: surface matrix labels
+                                # so the user can correlate ACEs to their Excel column headers.
+                                # Inherited folders inherit from a parent that did define ACL;
+                                # AdNames here comes from that parent's matrix entry.
+                                if ($AdNames -and $AdNames.Count -gt 0) {
+                                    $matrixObjects = @{}
+                                    foreach ($sid in $AdNames.Keys) {
+                                        $displayKey = try {
+                                            ([System.Security.Principal.SecurityIdentifier]::new($sid)).
+                                            Translate([System.Security.Principal.NTAccount]).Value
+                                        }
+                                        catch { $sid }
+
+                                        $matrixObjects[$displayKey] = $AdNames[$sid]
+                                    }
+                                    $entry['MatrixAdObjects'] = $matrixObjects
+                                }
+
+                                $incorrectInheritedAcl[$child.FullName] = $entry
                             }
                             else {
                                 $incorrectInheritedAcl.Add($child.FullName)
@@ -826,8 +850,23 @@ process {
                                 'New' = ($folder.FolderAcl).AccessToString
                             }
 
+                            # Surface the matrix-author labels so users can map
+                            # ACL entries back to their Excel column headers.
+                            # Each entry is keyed by the display form (DOMAIN\name
+                            # when the SID translates, raw SID when it doesn't),
+                            # which matches what AccessToString puts in Old/New.
                             if ($folder.AdNames -and $folder.AdNames.Count -gt 0) {
-                                $entry['MatrixAdObjects'] = ($folder.AdNames.Values | Sort-Object) -join ', '
+                                $matrixObjects = @{}
+                                foreach ($sid in $folder.AdNames.Keys) {
+                                    $displayKey = try {
+                                        ([System.Security.Principal.SecurityIdentifier]::new($sid)).
+                                        Translate([System.Security.Principal.NTAccount]).Value
+                                    }
+                                    catch { $sid }
+
+                                    $matrixObjects[$displayKey] = $folder.AdNames[$sid]
+                                }
+                                $entry['MatrixAdObjects'] = $matrixObjects
                             }
 
                             $incorrectAclNonInheritedFolders[$folder.Path] = $entry
