@@ -2862,3 +2862,148 @@ Describe 'when Action is' {
         }
     }
 }
+Describe 'when ACL keys are SIDs (cross-domain support)' {
+    BeforeAll {
+        $testUserSid = ([System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser").
+        Translate([System.Security.Principal.SecurityIdentifier]).Value
+        $testUser2Sid = ([System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser2").
+        Translate([System.Security.Principal.SecurityIdentifier]).Value
+        $currentUserSid = ([System.Security.Principal.NTAccount]"$env:USERDOMAIN\$env:USERNAME").
+        Translate([System.Security.Principal.SecurityIdentifier]).Value
+    }
+
+    BeforeEach {
+        Remove-Item 'TestDrive:\*' -Recurse -Force -ErrorAction Ignore
+    }
+
+    Context 'permission application (Action = New)' {
+        It 'applies a SID-keyed ACL identically to a SamAccountName-keyed one' {
+            $samPath = Join-Path (Get-PSDrive TestDrive).Root 'samFolder'
+            $sidPath = Join-Path (Get-PSDrive TestDrive).Root 'sidFolder'
+
+            $null = .$testScript -Path $samPath -Action 'New' -JobThrottleLimit 2 -Matrix @(
+                [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUser = 'R' }; Parent = $true }
+            )
+            $null = .$testScript -Path $sidPath -Action 'New' -JobThrottleLimit 2 -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'R' }
+                    AdNames = @{ $testUserSid = $testUser }
+                    Parent  = $true
+                }
+            )
+
+            $samAcl = @((Get-Acl $samPath).Access | Where-Object {
+                    try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $testUserSid }
+                    catch { $false }
+                })
+            $sidAcl = @((Get-Acl $sidPath).Access | Where-Object {
+                    try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $testUserSid }
+                    catch { $false }
+                })
+
+            $samAcl | Should -Not -BeNullOrEmpty
+            $sidAcl | Should -Not -BeNullOrEmpty
+            $samAcl.Count | Should -Be $sidAcl.Count
+            ($samAcl.FileSystemRights | Sort-Object) -join ',' |
+            Should -Be (($sidAcl.FileSystemRights | Sort-Object) -join ',')
+        }
+
+        It 'accepts a mixed ACL with SIDs and SamAccountNames' {
+            $mixedPath = Join-Path (Get-PSDrive TestDrive).Root 'mixedFolder'
+
+            $null = .$testScript -Path $mixedPath -Action 'New' -JobThrottleLimit 2 -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'R'; $testUser2 = 'L' }
+                    AdNames = @{ $testUserSid = $testUser }
+                    Parent  = $true
+                }
+            )
+
+            $access = (Get-Acl $mixedPath).Access
+            $sidEntry = $access | Where-Object {
+                try { $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq $testUserSid }
+                catch { $false }
+            }
+            $samEntry = $access | Where-Object {
+                $_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2"
+            }
+            $sidEntry | Should -Not -BeNullOrEmpty
+            $samEntry | Should -Not -BeNullOrEmpty
+        }
+
+        It 'works without an AdNames property at all' {
+            $compatPath = Join-Path (Get-PSDrive TestDrive).Root 'compatFolder'
+
+            { .$testScript -Path $compatPath -Action 'New' -JobThrottleLimit 2 -Matrix @(
+                    [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUser = 'R' }; Parent = $true }
+                ) } | Should -Not -Throw
+
+            (Get-Acl $compatPath).Access | Where-Object {
+                $_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser"
+            } | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    Context 'detailed log reporting (Action = Fix)' {
+        BeforeEach {
+            $script:fixPath = Join-Path (Get-PSDrive TestDrive).Root 'fixFolder'
+            New-Item -Path $fixPath -ItemType Directory -Force | Out-Null
+        }
+
+        It 'adds MatrixAdObjects with friendly names from AdNames' {
+            New-Item -Path (Join-Path $fixPath 'FolderA') -ItemType Directory -Force | Out-Null
+
+            $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'L' }
+                    AdNames = @{ $testUserSid = 'BEL TEAM SOUTH BXL Administrative employee' }
+                    Parent  = $true
+                }
+                [PSCustomObject]@{
+                    Path    = 'FolderA'
+                    ACL     = @{ $testUser2Sid = 'R' }
+                    AdNames = @{ $testUser2Sid = 'Finance Team Brussels' }
+                }
+            ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
+
+            $actual | Should -Not -BeNullOrEmpty
+
+            $actual.Value[$fixPath].MatrixAdObjects |
+            Should -Match 'BEL TEAM SOUTH BXL Administrative employee'
+
+            $actual.Value["$fixPath\FolderA"].MatrixAdObjects |
+            Should -Match 'Finance Team Brussels'
+        }
+
+        It 'omits MatrixAdObjects when AdNames is missing' {
+            $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
+                [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUserSid = 'L' }; Parent = $true }
+            ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
+
+            $actual.Value[$fixPath].ContainsKey('MatrixAdObjects') | Should -BeFalse
+            # Old/New still populated as before
+            $actual.Value[$fixPath].New | Should -Not -BeNullOrEmpty
+            $actual.Value[$fixPath].Old | Should -Not -BeNullOrEmpty
+        }
+
+        It 'lists multiple AdNames entries comma-separated and sorted' {
+            $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
+                [PSCustomObject]@{
+                    Path    = 'Path'
+                    ACL     = @{ $testUserSid = 'L'; $testUser2Sid = 'R' }
+                    AdNames = @{
+                        $testUserSid  = 'Zeta Group'
+                        $testUser2Sid = 'Alpha Group'
+                    }
+                    Parent  = $true
+                }
+            ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
+
+            $actual.Value[$fixPath].MatrixAdObjects |
+            Should -Be 'Alpha Group, Zeta Group' -Because 'labels are sorted alphabetically and joined with ", "'
+        }
+    }
+}

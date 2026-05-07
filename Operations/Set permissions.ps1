@@ -45,31 +45,6 @@ param (
 )
 
 begin {
-    #region Function Format-AclWithNamesHC
-    function Format-AclWithNamesHC {
-        [CmdletBinding()]
-        [OutputType([string])]
-        param (
-            [Parameter(Mandatory)]
-            [AllowEmptyString()]
-            [string]$AclText,
-
-            [Parameter()]
-            [hashtable]$AdNames
-        )
-
-        if ([string]::IsNullOrEmpty($AclText) -or -not $AdNames -or $AdNames.Count -eq 0) {
-            return $AclText
-        }
-
-        [regex]::Replace($AclText, 'S-\d-\d+(?:-\d+)+', {
-                param($match)
-                $sid = $match.Value
-                if ($AdNames.ContainsKey($sid)) { $AdNames[$sid] } else { $sid }
-            })
-    }
-    #endregion
-
     #region Function New-AceHC
     function New-AceHC {
         [CmdLetBinding()]
@@ -251,31 +226,6 @@ begin {
         }
         #endregion
 
-        #region Function Format-AclWithNamesHC
-        function Format-AclWithNamesHC {
-            [CmdletBinding()]
-            [OutputType([string])]
-            param (
-                [Parameter(Mandatory)]
-                [AllowEmptyString()]
-                [string]$AclText,
-
-                [Parameter()]
-                [hashtable]$AdNames
-            )
-
-            if ([string]::IsNullOrEmpty($AclText) -or -not $AdNames -or $AdNames.Count -eq 0) {
-                return $AclText
-            }
-
-            [regex]::Replace($AclText, 'S-\d-\d+(?:-\d+)+', {
-                    param($match)
-                    $sid = $match.Value
-                    if ($AdNames.ContainsKey($sid)) { $AdNames[$sid] } else { $sid }
-                })
-        }
-        #endregion
-
         #region Function Get-FolderContentHC
         function Get-FolderContentHC {
             param (
@@ -378,15 +328,18 @@ begin {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
 
             if ($DetailedLog) {
-                $aclText = if ($accessDenied) {
-                    'Access Denied'
+                $aclText = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+
+                if ($AdNames -and $AdNames.Count -gt 0) {
+                    $entry = @{
+                        'Acl'             = $aclText
+                        'MatrixAdObjects' = ($AdNames.Values | Sort-Object) -join ', '
+                    }
+                    $incorrectInheritedAcl[$child.FullName] = $entry
                 }
                 else {
-                    $acl.AccessToString
+                    $incorrectInheritedAcl[$child.FullName] = $aclText
                 }
-                $incorrectInheritedAcl[$child.FullName] = Format-AclWithNamesHC `
-                    -AclText $aclText `
-                    -AdNames $AdNames
             }
             else {
                 $incorrectInheritedAcl.Add($child.FullName)
@@ -868,17 +821,16 @@ process {
                     #region Log Incorrect ACL
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
-                            $oldAcl = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
-                            $newAcl = ($folder.FolderAcl).AccessToString
-
-                            $incorrectAclNonInheritedFolders[$folder.Path] = @{
-                                'Old' = Format-AclWithNamesHC `
-                                    -AclText $oldAcl `
-                                    -AdNames $folder.AdNames
-                                'New' = Format-AclWithNamesHC `
-                                    -AclText $newAcl `
-                                    -AdNames $folder.AdNames
+                            $entry = @{
+                                'Old' = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+                                'New' = ($folder.FolderAcl).AccessToString
                             }
+
+                            if ($folder.AdNames -and $folder.AdNames.Count -gt 0) {
+                                $entry['MatrixAdObjects'] = ($folder.AdNames.Values | Sort-Object) -join ', '
+                            }
+
+                            $incorrectAclNonInheritedFolders[$folder.Path] = $entry
                         }
                         else {
                             $incorrectAclNonInheritedFolders.Add($folder.Path)
