@@ -2,8 +2,30 @@
 #Requires -Modules Pester
 
 BeforeAll {
-    $testUser = 'dverhuls'
-    $testUser2 = 'wpeeter'
+    #region Get 2 domain users for testing
+    $userSearcher = [System.DirectoryServices.DirectorySearcher]::new()
+    try {
+        $userSearcher.Filter = '(&(objectCategory=person)(objectClass=user)(!userAccountControl:1.2.840.113556.1.4.803:=2))'
+        $null = $userSearcher.PropertiesToLoad.Add('samAccountName')
+        $userSearcher.SizeLimit = 2
+
+        $foundUsers = @(
+            $userSearcher.FindAll() |
+            ForEach-Object { $_.Properties['samaccountname'][0] } |
+            Where-Object { $_ }
+        )
+    }
+    finally {
+        $userSearcher.Dispose()
+    }
+
+    if ($foundUsers.Count -lt 2) {
+        throw "Test setup failed: need at least 2 enabled users in the current domain, found $($foundUsers.Count). These tests require AD access to apply real ACLs."
+    }
+
+    $testUser = $foundUsers[0]
+    $testUser2 = $foundUsers[1]
+    #endregion
 
     $ExpectedIncorrectAclNonInheritedFolders = [PSCustomObject]@{
         Type        = 'Warning'
