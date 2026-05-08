@@ -128,79 +128,97 @@ function ConvertTo-MatrixADNamesHC {
     return $list | Where-Object { $_ } | Sort-Object -Unique
 }
 
-# function ConvertTo-MatrixAclHC {
-#     <#
-#         Converts the permissions sheet (minus header rows) and AD objects
-#         into a structured matrix of ACL assignments.
-
-#         Params:
-#             -NonHeaderRows = rows after first 3
-#             -ADObjects     = array of AD identifiers
-#     #>
-#     [CmdletBinding()]
-#     param(
-#         [Parameter(Mandatory)][array]$NonHeaderRows,
-#         [Parameter(Mandatory)][array]$ADObjects
-#     )
-
-#     $matrix = @()
-
-#     foreach ($row in $NonHeaderRows) {
-
-#         $path = $row.P1
-#         if (-not $path) {
-#             continue
-#         }
-
-#         $entry = [ordered]@{
-#             Path = $path
-#             ACL  = @{}
-#         }
-
-#         # For each AD object, assign the permission
-#         for ($i = 0; $i -lt $ADObjects.Count; $i++) {
-
-#             $colName = "P$($i+2)"   # Permissions columns start at P2
-#             if ($row.PSObject.Properties[$colName]) {
-#                 $perm = $row.$colName
-#                 if ($perm -and $perm -ne 'I') {
-#                     # Ignore == skip
-#                     $entry.ACL[$ADObjects[$i]] = $perm
-#                 }
-#             }
-#         }
-
-#         $matrix += [pscustomobject]$entry
-#     }
-
-#     return $matrix
-# }
-
 function Get-DefaultAclHC {
     <#
-        Builds the default ACL hash table from the Defaults.xlsx sheet.
-        Sheet must contain at least: MailTo, ADObjectName, Permission
+    .SYNOPSIS
+        Builds the default ACL hash table from the Defaults.xlsx Settings sheet.
+
+    .DESCRIPTION
+        Validates each row that has either ADObjectName or Permission populated:
+        - both must be present (incomplete pairs are flagged)
+        - Permission must be a valid character (L, R, W, F)
+        - duplicate ADObjectNames are flagged
+
+        Rows where both ADObjectName and Permission are empty are ignored
+        (these are typically MailTo-only rows or trailing blank rows).
+
+        Permission 'I' (inherit) is intentionally rejected here — defaults
+        are explicit grants by definition; "inherit by default" is meaningless.
 
         Returns a hashtable:
             Key:   ADObjectName
             Value: Permission Char
     #>
     [CmdletBinding()]
+    [OutputType([hashtable])]
     param(
-        [Parameter(Mandatory)][array]$Sheet
+        [Parameter(Mandatory)][array]$Sheet,
+        [Parameter(Mandatory)][ref]$SystemErrors
     )
+
+    # Mirrors Test-MatrixPermissionsHC's accepted set, minus 'I' (inherit).
+    $validPermissions = @('L', 'R', 'W', 'F')
 
     $acl = @{}
 
     foreach ($row in $Sheet) {
-        if ($row.ADObjectName -and $row.Permission) {
-            $name = $row.ADObjectName.ToString().Trim()
-            $perm = $row.Permission.ToString().Trim().ToUpper()
-
-            if ($name -and $perm) {
-                $acl[$name] = $perm
-            }
+        $rawName = if ($row.ADObjectName) { 
+            $row.ADObjectName.ToString().Trim() 
         }
+        else { '' }
+        $rawPerm = if ($row.Permission) { 
+            $row.Permission.ToString().Trim().ToUpper() 
+        }
+        else { '' }
+
+        # Both empty: not an ACL row (likely MailTo-only). Skip silently.
+        if (-not $rawName -and -not $rawPerm) { continue }
+
+        # ADObjectName missing but Permission set
+        if (-not $rawName) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Incomplete default ACL entry' `
+                -Message "Defaults row has Permission '$rawPerm' but no ADObjectName." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            continue
+        }
+
+        # ADObjectName set but Permission missing
+        if (-not $rawPerm) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Incomplete default ACL entry' `
+                -Message "Defaults entry '$rawName' has no permission assigned." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            continue
+        }
+
+        # Permission character invalid
+        if ($rawPerm -notin $validPermissions) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Invalid default ACL permission' `
+                -Message "Defaults entry '$rawName' has invalid permission '$rawPerm'. Valid values: $($validPermissions -join ', ')." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            continue
+        }
+
+        # Duplicate ADObjectName in defaults
+        if ($acl.ContainsKey($rawName)) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Duplicate default ACL entry' `
+                -Message "Defaults defines '$rawName' more than once." `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            continue
+        }
+
+        $acl[$rawName] = $rawPerm
     }
 
     return $acl

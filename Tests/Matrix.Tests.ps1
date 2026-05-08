@@ -27,6 +27,7 @@ Describe 'Matrix Logic Tests' {
         . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
 
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Matrix.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Utils.ps1"
 
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
@@ -238,6 +239,92 @@ Describe 'Matrix Logic Tests' {
             $htmlFiles = Get-ChildItem -Path $logFolder -Recurse -Filter '*.html'
 
             $htmlFiles.Count | Should -Be $ExpectedFiles
+        }
+    }
+
+    Describe 'Get-DefaultAclHC validation' {
+        BeforeEach {
+            $script:errors = [System.Collections.Generic.List[object]]::new()
+        }
+
+        It 'accepts a complete row' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = 'IT Demand Management'; Permission = 'L'; MailTo = 'bob@contoso.com' })
+            $result = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 0
+            $result['IT Demand Management'] | Should -Be 'L'
+        }
+
+        It 'silently skips MailTo-only rows' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = $null; Permission = $null; MailTo = 'mike@contoso.com' })
+            $result = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 0
+            $result.Count | Should -Be 0
+        }
+
+        It 'flags ADObjectName without Permission' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = 'Orphaned'; Permission = $null })
+            $null = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 1
+            $errors[0].Type | Should -Be 'FatalError'
+            $errors[0].Message | Should -Match 'Orphaned'
+        }
+
+        It 'flags Permission without ADObjectName' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = $null; Permission = 'R' })
+            $null = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 1
+            $errors[0].Type | Should -Be 'FatalError'
+        }
+
+        It 'flags invalid permission characters' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = 'IT'; Permission = 'X' })
+            $null = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors[0].Message | Should -Match "invalid permission 'X'"
+        }
+
+        It "rejects 'I' (ignore) in defaults" {
+            $sheet = @([PSCustomObject]@{ ADObjectName = 'IT'; Permission = 'I' })
+            $null = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 1
+            $errors[0].Message | Should -Match "invalid permission 'I'"
+        }
+
+        It 'flags duplicate ADObjectName entries' {
+            $sheet = @(
+                [PSCustomObject]@{ ADObjectName = 'IT'; Permission = 'L' }
+                [PSCustomObject]@{ ADObjectName = 'IT'; Permission = 'R' }
+            )
+            $result = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 1
+            $errors[0].Name | Should -Be 'Duplicate default ACL entry'
+            $result['IT'] | Should -Be 'L'
+        }
+
+        It 'normalizes case and trims whitespace' {
+            $sheet = @([PSCustomObject]@{ ADObjectName = '  IT  '; Permission = ' l ' })
+            $result = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 0
+            $result['IT'] | Should -Be 'L'
+        }
+
+        It 'continues processing after one bad row' {
+            $sheet = @(
+                [PSCustomObject]@{ ADObjectName = 'BadOne'; Permission = 'X' }
+                [PSCustomObject]@{ ADObjectName = 'GoodOne'; Permission = 'L' }
+            )
+            $result = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+            $errors.Count | Should -Be 1
+            $result.Count | Should -Be 1
+            $result['GoodOne'] | Should -Be 'L'
         }
     }
 }

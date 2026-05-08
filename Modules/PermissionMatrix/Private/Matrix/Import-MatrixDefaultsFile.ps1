@@ -9,9 +9,7 @@ function Import-MatrixDefaultsHC {
     )
 
     try {
-        # ------------------------------------------------------------
-        # Locate defaults file
-        # ------------------------------------------------------------
+        #region Check if defaults file exists
         try {
             $defaultsItem = Get-Item -LiteralPath $Matrix.DefaultsFile -ErrorAction Stop
         }
@@ -24,10 +22,9 @@ function Import-MatrixDefaultsHC {
                 -SystemErrors $SystemErrors
             return $null
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Import Settings worksheet
-        # ------------------------------------------------------------
+        #region Import defaults file and check for 'Settings' worksheet
         try {
             Write-Verbose "Import matrix defaults file '$($defaultsItem.FullName)'"
 
@@ -46,10 +43,9 @@ function Import-MatrixDefaultsHC {
                 -SystemErrors $SystemErrors
             return $null
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Validate mandatory columns
-        # ------------------------------------------------------------
+        #region Validate mandatory columns
         $columns = $defaultsImport[0].PSObject.Properties.Name
         foreach ($required in 'MailTo', 'ADObjectName', 'Permission') {
             if ($required -notin $columns) {
@@ -62,15 +58,27 @@ function Import-MatrixDefaultsHC {
                 return $null
             }
         }
+        #endregion
 
-        # ------------------------------------------------------------
-        # Extract default ACL
-        # ------------------------------------------------------------
-        $defaultAcl = Get-DefaultAclHC -Sheet $defaultsImport
+        #region Get default ACL
+        $defaultAcl = Get-DefaultAclHC `
+            -Sheet $defaultsImport `
+            -SystemErrors $SystemErrors
 
-        # ------------------------------------------------------------
-        # Extract MailTo
-        # ------------------------------------------------------------
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
+            return $null
+        }
+
+        if ($defaultAcl.Count -eq 0) {
+            Add-ErrorHC `
+                -Type 'FatalError' `
+                -Name 'Empty default ACL' `
+                -Message 'No valid ACL entries found in defaults file.' `
+                -Category 'Matrix' `
+                -SystemErrors $SystemErrors
+            return $null
+        }
+            
         $mailTo = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $defaultsImport) {
             if (-not [string]::IsNullOrWhiteSpace($row.MailTo)) {
