@@ -20,9 +20,7 @@ function Invoke-PermissionMatrixBeginHC {
     )
 
     try {
-        # =====================================================================
-        # 1. SEQUENTIAL: Test input file & create context
-        # =====================================================================
+        #region Get JSON content
         if (-not (Test-Path -LiteralPath $ConfigurationJsonFile -PathType Leaf)) {
             Add-ErrorHC `
                 -Type 'FatalError' `
@@ -34,7 +32,8 @@ function Invoke-PermissionMatrixBeginHC {
         }
 
         $json = Get-Content -LiteralPath $ConfigurationJsonFile -Raw -Encoding UTF8 | ConvertFrom-Json -Depth 50
-   
+        #endregion
+
         $Context = [pscustomobject]@{
             JsonFileName  = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationJsonFile)
             Config        = $json
@@ -69,10 +68,8 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         if ($SystemErrors.Value.Count -gt 0) { return $Context }
-
-        # =====================================================================
-        # 2. PARALLEL: Read, Validate, and Archive Matrix Files
-        # =====================================================================
+        
+        #region Get Matrix Files
         try {
             $matrixFiles = Get-ChildItem -Path $Context.Config.Matrix.FolderPath -Filter '*.xlsx' -File -ErrorAction Stop
         }
@@ -85,20 +82,17 @@ function Invoke-PermissionMatrixBeginHC {
                 -SystemErrors $SystemErrors
             return $Context
         }
-
-        #region Exclude Defaults file from the processing list
+        
         $matrixFiles = $matrixFiles | Where-Object { 
             $_.FullName -ne $Context.Config.Matrix.DefaultsFile 
         }
-        #endregion
-
-        #region Exit before reading defaults if there are no matrix files
+        
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
             return $Context 
         }
-        #endregion
-        
+
         $Context.FoundMatrices = $true
+        #endregion
 
         #region Read Defaults Excel file and validate (Placed here to save I/O)
         $defaults = Import-MatrixDefaultsHC `
@@ -112,7 +106,7 @@ function Invoke-PermissionMatrixBeginHC {
         $Context.Defaults = $defaults
         #endregion
 
-        #region Setup Archive Folder
+        #region Create Archive Folder
         $archivePath = $null
         if ($Context.Config.Matrix.Archive) {
             $archivePath = Join-Path -Path $Context.Config.Matrix.FolderPath -ChildPath 'Archive'
@@ -122,9 +116,9 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
+        #region Import, validate and archive in Parallel   
         $throttle = $Context.Config.MaxConcurrent.FoldersPerMatrix ?? 4
 
-        #region Import, validate and archive in Parallel
         $parallelResults = Invoke-WithOptionalParallelismHC `
             -InputObject $matrixFiles `
             -ThrottleLimit $throttle `
@@ -305,10 +299,6 @@ function Invoke-PermissionMatrixBeginHC {
         $Context.AllMatrices = $importedMatrices
         #endregion
 
-        # =====================================================================
-        # 3. SEQUENTIAL: Cross-Matrix Checks & AD Lookups
-        # =====================================================================
-        
         #region Duplicate ComputerName/Path Validation
         $duplicateMatrices = $Context.AllMatrices | 
         Group-Object -Property { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path } | 
@@ -331,9 +321,7 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
-        #region AD Lookups & Expanded Matrix Checks
-
-        # 3a. Gather ALL AD Objects from built matrices and defaults
+        #region Get all AD Objects from matrices and defaults
         $allAdObjects = [System.Collections.Generic.List[string]]::new()
         
         foreach ($matrixObj in $Context.AllMatrices) {
@@ -351,9 +339,11 @@ function Invoke-PermissionMatrixBeginHC {
         }
 
         $uniqueAdObjects = $allAdObjects | Sort-Object -Unique
+        #endregion
 
-        # 3b. Perform single bulk AD Query
+        #region Bulk query AD for all unique objects and build a name → SID map
         if ($uniqueAdObjects.Count -gt 0) {
+            #region Bulk AD Lookup
             $adObjectDetails = @()
             try {
                 $adObjectDetails = @(
@@ -371,16 +361,18 @@ function Invoke-PermissionMatrixBeginHC {
                     -Category 'ExpandedMatrix' `
                     -SystemErrors $SystemErrors
             }
-            
-            # 3c. Build name → SID lookup for ACL key rewriting
+            #endregion
+
+            #region Build Name → SID map for quick lookup during ACL rewrite
             $nameToSid = @{}
             foreach ($detail in $adObjectDetails) {
                 if ($detail.adObject -and $detail.adObject.ObjectSid) {
                     $nameToSid[$detail.SamAccountName] = $detail.adObject.ObjectSid
                 }
             }
+            #endregion
 
-            # 3d. Run Expanded Checks sequentially, then rewrite ACL keys to SIDs
+            #region Rewrite ACLs in all matrices to use SIDs instead of names
             foreach ($matrixObj in $Context.AllMatrices) {
                 $isFileBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.FileContext.Check
@@ -424,6 +416,7 @@ function Invoke-PermissionMatrixBeginHC {
                         -NotePropertyValue $adNames -Force
                 }
             }
+            #endregion
         }
         #endregion
 
