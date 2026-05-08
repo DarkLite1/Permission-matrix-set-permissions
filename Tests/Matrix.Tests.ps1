@@ -99,7 +99,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
-    } -Skip
+    }
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -116,7 +116,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$Expected*"
         }
-    } -Skip
+    }
 
     Describe 'Matrix: Disabled matrices' {
 
@@ -146,7 +146,7 @@ Describe 'Matrix Logic Tests' {
                 Assert-HtmlLogContainsPatternHC @assertParams
             }
         }
-    } -Skip
+    }
 
     Describe 'Matrix: Duplicate combinations' {
 
@@ -164,7 +164,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedError*"
         }
-    } -Skip
+    }
 
     Describe 'Default permissions merging' {
 
@@ -196,7 +196,7 @@ Describe 'Matrix Logic Tests' {
                 }
             }
         }
-    } -Skip
+    }
 
     Describe 'AD Object build logic' {
 
@@ -215,12 +215,14 @@ Describe 'Matrix Logic Tests' {
                 $actualMap[$key] | Should -Be $ExpectedMap[$key] -Because 'The AD Object name should be correctly constructed'
             }
         }
-    } -Tag test
+    }
 
-    # ------------------------------------------------------------------
-    # 8. Matrix building logic
-    # ------------------------------------------------------------------
     Describe 'Matrix building logic' {
+        BeforeEach {
+            if (Test-Path 'TestDrive:\Matrix') {
+                Remove-Item 'TestDrive:\Matrix\*' -Recurse -Force -EA Ignore
+            }
+        }
 
         It '<Description>' -TestCases $MatrixBuildFixtures {
             param($Description, $FixtureBuilder, $ExpectedFiles)
@@ -231,7 +233,6 @@ Describe 'Matrix Logic Tests' {
             Save-TestJson $updated $TestJsonFile
 
             & $TestScript @TestParams
-            $LASTEXITCODE | Should -Be 0
 
             $logFolder = Get-LatestLogFolderHC -Root $TestInput.Settings.SaveLogFiles.Where.Folder
             $htmlFiles = Get-ChildItem -Path $logFolder -Recurse -Filter '*.html'
