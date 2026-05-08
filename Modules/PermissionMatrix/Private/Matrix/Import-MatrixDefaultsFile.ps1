@@ -68,16 +68,6 @@ function Import-MatrixDefaultsHC {
         if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
             return $null
         }
-
-        if ($defaultAcl.Count -eq 0) {
-            Add-ErrorHC `
-                -Type 'FatalError' `
-                -Name 'Empty default ACL' `
-                -Message 'No valid ACL entries found in defaults file.' `
-                -Category 'Matrix' `
-                -SystemErrors $SystemErrors
-            return $null
-        }
             
         $mailTo = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $defaultsImport) {

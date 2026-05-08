@@ -420,6 +420,45 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
+        #region Verify if default permissions are required
+        $validMatrices = $Context.AllMatrices | Where-Object {
+            -not (Test-ItemHasFatalErrorHC -CheckList $_.Check)
+        }
+
+        $validMatrices = $validMatrices | Where-Object {
+            -not (Test-ItemHasFatalErrorHC -CheckList $_.FileContext.Check)
+        }
+
+        if ($validMatrices) {
+            $anyUsesDefaults = $validMatrices | Where-Object {
+                [System.Convert]::ToBoolean($_.Setting.Formatted.ApplyDefaultPermissions ?? $false)
+            } | Select-Object -First 1
+
+            if (
+                $anyUsesDefaults -and $Context.Defaults.DefaultAcl.Count -eq 0
+            ) {
+                Add-ErrorHC `
+                    -Type 'FatalError' `
+                    -Name 'Empty default ACL' `
+                    -Message 'A matrix has ApplyDefaultPermissions=TRUE but the defaults file contains no valid ACL entries.' `
+                    -Category 'Matrix' `
+                    -SystemErrors $SystemErrors
+                return $Context
+            }
+            elseif (
+                -not $anyUsesDefaults -and 
+                $Context.Defaults.DefaultAcl.Count -gt 0
+            ) {
+                Add-ErrorHC `
+                    -Type 'Warning' `
+                    -Name 'Unused defaults' `
+                    -Message 'Defaults file contains ACL entries but no matrix has ApplyDefaultPermissions=TRUE; defaults will be ignored.' `
+                    -Category 'Matrix' `
+                    -SystemErrors $SystemErrors
+            }
+        }
+        #endregion
+
         return $Context
     }
     catch {
