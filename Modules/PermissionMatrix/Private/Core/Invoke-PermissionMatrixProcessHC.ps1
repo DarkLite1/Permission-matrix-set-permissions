@@ -47,7 +47,9 @@ function Invoke-PermissionMatrixProcessHC {
         # =====================================================================
         # 1. PARALLEL: Test Requirements
         # =====================================================================
-        $matrixGroups = $executableSettings | Group-Object -Property { $_.Import.ComputerName }
+        $matrixGroups = $executableSettings | Group-Object -Property { 
+            $_.Import.ComputerName 
+        }
         
         # DTO FLATTENING: Protects deep properties from runspace truncation 
         $safeReqGroups = foreach ($group in $matrixGroups) {
