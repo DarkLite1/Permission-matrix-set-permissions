@@ -16,7 +16,7 @@ function Invoke-PermissionMatrixProcessHC {
     )
 
     try {
-        if (-not $Context.Matrices -or $Context.Matrices.Count -eq 0) {
+        if (-not $Context.AllMatrices -or $Context.AllMatrices.Count -eq 0) {
             return $Context
         }
 
