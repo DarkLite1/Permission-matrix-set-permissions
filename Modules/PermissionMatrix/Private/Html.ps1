@@ -161,20 +161,20 @@ function New-HtmlSectionHC {
         
         # 3. Calculate Theme, Symbol, and ROW BADGE based on Type
         if ($check.Type -eq 'FatalError') {
-            $bgColor  = $Script:Theme.StatusError
-            $symbol   = '✖'
+            $bgColor = $Script:Theme.StatusError
+            $symbol = '✖'
             $symColor = '#dc2626' # Bold Red
             $rowBadge = 'ERROR'
         }
         elseif ($check.Type -eq 'Warning') {
-            $bgColor  = $Script:Theme.StatusWarning
-            $symbol   = '⚠'
+            $bgColor = $Script:Theme.StatusWarning
+            $symbol = '⚠'
             $symColor = '#ea580c' # Bold Orange
             $rowBadge = 'WARNING'
         }
         else {
-            $bgColor  = $Script:Theme.StatusSkipped
-            $symbol   = '⊘'
+            $bgColor = $Script:Theme.StatusSkipped
+            $symbol = '⊘'
             $symColor = '#6b7280' # Bold Grey
             $rowBadge = 'INFO'
         }
@@ -421,7 +421,9 @@ function Write-MatrixExecutionReportHC {
         return $null 
     }
 
-    $modBy = [System.Net.WebUtility]::HtmlEncode($FileResult.ExcelInfo.LastModifiedBy ?? 'Unknown')
+    $modBy = [System.Net.WebUtility]::HtmlEncode(
+        (Get-StringOrDefaultHC $FileResult.ExcelInfo.LastModifiedBy 'Unknown')
+    )
 
     $modDt = if ($FileResult.ExcelInfo.Modified -is [datetime]) {
         $FileResult.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
@@ -572,7 +574,10 @@ function Build-MatrixEmailHtmlHC {
         
         # 1. Metadata & Excel Info Header
         $file = [System.Net.WebUtility]::HtmlEncode($fileContext.Item.Name)
-        $modBy = [System.Net.WebUtility]::HtmlEncode($fileContext.ExcelInfo.LastModifiedBy ?? 'Unknown')
+
+        $modBy = [System.Net.WebUtility]::HtmlEncode(
+            (Get-StringOrDefaultHC $fileContext.ExcelInfo.LastModifiedBy 'Unknown')
+        )
         
         $modDt = if ($fileContext.ExcelInfo.Modified -is [datetime]) {
             $fileContext.ExcelInfo.Modified.ToString('dd/MM/yyyy HH:mm:ss')
@@ -613,7 +618,7 @@ function Build-MatrixEmailHtmlHC {
         }
 
         # 5. Assemble the HTML block for this specific Excel file
-        $saveLink = $fileContext.Item.FullName ?? '#' 
+        $saveLink = Get-StringOrDefaultHC $fileContext.Item.FullName '#'
         
         $output += @"
 <table class="matrixTable">
