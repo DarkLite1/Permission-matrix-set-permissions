@@ -218,7 +218,7 @@ function Invoke-PermissionMatrixBeginHC {
                             # C. Merge Defaults per Folder
                             if ($context.Defaults.DefaultAcl) {
                                 try {
-                                    $applyDefaultPerms = $_.Setting.Formatted.ApplyDefaultPermissions -eq $true
+                                    $applyDefaultPerms = $m.Setting.Formatted.ApplyDefaultPermissions
                                     
                                     foreach ($folder in $m.Matrix) {
                                         $folder.ACL = Merge-DefaultPermissionsHC `
@@ -431,7 +431,7 @@ function Invoke-PermissionMatrixBeginHC {
 
         if ($validMatrices) {
             $anyUsesDefaults = $validMatrices | Where-Object {
-                $_.Setting.Formatted.ApplyDefaultPermissions -eq $true
+                $_.Setting.Formatted.ApplyDefaultPermissions
             } | Select-Object -First 1
 
             if (
