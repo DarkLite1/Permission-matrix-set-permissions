@@ -20,6 +20,7 @@ function Invoke-PermissionMatrixProcessHC {
             return $Context
         }
 
+        #region Filter out matrices with fatal errors before processing
         $executableSettings = [System.Collections.Generic.List[pscustomobject]]::new()
 
         foreach ($file in $Context.FileResults) {
@@ -40,6 +41,7 @@ function Invoke-PermissionMatrixProcessHC {
             Write-Verbose 'No executable matrices found after initial validation.'
             return $Context
         }
+        #endregion
 
         $throttleComputers = $Context.Config.MaxConcurrent.Computers ?? 10
         $psSessionConfig = $Context.Config.Settings.PSSessionConfiguration ?? 'PowerShell.7'
