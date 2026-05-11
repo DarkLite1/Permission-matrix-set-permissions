@@ -115,7 +115,12 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
 
         # ConvertTo-StructuredObjectHC is called in two places; stub it to
         # pass values through so we can assert on the original error object.
-        Mock ConvertTo-StructuredObjectHC { return $args[0] }
+        # Passthrough: the real function normalizes objects; for mocking we just
+        # want the input to flow through to whoever consumes the result.
+        # Note: $args[0] doesn't work because the function is called via pipeline
+        # (`$result | ConvertTo-StructuredObjectHC`), so the value arrives through
+        # $input, not as a positional parameter.
+        Mock ConvertTo-StructuredObjectHC { $input }
     }
 
     Context 'Guard conditions' {
