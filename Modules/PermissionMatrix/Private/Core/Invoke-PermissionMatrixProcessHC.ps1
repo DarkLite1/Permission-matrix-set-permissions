@@ -29,8 +29,7 @@ function Invoke-PermissionMatrixProcessHC {
             
             foreach ($matrixObj in $file.Matrices) {
                 if (
-                    -not (Test-ItemHasFatalErrorHC `
-                            -CheckList $matrixObj.Check)
+                    -not (Test-ItemHasFatalErrorHC -CheckList $matrixObj.Check)
                 ) {
                     $executableSettings.Add($matrixObj)
                 }
