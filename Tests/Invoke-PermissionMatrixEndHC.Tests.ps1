@@ -10,7 +10,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Export.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-EventLogSafe.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Cleanup-OldLogsHC.ps1"
-           . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-SystemErrorLogHC.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-SystemErrorLogHC.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
 
         # Helper: builds a minimal Context with the shape EndHC expects.
@@ -108,6 +108,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
             }
         }
     }
+
 
     BeforeEach {
         $script:systemErrors = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -307,127 +308,127 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
         # Only the check WithValue should produce a JSON file
         $jsonFiles.Count | Should -Be 1
     }
-}
 
-Context 'Phase 4: Send email' {
-    It 'sends mail when SendMail config is present' {
-        $ctx = New-EndContext
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Send-MailKitMessageHC -Times 1
-    }
-
-    It 'skips mail when SendMail config is missing' {
-        $ctx = New-EndContext -SendMail $null
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Send-MailKitMessageHC -Times 0
-    }
-
-    It 'saves the mail body to log folder when log folder exists' {
-        $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
-        $ctx = New-EndContext -LogFolder $logRoot
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Save-MailBodyToLogHC -Times 1
-    }
-
-    It 'records a Warning when Send-MailKitMessageHC throws' {
-        Mock Send-MailKitMessageHC { throw 'mail boom' }
-        $ctx = New-EndContext
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should -Be 1
-    }
-}
-
-Context 'Phase 5: Event log & cleanup' {
-    It 'writes to event log only when SaveInEventLog.Save is true' {
-        $ctx = New-EndContext -SaveInEventLog @{ Save = $true; LogName = 'Application' }
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Write-EventLogSafe -Times 1
-    }
-
-    It 'skips event log when SaveInEventLog.Save is false' {
-        $ctx = New-EndContext -SaveInEventLog @{ Save = $false; LogName = 'Application' }
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Write-EventLogSafe -Times 0
-    }
-
-    It 'falls back to default ScriptName when not set' {
-        $ctx = New-EndContext `
-            -ScriptName $null `
-            -SaveInEventLog @{ Save = $true; LogName = 'Application' }
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Write-EventLogSafe -ParameterFilter {
-            $ScriptName -eq 'Permission Matrix'
+    Context 'Phase 4: Send email' {
+        It 'sends mail when SendMail config is present' {
+            $ctx = New-EndContext
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Send-MailKitMessageHC -Times 1
+        }
+    
+        It 'skips mail when SendMail config is missing' {
+            $ctx = New-EndContext -SendMail $null
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Send-MailKitMessageHC -Times 0
+        }
+    
+        It 'saves the mail body to log folder when log folder exists' {
+            $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+            $ctx = New-EndContext -LogFolder $logRoot
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Save-MailBodyToLogHC -Times 1
+        }
+    
+        It 'records a Warning when Send-MailKitMessageHC throws' {
+            Mock Send-MailKitMessageHC { throw 'mail boom' }
+            $ctx = New-EndContext
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should -Be 1
         }
     }
-
-    It 'cleans up old logs when DeleteLogsAfterDays > 0 and log folder exists' {
-        $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
-        $ctx = New-EndContext `
-            -LogFolder $logRoot `
-            -SaveLogFiles @{
-            Detailed            = $false
-            DeleteLogsAfterDays = 30
-            Where               = @{ Folder = $logRoot }
+    
+    Context 'Phase 5: Event log & cleanup' {
+        It 'writes to event log only when SaveInEventLog.Save is true' {
+            $ctx = New-EndContext -SaveInEventLog @{ Save = $true; LogName = 'Application' }
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Write-EventLogSafe -Times 1
         }
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Cleanup-OldLogsHC -Times 1
+    
+        It 'skips event log when SaveInEventLog.Save is false' {
+            $ctx = New-EndContext -SaveInEventLog @{ Save = $false; LogName = 'Application' }
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Write-EventLogSafe -Times 0
+        }
+    
+        It 'falls back to default ScriptName when not set' {
+            $ctx = New-EndContext `
+                -ScriptName $null `
+                -SaveInEventLog @{ Save = $true; LogName = 'Application' }
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Write-EventLogSafe -ParameterFilter {
+                $ScriptName -eq 'Permission Matrix'
+            }
+        }
+    
+        It 'cleans up old logs when DeleteLogsAfterDays > 0 and log folder exists' {
+            $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+            $ctx = New-EndContext `
+                -LogFolder $logRoot `
+                -SaveLogFiles @{
+                Detailed            = $false
+                DeleteLogsAfterDays = 30
+                Where               = @{ Folder = $logRoot }
+            }
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Cleanup-OldLogsHC -Times 1
+        }
+    
+        It 'skips cleanup when DeleteLogsAfterDays is 0' {
+            $ctx = New-EndContext
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Cleanup-OldLogsHC -Times 0
+        }
+    
+        It 'does not throw when phase 5 itself fails (final catch is silent)' {
+            Mock Write-EventLogSafe { throw 'eventlog boom' }
+            $ctx = New-EndContext -SaveInEventLog @{ Save = $true; LogName = 'Application' }
+    
+            { Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors) } |
+            Should -Not -Throw
+        }
     }
-
-    It 'skips cleanup when DeleteLogsAfterDays is 0' {
-        $ctx = New-EndContext
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Cleanup-OldLogsHC -Times 0
-    }
-
-    It 'does not throw when phase 5 itself fails (final catch is silent)' {
-        Mock Write-EventLogSafe { throw 'eventlog boom' }
-        $ctx = New-EndContext -SaveInEventLog @{ Save = $true; LogName = 'Application' }
-
-        { Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors) } |
-        Should -Not -Throw
-    }
-}
-
-Context 'Integration: control flow' {
-    It 'runs all phases on a happy path' {
-        $ctx = New-EndContext `
-            -AllMatrices @((New-EndMatrix)) `
-            -FileResults @((New-EndFileResult)) `
-            -SaveInEventLog @{ Save = $true; LogName = 'Application' }
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        Should -Invoke Generate-MailBodyHtmlHC -Times 1
-        Should -Invoke Export-FilesHC -Times 1
-        Should -Invoke Send-MailKitMessageHC -Times 1
-        Should -Invoke Write-EventLogSafe -Times 1
-    }
-
-    It 'continues through later phases when earlier phases fail' {
-        Mock Build-MatrixEmailHtmlHC { throw 'phase 1 boom' }
-        $ctx = New-EndContext -FileResults @((New-EndFileResult))
-
-        Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-        # Email is still attempted
-        Should -Invoke Send-MailKitMessageHC -Times 1
+    
+    Context 'Integration: control flow' {
+        It 'runs all phases on a happy path' {
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -FileResults @((New-EndFileResult)) `
+                -SaveInEventLog @{ Save = $true; LogName = 'Application' }
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            Should -Invoke Generate-MailBodyHtmlHC -Times 1
+            Should -Invoke Export-FilesHC -Times 1
+            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should -Invoke Write-EventLogSafe -Times 1
+        }
+    
+        It 'continues through later phases when earlier phases fail' {
+            Mock Build-MatrixEmailHtmlHC { throw 'phase 1 boom' }
+            $ctx = New-EndContext -FileResults @((New-EndFileResult))
+    
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+    
+            # Email is still attempted
+            Should -Invoke Send-MailKitMessageHC -Times 1
+        }
     }
 }
