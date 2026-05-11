@@ -86,11 +86,20 @@ function Format-SettingStringsHC {
             $S.ComputerName = $S.ComputerName.ToUpper()
         }
 
-
         # Clean Action: TitleCase for clean UI reporting
         # (e.g., 'fIx' -> 'Fix', 'REPORT' -> 'Report')
         if (-not [string]::IsNullOrWhiteSpace($S.Action)) {
             $S.Action = (Get-Culture).TextInfo.ToTitleCase($S.Action.ToLower())
+        }
+
+        # Convert ApplyDefaultPermissions to boolean
+        if (
+            $S.PSObject.Properties.Match('ApplyDefaultPermissions').Count -gt 0 -and
+            -not [string]::IsNullOrWhiteSpace($S.ApplyDefaultPermissions)
+        ) {
+            $parsed = $false
+            $null = [bool]::TryParse($S.ApplyDefaultPermissions.ToString(), [ref]$parsed)
+            $S.ApplyDefaultPermissions = $parsed
         }
 
         return $S
