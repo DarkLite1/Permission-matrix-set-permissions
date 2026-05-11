@@ -216,7 +216,7 @@ function Invoke-PermissionMatrixBeginHC {
                                 -AdObjectsMap $adMap
 
                             # C. Merge Defaults per Folder
-                            if ($context.Defaults.DefaultAcl) {
+                            if ($context.Defaults.DefaultAcl.Count -gt 0) {
                                 try {
                                     $applyDefaultPerms = $m.Setting.Formatted.ApplyDefaultPermissions
                                     
