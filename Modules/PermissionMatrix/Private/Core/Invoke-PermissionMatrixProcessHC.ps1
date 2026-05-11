@@ -43,8 +43,26 @@ function Invoke-PermissionMatrixProcessHC {
         }
         #endregion
 
-        $throttleComputers = $Context.Config.MaxConcurrent.Computers ?? 10
-        $psSessionConfig = $Context.Config.Settings.PSSessionConfiguration ?? 'PowerShell.7'
+        #region Set throttling and session configuration
+        $throttleComputers = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.Computers)
+        ) {
+            10
+        }
+        else {
+            $Context.Config.MaxConcurrent.Computers
+        }
+        
+        
+        $psSessionConfig = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.Settings.PSSessionConfiguration)
+        ) {
+            'PowerShell.7'
+        }
+        else {
+            $Context.Config.Settings.PSSessionConfiguration
+        }
+        #endregion
 
         #region Test Requirements - Parallel by Computer
         $matrixGroups = $validMatrices | Group-Object -Property { 
