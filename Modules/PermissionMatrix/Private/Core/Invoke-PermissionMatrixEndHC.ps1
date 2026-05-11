@@ -13,6 +13,7 @@ function Invoke-PermissionMatrixEndHC {
     $hasFatalErrors = Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value
     $htmlTemplates = Initialize-HtmlStructureHC
     $fullHtmlBody = ''
+    $sysErrAttachments = @()
 
     # =====================================================================
     # 1. BUILD HTML BODY (Best Effort)
@@ -220,7 +221,6 @@ function Invoke-PermissionMatrixEndHC {
             }
             
             if ($SystemErrors.Value.Count -gt 0) {
-                $sysErrAttachments = @() 
                 Write-SystemErrorLogHC `
                     -SystemErrors $SystemErrors.Value `
                     -LogFolder $logFolder `
@@ -247,33 +247,64 @@ function Invoke-PermissionMatrixEndHC {
     }
     #endregion
 
-    # =====================================================================
-    # 4. SEND EMAIL (Best Effort)
-    # =====================================================================
+    #region Send Summary Email
     if ($Context.Config.Settings.SendMail) {
         try {
-            $mailParams = Build-MailParametersHC `
-                -Settings $Context.Config.Settings `
-                -Html $fullHtmlBody `
-                -ExportedFiles $Context.ExportedFiles `
-                -Counter $Context.Counter `
+            $sendMail = $Context.Config.Settings.SendMail
+
+            $recipients = Generate-MailRecipientListHC `
+                -SendMailSettings $sendMail `
+                -MailToDefaultsFile $Context.Defaults.MailTo
+
+            $subject = Generate-MailSubjectHC `
                 -SystemErrors $SystemErrors.Value `
+                -Counter $Context.Counter `
                 -MatrixCount $Context.AllMatrices.Count `
-                -MailToDefaultsFile $Context.Defaults.MailTo `
-                -LogFolder $logFolder `
-                -ScriptStartTime $Context.StartTime
-            
-            # Re-attach the JSON error log if it was successfully created in Step 3
-            if ($sysErrAttachments) { 
-                $mailParams.Attachments = $sysErrAttachments 
+                -CustomSubject $sendMail.Subject
+
+            $priority = if (
+                $SystemErrors.Value.Count -gt 0 -or
+                $Context.Counter.TotalErrors -gt 0 -or
+                $Context.Counter.TotalWarnings -gt 0
+            ) { 'High' } else { 'Normal' }
+
+            if ([string]::IsNullOrEmpty($fullHtmlBody)) {
+                $fullHtmlBody = '<html><body>Email body unavailable due to upstream error.</body></html>'
+            }
+
+            $mailParams = @{
+                To                  = $recipients
+                From                = Get-StringValueHC $sendMail.From
+                FromDisplayName     = Get-StringValueHC $sendMail.FromDisplayName
+                SmtpServerName      = Get-StringValueHC $sendMail.Smtp.ServerName
+                SmtpPort            = Get-StringValueHC $sendMail.Smtp.Port
+                SmtpConnectionType  = Get-StringValueHC $sendMail.Smtp.ConnectionType
+                MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
+                MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
+                Subject             = $subject
+                Body                = $fullHtmlBody
+                Priority            = $priority
+                Attachments         = $sysErrAttachments
+            }
+
+            if ($sendMail.Bcc) {
+                $mailParams.Bcc = $sendMail.Bcc
+            }
+
+            # SMTP credential (only if both username and password supplied)
+            $smtpUser = Get-StringValueHC $sendMail.Smtp.UserName
+            $smtpPass = Get-StringValueHC $sendMail.Smtp.Password
+            if ($smtpUser -and $smtpPass) {
+                $secure = ConvertTo-SecureString -String $smtpPass -AsPlainText -Force
+                $mailParams.Credential = New-Object System.Management.Automation.PSCredential($smtpUser, $secure)
             }
 
             Send-MailKitMessageHC @mailParams
-            
-            if ($logFolder) { 
+
+            if ($logFolder) {
                 $null = Save-MailBodyToLogHC `
                     -MailParams $mailParams `
-                    -LogFolder $logFolder 
+                    -LogFolder $logFolder
             }
         }
         catch {
@@ -285,6 +316,7 @@ function Invoke-PermissionMatrixEndHC {
                 -SystemErrors $SystemErrors
         }
     }
+    #endregion
 
     # =====================================================================
     # 5. EVENT LOG & CLEANUP (Best Effort)

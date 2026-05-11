@@ -1,94 +1,9 @@
-function Build-MailParametersHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        $Settings,
-
-        [Parameter(Mandatory)]
-        $Html,
-
-        [Parameter(Mandatory)]
-        $ExportedFiles,
-
-        [Parameter(Mandatory)]
-        $Counter,
-
-        [Parameter(Mandatory)]
-        $SystemErrors,
-
-        [Parameter(Mandatory)]
-        $MatrixCount,
-
-        [Parameter(Mandatory)]
-        $MailToDefaultsFile,
-
-        [Parameter(Mandatory)]
-        $LogFolder,
-
-        [Parameter(Mandatory)]
-        $ScriptStartTime
-    )
-
-    $params = @{}
-
-    # Recipients
-    $params.To = Generate-MailRecipientListHC `
-        -SendMailSettings $Settings.SendMail `
-        -MailToDefaultsFile $MailToDefaultsFile
-
-    if ($Settings.SendMail.Bcc) {
-        $params.Bcc = $Settings.SendMail.Bcc
-    }
-
-    # Base mail settings
-    $params.From = Get-StringValueHC $Settings.SendMail.From
-    $params.FromDisplayName = Get-StringValueHC $Settings.SendMail.FromDisplayName
-    $params.SmtpServerName = Get-StringValueHC $Settings.SendMail.Smtp.ServerName
-    $params.SmtpPort = Get-StringValueHC $Settings.SendMail.Smtp.Port
-    $params.SmtpConnectionType = Get-StringValueHC $Settings.SendMail.Smtp.ConnectionType
-    $params.MailKitAssemblyPath = Get-StringValueHC $Settings.SendMail.AssemblyPath.MailKit
-    $params.MimeKitAssemblyPath = Get-StringValueHC $Settings.SendMail.AssemblyPath.MimeKit
-
-    # Subject
-    $params.Subject = Generate-MailSubjectHC `
-        -SystemErrors $SystemErrors `
-        -Counter $Counter `
-        -MatrixCount $MatrixCount `
-        -CustomSubject $Settings.SendMail.Subject
-
-    # Attachments get populated later by Write-SystemErrorLogHC if needed
-    $params.Attachments = @()
-
-    # Priority (High if errors or warnings)
-    if ($SystemErrors.Count -gt 0 -or $Counter.TotalErrors -gt 0 -or $Counter.TotalWarnings -gt 0) {
-        $params.Priority = 'High'
-    }
-    else {
-        $params.Priority = 'Normal'
-    }
-
-    # Mail Body
-    $params.Body = $Html
-
-    # Create SMTP credential
-    $smtpUser = Get-StringValueHC $Settings.SendMail.Smtp.UserName
-    $smtpPass = Get-StringValueHC $Settings.SendMail.Smtp.Password
-
-    if ($smtpUser -and $smtpPass) {
-        $secure = ConvertTo-SecureString -String $smtpPass -AsPlainText -Force
-        $params.Credential = New-Object System.Management.Automation.PSCredential($smtpUser, $secure)
-    }
-
-    return $params
-}
-
 function Generate-MailRecipientListHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         $SendMailSettings,
 
-        [Parameter(Mandatory)]
         $MailToDefaultsFile
     )
 
