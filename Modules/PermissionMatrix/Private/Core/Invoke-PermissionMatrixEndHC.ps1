@@ -258,7 +258,7 @@ function Invoke-PermissionMatrixEndHC {
                 -ExportedFiles $Context.ExportedFiles `
                 -Counter $Context.Counter `
                 -SystemErrors $SystemErrors.Value `
-                -MatrixCount $Context.Matrices.Count `
+                -MatrixCount $Context.AllMatrices.Count `
                 -MailToDefaultsFile $Context.Defaults.MailTo `
                 -LogFolder $logFolder `
                 -ScriptStartTime $Context.StartTime
