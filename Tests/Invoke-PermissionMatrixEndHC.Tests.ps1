@@ -10,6 +10,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Export.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-EventLogSafe.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Cleanup-OldLogsHC.ps1"
+           . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-SystemErrorLogHC.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
 
         # Helper: builds a minimal Context with the shape EndHC expects.
