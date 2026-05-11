@@ -97,6 +97,73 @@ function Get-StringValueHC {
     }
 }
 
+function Get-StringOrDefaultHC {
+    <#
+    .SYNOPSIS
+        Returns $Default when $Value is $null, an empty string, or whitespace only.
+        Otherwise returns $Value unchanged.
+
+    .DESCRIPTION
+        Display/fallback companion to Get-StringValueHC. Useful for rendering
+        a placeholder when a string-shaped input is missing or blank
+        (e.g. 'Unknown', 'N/A', or a sensible default like 'Permission Matrix'
+        for a missing script name).
+
+        Treats these as blank:
+          - $null
+          - ''
+          - '   ' (whitespace only)
+          - any object whose [string] conversion is null/whitespace
+
+        Treats these as non-blank (passed through):
+          - 0, $false, empty arrays, empty hashtables (they stringify to non-blank)
+
+        If you need empty-array or empty-collection fallback behaviour,
+        write a separate helper — don't extend this one.
+
+        Note: this function does NOT resolve 'ENV:' prefixes. Use
+        Get-StringValueHC for config strings that may reference environment
+        variables.
+
+    .PARAMETER Value
+        The value to check. Any type; coerced via [string] for the blank check.
+
+    .PARAMETER Default
+        The fallback returned when Value is blank.
+
+    .EXAMPLE
+        Get-StringOrDefaultHC -Value $row.Name -Default 'Unknown'
+
+    .EXAMPLE
+        $row.Name | Get-StringOrDefaultHC 'Unknown'
+
+    .EXAMPLE
+        [System.Net.WebUtility]::HtmlEncode(
+            (Get-StringOrDefaultHC $excel.LastModifiedBy 'Unknown')
+        )
+    #>
+    [CmdletBinding()]
+    [OutputType([object])]
+    param(
+        [Parameter(Position = 0, ValueFromPipeline)]
+        [AllowNull()]
+        $Value,
+
+        [Parameter(Position = 1, Mandatory)]
+        [AllowEmptyString()]
+        [string]$Default
+    )
+
+    process {
+        if ([string]::IsNullOrWhiteSpace([string]$Value)) {
+            $Default
+        }
+        else {
+            $Value
+        }
+    }
+}
+
 function Get-DatedLogFolderPathHC {
     [CmdletBinding()]
     param(

@@ -325,15 +325,21 @@ function Invoke-PermissionMatrixEndHC {
         if ($Context.Config.Settings.SaveInEventLog.Save) {
             $eventData = [System.Collections.Generic.List[PSObject]]::new()
 
+            $scriptName = Get-StringOrDefaultHC `
+                -Value $Context.Config.Settings.ScriptName `
+                -Default 'Permission Matrix'
 
-            $scriptName = if (
-                [string]::IsNullOrWhiteSpace($Context.Config.Settings.ScriptName)
-            ) {
-                'Permission Matrix'
-            }
-            else {
-                $Context.Config.Settings.ScriptName
-            }
+            $eventData.Add(
+                [PSCustomObject]@{
+                    Timestamp = (Get-Date).ToString('o')
+                    Message   = "Script execution completed with $($Context.Counter.TotalErrors) errors and $($Context.Counter.TotalWarnings) warnings across $($Context.AllMatrices.Count) matrices."
+                    Details   = @{
+                        Counters = $Context.Counter
+                        Errors   = $SystemErrors.Value
+                    }
+                }
+            )
+
 
             Write-EventLogSafe `
                 -EventLogData $eventData `
