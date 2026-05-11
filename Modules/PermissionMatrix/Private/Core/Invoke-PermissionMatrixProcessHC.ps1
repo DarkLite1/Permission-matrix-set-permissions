@@ -55,7 +55,7 @@ function Invoke-PermissionMatrixProcessHC {
         $safeReqGroups = foreach ($group in $matrixGroups) {
             [PSCustomObject]@{
                 ComputerName = $group.Name
-                PathsToCheck = @($group.Group.Import.Path)
+                PathsToCheck = @($group.Group.Setting.Formatted.Path)
             }
         }
 
@@ -97,7 +97,7 @@ function Invoke-PermissionMatrixProcessHC {
             foreach ($output in $reqResults) {
                 if ($output.Result) {
                     $targetMatrices = $validMatrices.Where(
-                        { $_.Import.ComputerName -eq $output.ComputerName }
+                        { $_.Setting.Formatted.ComputerName -eq $output.ComputerName }
                     )
 
                     foreach ($m in $targetMatrices) {
@@ -117,7 +117,7 @@ function Invoke-PermissionMatrixProcessHC {
         if ($matricesToExecute.Count -eq 0) { return $Context }
 
         $compGroupsForPerms = $matricesToExecute |
-        Group-Object -Property { $_.Import.ComputerName }
+        Group-Object -Property { $_.Setting.Formatted.ComputerName }
 
         # DTO FLATTENING: Protects deep properties from runspace truncation 
         $safePermGroups = foreach ($group in $compGroupsForPerms) {
@@ -127,9 +127,9 @@ function Invoke-PermissionMatrixProcessHC {
                     foreach ($S in $group.Group) {
                         [PSCustomObject]@{
                             ID           = $S.ID
-                            ComputerName = $S.Import.ComputerName
-                            Path         = $S.Import.Path
-                            Action       = $S.Import.Action
+                            ComputerName = $S.Setting.Formatted.ComputerName
+                            Path         = $S.Setting.Formatted.Path
+                            Action       = $S.Setting.Formatted.Action
                             MatrixJson   = (
                                 $S.Matrix | 
                                 ConvertTo-Json -Depth 10 -Compress
