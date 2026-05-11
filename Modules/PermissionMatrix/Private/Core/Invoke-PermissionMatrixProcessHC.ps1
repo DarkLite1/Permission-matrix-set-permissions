@@ -119,8 +119,12 @@ function Invoke-PermissionMatrixProcessHC {
                     )
 
                     foreach ($m in $targetMatrices) {
-                        $m.Check += $output.Result | 
-                        ConvertTo-StructuredObjectHC 
+                        $structured = @($output.Result | 
+                            ConvertTo-StructuredObjectHC)
+
+                        foreach ($entry in $structured) {
+                            $m.Check.Add($entry)
+                        }
                     }
                 }
             }
@@ -221,7 +225,11 @@ function Invoke-PermissionMatrixProcessHC {
                     ) | Select-Object -First 1
                     if ($liveMatrix) {
                         if ($res.Result) {
-                            $liveMatrix.Check += $res.Result | ConvertTo-StructuredObjectHC 
+                            $structured = @($res.Result | ConvertTo-StructuredObjectHC)
+                            
+                            foreach ($entry in $structured) {
+                                $liveMatrix.Check.Add($entry)
+                            }
                         }
                         $liveMatrix.JobTime.Start = $res.Start
                         $liveMatrix.JobTime.End = $res.End
