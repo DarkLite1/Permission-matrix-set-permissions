@@ -276,9 +276,21 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
     }
 
     Context 'Set Permissions phase' {
-        It 'calls SetPermissionFile for matrices that passed requirements' {
-            $m = New-TestMatrix -ComputerName 'SERVER1' -Path 'C:\Data' -Action 'Fix'
-            $ctx = New-TestContext -Matrices @($m)
+        It 'calls SetPermissionFile for matrices that passed requirements with all expected arguments' {
+            $matrixContent = @(
+                [PSCustomObject]@{ Path = 'C:\Data\Sub1'; ACL = @{ 'user1' = 'R' } }
+                [PSCustomObject]@{ Path = 'C:\Data\Sub2'; ACL = @{ 'user2' = 'M' } }
+            )
+            $m = New-TestMatrix `
+                -ComputerName 'SERVER1' `
+                -Path 'C:\Data' `
+                -Action 'Fix' `
+                -Matrix $matrixContent
+
+            $ctx = New-TestContext `
+                -Matrices @($m) `
+                -MaxConcurrent @{ Computers = 10; FoldersPerMatrix = 5 } `
+                -Detailed $true
 
             $null = Invoke-PermissionMatrixProcessHC `
                 -Context $ctx `
@@ -287,8 +299,15 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
                 $ComputerName -eq 'SERVER1' -and
+                # Positional argument order matches Set_permissions.ps1's param block:
+                # 0=Path, 1=Action, 2=Matrix, 3=JobThrottleLimit, 4=DetailedLog
                 $ArgumentList[0] -eq 'C:\Data' -and
-                $ArgumentList[1] -eq 'Fix'
+                $ArgumentList[1] -eq 'Fix' -and
+                $ArgumentList[2].Count -eq 2 -and
+                $ArgumentList[2][0].Path -eq 'C:\Data\Sub1' -and
+                $ArgumentList[2][1].Path -eq 'C:\Data\Sub2' -and
+                $ArgumentList[3] -eq 5 -and
+                $ArgumentList[4] -eq $true
             }
         }
 
@@ -376,7 +395,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             Should -Be 1
             $m2.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
             Should -Be 0
-        } -tag test
+        } -Tag test
 
         It 'returns context untouched if all matrices failed requirements' {
             $m = New-TestMatrix
