@@ -46,9 +46,7 @@ function Invoke-PermissionMatrixProcessHC {
         $throttleComputers = $Context.Config.MaxConcurrent.Computers ?? 10
         $psSessionConfig = $Context.Config.Settings.PSSessionConfiguration ?? 'PowerShell.7'
 
-        # =====================================================================
-        # 1. PARALLEL: Test Requirements
-        # =====================================================================
+        #region Test Requirements - Parallel by Computer
         $matrixGroups = $executableSettings | Group-Object -Property { 
             $_.Import.ComputerName 
         }
@@ -108,11 +106,9 @@ function Invoke-PermissionMatrixProcessHC {
                 }
             }
         }
+        #endregion
 
-        # =====================================================================
-        # 2. PARALLEL: Set Permissions
-        # =====================================================================
-        
+        #region Set Permissions - Parallel by Computer
         $validSettings = $executableSettings.Where(
             { $_.Check.Type -notcontains 'FatalError' }
         )
@@ -122,7 +118,7 @@ function Invoke-PermissionMatrixProcessHC {
         $compGroupsForPerms = $validSettings |
         Group-Object -Property { $_.Import.ComputerName }
 
-        # DTO FLATTENING: Build a shallow array and wrap the deep Matrix array in JSON 
+        # DTO FLATTENING: Protects deep properties from runspace truncation 
         $safePermGroups = foreach ($group in $compGroupsForPerms) {
             [PSCustomObject]@{
                 ComputerName = $group.Name
@@ -215,6 +211,7 @@ function Invoke-PermissionMatrixProcessHC {
                 }
             }
         }
+        #endregion
 
         return $Context
 
