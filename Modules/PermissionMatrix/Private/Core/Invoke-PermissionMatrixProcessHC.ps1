@@ -21,7 +21,7 @@ function Invoke-PermissionMatrixProcessHC {
         }
 
         #region Filter out matrices with fatal errors before processing
-        $executableSettings = [System.Collections.Generic.List[pscustomobject]]::new()
+        $validMatrices = [System.Collections.Generic.List[pscustomobject]]::new()
 
         foreach ($file in $Context.FileResults) {
             if (Test-ItemHasFatalErrorHC -CheckList $file.Check) {
@@ -32,12 +32,12 @@ function Invoke-PermissionMatrixProcessHC {
                 if (
                     -not (Test-ItemHasFatalErrorHC -CheckList $matrixObj.Check)
                 ) {
-                    $executableSettings.Add($matrixObj)
+                    $validMatrices.Add($matrixObj)
                 }
             }
         }
 
-        if ($executableSettings.Count -eq 0) {
+        if ($validMatrices.Count -eq 0) {
             Write-Verbose 'No executable matrices found after initial validation.'
             return $Context
         }
@@ -47,8 +47,8 @@ function Invoke-PermissionMatrixProcessHC {
         $psSessionConfig = $Context.Config.Settings.PSSessionConfiguration ?? 'PowerShell.7'
 
         #region Test Requirements - Parallel by Computer
-        $matrixGroups = $executableSettings | Group-Object -Property { 
-            $_.Import.ComputerName 
+        $matrixGroups = $validMatrices | Group-Object -Property { 
+            $_.Setting.Formatted.ComputerName
         }
         
         # DTO FLATTENING: Protects deep properties from runspace truncation 
@@ -96,12 +96,13 @@ function Invoke-PermissionMatrixProcessHC {
             # Main Thread Application: Add results back to the live objects
             foreach ($output in $reqResults) {
                 if ($output.Result) {
-                    $targetSettings = $executableSettings.Where(
+                    $targetMatrices = $validMatrices.Where(
                         { $_.Import.ComputerName -eq $output.ComputerName }
                     )
 
-                    foreach ($setting in $targetSettings) {
-                        $setting.Check += $output.Result | ConvertTo-StructuredObjectHC 
+                    foreach ($m in $targetMatrices) {
+                        $m.Check += $output.Result | 
+                        ConvertTo-StructuredObjectHC 
                     }
                 }
             }
@@ -109,13 +110,13 @@ function Invoke-PermissionMatrixProcessHC {
         #endregion
 
         #region Set Permissions - Parallel by Computer
-        $validSettings = $executableSettings.Where(
+        $matricesToExecute = $validMatrices.Where(
             { $_.Check.Type -notcontains 'FatalError' }
         )
 
-        if ($validSettings.Count -eq 0) { return $Context }
+        if ($matricesToExecute.Count -eq 0) { return $Context }
 
-        $compGroupsForPerms = $validSettings |
+        $compGroupsForPerms = $matricesToExecute |
         Group-Object -Property { $_.Import.ComputerName }
 
         # DTO FLATTENING: Protects deep properties from runspace truncation 
@@ -197,16 +198,16 @@ function Invoke-PermissionMatrixProcessHC {
             # Main Thread Application: Add Job Times and Results back to Live Objects
             foreach ($resArray in $permResults) {
                 foreach ($res in $resArray) {
-                    $liveSetting = $validSettings.Where(
+                    $liveMatrix = $matricesToExecute.Where(
                         { $_.ID -eq $res.ID }, 'First'
                     ) 
-                    if ($liveSetting) {
+                    if ($liveMatrix) {
                         if ($res.Result) {
-                            $liveSetting.Check += $res.Result | ConvertTo-StructuredObjectHC 
+                            $liveMatrix.Check += $res.Result | ConvertTo-StructuredObjectHC 
                         }
-                        $liveSetting.JobTime.Start = $res.Start
-                        $liveSetting.JobTime.End = $res.End
-                        $liveSetting.JobTime.Duration = New-TimeSpan -Start $res.Start -End $res.End 
+                        $liveMatrix.JobTime.Start = $res.Start
+                        $liveMatrix.JobTime.End = $res.End
+                        $liveMatrix.JobTime.Duration = New-TimeSpan -Start $res.Start -End $res.End 
                     }
                 }
             }
