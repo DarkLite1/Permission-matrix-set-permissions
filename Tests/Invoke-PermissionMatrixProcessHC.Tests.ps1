@@ -96,10 +96,6 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
     BeforeEach {
         $script:systemErrors = [System.Collections.Generic.List[pscustomobject]]::new()
 
-        # Collapse parallelism to synchronous execution against each input item.
-        # The real helper emits results to the pipeline (not via `return`), so
-        # we mirror that here — wrap in @() to guarantee an array even when
-        # there's a single result, matching how the caller consumes it.
         Mock Invoke-WithOptionalParallelismHC {
             param($InputObject, $ScriptBlock, $ThrottleLimit, $ArgumentList = @())
             $results = foreach ($item in $InputObject) {
@@ -108,19 +104,20 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             @($results)
         }
 
-        # The default mock for Invoke-Command returns nothing (simulating a
-        # successful remote run with no error result). Individual tests
-        # override this with -ParameterFilter as needed.
         Mock Invoke-Command { return $null }
 
-        # ConvertTo-StructuredObjectHC is called in two places; stub it to
-        # pass values through so we can assert on the original error object.
-        # Passthrough: the real function normalizes objects; for mocking we just
-        # want the input to flow through to whoever consumes the result.
-        # Note: $args[0] doesn't work because the function is called via pipeline
-        # (`$result | ConvertTo-StructuredObjectHC`), so the value arrives through
-        # $input, not as a positional parameter.
-        Mock ConvertTo-StructuredObjectHC { $input }
+        Mock ConvertTo-StructuredObjectHC {
+            [CmdletBinding()]
+            param(
+                [Parameter(Mandatory, ValueFromPipeline = $true)]
+                $InputObject
+            )
+            process {
+                foreach ($obj in $InputObject) {
+                    if ($null -ne $obj) { $obj }
+                }
+            }
+        }
     }
 
     Context 'Guard conditions' {
@@ -379,7 +376,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             Should -Be 1
             $m2.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
             Should -Be 0
-        }
+        } -tag test
 
         It 'returns context untouched if all matrices failed requirements' {
             $m = New-TestMatrix

@@ -218,7 +218,7 @@ function Invoke-PermissionMatrixProcessHC {
                 foreach ($res in $resArray) {
                     $liveMatrix = $matricesToExecute.Where(
                         { $_.ID -eq $res.ID }, 'First'
-                    ) 
+                    ) | Select-Object -First 1
                     if ($liveMatrix) {
                         if ($res.Result) {
                             $liveMatrix.Check += $res.Result | ConvertTo-StructuredObjectHC 
