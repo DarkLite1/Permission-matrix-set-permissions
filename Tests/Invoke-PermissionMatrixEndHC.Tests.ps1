@@ -5,6 +5,11 @@ Describe 'Invoke-PermissionMatrixEndHC' {
     BeforeAll {
         # Load dependencies. Adjust paths to your project layout.
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Utils.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Html.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Mail.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Export.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-EventLogSafe.ps1"
+        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Cleanup-OldLogsHC.ps1"
         . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
 
         # Helper: builds a minimal Context with the shape EndHC expects.
@@ -105,9 +110,14 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         Mock Export-FilesHC { return @{ HtmlOverview = 'TestDrive:\overview.html' } }
         Mock Build-MailParametersHC {
             return @{
-                To      = @('test@example.com')
-                Subject = 'Test'
-                Body    = '<html/>'
+                MailKitAssemblyPath = 'TestDrive:\fake-mailkit.dll'
+                MimeKitAssemblyPath = 'TestDrive:\fake-mimekit.dll'
+                SmtpServerName      = 'smtp.example.com'
+                SmtpPort            = 25
+                Body                = '<html/>'
+                Subject             = 'Test'
+                From                = 'noreply@example.com'
+                To                  = @('test@example.com')
             }
         }
         Mock Send-MailKitMessageHC { }
