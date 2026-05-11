@@ -109,7 +109,6 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         }
     }
 
-
     BeforeEach {
         $script:systemErrors = [System.Collections.Generic.List[pscustomobject]]::new()
         Remove-Item 'TestDrive:\*' -Recurse -Force -ErrorAction Ignore

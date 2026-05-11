@@ -325,10 +325,19 @@ function Invoke-PermissionMatrixEndHC {
         if ($Context.Config.Settings.SaveInEventLog.Save) {
             $eventData = [System.Collections.Generic.List[PSObject]]::new()
 
+
+            $scriptName = if (
+                [string]::IsNullOrWhiteSpace($Context.Config.Settings.ScriptName)
+            ) {
+                'Permission Matrix'
+            }
+            else {
+                $Context.Config.Settings.ScriptName
+            }
+
             Write-EventLogSafe `
                 -EventLogData $eventData `
-                -ScriptName (
-                $Context.Config.Settings.ScriptName ?? 'Permission Matrix') `
+                -ScriptName $scriptName `
                 -Settings $Context.Config.Settings `
                 -SystemErrors $SystemErrors
         }
