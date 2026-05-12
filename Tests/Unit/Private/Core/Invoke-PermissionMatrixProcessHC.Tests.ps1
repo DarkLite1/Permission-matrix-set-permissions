@@ -4,18 +4,15 @@
 Describe 'Invoke-PermissionMatrixProcessHC' {
     BeforeAll {
         # Load the helpers and the module-internal scripts
-        $rootFolder = "$PSScriptRoot\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$rootFolder\Tests\Helpers\Helpers.HC.ps1"
+        . "$root\Tests\Helpers\Helpers.HC.ps1"
+        . "$moduleRoot\Private\Utils.ps1"
+        . "$moduleRoot\Private\Core\Invoke-PermissionMatrixProcessHC.ps1"
+        . "$moduleRoot\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
+        . "$moduleRoot\Private\Validation.ps1"
 
-        # . "$PSScriptRoot\..\..\..\Helpers\Helpers.HC.ps1"
-        . "$PSScriptRoot\..\..\..\..\Modules\PermissionMatrix\Private\Utils.ps1"
-        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixProcessHC.ps1"
-        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
-        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Validation.ps1"
-
-        # Helper: builds a minimal but realistic Context with the property
-        # names ProcessHC actually reads (AllMatrices, FileResults, etc.)
         function New-TestContext {
             param(
                 [array]$Matrices = @(),
@@ -56,7 +53,6 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             }
         }
 
-        # Helper: builds a single matrix object matching BeginHC's output shape
         function New-TestMatrix {
             param(
                 [string]$ComputerName = 'SERVER1',
@@ -84,7 +80,6 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             }
         }
 
-        # Helper: builds a fatal error object matching the codebase's convention
         function New-FatalCheck {
             param([string]$Name = 'TestFatal', [string]$Description = 'Test')
             [PSCustomObject]@{
