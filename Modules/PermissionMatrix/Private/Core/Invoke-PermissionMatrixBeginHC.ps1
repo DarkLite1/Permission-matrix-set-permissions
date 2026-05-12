@@ -5,7 +5,12 @@ function Invoke-PermissionMatrixBeginHC {
     .DESCRIPTION
         1. Sequential: Validates JSON.
         2. Parallel: Reads, validates, and archives Matrix Excel files.
-        3. Sequential: Checks for cross-matrix duplicates, loads Defaults, and performs bulk AD queries.
+        3. Sequential: Checks for cross-matrix duplicates, loads Defaults, and 
+        performs bulk AD queries.
+
+        Convention: return $null only for pre-context failures (JSON load).
+        After $Context is constructed, return it on error so callers can 
+        inspect partial state.
     #>
     [CmdletBinding()]
     param(

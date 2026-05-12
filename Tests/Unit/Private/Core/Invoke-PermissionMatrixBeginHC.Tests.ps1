@@ -150,7 +150,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
     }
 
-    # =========================================================================
     Context 'Configuration structure validation' {
         It 'records FatalError when Validate-ConfigurationStructureHC adds one' {
             Mock Validate-ConfigurationStructureHC {
@@ -158,20 +157,24 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                         Type = 'FatalError'; Category = 'Validation'; Message = 'bad schema'
                     })
             }
-            $args = New-BeginArgs
+            $beginArgs = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -BeNullOrEmpty
+            # BeginHC returns the (partial) context on error; caller checks SystemErrors.
+            # The contract being tested: a FatalError landed in SystemErrors and BeginHC
+            # halted before downstream phases ran.
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'continues to next phase when validation passes' {
-            $args = New-BeginArgs
+            $beginArgs = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
             $context | Should -Not -BeNullOrEmpty
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
         }
     }
 
