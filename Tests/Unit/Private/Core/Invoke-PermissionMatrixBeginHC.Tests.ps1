@@ -22,20 +22,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         . "$moduleRoot\Private\Core\Invoke-PermissionMatrixBeginHC.ps1"
 
         function New-FakeScriptPath {
-            param(
-                [string]$Root = 'TestDrive:'
-            )
-
-            $modulePath = (New-Item "$Root\PermissionMatrix.psm1" -ItemType File -Force).FullName
-            $setPerm = (New-Item "$Root\SetPermissions.ps1" -ItemType File -Force).FullName
-            $testReq = (New-Item "$Root\TestRequirements.ps1" -ItemType File -Force).FullName
-            $snow = (New-Item "$Root\UpdateServiceNow.ps1" -ItemType File -Force).FullName
+            param([string]$Root = 'TestDrive:')
 
             return @{
-                PermissionMatrixModule = $modulePath
-                SetPermissions         = $setPerm
-                TestRequirements       = $testReq
-                UpdateServiceNow       = $snow
+                PermissionMatrixModule = (New-Item "$Root\PermissionMatrix.psm1" -ItemType File -Force).FullName
+                SetPermissions         = (New-Item "$Root\SetPermissions.ps1" -ItemType File -Force).FullName
+                TestRequirements       = (New-Item "$Root\TestRequirements.ps1" -ItemType File -Force).FullName
+                UpdateServiceNow       = (New-Item "$Root\UpdateServiceNow.ps1" -ItemType File -Force).FullName
             }
         }
 
@@ -62,12 +55,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                     $parent = $parent.($segments[$i])
                 }
                 $leaf = $segments[-1]
-                if ($parent -is [hashtable]) {
-                    $parent.Remove($leaf)
-                }
-                else {
-                    $parent.PSObject.Properties.Remove($leaf)
-                }
+                if ($parent -is [hashtable]) { $parent.Remove($leaf) }
+                else { $parent.PSObject.Properties.Remove($leaf) }
             }
 
             $file = New-Item $Path -ItemType File -Force
@@ -75,6 +64,10 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             return $file.FullName
         }
 
+        # One matrix entry inside parallelResults[].Matrices.
+        # Matrix must be non-empty: Test-AdObjectInMatrixHC declares -Matrix as
+        # Mandatory and the binder rejects empty arrays before the mock can
+        # intercept.
         function New-FakeMatrixEntry {
             param(
                 [string]$ComputerName = 'SRV01',
@@ -82,8 +75,17 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                 [bool]$ApplyDefaultPermissions = $false,
                 [string]$FileName = 'M1.xlsx',
                 [hashtable]$Permissions = @{},
-                [hashtable]$AdObjects = @{}
+                [hashtable]$AdObjects = @{},
+                [hashtable]$Acl = @{},
+                [object[]]$Check = @(),
+                [object[]]$FileContextCheck = @()
             )
+
+            $checkList = [System.Collections.Generic.List[object]]::new()
+            foreach ($c in $Check) { $checkList.Add($c) }
+
+            $fileContextCheckList = [System.Collections.Generic.List[object]]::new()
+            foreach ($c in $FileContextCheck) { $fileContextCheckList.Add($c) }
 
             return [pscustomobject]@{
                 Setting         = [pscustomobject]@{
@@ -98,13 +100,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                         Name     = $FileName
                         FullName = "TestDrive:\Matrix\$FileName"
                     }
-                    Check = [System.Collections.Generic.List[object]]::new()
+                    Check = $fileContextCheckList
                 }
                 Permissions     = $Permissions
                 MatrixAdObjects = $AdObjects
-                Check           = [System.Collections.Generic.List[object]]::new()
+                Check           = $checkList
                 Matrix          = @(
-                    [pscustomobject]@{ ACL = @{} }
+                    [pscustomobject]@{ ACL = $Acl }
                 )
             }
         }
@@ -125,19 +127,34 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             }
         }
 
+        # Shorthand for Import-MatrixDefaultsFileHC's structured return.
+        # DefaultAcl is a hashtable (BeginHC reads .Keys and .Count on it).
+        function New-FakeDefaults {
+            param(
+                [hashtable]$DefaultAcl = @{},
+                [string[]]$MailTo = @('test@example.com')
+            )
+
+            return [pscustomobject]@{
+                FilePath   = 'TestDrive:\Defaults.xlsx'
+                DefaultAcl = $DefaultAcl
+                MailTo     = [System.Collections.Generic.List[string]]@($MailTo)
+            }
+        }
+
         function New-BeginArgs {
             param(
                 [string]$ConfigurationJsonFile,
                 [hashtable]$ScriptPath
             )
- 
+
             if ([string]::IsNullOrWhiteSpace($ConfigurationJsonFile)) {
                 $ConfigurationJsonFile = New-BeginJsonFile
             }
             if (-not $ScriptPath) {
                 $ScriptPath = New-FakeScriptPath
             }
- 
+
             return @{
                 ConfigurationJsonFile = $ConfigurationJsonFile
                 ScriptPath            = $ScriptPath
@@ -148,10 +165,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     BeforeEach {
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
+        # Default-safe mocks. Each Context overrides as needed.
         Mock Validate-ConfigurationStructureHC { }
-        Mock Invoke-WithOptionalParallelismHC {
-            return @()
-        }
+        Mock Invoke-WithOptionalParallelismHC { return @() }
         Mock Import-MatrixDefaultsFileHC { return @() }
         Mock Get-DefaultAclHC { return @() }
         Mock Get-ADObjectDetailHC { return @{} }
@@ -175,7 +191,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $context | Should -BeNullOrEmpty
-            ($systemErrors | Where-Object { $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
         }
 
         It 'records FatalError when JSON is malformed' {
@@ -188,11 +204,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context | Should -BeNullOrEmpty
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
         }
-
-        It 'calls Ensure-SafeSettingsHC and uses its return value as Settings' {
-            # If Ensure-SafeSettingsHC is a real helper in Utils, mock it and verify
-            # the returned object lands on $context.Settings.
-        }
     }
 
     Context 'Configuration structure validation' {
@@ -202,21 +213,18 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                         Type = 'FatalError'; Category = 'Validation'; Message = 'bad schema'
                     })
             }
-            $beginArgs = New-BeginArgs
+            $args = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            # BeginHC returns the (partial) context on error; caller checks SystemErrors.
-            # The contract being tested: a FatalError landed in SystemErrors and BeginHC
-            # halted before downstream phases ran.
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
             Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'continues to next phase when validation passes' {
-            $beginArgs = New-BeginArgs
+            $args = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $context | Should -Not -BeNullOrEmpty
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
@@ -231,9 +239,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         ) {
             $sp = New-FakeScriptPath
             $sp[$Key] = 'TestDrive:\nope.ps1'
-            $beginArgs = New-BeginArgs -ScriptPath $sp
+            $args = New-BeginArgs -ScriptPath $sp
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({
                     $_.Type -eq 'FatalError' -and $_.Message -like "*$Key*"
@@ -242,9 +250,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'continues when all ScriptPath entries exist' {
-            $beginArgs = New-BeginArgs
+            $args = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $context | Should -Not -BeNullOrEmpty
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
@@ -252,25 +260,16 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Matrix file discovery' {
-        It 'bails out without errors when matrix folder is empty' {
-            # Default New-BeginJsonFile creates Matrix folder but no .xlsx files
-            $beginArgs = New-BeginArgs
-
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
-
-            $context.FoundMatrices | Should -Be $false
-            $systemErrors.Count | Should -Be 0
-            Should -Invoke Import-MatrixDefaultsFileHC -Times 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
-        }
-
-        It 'sets FoundMatrices=false and returns a context when no .xlsx files exist' {
-            # Default Matrix folder created by New-BeginJsonFile is empty
+        It 'bails out cleanly when matrix folder is empty' {
+            # New-BeginJsonFile creates the Matrix folder but no .xlsx files.
             $args = New-BeginArgs
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $context.FoundMatrices | Should -Be $false
+            $systemErrors.Count | Should -Be 0
+            Should -Invoke Import-MatrixDefaultsFileHC -Times 0
+            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'sets FoundMatrices=true when at least one .xlsx exists' {
@@ -295,21 +294,17 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
     Context 'Defaults Excel file' {
         BeforeEach {
-            # Defaults phase only runs when matrix files exist
+            # Defaults phase only runs when matrix files exist.
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
         }
-    
+
         It 'loads valid defaults and stores on context' {
             Mock Import-MatrixDefaultsFileHC {
-                return [pscustomobject]@{
-                    FilePath   = 'TestDrive:\Defaults.xlsx'
-                    DefaultAcl = @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
-                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
-                }
+                New-FakeDefaults -DefaultAcl @{ 'groupA' = @{ Permission = 'R' } }
             }
-            $beginArgs = New-BeginArgs
+            $args = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $context.Defaults | Should -Not -BeNullOrEmpty
             $context.Defaults.DefaultAcl.Count | Should -Be 1
@@ -322,9 +317,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                         Type = 'FatalError'; Category = 'Defaults'; Message = 'defaults file boom'
                     })
             }
-            $beginArgs = New-BeginArgs
+            $args = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
             Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
@@ -332,8 +327,11 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Archive folder creation' {
-        It 'creates the archive folder when Matrix.Archive=true and folder does not exist' {
+        BeforeEach {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+        }
+
+        It 'creates the archive folder when Matrix.Archive=true' {
             $config = New-BeginJsonFile -Overrides @{ 'Matrix.Archive' = $true }
             $args = New-BeginArgs -ConfigurationJsonFile $config
 
@@ -352,8 +350,11 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Parallel matrix import' {
-        It 'collects results from Invoke-WithOptionalParallelismHC into context' {
+        BeforeEach {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+        }
+
+        It 'collects results from Invoke-WithOptionalParallelismHC into context' {
             New-Item 'TestDrive:\Matrix\M2.xlsx' -ItemType File -Force | Out-Null
 
             Mock Invoke-WithOptionalParallelismHC {
@@ -374,7 +375,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'passes throttle from MaxConcurrent.FoldersPerMatrix' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             $config = New-BeginJsonFile -Overrides @{ 'MaxConcurrent.FoldersPerMatrix' = 5 }
             $args = New-BeginArgs -ConfigurationJsonFile $config
 
@@ -384,25 +384,28 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'defaults throttle to 4 when MaxConcurrent.FoldersPerMatrix is missing' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             $config = New-BeginJsonFile -Remove 'MaxConcurrent.FoldersPerMatrix'
-            $beginArgs = New-BeginArgs -ConfigurationJsonFile $config
+            $args = New-BeginArgs -ConfigurationJsonFile $config
 
-            $null = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             Should -Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 4 }
         }
     }
 
     Context 'AD bulk query and SID mapping' {
-        It 'builds Name->SID map from AD lookup' {
+        BeforeEach {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            Mock Test-AdObjectInMatrixHC { return @() }
+        }
+
+        It 'builds Name->SID map from AD lookup' {
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -AdObjects @{ 'groupA' = 'placeholder' }
                     ) )
             }
-            Mock Get-AdObjectDetailHC {
+            Mock Get-ADObjectDetailHC {
                 return @{ 'DOMAIN\groupA' = 'S-1-5-21-AAA' }
             }
             $args = New-BeginArgs
@@ -413,33 +416,84 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'rewrites ACL entries to use SIDs instead of names' {
-            # Verify the after-rewrite matrix ACL keys are SIDs (per session 1 decision 1)
+            $fileResult = New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
+                New-FakeMatrixEntry -FileName 'M1.xlsx' `
+                    -AdObjects @{ 'groupA' = 'placeholder' } `
+                    -Acl @{ 'groupA' = @{ Permission = 'R' } }
+            )
+            Mock Invoke-WithOptionalParallelismHC { return @( $fileResult ) }
+            Mock Get-ADObjectDetailHC {
+                return @(
+                    @{ SamAccountName = 'groupA'; adObject = @{ ObjectSid = 'S-1-5-21-AAA' } }
+                )
+            }
+            $args = New-BeginArgs
+
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            $folder = $context.AllMatrices[0].Matrix[0]
+            $folder.ACL.Keys | Should -Contain 'S-1-5-21-AAA'
+            $folder.ACL.Keys | Should -Not -Contain 'groupA'
+            $folder.AdNames['S-1-5-21-AAA'] | Should -Be 'groupA'
         }
 
-        It 'isolates per-matrix AD failures (one bad matrix does not poison the others)' {
-            # Adjust per the real isolation invariant in BeginHC
+        It 'isolates per-matrix AD failures (broken matrix does not poison the others)' {
+            # Two matrices: one broken (FatalError in .Check), one clean.
+            # The broken one should be skipped during ACL rewrite; the clean one
+            # should still have its ACL rewritten to SIDs.
+            $brokenMatrix = New-FakeMatrixEntry -FileName 'Broken.xlsx' `
+                -ComputerName 'SRV01' -Path 'C:\Broken' `
+                -AdObjects @{ 'groupA' = 'placeholder' } `
+                -Acl @{ 'groupA' = @{ Permission = 'R' } } `
+                -Check @( [pscustomobject]@{ Type = 'FatalError'; Name = 'Pre-existing'; Message = 'broken' } )
+
+            $cleanMatrix = New-FakeMatrixEntry -FileName 'Clean.xlsx' `
+                -ComputerName 'SRV02' -Path 'C:\Clean' `
+                -AdObjects @{ 'groupB' = 'placeholder' } `
+                -Acl @{ 'groupB' = @{ Permission = 'W' } }
+
+            Mock Invoke-WithOptionalParallelismHC {
+                return @(
+                    (New-FakeFileResult -FileName 'Broken.xlsx' -Matrices @($brokenMatrix))
+                    (New-FakeFileResult -FileName 'Clean.xlsx' -Matrices @($cleanMatrix))
+                )
+            }
+            Mock Get-ADObjectDetailHC {
+                return @(
+                    @{ SamAccountName = 'groupA'; adObject = @{ ObjectSid = 'S-1-5-21-AAA' } }
+                    @{ SamAccountName = 'groupB'; adObject = @{ ObjectSid = 'S-1-5-21-BBB' } }
+                )
+            }
+            $args = New-BeginArgs
+
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            # Clean matrix got its ACL rewritten to SIDs
+            $clean = $context.AllMatrices | Where-Object { $_.Setting.Formatted.Path -eq 'C:\Clean' }
+            $clean.Matrix[0].ACL.Keys | Should -Contain 'S-1-5-21-BBB'
+
+            # Broken matrix was skipped — ACL keys remain unchanged (still name, not SID)
+            $broken = $context.AllMatrices | Where-Object { $_.Setting.Formatted.Path -eq 'C:\Broken' }
+            $broken.Matrix[0].ACL.Keys | Should -Contain 'groupA'
+            $broken.Matrix[0].ACL.Keys | Should -Not -Contain 'S-1-5-21-AAA'
         }
     }
 
     Context 'Default permissions guard' {
+        # Per session 1 decision 7: ApplyDefaultPermissions=true requires defaults;
+        # defaults without any consumer logs a warning.
         BeforeEach {
+            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Test-AdObjectInMatrixHC { return @() }
         }
-        # Per session 1 decision 7
+
         It 'records FatalError when any matrix uses ApplyDefaultPermissions=true but defaults are empty' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $true
                     ) )
             }
-            Mock Import-MatrixDefaultsFileHC {
-                return [pscustomobject]@{
-                    FilePath   = 'TestDrive:\Defaults.xlsx'
-                    DefaultAcl = @{}
-                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
-                }
-            }
+            Mock Import-MatrixDefaultsFileHC { New-FakeDefaults -DefaultAcl @{} }
             $args = New-BeginArgs
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
@@ -450,18 +504,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'records Warning when defaults present but no matrix uses ApplyDefaultPermissions' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $false
                     ) )
             }
             Mock Import-MatrixDefaultsFileHC {
-                return [pscustomobject]@{
-                    FilePath   = 'TestDrive:\Defaults.xlsx'
-                    DefaultAcl = @{ 'groupA' = @{ Permission = 'R' } }
-                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
-                }
+                New-FakeDefaults -DefaultAcl @{ 'groupA' = @{ Permission = 'R' } }
             }
             $args = New-BeginArgs
 
@@ -473,7 +522,37 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'skips broken matrices (FatalError on the matrix) when evaluating the guard' {
-            # Verify Test-ItemHasFatalErrorHC filter is applied before the guard check
+            # If the guard ignored .Check, the broken matrix's ApplyDefaultPermissions=true
+            # would make $anyUsesDefaults truthy and suppress the Warning.
+            # With the filter applied, only the clean matrix counts, $anyUsesDefaults is null,
+            # defaults are present → Warning fires.
+            $brokenMatrix = New-FakeMatrixEntry -FileName 'Broken.xlsx' `
+                -ComputerName 'SRV01' -Path 'C:\Broken' `
+                -ApplyDefaultPermissions $true `
+                -Check @( [pscustomobject]@{ Type = 'FatalError'; Name = 'Pre-existing'; Message = 'broken' } )
+
+            $cleanMatrix = New-FakeMatrixEntry -FileName 'Clean.xlsx' `
+                -ComputerName 'SRV02' -Path 'C:\Clean' `
+                -ApplyDefaultPermissions $false
+
+            Mock Invoke-WithOptionalParallelismHC {
+                return @(
+                    (New-FakeFileResult -FileName 'Broken.xlsx' -Matrices @($brokenMatrix))
+                    (New-FakeFileResult -FileName 'Clean.xlsx' -Matrices @($cleanMatrix))
+                )
+            }
+            Mock Import-MatrixDefaultsFileHC {
+                New-FakeDefaults -DefaultAcl @{ 'groupA' = @{ Permission = 'R' } }
+            }
+            $args = New-BeginArgs
+
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            $systemErrors.Where(
+                {
+                    $_.Type -eq 'Warning' -and $_.Name -eq 'Unused defaults'
+                }
+            ).Count | Should -BeGreaterThan 0
         }
     }
 }
