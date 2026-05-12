@@ -42,17 +42,32 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         function New-BeginJsonFile {
             param(
                 [hashtable]$Overrides = @{},
+                [string[]]$Remove = @(),
                 [string]$Path = 'TestDrive:\Input.json'
             )
 
             $fixture = New-JsonFixture
-
             $fixture.Matrix.FolderPath = (New-Item 'TestDrive:\Matrix' -ItemType Directory -Force).FullName
             $fixture.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
             $fixture.Settings.SaveLogFiles.Where.Folder = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
 
             foreach ($key in $Overrides.Keys) {
                 Set-NestedPropertyHC -Object $fixture -Path $key -Value $Overrides[$key]
+            }
+
+            foreach ($removePath in $Remove) {
+                $segments = $removePath -split '\.'
+                $parent = $fixture
+                for ($i = 0; $i -lt $segments.Count - 1; $i++) {
+                    $parent = $parent.($segments[$i])
+                }
+                $leaf = $segments[-1]
+                if ($parent -is [hashtable]) {
+                    $parent.Remove($leaf)
+                }
+                else {
+                    $parent.PSObject.Properties.Remove($leaf)
+                }
             }
 
             $file = New-Item $Path -ItemType File -Force
@@ -304,9 +319,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             Should -Invoke New-Item -ParameterFilter { $Path -like '*Archive*' } -Times 0
         }
-    } -Tag test
+    }
 
-    # =========================================================================
     Context 'Parallel matrix import' {
         It 'collects results from Invoke-WithOptionalParallelismHC into context' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
@@ -338,16 +352,15 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
         It 'defaults throttle to 4 when MaxConcurrent.FoldersPerMatrix is missing' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
-            $config = New-BeginJsonFile -Overrides @{ 'MaxConcurrent.FoldersPerMatrix' = $null }
-            $args = New-BeginArgs -ConfigurationJsonFile $config
+            $config = New-BeginJsonFile -Remove 'MaxConcurrent.FoldersPerMatrix'
+            $beginArgs = New-BeginArgs -ConfigurationJsonFile $config
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $null = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
             Should -Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 4 }
         }
     }
 
-    # =========================================================================
     Context 'Duplicate ComputerName/Path validation' {
         It 'records FatalError when two matrices target the same ComputerName+Path' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
@@ -392,7 +405,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
         }
-    }
+    } -Tag test
 
     # =========================================================================
     Context 'AD bulk query and SID mapping' {
