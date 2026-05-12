@@ -207,6 +207,18 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Matrix file discovery' {
+        It 'bails out without errors when matrix folder is empty' {
+            # Default New-BeginJsonFile creates Matrix folder but no .xlsx files
+            $beginArgs = New-BeginArgs
+
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
+
+            $context.FoundMatrices | Should -Be $false
+            $systemErrors.Count | Should -Be 0
+            Should -Invoke Import-MatrixDefaultsFileHC -Times 0
+            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+        }
+
         It 'sets FoundMatrices=false and returns a context when no .xlsx files exist' {
             # Default Matrix folder created by New-BeginJsonFile is empty
             $args = New-BeginArgs
@@ -234,47 +246,46 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
             $context.FoundMatrices | Should -Be $false
         }
-    } -Tag test
+    }
 
-    # =========================================================================
     Context 'Defaults Excel file' {
+        BeforeEach {
+            # Defaults phase only runs when matrix files exist
+            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+        }
+    
         It 'loads valid defaults and stores on context' {
             Mock Import-MatrixDefaultsFileHC {
-                return @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
+                return [pscustomobject]@{
+                    FilePath   = 'TestDrive:\Defaults.xlsx'
+                    DefaultAcl = @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
+                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
+                }
             }
-            $args = New-BeginArgs
+            $beginArgs = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
-            # Adjust property name to wherever BeginHC stores defaults on context
             $context.Defaults | Should -Not -BeNullOrEmpty
+            $context.Defaults.DefaultAcl.Count | Should -Be 1
+            $context.Defaults.MailTo | Should -Contain 'test@example.com'
         }
 
-        It 'records FatalError when defaults file is missing' {
-            $config = New-BeginJsonFile -Overrides @{ 'Matrix.DefaultsFile' = 'x:\nope.xlsx' }
-            $args = New-BeginArgs -ConfigurationJsonFile $config
-
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
-
-            $context | Should -BeNullOrEmpty
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
-        }
-
-        It 'records FatalError when defaults rows fail validation' {
-            Mock Get-DefaultAclHC {
+        It 'halts when Import-MatrixDefaultsFileHC reports a FatalError' {
+            Mock Import-MatrixDefaultsFileHC {
                 $SystemErrors.Value.Add([pscustomobject]@{
-                        Type = 'FatalError'; Category = 'Defaults'; Message = 'bad row'
+                        Type = 'FatalError'; Category = 'Defaults'; Message = 'defaults file boom'
                     })
             }
-            $args = New-BeginArgs
+            $beginArgs = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
     }
 
-    # =========================================================================
     Context 'Archive folder creation' {
         It 'creates the archive folder when Matrix.Archive=true and folder does not exist' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
@@ -293,7 +304,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             Should -Invoke New-Item -ParameterFilter { $Path -like '*Archive*' } -Times 0
         }
-    }
+    } -Tag test
 
     # =========================================================================
     Context 'Parallel matrix import' {
