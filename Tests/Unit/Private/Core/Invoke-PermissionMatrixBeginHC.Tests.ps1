@@ -2,44 +2,29 @@
 #Requires -Modules Pester
 
 Describe 'Input Validation Tests' {
-
     BeforeDiscovery {
-        <#
-        DISCOVERY CONTEXT
-        - static only
-        - no filesystem
-        - no module loading
-        #>
+        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
 
-        . "$PSScriptRoot\Helpers\Fixtures.TestCases.ps1"
+        . "$root\Tests\Helpers\Fixtures.TestCases.ps1"
 
         $script:MissingTopLevelProps = Get-MissingTopLevelProperties
         $script:MissingMaxConcurrentProps = Get-MissingMaxConcurrentProperties
         $script:MissingMatrixProps = Get-MissingMatrixProperties
         $script:InvalidPathTests = Get-InvalidMatrixPaths
 
-        $script:TestScript = Join-Path `
-            $PSScriptRoot `
-            '..\Scripts\Entrypoints\PermissionMatrix.ps1'
+        $script:TestScript = "$root\Scripts\Entrypoints\PermissionMatrix.ps1"
     }
 
     BeforeAll {
-        <#
-        EXECUTION CONTEXT
-        - module loading happens via entrypoint script
-        - filesystem + TestDrive allowed
-        #>
+        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
 
-        . "$PSScriptRoot\Helpers\Helpers.HC.ps1"
-        . "$PSScriptRoot\Helpers\Fixtures.Json.ps1"
+        . "$root\Tests\Helpers\Helpers.HC.ps1"
+        . "$root\Tests\Helpers\Fixtures.Json.ps1"
 
         if (-not (Test-Path $TestScript)) {
             throw "Script '$TestScript' not found"
         }
 
-        # ------------------------------------------------------------------
-        # Test input preparation
-        # ------------------------------------------------------------------
         $jsonFile = New-Item 'TestDrive:\Input.json' -ItemType File
 
         $testInputTemplate = New-JsonFixture
@@ -53,15 +38,8 @@ Describe 'Input Validation Tests' {
         $testInputTemplate.Settings.SaveLogFiles.Where.Folder =
         (New-Item 'TestDrive:\Logs' -ItemType Directory).FullName
 
-        $scriptPath = @{
-            TestRequirementsFile = (New-Item 'TestDrive:\TestReq.ps1' -ItemType File).FullName
-            SetPermissionFile    = (New-Item 'TestDrive:\SetPerm.ps1' -ItemType File).FullName
-            UpdateServiceNow     = (New-Item 'TestDrive:\SNOW.ps1' -ItemType File).FullName
-        }
-
         $testParams = @{
             ConfigurationJsonFile = $jsonFile.FullName
-            ScriptPath            = $scriptPath
         }
 
         $testInputTemplate |
@@ -165,25 +143,6 @@ Describe 'Input Validation Tests' {
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*Property '$Property' path '$Value' not found*"
-        }
-    }
-
-    Describe 'ScriptPath validation' {
-        It 'ScriptPath.<Property> not found' -ForEach @(
-            'TestRequirementsFile', 'SetPermissionFile', 'UpdateServiceNow'
-        ) {
-            $ScriptKey = $_
-
-            $badParams = Copy-ObjectHC $TestParams
-            $badParams.ScriptPath[$ScriptKey] = 'x:\doesnotexist.ps1'
-
-            & $TestScript @badParams
-
-            $LASTEXITCODE | Should -Be 1
-
-            Assert-LogContainsSystemErrorHC `
-                -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                -Pattern "*The required script '$ScriptKey' was not found at 'x:\doesnotexist.ps1'*"
         }
     }
 
