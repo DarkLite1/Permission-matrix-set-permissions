@@ -3,7 +3,6 @@
 
 Describe 'Invoke-PermissionMatrixProcessHC' {
     BeforeAll {
-        # Load the helpers and the module-internal scripts
         $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
