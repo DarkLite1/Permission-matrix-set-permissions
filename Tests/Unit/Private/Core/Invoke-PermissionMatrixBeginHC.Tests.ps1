@@ -178,30 +178,31 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
     }
 
-    # =========================================================================
     Context 'Script path validation' {
-        # This replaces coverage lost from the integration test.
         It 'records FatalError when ScriptPath.<Key> is missing' -ForEach @(
-            'SetPermissions', 'TestRequirements', 'UpdateServiceNow'
+            @{ Key = 'SetPermissions' }
+            @{ Key = 'TestRequirements' }
+            @{ Key = 'UpdateServiceNow' }
         ) {
             $sp = New-FakeScriptPath
-            $sp[$_] = 'TestDrive:\nope.ps1'
-            $args = New-BeginArgs -ScriptPath $sp
+            $sp[$Key] = 'TestDrive:\nope.ps1'
+            $beginArgs = New-BeginArgs -ScriptPath $sp
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -BeNullOrEmpty
             $systemErrors.Where({
-                    $_.Type -eq 'FatalError' -and $_.Message -like "*$_*"
-                }).Count | Should -BeGreaterThan 0
+                $_.Type -eq 'FatalError' -and $_.Message -like "*$Key*"
+            }).Count | Should -BeGreaterThan 0
+            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'continues when all ScriptPath entries exist' {
-            $args = New-BeginArgs
+            $beginArgs = New-BeginArgs
 
-            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
             $context | Should -Not -BeNullOrEmpty
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
         }
     }
 
