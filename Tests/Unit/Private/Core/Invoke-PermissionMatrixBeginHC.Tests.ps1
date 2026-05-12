@@ -85,9 +85,17 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                 [string]$ConfigurationJsonFile,
                 [hashtable]$ScriptPath
             )
+ 
+            if ([string]::IsNullOrWhiteSpace($ConfigurationJsonFile)) {
+                $ConfigurationJsonFile = New-BeginJsonFile
+            }
+            if (-not $ScriptPath) {
+                $ScriptPath = New-FakeScriptPath
+            }
+ 
             return @{
-                ConfigurationJsonFile = $ConfigurationJsonFile ?? (New-BeginJsonFile)
-                ScriptPath            = $ScriptPath ?? (New-FakeScriptPath)
+                ConfigurationJsonFile = $ConfigurationJsonFile
+                ScriptPath            = $ScriptPath
             }
         }
     }
