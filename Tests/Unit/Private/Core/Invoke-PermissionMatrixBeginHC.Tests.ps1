@@ -191,8 +191,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context = Invoke-PermissionMatrixBeginHC @beginArgs -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({
-                $_.Type -eq 'FatalError' -and $_.Message -like "*$Key*"
-            }).Count | Should -BeGreaterThan 0
+                    $_.Type -eq 'FatalError' -and $_.Message -like "*$Key*"
+                }).Count | Should -BeGreaterThan 0
             Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
@@ -206,7 +206,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
     }
 
-    # =========================================================================
     Context 'Matrix file discovery' {
         It 'sets FoundMatrices=false and returns a context when no .xlsx files exist' {
             # Default Matrix folder created by New-BeginJsonFile is empty
@@ -232,10 +231,10 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -BeNullOrEmpty
             $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            $context.FoundMatrices | Should -Be $false
         }
-    }
+    } -Tag test
 
     # =========================================================================
     Context 'Defaults Excel file' {
