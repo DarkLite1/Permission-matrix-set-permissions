@@ -3,8 +3,8 @@ function Invoke-PermissionMatrixProcessHC {
     .SYNOPSIS
         PROCESS stage for the Permission Matrix pipeline.
     .DESCRIPTION
-        1. Parallel (Grouped by Computer): Run 'Test requirements.ps1'
-        2. Parallel (Grouped by Computer): Run 'Set permissions.ps1' on servers without FatalErrors.
+        1. Parallel (Grouped by Computer): Run 'TestRequirements.ps1'
+        2. Parallel (Grouped by Computer): Run 'SetPermissions.ps1' on servers without FatalErrors.
     #>
     [CmdletBinding()]
     param(

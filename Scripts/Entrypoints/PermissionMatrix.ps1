@@ -10,10 +10,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)]
-    [string]$ConfigurationJsonFile,
-
-    [Parameter(Mandatory)]
-    [hashtable]$ScriptPath
+    [string]$ConfigurationJsonFile
 )
 
 begin {
@@ -61,9 +58,16 @@ begin {
         # Passed by ref so Begin/Process/End all write to the same list.
         $runtimeErrors = [System.Collections.Generic.List[object]]::new()
 
-        $modulePath = Join-Path $PSScriptRoot '..\..\Modules\PermissionMatrix\PermissionMatrix.psm1'
+        $projectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+        $modulePath = Join-Path $projectRoot 'Modules\PermissionMatrix\PermissionMatrix.psm1'
+        $opsRoot = Join-Path $projectRoot 'Operations'
 
-        $ScriptPath.PermissionMatrixModule = $modulePath
+        $ScriptPath = @{
+            PermissionMatrixModule = $modulePath
+            SetPermissions         = Join-Path $opsRoot 'SetPermissions.ps1'
+            TestRequirements       = Join-Path $opsRoot 'TestRequirements.ps1'
+            UpdateServiceNow       = Join-Path $opsRoot 'UpdateServiceNow.ps1'
+        }
 
         Import-PermissionMatrixModuleHC `
             -Path $modulePath `
