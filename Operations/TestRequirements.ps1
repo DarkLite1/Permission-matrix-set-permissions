@@ -120,8 +120,8 @@ if (-not (Test-IsRequiredDotNetVersionHC)) {
 $smbShares = Get-SmbShare
 $uniquePaths = $Path | Sort-Object -Unique
 
-$abeCorrected = @{}
-$permissionsCorrected = @{}
+$abeCorrected = [ordered]@{}
+$permissionsCorrected = [ordered]@{}
 
 foreach ($p in $uniquePaths) {
     # Fast intrinsic filtering based on exact match or subfolder match
@@ -189,7 +189,7 @@ foreach ($p in $uniquePaths) {
             # If the share doesn't have the EXACT match of required permissions, rebuild it
             if (($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or ($RequiredSharePermissions.Count -ne $correctPermissionsCount)) {
                 
-                $incorrectPermissions = @{}
+                $incorrectPermissions = [ordered]@{}
 
                 # Revoke all existing permissions
                 $smbSharePermissions.ForEach({

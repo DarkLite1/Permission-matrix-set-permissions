@@ -23,7 +23,7 @@ BeforeAll {
         throw "Path '$testScript' not found"
     }
 
-    Function Test-IsAdminHC {}
+    function Test-IsAdminHC {}
 
     Mock Get-ItemPropertyValue -MockWith { 461808 }
     Mock Test-IsAdminHC { $true }
@@ -36,7 +36,7 @@ AfterAll {
 }
 
 Describe 'the mandatory parameters are' {
-    It "<_>" -TestCases @('Path', 'Flag') {
+    It '<_>' -TestCases @('Path', 'Flag') {
         (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
         Should -BeTrue
     }
@@ -48,7 +48,7 @@ Describe 'return a FatalError object when' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'Administrator privileges'
-            Description = "Administrator privileges are required to be able to apply permissions."
+            Description = 'Administrator privileges are required to be able to apply permissions.'
             Value       = "Account '$env:USERDOMAIN\$env:USERNAME'"
         }
 
@@ -61,7 +61,7 @@ Describe 'return a FatalError object when' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = 'PowerShell version'
-            Description = "PowerShell version 999.33 or higher is required."
+            Description = 'PowerShell version 999.33 or higher is required.'
             Value       = "PowerShell $($PSVersionTable.PSVersion.Major).$($PSVersionTable.PSVersion.Minor)"
         }
 
@@ -81,7 +81,7 @@ Describe 'return a FatalError object when' {
         $expected = [PSCustomObject]@{
             Type        = 'FatalError'
             Name        = '.NET Framework version'
-            Description = "Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods."
+            Description = 'Microsoft .NET Framework version 4.6.2 or higher is required to be able to traverse long path names and use advanced PowerShell methods.'
             Value       = $null
         }
 
@@ -125,10 +125,10 @@ Describe 'when the smb share permissions are' {
                     { $_.AccountName -eq 'BUILTIN\Administrators' }
                 )
 
-                if ($a.AccessRight -notMatch 'Full|0'){
+                if ($a.AccessRight -notmatch 'Full|0') {
                     throw 'Expected Full'
                 }
-                if ($a.AccessControlType -notMatch 'Allow|0'){
+                if ($a.AccessControlType -notmatch 'Allow|0') {
                     throw 'Expected Allow'
                 }
             }
@@ -137,10 +137,10 @@ Describe 'when the smb share permissions are' {
                     { $_.AccountName -eq 'NT AUTHORITY\Authenticated Users' }
                 )
 
-                if ($a.AccessRight -notMatch 'Change|1'){
+                if ($a.AccessRight -notmatch 'Change|1') {
                     throw 'Expected Change'
                 }
-                if ($a.AccessControlType -notMatch 'Allow|0'){
+                if ($a.AccessControlType -notmatch 'Allow|0') {
                     throw 'Expected Allow'
                 }
             }
@@ -154,7 +154,7 @@ Describe 'when the smb share permissions are' {
                     Type        = 'Warning'
                     Name        = 'Share permissions'
                     Description = "The share permissions are now set to 'BUILTIN\Administrators: Full', 'NT AUTHORITY\Authenticated Users: Change'. The effective permissions are managed on NTFS level."
-                    Value       = @{$testSmbShare[0].Name = @{
+                    Value       = @{$testSmbShare[0].Name = [ordered]@{
                             'BUILTIN\Administrators'           = 'Full'
                             'Everyone'                         = 'Read'
                             'NT AUTHORITY\Authenticated Users' = 'Read'
@@ -229,7 +229,7 @@ Describe 'set Access Based Enumeration' {
 
             $actual = .$testScript -Path $testSmbShare[1].Path -Flag $true
         }
-        It "to enabled" {
+        It 'to enabled' {
             $testResult = (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode
 
             if ($testResult -notmatch 'AccessBased|0') {
@@ -258,7 +258,7 @@ Describe 'set Access Based Enumeration' {
 
             $actual = .$testScript -Path $testSmbShare[1].Path -Flag $false
         }
-        It "to enabled" {
+        It 'to enabled' {
             $testResult = (Get-SmbShare -Name $testSmbShare[1].Name).FolderEnumerationMode
 
             if ($testResult -notmatch 'Unrestricted|1') {
