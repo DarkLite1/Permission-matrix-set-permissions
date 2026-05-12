@@ -107,10 +107,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     BeforeEach {
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
-        # Default-safe mocks. Tests override per-Context as needed.
         Mock Validate-ConfigurationStructureHC { }
         Mock Invoke-WithOptionalParallelismHC {
-            # Default: no matrix files imported. Tests override per-Context.
             return @()
         }
         Mock Import-MatrixDefaultsFileHC { return @() }
@@ -119,7 +117,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         Mock New-Item -ParameterFilter { $Path -like '*Archive*' } { }
     }
 
-    # =========================================================================
     Context 'JSON loading' {
         It 'parses a valid JSON file into Context' {
             $args = New-BeginArgs
