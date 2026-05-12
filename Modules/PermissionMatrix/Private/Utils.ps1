@@ -78,7 +78,7 @@ function Get-StringValueHC {
     [CmdletBinding()]
     param([String]$Name)
 
-    if (-not $Name) {
+    if ([string]::IsNullOrWhiteSpace($Name)) {
         return $null
     }
     elseif ($Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)) {
