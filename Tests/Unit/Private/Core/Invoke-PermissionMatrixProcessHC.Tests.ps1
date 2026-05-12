@@ -3,13 +3,16 @@
 
 Describe 'Invoke-PermissionMatrixProcessHC' {
     BeforeAll {
-        # Load the helpers and the module-internal scripts. Adjust paths to match
-        # the project layout — these mirror Matrix.Tests.ps1.
-        . "$PSScriptRoot\Helpers\Helpers.HC.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Utils.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixProcessHC.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Validation.ps1"
+        # Load the helpers and the module-internal scripts
+        $rootFolder = "$PSScriptRoot\..\..\.."
+
+        . "$rootFolder\Tests\Helpers\Helpers.HC.ps1"
+
+        # . "$PSScriptRoot\..\..\..\Helpers\Helpers.HC.ps1"
+        . "$PSScriptRoot\..\..\..\..\Modules\PermissionMatrix\Private\Utils.ps1"
+        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixProcessHC.ps1"
+        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
+        . "$PSScriptRoot\..\..\Modules\PermissionMatrix\Private\Validation.ps1"
 
         # Helper: builds a minimal but realistic Context with the property
         # names ProcessHC actually reads (AllMatrices, FileResults, etc.)
