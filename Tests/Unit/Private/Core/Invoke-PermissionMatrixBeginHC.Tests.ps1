@@ -115,7 +115,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
         Mock Import-MatrixDefaultsFileHC { return @() }
         Mock Get-DefaultAclHC { return @() }
-        Mock Get-ADObjectsBulkHC { return @{} }       # name -> SID map; adjust to real shape
+        Mock Get-ADObjectDetailHC { return @{} }
         Mock New-Item -ParameterFilter { $Path -like '*Archive*' } { }
     }
 
