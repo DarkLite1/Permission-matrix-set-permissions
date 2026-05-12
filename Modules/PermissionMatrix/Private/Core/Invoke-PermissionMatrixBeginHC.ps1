@@ -95,7 +95,7 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         #region Read Defaults Excel file and validate (Placed here to save I/O)
-        $defaults = Import-MatrixDefaultsHC `
+        $defaults = Import-MatrixDefaultsFileHC `
             -Matrix $Context.Config.Matrix `
             -SystemErrors $SystemErrors
 
