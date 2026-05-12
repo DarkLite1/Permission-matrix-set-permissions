@@ -3,7 +3,7 @@
 
 Describe 'Input Validation Tests' {
     BeforeDiscovery {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\.."
 
         . "$root\Tests\Helpers\Fixtures.TestCases.ps1"
 
@@ -16,7 +16,7 @@ Describe 'Input Validation Tests' {
     }
 
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\.."
 
         . "$root\Tests\Helpers\Helpers.HC.ps1"
         . "$root\Tests\Helpers\Fixtures.Json.ps1"
