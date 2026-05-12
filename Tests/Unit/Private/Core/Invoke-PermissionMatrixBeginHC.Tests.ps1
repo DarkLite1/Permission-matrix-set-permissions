@@ -86,12 +86,26 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             )
 
             return [pscustomobject]@{
-                Setting         = [pscustomobject]@{ Formatted = [pscustomobject]@{ ComputerName = $ComputerName; Path = $Path; ApplyDefaultPermissions = $ApplyDefaultPermissions } }
-                FileContext     = [pscustomobject]@{ Item = [pscustomobject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" } }
+                Setting         = [pscustomobject]@{
+                    Formatted = [pscustomobject]@{
+                        ComputerName            = $ComputerName
+                        Path                    = $Path
+                        ApplyDefaultPermissions = $ApplyDefaultPermissions
+                    }
+                }
+                FileContext     = [pscustomobject]@{
+                    Item  = [pscustomobject]@{
+                        Name     = $FileName
+                        FullName = "TestDrive:\Matrix\$FileName"
+                    }
+                    Check = [System.Collections.Generic.List[object]]::new()
+                }
                 Permissions     = $Permissions
                 MatrixAdObjects = $AdObjects
                 Check           = [System.Collections.Generic.List[object]]::new()
-                Matrix          = @()
+                Matrix          = @(
+                    [pscustomobject]@{ ACL = @{} }
+                )
             }
         }
 
@@ -408,6 +422,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Default permissions guard' {
+        BeforeEach {
+            Mock Test-AdObjectInMatrixHC { return @() }
+        }
         # Per session 1 decision 7
         It 'records FatalError when any matrix uses ApplyDefaultPermissions=true but defaults are empty' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
@@ -419,7 +436,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Mock Import-MatrixDefaultsFileHC {
                 return [pscustomobject]@{
                     FilePath   = 'TestDrive:\Defaults.xlsx'
-                    DefaultAcl = @()
+                    DefaultAcl = @{}
                     MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
                 }
             }
@@ -442,7 +459,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Mock Import-MatrixDefaultsFileHC {
                 return [pscustomobject]@{
                     FilePath   = 'TestDrive:\Defaults.xlsx'
-                    DefaultAcl = @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
+                    DefaultAcl = @{ 'groupA' = @{ Permission = 'R' } }
                     MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
                 }
             }
@@ -458,5 +475,5 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'skips broken matrices (FatalError on the matrix) when evaluating the guard' {
             # Verify Test-ItemHasFatalErrorHC filter is applied before the guard check
         }
-    } -Tag test
+    }
 }
