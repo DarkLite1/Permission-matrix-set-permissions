@@ -39,9 +39,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             }
         }
 
-        # ---------------------------------------------------------------------
-        # Helper: write a JSON config fixture and return its path
-        # ---------------------------------------------------------------------
         function New-BeginJsonFile {
             param(
                 [hashtable]$Overrides = @{},
@@ -50,12 +47,10 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $fixture = New-JsonFixture
 
-            # Sensible defaults that BeginHC will touch
             $fixture.Matrix.FolderPath = (New-Item 'TestDrive:\Matrix' -ItemType Directory -Force).FullName
             $fixture.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
             $fixture.Settings.SaveLogFiles.Where.Folder = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
 
-            # Apply per-test overrides via dotted path: 'Matrix.FolderPath' = 'x:\nope'
             foreach ($key in $Overrides.Keys) {
                 Set-NestedPropertyHC -Object $fixture -Path $key -Value $Overrides[$key]
             }
@@ -65,10 +60,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             return $file.FullName
         }
 
-        # ---------------------------------------------------------------------
-        # Helper: build a fake matrix file result with the shape BeginHC expects.
-        # Mirrors what Import-MatrixFileHC would return for one .xlsx.
-        # ---------------------------------------------------------------------
         function New-FakeMatrixResult {
             param(
                 [string]$FileName = 'M1.xlsx',
@@ -89,9 +80,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             }
         }
 
-        # ---------------------------------------------------------------------
-        # Helper: build the standard BeginHC argument set
-        # ---------------------------------------------------------------------
         function New-BeginArgs {
             param(
                 [string]$ConfigurationJsonFile,
