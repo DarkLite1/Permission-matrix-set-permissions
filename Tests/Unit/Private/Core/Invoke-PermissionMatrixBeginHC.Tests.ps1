@@ -388,7 +388,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -AdObjects @{ 'groupA' = 'placeholder' }
                     ) )
             }
-            Mock Get-ADObjectsBulkHC {
+            Mock Get-AdObjectDetailHC {
                 return @{ 'DOMAIN\groupA' = 'S-1-5-21-AAA' }
             }
             $args = New-BeginArgs
@@ -405,9 +405,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'isolates per-matrix AD failures (one bad matrix does not poison the others)' {
             # Adjust per the real isolation invariant in BeginHC
         }
-    } -Tag test
+    }
 
-    # =========================================================================
     Context 'Default permissions guard' {
         # Per session 1 decision 7
         It 'records FatalError when any matrix uses ApplyDefaultPermissions=true but defaults are empty' {
@@ -459,5 +458,5 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'skips broken matrices (FatalError on the matrix) when evaluating the guard' {
             # Verify Test-ItemHasFatalErrorHC filter is applied before the guard check
         }
-    }
+    } -Tag test
 }
