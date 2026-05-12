@@ -45,16 +45,9 @@ Describe 'Matrix Logic Tests' {
 
         $testInputTemplate.Settings.SaveLogFiles.Where.Folder =
         (New-Item 'TestDrive:\MatrixLogs' -ItemType Directory).FullName
-
-        $scriptPath = @{
-            TestRequirementsFile = (New-Item 'TestDrive:\TestReq.ps1' -ItemType File).FullName
-            SetPermissionFile    = (New-Item 'TestDrive:\SetPerm.ps1' -ItemType File).FullName
-            UpdateServiceNow     = (New-Item 'TestDrive:\SNOW.ps1' -ItemType File).FullName
-        }
-
+    
         $testParams = @{
             ConfigurationJsonFile = $jsonFile.FullName
-            ScriptPath            = $scriptPath
         }
 
         $testInputTemplate | 
