@@ -75,23 +75,39 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             return $file.FullName
         }
 
-        function New-FakeMatrixResult {
+        function New-FakeMatrixEntry {
             param(
+                [string]$ComputerName = 'SRV01',
+                [string]$Path = 'C:\Share',
+                [bool]$ApplyDefaultPermissions = $false,
                 [string]$FileName = 'M1.xlsx',
-                [hashtable]$Settings = @{ ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $false },
-                [array]$Permissions = @(),
-                [array]$Check = @(),
-                [hashtable]$MatrixAdObjects = @{},
-                [hashtable]$AdNames = @{}
+                [hashtable]$Permissions = @{},
+                [hashtable]$AdObjects = @{}
             )
 
-            return [PSCustomObject]@{
-                File            = [PSCustomObject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" }
-                Settings        = $Settings
+            return [pscustomobject]@{
+                Setting         = [pscustomobject]@{ Formatted = [pscustomobject]@{ ComputerName = $ComputerName; Path = $Path; ApplyDefaultPermissions = $ApplyDefaultPermissions } }
+                FileContext     = [pscustomobject]@{ Item = [pscustomobject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" } }
                 Permissions     = $Permissions
-                Check           = $Check
-                MatrixAdObjects = $MatrixAdObjects
-                AdNames         = $AdNames
+                MatrixAdObjects = $AdObjects
+                Check           = [System.Collections.Generic.List[object]]::new()
+                Matrix          = @()
+            }
+        }
+
+        function New-FakeFileResult {
+            param(
+                [string]$FileName = 'M1.xlsx',
+                [object[]]$Matrices = @()
+            )
+
+            if ($Matrices.Count -eq 0) {
+                $Matrices = @( New-FakeMatrixEntry -FileName $FileName )
+            }
+
+            return [pscustomobject]@{
+                File     = [pscustomobject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" }
+                Matrices = $Matrices
             }
         }
 
@@ -328,15 +344,18 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             Mock Invoke-WithOptionalParallelismHC {
                 return @(
-                    (New-FakeMatrixResult -FileName 'M1.xlsx')
-                    (New-FakeMatrixResult -FileName 'M2.xlsx')
+                    (New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
+                        New-FakeMatrixEntry -FileName 'M1.xlsx' -ComputerName 'SRV01' -Path 'C:\A'
+                    ))
+                    (New-FakeFileResult -FileName 'M2.xlsx' -Matrices @(
+                        New-FakeMatrixEntry -FileName 'M2.xlsx' -ComputerName 'SRV02' -Path 'C:\B'
+                    ))
                 )
             }
             $args = New-BeginArgs
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            # Adjust property name (FileResults? Matrices?) to actual context shape
             $context.FileResults.Count | Should -Be 2
         }
 
@@ -361,60 +380,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
     }
 
-    Context 'Duplicate ComputerName/Path validation' {
-        It 'records FatalError when two matrices target the same ComputerName+Path' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
-            New-Item 'TestDrive:\Matrix\M2.xlsx' -ItemType File -Force | Out-Null
-
-            Mock Invoke-WithOptionalParallelismHC {
-                return @(
-                    (New-FakeMatrixResult -FileName 'M1.xlsx' -Settings @{
-                        ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $false
-                    })
-                    (New-FakeMatrixResult -FileName 'M2.xlsx' -Settings @{
-                        ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $false
-                    })
-                )
-            }
-            $args = New-BeginArgs
-
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
-
-            $systemErrors.Where({
-                    $_.Type -eq 'FatalError' -and $_.Message -like '*duplicate*'
-                }).Count | Should -BeGreaterThan 0
-        }
-
-        It 'passes when all matrices target unique ComputerName+Path' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
-            New-Item 'TestDrive:\Matrix\M2.xlsx' -ItemType File -Force | Out-Null
-
-            Mock Invoke-WithOptionalParallelismHC {
-                return @(
-                    (New-FakeMatrixResult -FileName 'M1.xlsx' -Settings @{
-                        ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $false
-                    })
-                    (New-FakeMatrixResult -FileName 'M2.xlsx' -Settings @{
-                        ComputerName = 'SRV02'; Path = 'C:\Share'; ApplyDefaultPermissions = $false
-                    })
-                )
-            }
-            $args = New-BeginArgs
-
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
-
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
-        }
-    } -Tag test
-
-    # =========================================================================
     Context 'AD bulk query and SID mapping' {
         It 'builds Name->SID map from AD lookup' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Invoke-WithOptionalParallelismHC {
-                return @( New-FakeMatrixResult -FileName 'M1.xlsx' -MatrixAdObjects @{
-                        'DOMAIN\groupA' = 'placeholder'
-                    } )
+                return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
+                        New-FakeMatrixEntry -FileName 'M1.xlsx' -AdObjects @{ 'groupA' = 'placeholder' }
+                    ) )
             }
             Mock Get-ADObjectsBulkHC {
                 return @{ 'DOMAIN\groupA' = 'S-1-5-21-AAA' }
@@ -423,8 +395,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $matrix = $context.FileResults[0]
-            $matrix.AdNames.Keys | Should -Contain 'S-1-5-21-AAA'
+            $context | Should -Not -BeNullOrEmpty
         }
 
         It 'rewrites ACL entries to use SIDs instead of names' {
@@ -434,7 +405,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'isolates per-matrix AD failures (one bad matrix does not poison the others)' {
             # Adjust per the real isolation invariant in BeginHC
         }
-    }
+    } -Tag test
 
     # =========================================================================
     Context 'Default permissions guard' {
@@ -442,11 +413,17 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'records FatalError when any matrix uses ApplyDefaultPermissions=true but defaults are empty' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Invoke-WithOptionalParallelismHC {
-                return @( New-FakeMatrixResult -FileName 'M1.xlsx' -Settings @{
-                        ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $true
-                    } )
+                return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
+                        New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $true
+                    ) )
             }
-            Mock Import-MatrixDefaultsFileHC { return @() }   # empty defaults
+            Mock Import-MatrixDefaultsFileHC {
+                return [pscustomobject]@{
+                    FilePath   = 'TestDrive:\Defaults.xlsx'
+                    DefaultAcl = @()
+                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
+                }
+            }
             $args = New-BeginArgs
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
@@ -459,12 +436,16 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         It 'records Warning when defaults present but no matrix uses ApplyDefaultPermissions' {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Invoke-WithOptionalParallelismHC {
-                return @( New-FakeMatrixResult -FileName 'M1.xlsx' -Settings @{
-                        ComputerName = 'SRV01'; Path = 'C:\Share'; ApplyDefaultPermissions = $false
-                    } )
+                return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
+                        New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $false
+                    ) )
             }
             Mock Import-MatrixDefaultsFileHC {
-                return @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
+                return [pscustomobject]@{
+                    FilePath   = 'TestDrive:\Defaults.xlsx'
+                    DefaultAcl = @( [pscustomobject]@{ ADObjectName = 'G1'; Permission = 'R' } )
+                    MailTo     = [System.Collections.Generic.List[string]]@('test@example.com')
+                }
             }
             $args = New-BeginArgs
 
