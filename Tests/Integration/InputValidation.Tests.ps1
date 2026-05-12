@@ -11,8 +11,6 @@ Describe 'Input Validation Tests' {
         $script:MissingMaxConcurrentProps = Get-MissingMaxConcurrentProperties
         $script:MissingMatrixProps = Get-MissingMatrixProperties
         $script:InvalidPathTests = Get-InvalidMatrixPaths
-
-        $script:TestScript = "$root\Scripts\Entrypoints\PermissionMatrix.ps1"
     }
 
     BeforeAll {
@@ -21,35 +19,34 @@ Describe 'Input Validation Tests' {
         . "$root\Tests\Helpers\Helpers.HC.ps1"
         . "$root\Tests\Helpers\Fixtures.Json.ps1"
 
+        $script:TestScript = "$root\Scripts\Entrypoints\PermissionMatrix.ps1"
+
         if (-not (Test-Path $TestScript)) {
             throw "Script '$TestScript' not found"
         }
 
-        $jsonFile = New-Item 'TestDrive:\Input.json' -ItemType File
+        # Template config — each test clones this, modifies one property, saves, invokes.
+        $script:TestJsonFile = New-Item 'TestDrive:\Input.json' -ItemType File
 
-        $testInputTemplate = New-JsonFixture
+        $script:TestInput = New-JsonFixture
+        $TestInput.Matrix.FolderPath = (New-Item 'TestDrive:\Matrix' -ItemType Directory).FullName
+        $TestInput.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
+        $TestInput.Settings.SaveLogFiles.Where.Folder = (New-Item 'TestDrive:\Logs' -ItemType Directory).FullName
 
-        $testInputTemplate.Matrix.FolderPath =
-        (New-Item 'TestDrive:\Matrix' -ItemType Directory).FullName
+        $TestInput | ConvertTo-Json -Depth 20 | Set-Content $TestJsonFile.FullName
 
-        $testInputTemplate.Matrix.DefaultsFile =
-        (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
-
-        $testInputTemplate.Settings.SaveLogFiles.Where.Folder =
-        (New-Item 'TestDrive:\Logs' -ItemType Directory).FullName
-
-        $testParams = @{
-            ConfigurationJsonFile = $jsonFile.FullName
+        $script:TestParams = @{
+            ConfigurationJsonFile = $TestJsonFile.FullName
         }
 
-        $testInputTemplate |
-        ConvertTo-Json -Depth 20 | Set-Content $jsonFile.FullName
-        
-        # Share objects for tests
-        $script:TestJsonFile = $jsonFile
-        $script:TestInput = $testInputTemplate
-        $script:TestScript = $TestScript
-        $script:TestParams = $testParams
+        # Run the entrypoint with a modified config and return its exit code.
+        function Invoke-WithConfig {
+            param([pscustomobject]$Config)
+
+            Save-TestJson -InputObject $Config -JsonFile $TestJsonFile
+            & $TestScript @TestParams
+            return $LASTEXITCODE
+        }
     }
 
     BeforeEach {
@@ -61,48 +58,38 @@ Describe 'Input Validation Tests' {
             -ConfiguredLogFolder $TestInput.Settings.SaveLogFiles.Where.Folder
     }
 
-    Describe 'missing top-level JSON properties' {
+    Context 'missing top-level JSON properties' {
         It '<Property> should produce an error' -TestCases $MissingTopLevelProps {
             param($Property)
 
             $updated = Copy-ObjectHC $TestInput
             $updated.$Property = $null
 
-            if ($Property -eq 'Settings') {
-                'pause'
-            }
+            (Invoke-WithConfig $updated) | Should -Be 1
 
-            Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
-            & $TestScript @TestParams
-
-            $LASTEXITCODE | Should -Be 1
-
-            if ($Property -eq 'Settings') {
-                $fallback = Get-FallbackLogFolderHC
-
-                Assert-LogContainsSystemErrorHC `
-                    -LogFolderPath $fallback `
-                    -Pattern "*Property '$Property' not found*"
+            # When Settings is null, the configured log folder is unreachable —
+            # the script falls back to a temp folder for logging.
+            $logFolder = if ($Property -eq 'Settings') {
+                Get-FallbackLogFolderHC
             }
             else {
-                Assert-LogContainsSystemErrorHC `
-                    -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
-                    -Pattern "*Property '$Property' not found*"
+                $TestInput.Settings.SaveLogFiles.Where.Folder
             }
-        } -Tag test
+
+            Assert-LogContainsSystemErrorHC `
+                -LogFolderPath $logFolder `
+                -Pattern "*Property '$Property' not found*"
+        }
     }
 
-    Describe 'missing MaxConcurrent sub-properties' {
+    Context 'missing MaxConcurrent sub-properties' {
         It 'MaxConcurrent.<Property> not found' -TestCases $MissingMaxConcurrentProps {
             param($Property)
 
             $updated = Copy-ObjectHC $TestInput
             $updated.MaxConcurrent.$Property = $null
 
-            Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
-            & $TestScript @TestParams
-
-            $LASTEXITCODE | Should -Be 1
+            (Invoke-WithConfig $updated) | Should -Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -110,17 +97,14 @@ Describe 'Input Validation Tests' {
         }
     }
 
-    Describe 'missing Matrix sub-properties' {
+    Context 'missing Matrix sub-properties' {
         It 'Matrix.<Property> not found' -TestCases $MissingMatrixProps {
             param($Property)
 
             $updated = Copy-ObjectHC $TestInput
             $updated.Matrix.$Property = $null
 
-            Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
-            & $TestScript @TestParams
-
-            $LASTEXITCODE | Should -Be 1
+            (Invoke-WithConfig $updated) | Should -Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -128,17 +112,14 @@ Describe 'Input Validation Tests' {
         }
     }
 
-    Describe 'invalid filesystem paths' {
+    Context 'invalid filesystem paths' {
         It 'fails when <Property> path is invalid' -TestCases $InvalidPathTests {
             param($Property, $Value)
 
             $updated = Copy-ObjectHC $TestInput
             Set-NestedPropertyHC -Object $updated -Path $Property -Value $Value
 
-            Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
-            & $TestScript @TestParams
-
-            $LASTEXITCODE | Should -Be 1
+            (Invoke-WithConfig $updated) | Should -Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -146,17 +127,12 @@ Describe 'Input Validation Tests' {
         }
     }
 
-    Describe 'log folder creation failure' {
-        It 'fallback to temp folder when log folder creation fails' {
-
+    Context 'log folder creation failure' {
+        It 'falls back to temp folder when configured log folder cannot be created' {
             $updated = Copy-ObjectHC $TestInput
             $updated.Settings.SaveLogFiles.Where.Folder = 'x:\nope'
 
-            Save-TestJson -InputObject $updated -JsonFile $TestJsonFile
-
-            & $TestScript @TestParams
-
-            $LASTEXITCODE | Should -Be 1
+            (Invoke-WithConfig $updated) | Should -Be 1
 
             $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
 
