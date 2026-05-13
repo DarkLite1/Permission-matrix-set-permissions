@@ -222,7 +222,6 @@ Describe 'Export-FilesHC' {
 }
 
 Describe 'Export.ps1 - Export Functions' {
-
     BeforeAll {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
