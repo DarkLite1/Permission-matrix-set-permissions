@@ -196,60 +196,306 @@ Describe 'New-OverviewHtmlHC' {
     }
 }
 
-Describe 'Html.ps1 consolidated tests' {
-
+Describe 'Initialize-HtmlStructureHC' {
     BeforeAll {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
         . "$moduleRoot\Private\Html.ps1"
-        . "$moduleRoot\Private\Utils.ps1"
     }
 
-    It 'Initializes HTML structure' {
-        $h = Initialize-HtmlStructureHC
-        $h.Style | Should -Match '<style'
-        $h.Templates.SettingsHeader | Should -Match 'Settings'
+    BeforeEach {
+        $script:struct = Initialize-HtmlStructureHC
     }
 
-    It 'Maps error types to CSS classes' {
-        Get-HtmlClassProbTypeHC 'FatalError' | Should -Be 'probTypeError'
-        Get-HtmlClassProbTypeHC 'Warning' | Should -Be 'probTypeWarning'
+    It 'returns a hashtable' {
+        $struct | Should -BeOfType [hashtable]
     }
 
-    It 'Builds matrix email HTML' {
-        $html = Initialize-HtmlStructureHC
-
-        $matrix = @(
-            [pscustomobject]@{
-                File        = @{
-                    Item         = @{ Name = 'A.xlsx' }
-                    SaveFullName = 'C:\A.xlsx'
-                    ExcelInfo    = @{ LastModifiedBy = 'User'; Modified = Get-Date }
-                }
-                FormData    = @{ Check = @() }
-                Permissions = @{ Check = @() }
-                Settings    = @()
-            }
-        )
-
-        $out = Build-MatrixEmailHtmlHC $matrix $html
-        $out | Should -Match 'A.xlsx'
+    It 'exposes Style as a non-empty <style> block' {
+        $struct.Style | Should -Not -BeNullOrEmpty
+        $struct.Style | Should -Match '<style type="text/css">'
+        $struct.Style | Should -Match '</style>'
     }
 
-    It 'Writes troubleshooting log' {
-        $html = Initialize-HtmlStructureHC
-        $folder = Join-Path $TestDrive 'logs'
-        New-Item -ItemType Directory -Path $folder | Out-Null
+    It 'exposes TroubleshootingStyle as a separate <style> block' {
+        $struct.TroubleshootingStyle | Should -Not -BeNullOrEmpty
+        $struct.TroubleshootingStyle | Should -Match '<style type="text/css">'
+    }
 
-        $matrix = [pscustomobject]@{
-            File        = @{ LogFolder = $folder; Check = @() }
-            FormData    = @{ Check = @() }
-            Permissions = @{ Check = @() }
-        }
+    It 'exposes Templates.SettingsHeader containing a Settings <th>' {
+        $struct.Templates.SettingsHeader | Should -Match '<th class="matrixHeader" colspan="8">Settings</th>'
+    }
 
-        $path = Write-MatrixTroubleshootingLogHC $matrix $html
-        Test-Path $path | Should -BeTrue
+    It 'exposes Templates.LegendTable with Error/Warning/Information cells' {
+        $struct.Templates.LegendTable | Should -Match 'probTypeError'
+        $struct.Templates.LegendTable | Should -Match 'probTypeWarning'
+        $struct.Templates.LegendTable | Should -Match 'probTypeInfo'
     }
 }
 
+Describe 'Get-HtmlClassProbTypeHC' {
+    BeforeAll {
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Html.ps1"
+    }
+
+    It 'maps <Type> to <Expected>' -ForEach @(
+        @{ Type = 'FatalError'; Expected = 'probTypeError' }
+        @{ Type = 'Warning'; Expected = 'probTypeWarning' }
+        @{ Type = 'Information'; Expected = 'probTypeInfo' }
+        @{ Type = ''; Expected = 'probTypeInfo' }
+        @{ Type = 'unknown'; Expected = 'probTypeInfo' }
+    ) {
+        Get-HtmlClassProbTypeHC $Type | Should -Be $Expected
+    }
+}
+
+Describe 'Build-MatrixEmailHtmlHC' {
+    BeforeAll {
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Html.ps1"
+        . "$moduleRoot\Private\Utils.ps1"  # Get-StringOrDefaultHC
+
+        # FileResult shape that matches what Build-MatrixEmailHtmlHC actually
+        # reads. Production paths (per Html.ps1 lines 576-621):
+        #   .Item.Name            → filename in title
+        #   .Item.FullName        → href for the title link
+        #   .ExcelInfo.LastModifiedBy
+        #   .ExcelInfo.Modified   (datetime)
+        #   .Check                → global file-level checks (array)
+        #   .Sheets.FormData.Check
+        #   .Sheets.Permissions.Check
+        #   .Matrices             → array of matrix rows with .ID, .Check, .Setting.Formatted.ComputerName
+        function New-FileResult {
+            param(
+                [string]$Name = 'A.xlsx',
+                [string]$FullName = 'C:\A.xlsx',
+                [string]$LastModifiedBy = 'User',
+                [datetime]$Modified = (Get-Date '2024-01-15 09:30:00'),
+                [object[]]$Check = @(),
+                [object[]]$FormDataCheck = @(),
+                [object[]]$PermissionsCheck = @(),
+                [object[]]$Matrices = @()
+            )
+
+            return [pscustomobject]@{
+                Item      = [pscustomobject]@{ Name = $Name; FullName = $FullName }
+                ExcelInfo = [pscustomobject]@{
+                    LastModifiedBy = $LastModifiedBy
+                    Modified       = $Modified
+                }
+                Check     = $Check
+                Sheets    = [pscustomobject]@{
+                    FormData    = [pscustomobject]@{ Check = $FormDataCheck }
+                    Permissions = [pscustomobject]@{ Check = $PermissionsCheck }
+                }
+                Matrices  = $Matrices
+            }
+        }
+    }
+
+    BeforeEach {
+        $script:html = Initialize-HtmlStructureHC
+
+        # Build-MatrixEmailHtmlHC calls New-SettingsOverviewHtmlHC when
+        # $Matrices is non-empty; mock to keep this test focused on the
+        # orchestration around the file headers, not the matrices subsection.
+        Mock New-SettingsOverviewHtmlHC { return '<!-- mocked overview -->' }
+    }
+
+    Context 'basic file rendering' {
+        It 'renders the filename in the title link text' {
+            $files = @( New-FileResult -Name 'Q3-Permissions.xlsx' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Q3-Permissions\.xlsx'
+        }
+
+        It 'uses Item.FullName as the title link href' {
+            $files = @( New-FileResult -FullName 'C:\share\budget.xlsx' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match '<a href="C:\\share\\budget\.xlsx">'
+        }
+
+        It 'renders one <table class="matrixTable"> per file' {
+            $files = @(
+                New-FileResult -Name 'one.xlsx'
+                New-FileResult -Name 'two.xlsx'
+                New-FileResult -Name 'three.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            ([regex]::Matches($out, '<table class="matrixTable">')).Count | Should -Be 3
+        }
+    }
+
+    Context 'ExcelInfo handling' {
+        It 'renders LastModifiedBy in the file info row' {
+            $files = @( New-FileResult -LastModifiedBy 'alice@example.com' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'alice@example\.com'
+        }
+
+        It 'falls back to "Unknown" when LastModifiedBy is empty' {
+            $files = @( New-FileResult -LastModifiedBy '' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Last change: Unknown'
+        }
+
+        It 'formats Modified as dd/MM/yyyy HH:mm:ss' {
+            $files = @(
+                New-FileResult -Modified (Get-Date '2024-03-22 14:05:09')
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match '22/03/2024 14:05:09'
+        }
+
+        It 'falls back to "Unknown" when Modified is not a datetime' {
+            $fr = New-FileResult
+            # Overwrite Modified with a non-datetime value
+            $fr.ExcelInfo.Modified = 'not-a-date'
+
+            $out = Build-MatrixEmailHtmlHC -FileResults @($fr) -Html $html
+
+            $out | Should -Match 'Last change: User @ Unknown'
+        }
+
+        It 'HTML-encodes the filename' {
+            $files = @( New-FileResult -Name 'a&b<c>.xlsx' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'a&amp;b&lt;c&gt;\.xlsx'
+            $out | Should -Not -Match '<c>'
+        }
+    }
+
+    Context 'matrices section' {
+        It 'calls New-SettingsOverviewHtmlHC when the file has matrices' {
+            $files = @(
+                New-FileResult -Matrices @(
+                    [pscustomobject]@{
+                        ID      = 1
+                        Check   = @()
+                        Setting = [pscustomobject]@{
+                            Formatted = [pscustomobject]@{ ComputerName = 'SRV01' }
+                        }
+                    }
+                )
+            )
+
+            Build-MatrixEmailHtmlHC -FileResults $files -Html $html | Out-Null
+
+            Should -Invoke New-SettingsOverviewHtmlHC -Times 1
+        }
+
+        It 'does not call New-SettingsOverviewHtmlHC when Matrices is empty' {
+            $files = @( New-FileResult -Matrices @() )
+
+            Build-MatrixEmailHtmlHC -FileResults $files -Html $html | Out-Null
+
+            Should -Invoke New-SettingsOverviewHtmlHC -Times 0
+        }
+
+        It 'includes settings details only for matrices that have Check entries' {
+            $matrixWithIssues = [pscustomobject]@{
+                ID      = 1
+                Check   = @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'thing'; Description = 'something off' }
+                )
+                Setting = [pscustomobject]@{
+                    Formatted = [pscustomobject]@{ ComputerName = 'SRV01' }
+                }
+            }
+            $matrixClean = [pscustomobject]@{
+                ID      = 2
+                Check   = @()
+                Setting = [pscustomobject]@{
+                    Formatted = [pscustomobject]@{ ComputerName = 'SRV02' }
+                }
+            }
+
+            $files = @( New-FileResult -Matrices @($matrixWithIssues, $matrixClean) )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Settings sheet details \(ID: 1\) - SRV01'
+            $out | Should -Not -Match 'Settings sheet details \(ID: 2\) - SRV02'
+        }
+    }
+}
+
+Describe 'Write-MatrixSettingLogHC' {
+    BeforeAll {
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Html.ps1"
+    }
+
+    BeforeEach {
+        $script:html = Initialize-HtmlStructureHC
+        $script:logFolder = Join-Path $TestDrive 'logs'
+        New-Item -ItemType Directory -Path $logFolder -Force | Out-Null
+
+        $script:matrix = [pscustomobject]@{
+            ID    = 42
+            Check = @(
+                [pscustomobject]@{
+                    Type        = 'Warning'
+                    Name        = 'TestCheck'
+                    Description = 'A test description'
+                }
+            )
+        }
+    }
+
+    It 'writes a file named "ID <id> - Settings.html" in the log folder' {
+        Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $logFolder
+
+        $expected = Join-Path $logFolder 'ID 42 - Settings.html'
+        Test-Path -LiteralPath $expected | Should -BeTrue
+    }
+
+    It 'writes a valid HTML document with the matrix ID in the title' {
+        Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $logFolder
+
+        $path = Join-Path $logFolder 'ID 42 - Settings.html'
+        $content = Get-Content -LiteralPath $path -Raw
+
+        $content | Should -Match '<!DOCTYPE html>'
+        $content | Should -Match '<h1>Settings Log - ID 42</h1>'
+    }
+
+    It 'includes the legend table in the output' {
+        Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $logFolder
+
+        $path = Join-Path $logFolder 'ID 42 - Settings.html'
+        $content = Get-Content -LiteralPath $path -Raw
+
+        $content | Should -Match 'legendTable'
+    }
+
+    It 'returns null when the log folder does not exist' {
+        $missing = Join-Path $TestDrive 'does-not-exist'
+
+        $result = Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $missing
+
+        $result | Should -BeNullOrEmpty
+    }
+}
