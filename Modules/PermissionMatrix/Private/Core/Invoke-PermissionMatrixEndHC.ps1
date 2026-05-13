@@ -248,7 +248,14 @@ function Invoke-PermissionMatrixEndHC {
     #endregion
 
     #region Send Summary Email
-    if ($Context.Config.Settings.SendMail) {
+    $hasErrors = ($SystemErrors.Value.Count -gt 0 -or
+        $Context.Counter.TotalErrors -gt 0 -or
+        $Context.Counter.TotalWarnings -gt 0)
+
+    if (
+        $Context.Config.Settings.SendMail -and 
+        ($Context.FoundMatrices -or $hasErrors)
+    ) {
         try {
             $sendMail = $Context.Config.Settings.SendMail
 
