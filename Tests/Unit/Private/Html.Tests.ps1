@@ -8,7 +8,6 @@ Describe 'New-OverviewHtmlHC' {
 
         . "$moduleRoot\Private\Html.ps1"
 
-        # Build a FormData row with sensible defaults that tests can override.
         function New-FormDataRow {
             param(
                 [string]$Category = 'CategoryA',
@@ -200,8 +199,11 @@ Describe 'New-OverviewHtmlHC' {
 Describe 'Html.ps1 consolidated tests' {
 
     BeforeAll {
-        . "$PSScriptRoot/../Modules/Toolbox.PermissionMatrixHC/Private/Utils.ps1"
-        . "$PSScriptRoot/../Modules/Toolbox.PermissionMatrixHC/Private/Html.ps1"
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Html.ps1"
+        . "$moduleRoot\Private\Utils.ps1"
     }
 
     It 'Initializes HTML structure' {
@@ -249,5 +251,5 @@ Describe 'Html.ps1 consolidated tests' {
         $path = Write-MatrixTroubleshootingLogHC $matrix $html
         Test-Path $path | Should -BeTrue
     }
-} -Skip
+}
 
