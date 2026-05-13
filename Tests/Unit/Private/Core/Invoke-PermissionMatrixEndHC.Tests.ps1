@@ -329,7 +329,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     }
 
     Context 'Phase 4: Send email' {
-        It 'sends mail when SendMail config is present' {
+        It 'sends mail when SendMail is configured and matrices were found' {
             $ctx = New-EndContext
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
@@ -342,6 +342,16 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
+            Should -Invoke Send-MailKitMessageHC -Times 0
+        }
+
+        It 'skips mail when SendMail is configured but FoundMatrices is false and no errors occurred' {
+            # The "silent run" case — script runs every 5 minutes, nothing to do,
+            # don't spam recipients with empty reports.
+            $ctx = New-EndContext -FoundMatrices $false
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
             Should -Invoke Send-MailKitMessageHC -Times 0
         }
     
