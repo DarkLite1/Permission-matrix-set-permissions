@@ -708,3 +708,184 @@ $($Html.MatrixTables)
 </html>
 "@
 }
+
+function New-OverviewHtmlHC {
+    <#
+    .SYNOPSIS
+        Builds the standalone overview HTML page from FormData rows.
+
+    .DESCRIPTION
+        Returns an HTML string suitable for writing to a .html file that a
+        user can open in a browser. The page lists each matrix file by
+        category and links to the matrix file plus the responsible parties.
+
+        This HTML is distinct from the email summary body — different audience
+        (browser vs mail client), different styling, different lifetime.
+
+    .PARAMETER FormData
+        Array of objects, each representing one matrix file. Each row must
+        expose: MatrixCategoryName, MatrixSubCategoryName, MatrixFolderDisplayName,
+        MatrixFilePath, MatrixFileName, MatrixResponsible (comma-separated emails).
+
+    .OUTPUTS
+        [string] Complete HTML page content.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$FormData
+    )
+
+    $style = @'
+<style type="text/css">
+body {
+    background-color: #f0f0f0;
+    color: #004e2b;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+
+a {
+    color: #004e2b;
+    text-decoration: none;
+}
+a:hover {
+    color: #00dd39;
+    text-decoration: underline;
+}
+
+h1 {
+    border-bottom: 2px solid #004e2b;
+    padding-bottom: 10px;
+    margin-bottom: 25px;
+    color: #004e2b;
+    text-transform: uppercase;
+    font-size: 1.8em;
+}
+
+table {
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px 0;
+    border-collapse: separate;
+    border-spacing: 0;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+    background-color: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    table-layout: auto;
+    border: none;
+}
+
+table th {
+    background-color: #004e2b;
+    color: #ffffff;
+    text-align: left;
+    padding: 15px 20px;
+    font-weight: bold;
+    text-transform: uppercase;
+    border: none;
+    font-size: 0.9em;
+}
+
+table thead tr:first-child th:first-child { border-top-left-radius: 8px; }
+table thead tr:first-child th:last-child  { border-top-right-radius: 8px; }
+
+table th:nth-child(3) {
+    text-align: left;
+    word-break: normal;
+}
+
+table td {
+    text-align: center;
+    padding: 10px 15px;
+    border: none;
+    border-bottom: 1px solid #e0e0e0;
+    vertical-align: middle;
+    color: #004e2b;
+}
+
+table tbody tr:last-child td { border-bottom: none; }
+
+table td:nth-child(3),
+table td:nth-child(4),
+table td:nth-child(5) {
+    text-align: left;
+    white-space: nowrap;
+    word-break: normal;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+table tbody tr:nth-child(even) { background-color: #f8f8f8b7; }
+table tbody tr:nth-child(odd)  { background-color: #ffffff; }
+
+table tbody tr:hover {
+    background-color: #c2ebcf;
+    color: #004e2b;
+}
+
+table tbody tr td a {
+    display: block;
+    width: 100%;
+    height: 100%;
+    color: #004e2b;
+}
+table td:last-child a {
+    display: inline;
+    color: #004e2b;
+}
+
+table tbody tr:hover td a { color: #004e2b; }
+</style>
+'@
+
+    $rows = $FormData |
+    Sort-Object -Property 'MatrixCategoryName', 'MatrixSubCategoryName', 'MatrixFolderDisplayName' |
+    ForEach-Object {
+        $emailLinks = foreach ($email in ($_.MatrixResponsible -split ',')) {
+            $trimmed = $email.Trim()
+            "<a href=`"mailto:$trimmed`">$trimmed</a>"
+        }
+
+        @"
+<tr>
+    <td>$([System.Net.WebUtility]::HtmlEncode($_.MatrixCategoryName))</td>
+    <td>$([System.Net.WebUtility]::HtmlEncode($_.MatrixSubCategoryName))</td>
+    <td><a href="$($_.MatrixFolderDisplayName)">$([System.Net.WebUtility]::HtmlEncode($_.MatrixFolderDisplayName))</a></td>
+    <td><a href="$($_.MatrixFilePath)">$([System.Net.WebUtility]::HtmlEncode($_.MatrixFileName))</a></td>
+    <td>$($emailLinks -join ' ')</td>
+</tr>
+"@
+    }
+
+    @"
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Matrix files overview</title>
+$style
+</head>
+<body>
+<h1>Matrix files overview</h1>
+<table>
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Subcategory</th>
+            <th>Folder</th>
+            <th>Link to the matrix</th>
+            <th>Responsible</th>
+        </tr>
+    </thead>
+    <tbody>
+        $($rows -join "`n        ")
+    </tbody>
+</table>
+</body>
+</html>
+"@
+}

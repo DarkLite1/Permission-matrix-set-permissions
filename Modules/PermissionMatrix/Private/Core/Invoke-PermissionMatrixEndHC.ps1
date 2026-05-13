@@ -52,9 +52,7 @@ function Invoke-PermissionMatrixEndHC {
         try {
             $Context.ExportedFiles = Export-FilesHC `
                 -ImportedMatrix $Context.AllMatrices `
-                -ExportSettings $Context.Config.Export `
-                -HtmlOverview $fullHtmlBody `
-                -Counters $Context.Counter
+                -ExportSettings $Context.Config.Export
             
             if (
                 $Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath

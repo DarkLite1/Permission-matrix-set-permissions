@@ -1,16 +1,4 @@
-<#
-    Export.ps1
-    Consolidated export logic for Toolbox.PermissionMatrixHC.
 
-    Contains:
-        - Build-ExportDataHC
-        - Export-FilesHC
-        - Export-PermissionsFileHC
-        - Export-ServiceNowFormDataHC
-        - Export-OverviewHtmlHC
-#>
-
-#region Build-ExportDataHC
 function Build-ExportDataHC {
     <#
         Build aggregated export data for permissions and form data.
@@ -51,21 +39,25 @@ function Build-ExportDataHC {
         FormData    = $formDataRows
     }
 }
-#endregion
 
-
-
-#region Export-FilesHC
 function Export-FilesHC {
     <#
+    .SYNOPSIS
         Executes all export operations based on settings.
+
+    .DESCRIPTION
+        Builds export data from imported matrices, then writes the configured
+        export artifacts to disk: Permissions Excel, ServiceNow FormData Excel,
+        and the standalone overview HTML page.
+
+        The overview HTML is generated internally — callers no longer pass it
+        in. The email summary body is a separate artifact built by EndHC and
+        is not used here.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$ImportedMatrix,
-        [Parameter(Mandatory)]      $ExportSettings,
-        [Parameter(Mandatory)]      $HtmlOverview,
-        [Parameter(Mandatory)]      $Counters
+        [Parameter(Mandatory)]      $ExportSettings
     )
 
     $exportData = Build-ExportDataHC -ImportedMatrix $ImportedMatrix
@@ -90,20 +82,17 @@ function Export-FilesHC {
             -Path $ExportSettings.ServiceNowFormDataExcelFile
     }
 
-    # 3. Overview HTML
+    # 3. Overview HTML (built from FormData rows; independent of the email body)
     if ($ExportSettings.OverviewHtmlFile) {
+        $html = New-OverviewHtmlHC -FormData $exportData.FormData
         $results.OverviewHtml = Export-OverviewHtmlHC `
-            -Html $HtmlOverview `
+            -Html $html `
             -Path $ExportSettings.OverviewHtmlFile
     }
 
     return $results
 }
-#endregion
 
-
-
-#region Export-PermissionsFileHC
 function Export-PermissionsFileHC {
     <#
         Writes a permissions Excel export using ImportExcel module.
@@ -122,11 +111,7 @@ function Export-PermissionsFileHC {
         throw "Failed exporting Permissions Excel file: $_"
     }
 }
-#endregion
 
-
-
-#region Export-ServiceNowFormDataHC
 function Export-ServiceNowFormDataHC {
     <#
         Writes ServiceNow FormData into an Excel file.
@@ -145,11 +130,7 @@ function Export-ServiceNowFormDataHC {
         throw "Failed exporting ServiceNow FormData Excel: $_"
     }
 }
-#endregion
 
-
-
-#region Export-OverviewHtmlHC
 function Export-OverviewHtmlHC {
     <#
         Writes the generated HTML overview page to a file.
@@ -168,4 +149,3 @@ function Export-OverviewHtmlHC {
         throw "Failed exporting Overview HTML file: $_"
     }
 }
-#endregion
