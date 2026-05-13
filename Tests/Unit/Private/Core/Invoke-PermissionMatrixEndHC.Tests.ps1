@@ -310,14 +310,6 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             $fallbackWarning = $systemErrors.Where({ $_.Name -eq 'Log Folder Fallback' })
             $fallbackWarning.Count | Should -Be 1
         }
-
-        It 'does not send mail when FoundMatrices is false and no errors occurred' {
-            $ctx = New-EndContext -FoundMatrices $false  # SendMail defaults to populated
-
-            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-            Should -Invoke Send-MailKitMessageHC -Times 0
-        }
     }
 
     It 'creates JSON files only for checks with a Value property' {
@@ -369,6 +361,14 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
             $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should -Be 1
+        }
+        
+        It 'does not send mail when FoundMatrices is false and no errors occurred' {
+            $ctx = New-EndContext -FoundMatrices $false  # SendMail defaults to populated
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Should -Invoke Send-MailKitMessageHC -Times 0
         }
     }
     
