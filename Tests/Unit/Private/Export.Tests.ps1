@@ -224,9 +224,10 @@ Describe 'Export-FilesHC' {
 Describe 'Export.ps1 - Export Functions' {
 
     BeforeAll {
-        $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-        $file = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Export.ps1'
-        . $file
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Export.ps1"
     }
 
     Context 'Build-ExportDataHC' {
@@ -342,4 +343,4 @@ Describe 'Export.ps1 - Export Functions' {
             Should -Invoke Export-OverviewHtmlHC -Times 1
         }
     }
-} -Skip
+} # -Skip
