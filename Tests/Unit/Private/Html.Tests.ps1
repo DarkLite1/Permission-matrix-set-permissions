@@ -30,7 +30,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'basic structure' {
         It 'returns a non-empty string' {
             $html = New-OverviewHtmlHC -FormData @( New-FormDataRow )
@@ -62,7 +61,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'row generation' {
         It 'produces one <tr> per FormData row in the tbody' {
             $rows = @(
@@ -110,7 +108,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'sorting' {
         It 'sorts rows by Category, then SubCategory, then FolderDisplayName' {
             $rows = @(
@@ -136,7 +133,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'responsible-party emails' {
         It 'renders a mailto: link for a single email' {
             $row = New-FormDataRow -Responsible 'bob@example.com'
@@ -166,7 +162,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'HTML encoding' {
         It 'encodes ampersands in category names' {
             $row = New-FormDataRow -Category 'R&D'
@@ -187,7 +182,6 @@ Describe 'New-OverviewHtmlHC' {
         }
     }
 
-    # =========================================================================
     Context 'empty input' {
         It 'returns a valid HTML page when FormData is empty' {
             $html = New-OverviewHtmlHC -FormData @()
