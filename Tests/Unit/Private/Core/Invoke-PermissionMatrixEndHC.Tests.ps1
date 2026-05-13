@@ -3,17 +3,18 @@
 
 Describe 'Invoke-PermissionMatrixEndHC' {
     BeforeAll {
-        # Load dependencies. Adjust paths to your project layout.
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Utils.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Html.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Mail.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Export.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-EventLogSafe.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Cleanup-OldLogsHC.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Logging\Write-SystemErrorLogHC.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
+        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        # Helper: builds a minimal Context with the shape EndHC expects.
+        . "$moduleRoot\Private\Utils.ps1"
+        . "$moduleRoot\Private\Html.ps1"
+        . "$moduleRoot\Private\Mail.ps1"
+        . "$moduleRoot\Private\Export.ps1"
+        . "$moduleRoot\Private\Logging\Write-EventLogSafe.ps1"
+        . "$moduleRoot\Private\Logging\Cleanup-OldLogsHC.ps1"
+        . "$moduleRoot\Private\Logging\Write-SystemErrorLogHC.ps1"
+        . "$moduleRoot\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
+
         function New-EndContext {
             param(
                 [hashtable]$Counter = @{},
