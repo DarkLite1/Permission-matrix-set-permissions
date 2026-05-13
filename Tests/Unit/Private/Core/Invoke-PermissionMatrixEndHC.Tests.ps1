@@ -355,6 +355,28 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Should -Invoke Send-MailKitMessageHC -Times 0
         }
     
+        It 'sends mail when FoundMatrices is false but a system error occurred' {
+            # Even with no matrices, an upstream failure should be reported.
+            $ctx = New-EndContext -FoundMatrices $false
+            $systemErrors.Add([pscustomobject]@{
+                    Type    = 'FatalError'
+                    Name    = 'Upstream Failure'
+                    Message = 'something failed before we got here'
+                })
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Should -Invoke Send-MailKitMessageHC -Times 1
+        }
+
+        It 'does not send mail when FoundMatrices is false and no errors occurred' {
+            $ctx = New-EndContext -FoundMatrices $false  # SendMail defaults to populated
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Should -Invoke Send-MailKitMessageHC -Times 0
+        }
+
         It 'saves the mail body to log folder when log folder exists' {
             $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
             $ctx = New-EndContext -LogFolder $logRoot
@@ -363,7 +385,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Should -Invoke Save-MailBodyToLogHC -Times 1
         }
-    
+
         It 'records a Warning when Send-MailKitMessageHC throws' {
             Mock Send-MailKitMessageHC { throw 'mail boom' }
             $ctx = New-EndContext
@@ -371,14 +393,6 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
             $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should -Be 1
-        }
-        
-        It 'does not send mail when FoundMatrices is false and no errors occurred' {
-            $ctx = New-EndContext -FoundMatrices $false  # SendMail defaults to populated
-
-            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
-
-            Should -Invoke Send-MailKitMessageHC -Times 0
         }
     }
     
