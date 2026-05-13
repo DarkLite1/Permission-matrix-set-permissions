@@ -306,7 +306,7 @@ Describe 'Export.ps1 - Export Functions' {
             $result = Export-OverviewHtmlHC -Html $html -Path $path
 
             Test-Path $result | Should -BeTrue
-            (Get-Content $path) | Should -Contain 'test'
+            (Get-Content $path) | Should -Contain '<html><body>test</body></html>'
         }
     }
 
