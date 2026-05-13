@@ -269,11 +269,7 @@ function Invoke-PermissionMatrixEndHC {
                 -MatrixCount $Context.AllMatrices.Count `
                 -CustomSubject $sendMail.Subject
 
-            $priority = if (
-                $SystemErrors.Value.Count -gt 0 -or
-                $Context.Counter.TotalErrors -gt 0 -or
-                $Context.Counter.TotalWarnings -gt 0
-            ) { 'High' } else { 'Normal' }
+            $priority = if ($hasErrors) { 'High' } else { 'Normal' }
 
             if ([string]::IsNullOrEmpty($fullHtmlBody)) {
                 $fullHtmlBody = '<html><body>Email body unavailable due to upstream error.</body></html>'
