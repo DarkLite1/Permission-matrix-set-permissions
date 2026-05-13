@@ -271,13 +271,34 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             (Get-ChildItem -Path $logRoot -Directory).Count | Should -BeGreaterThan 0
         }
 
-        It 'skips dated log folder creation when FoundMatrices is false' {
+        It 'skips dated log folder creation when FoundMatrices is false and no email is sent' {
+            # The dated folder is created lazily — only when something writes
+            # to it. With FoundMatrices=$false, no per-file logs run. With
+            # SendMail=$null and no errors, the email block is gated off too.
+            # Net result: nothing writes, nothing gets created.
             $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
-            $ctx = New-EndContext -LogFolder $logRoot -FoundMatrices $false
+            $ctx = New-EndContext -LogFolder $logRoot -FoundMatrices $false -SendMail $null
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
             (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should -Be 0
+        }
+
+        It 'creates a dated log folder when FoundMatrices is false but errors occurred (email triggers it)' {
+            # Regression guard: even without matrices, an error-only run still
+            # sends an email (per the gating rule), and the email body save
+            # triggers the lazy dated-folder creation.
+            $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+            $ctx = New-EndContext -LogFolder $logRoot -FoundMatrices $false
+            $systemErrors.Add([pscustomobject]@{
+                    Type    = 'FatalError'
+                    Name    = 'Upstream Failure'
+                    Message = 'something failed before we got here'
+                })
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should -Be 1
         }
 
         It 'falls back to TEMP\PermissionMatrixLogs when configured folder cannot be created' {
@@ -287,9 +308,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
             $fallbackWarning = $systemErrors.Where({ $_.Name -eq 'Log Folder Fallback' })
-            $unavailableWarning = $systemErrors.Where({ $_.Name -eq 'Log Folder Unavailable' })
-
-            ($fallbackWarning.Count -gt 0 -or $unavailableWarning.Count -gt 0) | Should -Be $true
+            $fallbackWarning.Count | Should -Be 1
         }
     }
 

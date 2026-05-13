@@ -117,23 +117,25 @@ function Invoke-PermissionMatrixEndHC {
 
     #region Create log files
     if ($logFolder) {
+        # Lazily create the dated subfolder on first request.
+        # Get-DatedLogFolderPathHC uses New-Item -Force, which is a no-op
+        # when the folder already exists, so calling this scriptblock
+        # multiple times is safe and cheap. Runs that don't write anything
+        # (no matrices found, no email sent) leave no empty folders behind.
+        $ensureDatedLogFolder = {
+            Get-DatedLogFolderPathHC `
+                -LogFolder $logFolder `
+                -ScriptStartTime $Context.StartTime `
+                -JsonFile $Context.JsonFileName
+        }
+        
         try {
             if ($Context.FoundMatrices) {
-                #region Create dated log folder
-                $dateStr = $Context.StartTime.ToString('yyyy_MM_dd_HHmmss')
-
-                $datedLogFolder = New-Item -ItemType Directory `
-                    -Path (Join-Path `
-                        -Path $logFolder `
-                        -ChildPath "$dateStr ($($Context.JsonFileName))" ) `
-                    -Force -ErrorAction Stop
-                #endregion
-
                 foreach ($fileResult in $Context.FileResults) {
                     $baseName = $fileResult.Item.BaseName
-                    
+
                     $fileLogFolder = New-Item -ItemType Directory `
-                        -Path (Join-Path $datedLogFolder.FullName $baseName) `
+                        -Path (Join-Path (& $ensureDatedLogFolder) $baseName) `
                         -Force -ErrorAction Stop
 
                     $fileResult.LogFolder = $fileLogFolder.FullName
@@ -297,13 +299,29 @@ function Invoke-PermissionMatrixEndHC {
                 $mailParams.Credential = New-Object System.Management.Automation.PSCredential($smtpUser, $secure)
             }
 
-            Send-MailKitMessageHC @mailParams
-
-            if ($logFolder) {
-                $null = Save-MailBodyToLogHC `
-                    -MailParams $mailParams `
-                    -LogFolder $logFolder
+            # Save the email body to disk BEFORE attempting send so we have
+            # a record of what was supposed to go out — even when the send
+            # itself fails. The dated subfolder is created on demand here,
+            # so error-only runs (no matrices found) still get their own
+            # folder with the email artifact inside.
+            if ($ensureDatedLogFolder) {
+                try {
+                    $emailLogFolder = & $ensureDatedLogFolder
+                    $null = Save-MailBodyToLogHC `
+                        -MailParams $mailParams `
+                        -LogFolder $emailLogFolder
+                }
+                catch {
+                    Add-ErrorHC `
+                        -Type 'Warning' `
+                        -Name 'Email Body Save Failed' `
+                        -Message "Failed to save email body to log: $_" `
+                        -Category 'Logging' `
+                        -SystemErrors $SystemErrors
+                }
             }
+
+            Send-MailKitMessageHC @mailParams
         }
         catch {
             Add-ErrorHC `
