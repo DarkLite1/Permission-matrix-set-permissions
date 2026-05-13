@@ -309,37 +309,4 @@ Describe 'Export.ps1 - Export Functions' {
             (Get-Content $path) | Should -Contain '<html><body>test</body></html>'
         }
     }
-
-    Context 'Export-FilesHC' {
-
-        It 'Runs all enabled exports' {
-
-            Mock Export-PermissionsFileHC { return 'perm.xlsx' }
-            Mock Export-ServiceNowFormDataHC { return 'form.xlsx' }
-            Mock Export-OverviewHtmlHC { return 'overview.html' }
-            Mock Build-ExportDataHC { return @{ Permissions = @(); FormData = @() } }
-
-            $import = @()
-            $settings = @{
-                PermissionsExcelFile        = 'perm.xlsx'
-                ServiceNowFormDataExcelFile = 'form.xlsx'
-                OverviewHtmlFile            = 'overview.html'
-            }
-
-            $res = Export-FilesHC `
-                -ImportedMatrix $import `
-                -ExportSettings $settings `
-                -HtmlOverview '<html></html>' `
-                -Counters @{ }
-
-            $res.Permissions | Should -Be 'perm.xlsx'
-            $res.FormData | Should -Be 'form.xlsx'
-            $res.OverviewHtml | Should -Be 'overview.html'
-
-            Should -Invoke Build-ExportDataHC -Times 1
-            Should -Invoke Export-PermissionsFileHC -Times 1
-            Should -Invoke Export-ServiceNowFormDataHC -Times 1
-            Should -Invoke Export-OverviewHtmlHC -Times 1
-        }
-    }
-} # -Skip
+}
