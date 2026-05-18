@@ -157,8 +157,16 @@ function Invoke-PermissionMatrixEndHC {
                         
                         if ($fc.Value) {
                             try {
-                                $fc | Select-Object -ExcludeProperty JsonFilePath, JsonFileName | 
-                                ConvertTo-Json -Depth 10 | 
+                                $cForJson = $fc | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
+        
+                                if (
+                                    $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
+                                    $cForJson.Value -is [Exception]
+                                ) {
+                                    $cForJson.Value = ($cForJson.Value | Out-String).Trim()
+                                }
+        
+                                $cForJson | ConvertTo-Json -Depth 10 |
                                 Out-File -FilePath $fc.JsonFilePath -Encoding UTF8 -Force
                             }
                             catch {
@@ -189,8 +197,16 @@ function Invoke-PermissionMatrixEndHC {
 
                             if ($c.Value) {
                                 try {
-                                    $c | Select-Object -ExcludeProperty JsonFilePath, JsonFileName | 
-                                    ConvertTo-Json -Depth 10 | 
+                                    $cForJson = $c | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
+        
+                                    if (
+                                        $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
+                                        $cForJson.Value -is [Exception]
+                                    ) {
+                                        $cForJson.Value = ($cForJson.Value | Out-String).Trim()
+                                    }
+        
+                                    $cForJson | ConvertTo-Json -Depth 10 |
                                     Out-File -FilePath $c.JsonFilePath -Encoding UTF8 -Force
                                 }
                                 catch {
