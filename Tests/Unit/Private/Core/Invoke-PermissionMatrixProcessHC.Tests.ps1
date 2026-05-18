@@ -17,7 +17,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 [array]$Matrices = @(),
                 [array]$FileResults = $null,
                 [hashtable]$ScriptPath = @{
-                    TestRequirementsFile = 'TestDrive:\TestReq.ps1'
+                    TestRequirements = 'TestDrive:\TestReq.ps1'
                     SetPermissionFile    = 'TestDrive:\SetPerm.ps1'
                 },
                 [hashtable]$MaxConcurrent = @{

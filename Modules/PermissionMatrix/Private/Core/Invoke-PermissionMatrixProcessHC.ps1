@@ -86,7 +86,7 @@ function Invoke-PermissionMatrixProcessHC {
                 param($dto, $scriptPaths, $sessionConfig)
                 try {
                     $result = Invoke-Command `
-                        -FilePath $scriptPaths.TestRequirementsFile `
+                        -FilePath $scriptPaths.TestRequirements `
                         -ArgumentList $dto.PathsToCheck, $true `
                         -ConfigurationName $sessionConfig `
                         -ComputerName $dto.ComputerName `
@@ -186,7 +186,7 @@ function Invoke-PermissionMatrixProcessHC {
                         else { @() } 
                     
                         $res = Invoke-Command `
-                            -FilePath $scriptPaths.SetPermissionFile `
+                            -FilePath $scriptPaths.SetPermissions `
                             -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
                             -ConfigurationName $sessionConfig `
                             -ComputerName $job.ComputerName `
