@@ -181,7 +181,7 @@ function Get-DatedLogFolderPathHC {
             $ScriptStartTime.Hour,
             $ScriptStartTime.Minute,
             $ScriptStartTime.Second,
-            $jsonName
+            $JsonFile
         )
 
         return (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName
