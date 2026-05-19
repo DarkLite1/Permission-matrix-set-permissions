@@ -683,7 +683,7 @@ function Build-MatrixFileCardHC {
     $contentRows
     <tr>
         <td style='padding:6px 16px 14px 16px; text-align:center; font-size:12px; color:$($Script:Theme.TextLight);'>
-            <a href='$reportLink' style='color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;'>Open full report &rarr;</a>
+            <a href='$reportLink' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;'>Open full report &rarr;</a>
         </td>
     </tr>
 </table>
@@ -879,7 +879,7 @@ function Write-MatrixExecutionReportHC {
         [Parameter(Mandatory)][object]$FileResult,
         [Parameter(Mandatory)][hashtable]$Html,
         [Parameter(Mandatory)][string]$LogFolder,
-        [Parameter(Mandatory=$false)][string]$DefaultsFilePath
+        [Parameter(Mandatory = $false)][string]$DefaultsFilePath
     )
 
     if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) {
