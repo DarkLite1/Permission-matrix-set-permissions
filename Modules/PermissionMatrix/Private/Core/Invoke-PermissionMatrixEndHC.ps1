@@ -85,6 +85,8 @@ function Invoke-PermissionMatrixEndHC {
     }
     #endregion
 
+    $scriptExecutionEndTime = Get-Date
+
     #region Create log files
     if ($logFolder) {
         <# 
@@ -264,6 +266,7 @@ function Invoke-PermissionMatrixEndHC {
         $fullHtmlBody = Generate-MailBodyHtmlHC `
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
+            -ScriptEndTime $scriptExecutionEndTime `
             -Html @{ 
             Style             = $htmlTemplates.Style 
             MatrixTables      = $matrixHtml 
