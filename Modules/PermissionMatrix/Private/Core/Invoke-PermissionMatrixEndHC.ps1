@@ -16,37 +16,7 @@ function Invoke-PermissionMatrixEndHC {
     $sysErrAttachments = @()
 
     # =====================================================================
-    # 1. BUILD HTML BODY (Best Effort)
-    # =====================================================================
-    try {
-        $matrixHtml = if (
-            $Context.FileResults -and $Context.FileResults.Count -gt 0
-        ) { 
-            Build-MatrixEmailHtmlHC `
-                -FileResults $Context.FileResults `
-                -Html $htmlTemplates 
-        }
-        else { '' }
-
-        $fullHtmlBody = Generate-MailBodyHtmlHC `
-            -Settings $Context.Config.Settings `
-            -ScriptStartTime $Context.StartTime `
-            -Html @{ 
-            Style             = $htmlTemplates.Style 
-            MatrixTables      = $matrixHtml 
-            ErrorWarningTable = (
-                Build-ErrorWarningTableHC `
-                    -CounterData $Context.Counter `
-                    -SystemErrors $SystemErrors
-            )
-        }
-    }
-    catch {
-        Add-ErrorHC -Type 'Warning' -Name 'HTML Generation' -Message "Failed to build HTML body: $_" -Category 'Reporting' -SystemErrors $SystemErrors
-    }
-
-    # =====================================================================
-    # 2. EXPORTS & SERVICENOW (Skip if Fatal Errors)
+    # 1. EXPORTS & SERVICENOW (Skip if Fatal Errors)
     # =====================================================================
     if (-not $hasFatalErrors -and $Context.AllMatrices) {
         try {
@@ -117,11 +87,13 @@ function Invoke-PermissionMatrixEndHC {
 
     #region Create log files
     if ($logFolder) {
-        # Lazily create the dated subfolder on first request.
-        # Get-DatedLogFolderPathHC uses New-Item -Force, which is a no-op
-        # when the folder already exists, so calling this scriptblock
-        # multiple times is safe and cheap. Runs that don't write anything
-        # (no matrices found, no email sent) leave no empty folders behind.
+        <# 
+        Lazily create the dated subfolder on first request.
+        Get-DatedLogFolderPathHC uses New-Item -Force, which is a no-op
+        when the folder already exists, so calling this scriptblock
+        multiple times is safe and cheap. Runs that don't write anything
+        (no matrices found, no email sent) leave no empty folders behind. 
+        #>
         $ensureDatedLogFolder = {
             Get-DatedLogFolderPathHC `
                 -LogFolder $logFolder `
@@ -232,7 +204,8 @@ function Invoke-PermissionMatrixEndHC {
                     Write-MatrixExecutionReportHC `
                         -FileResult $fileResult `
                         -Html $htmlTemplates `
-                        -LogFolder $fileLogFolder.FullName
+                        -LogFolder $fileLogFolder.FullName `
+                        -DefaultsFilePath $Context.Matrix.DefaultsFile
                 }
             }
             
@@ -262,6 +235,41 @@ function Invoke-PermissionMatrixEndHC {
             -SystemErrors $SystemErrors
     }
     #endregion
+
+    # =====================================================================
+    # 2. BUILD HTML BODY (Best Effort)
+    # Deferred until after log files + Write-MatrixExecutionReportHC have
+    # run, so that $fileResult.ReportFilePath is populated and the
+    # "Open full report" link in the email points to the standalone
+    # execution report rather than falling back to the source xlsx.
+    # =====================================================================
+    try {
+        $matrixHtml = if (
+            $Context.FileResults -and $Context.FileResults.Count -gt 0
+        ) { 
+            Build-MatrixEmailHtmlHC `
+                -FileResults $Context.FileResults `
+                -Html $htmlTemplates 
+        }
+        else { '' }
+
+        $fullHtmlBody = Generate-MailBodyHtmlHC `
+            -Settings $Context.Config.Settings `
+            -ScriptStartTime $Context.StartTime `
+            -Html @{ 
+            Style             = $htmlTemplates.Style 
+            MatrixTables      = $matrixHtml 
+            SystemErrors      = $SystemErrors.Value
+            ErrorWarningTable = (
+                Build-ErrorWarningTableHC `
+                    -CounterData $Context.Counter `
+                    -SystemErrors $SystemErrors
+            )
+        }
+    }
+    catch {
+        Add-ErrorHC -Type 'Warning' -Name 'HTML Generation' -Message "Failed to build HTML body: $_" -Category 'Reporting' -SystemErrors $SystemErrors
+    }
 
     #region Send Summary Email
     $hasErrors = ($SystemErrors.Value.Count -gt 0 -or
@@ -354,7 +362,7 @@ function Invoke-PermissionMatrixEndHC {
     #endregion
 
     # =====================================================================
-    # 5. EVENT LOG & CLEANUP (Best Effort)
+    # 3. EVENT LOG & CLEANUP (Best Effort)
     # =====================================================================
     try {
         if ($Context.Config.Settings.SaveInEventLog.Save) {
