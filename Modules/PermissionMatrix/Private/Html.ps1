@@ -811,7 +811,7 @@ function Generate-MailBodyHtmlHC {
         $endedHtml = & $renderField 'Ended' ([System.Net.WebUtility]::HtmlEncode($endStr))
         $durationHtml = & $renderField 'Duration' ([System.Net.WebUtility]::HtmlEncode($durStr))
 
-        $footer = "<p style='margin:16px 0 0 0;'>$startedHtml$endedHtml$durationHtml</p>"
+        $footer = "<p style='margin:16px 0 0 0; text-align:center;'>$startedHtml$endedHtml$durationHtml</p>"
     }
 
     @"
