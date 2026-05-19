@@ -136,14 +136,6 @@ function Get-HtmlClassProbTypeHC {
     }
 }
 
-function Format-DateTimeNoSecondsHC {
-    param([object]$Value)
-    if ($Value -is [datetime]) {
-        return $Value.ToString('dd/MM/yyyy HH:mm')
-    }
-    return 'Unknown'
-}
-
 function Format-IssueCountLabelHC {
     param([int]$Errors, [int]$Warnings)
     $parts = @()
@@ -155,6 +147,45 @@ function Format-IssueCountLabelHC {
     }
     if ($parts.Count -eq 0) { return 'Success' }
     return ($parts -join ', ')
+}
+
+function Format-LastChangeHC {
+    <#
+        .DESCRIPTION
+            Build a "Last change: ..." line from an Excel file's last-modified
+            metadata. Handles missing/unknown values gracefully:
+                - Both user and date known  → "Last change: Brecht · 19/05/2026 13:30"
+                - Only user known  → "Last change: Brecht"
+                - Only date known  → "Last change: 19/05/2026 13:30"
+                - Neither known    → "No modification metadata available"
+
+            The user component is HTML-encoded. The separator is the HTML
+            entity &middot;. Callers can drop the returned string directly
+            into HTML; if empty, they should skip rendering the line.
+        .PARAMETER LastModifiedBy
+            Raw username string from ExcelInfo.LastModifiedBy. Treated as
+            missing when null, empty, whitespace, or the literal 'Unknown'.
+        .PARAMETER Modified
+            Raw datetime from ExcelInfo.Modified. Treated as missing when
+            not a [datetime] or equal to [datetime]::MinValue.
+    #>
+    param(
+        [object]$LastModifiedBy,
+        [object]$Modified
+    )
+
+    $rawBy = Get-StringOrDefaultHC $LastModifiedBy ''
+    $hasBy = $rawBy -and $rawBy -ne 'Unknown'
+
+    $hasDt = ($Modified -is [datetime]) -and ($Modified -gt [datetime]::MinValue)
+    $dtStr = if ($hasDt) { $Modified.ToString('dd/MM/yyyy HH:mm') } else { '' }
+
+    $modBy = [System.Net.WebUtility]::HtmlEncode($rawBy)
+
+    if ($hasBy -and $hasDt) { return "Last change: $modBy &middot; $dtStr" }
+    if ($hasBy) { return "Last change: $modBy" }
+    if ($hasDt) { return "Last change: $dtStr" }
+    return 'No modification metadata available'
 }
 
 function ConvertTo-FileUrlHC {
@@ -554,10 +585,10 @@ function Build-MatrixFileCardHC {
 
     # File header info
     $fileName = [System.Net.WebUtility]::HtmlEncode($FileContext.Item.Name)
-    $modBy = [System.Net.WebUtility]::HtmlEncode(
-        (Get-StringOrDefaultHC $FileContext.ExcelInfo.LastModifiedBy 'Unknown')
-    )
-    $modDt = Format-DateTimeNoSecondsHC $FileContext.ExcelInfo.Modified
+    
+    $lastChangeInfo = Format-LastChangeHC `
+        -LastModifiedBy $FileContext.ExcelInfo.LastModifiedBy `
+        -Modified $FileContext.ExcelInfo.Modified
 
     <#
      Two distinct links live in this card:
@@ -697,7 +728,7 @@ function Build-MatrixFileCardHC {
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
                         <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;'>
-                            Last change: $modBy &middot; $modDt
+                            $lastChangeInfo
                         </div>
                     </td>
                     <td valign='middle' align='right' style='padding:14px 18px 14px 10px; white-space:nowrap;'>$headerLabelHtml</td>
@@ -838,8 +869,12 @@ function Build-ExecutionDetailsBlockHC {
     # Gather values (any missing/empty values are simply skipped)
     $matrixPath = Get-StringOrDefaultHC $FileResult.Item.FullName ''
     $defaultsPath = Get-StringOrDefaultHC $DefaultsFilePath ''
-    $modBy = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $FileResult.ExcelInfo.LastModifiedBy 'Unknown'))
-    $modDt = Format-DateTimeNoSecondsHC $FileResult.ExcelInfo.Modified
+
+    $lastChange = Format-LastChangeHC `
+        -LastModifiedBy $FileResult.ExcelInfo.LastModifiedBy `
+        -Modified $FileResult.ExcelInfo.Modified
+    $lastChangeValue = $lastChange -replace '^Last change:\s*', ''
+
     $startTime = if ($FileResult.JobTime.StartTime -is [datetime]) {
         $FileResult.JobTime.StartTime.ToString('dd/MM/yyyy HH:mm:ss')
     }
@@ -853,7 +888,7 @@ function Build-ExecutionDetailsBlockHC {
     $items = @(
         @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
         @{ Label = 'Defaults file'; Value = (Convert-PathToFileLink $defaultsPath); Mono = $true }
-        @{ Label = 'Last change'; Value = "$modBy &middot; $modDt"; Mono = $false }
+        @{ Label = 'Last change'; Value = $lastChangeValue; Mono = $false }
         @{ Label = 'Start time'; Value = [System.Net.WebUtility]::HtmlEncode($startTime); Mono = $true }
         @{ Label = 'End time'; Value = [System.Net.WebUtility]::HtmlEncode($endTime); Mono = $true }
     )
@@ -902,10 +937,10 @@ function Write-MatrixExecutionReportHC {
     }
 
     $fileName = [System.Net.WebUtility]::HtmlEncode($FileResult.Item.Name)
-    $modBy = [System.Net.WebUtility]::HtmlEncode(
-        (Get-StringOrDefaultHC $FileResult.ExcelInfo.LastModifiedBy 'Unknown')
-    )
-    $modDt = Format-DateTimeNoSecondsHC $FileResult.ExcelInfo.Modified
+
+    $lastChangeInfo = Format-LastChangeHC `
+        -LastModifiedBy $FileResult.ExcelInfo.LastModifiedBy `
+        -Modified $FileResult.ExcelInfo.Modified
 
     # Tally for header status pill
     $allChecks = @()
@@ -1042,7 +1077,7 @@ $detailsCss
                                                 <div style='font-size:11px; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;'>Execution Report</div>
                                                 <div style='font-size:20px; font-weight:700; color:#ffffff; line-height:1.25;'>$fileName</div>
                                                 <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:4px;'>
-                                                    Last change: $modBy &middot; $modDt
+                                                    $lastChangeInfo
                                                 </div>
                                             </td>
                                             <td valign='middle' align='right' style='padding:18px 22px 18px 10px; white-space:nowrap;'>
