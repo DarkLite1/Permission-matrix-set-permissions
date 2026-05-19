@@ -727,7 +727,7 @@ function Build-MatrixFileCardHC {
                         <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
-                        <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;'>
+                        <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;font-style:italic;'>
                             $lastChangeInfo
                         </div>
                     </td>
@@ -1076,7 +1076,7 @@ $detailsCss
                                             <td valign='middle' style='padding:18px 10px;'>
                                                 <div style='font-size:11px; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;'>Execution Report</div>
                                                 <div style='font-size:20px; font-weight:700; color:#ffffff; line-height:1.25;'>$fileName</div>
-                                                <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:4px;'>
+                                                <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:4px;font-style:italic;'>
                                                     $lastChangeInfo
                                                 </div>
                                             </td>
