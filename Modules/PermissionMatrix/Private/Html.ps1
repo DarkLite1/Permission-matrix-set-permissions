@@ -168,6 +168,15 @@ function Format-IssueCountLabelHC {
     return ($parts -join ', ')
 }
 
+# Convert a Windows path (UNC or local) to a `file://` URL suitable for
+# `href` attributes. Normalizes backslashes to forward slashes and
+# percent-encodes spaces. Returns empty string for null/empty input.
+function ConvertTo-FileUrlHC {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+    return 'file://' + ($Path -replace '\\', '/' -replace ' ', '%20')
+}
+
 # Truncate a path in the middle with "\...\" preserving leading and trailing
 # segments. Returns an array @(displayString, wasTruncated).
 function Get-TruncatedPathHC {
@@ -549,13 +558,25 @@ function Build-MatrixFileCardHC {
     )
     $modDt = Format-DateTimeNoSecondsHC $FileContext.ExcelInfo.Modified
 
-    # Detail report link — prefer the per-file report path written by
-    # Write-MatrixExecutionReportHC; fall back to the source xlsx if unset.
-    $reportLink = if ($FileContext.ReportFilePath) {
-        [System.Net.WebUtility]::HtmlEncode($FileContext.ReportFilePath)
+    # Two distinct links live in this card:
+    # 1. $matrixLink — opens the source .xlsx file directly. Used by the
+    #    filename in the gradient header.
+    # 2. $reportLink — opens the standalone execution report HTML. Used by
+    #    the "Open full report &rarr;" footer link.
+    $matrixPath = Get-StringOrDefaultHC $FileContext.Item.FullName ''
+    $matrixLink = if ($matrixPath) {
+        [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $matrixPath))
     }
-    elseif ($FileContext.Item.FullName) {
-        [System.Net.WebUtility]::HtmlEncode($FileContext.Item.FullName)
+    else { '#' }
+    # Tooltip text shown when hovering the filename
+    $matrixTitle = if ($matrixPath) { [System.Net.WebUtility]::HtmlEncode($matrixPath) } else { '' }
+
+    $reportLink = if ($FileContext.ReportFilePath) {
+        [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $FileContext.ReportFilePath))
+    }
+    elseif ($matrixPath) {
+        # Fall back to the matrix file if no report was written
+        [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $matrixPath))
     }
     else { '#' }
 
@@ -669,7 +690,7 @@ function Build-MatrixFileCardHC {
                     <td valign='middle' width='44' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
                     <td valign='middle' style='padding:14px 10px;'>
                         <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
-                            <a href="$reportLink" style="color:#ffffff; text-decoration:none;">$fileName</a>
+                            <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
                         <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;'>
                             Last change: $modBy &middot; $modDt
@@ -833,9 +854,9 @@ function Build-ExecutionDetailsBlockHC {
         param([string]$Path)
         if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
         $displayHtml = [System.Net.WebUtility]::HtmlEncode($Path)
-        # Normalize to forward slashes and percent-encode spaces for the URL
-        $url = 'file://' + ($Path -replace '\\', '/' -replace ' ', '%20')
-        $urlHtml = [System.Net.WebUtility]::HtmlEncode($url)
+        $urlHtml = [System.Net.WebUtility]::HtmlEncode(
+            (ConvertTo-FileUrlHC $Path)
+        )
         return "<a href=`"$urlHtml`" style=`"color:$($Script:Theme.LinkColor); text-decoration:none;`">$displayHtml</a>"
     }
 
