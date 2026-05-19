@@ -567,7 +567,7 @@ function Build-SettingsRowHC {
         <a href='$link' style='text-decoration:none; color:inherit;'>$dur</a>
     </td>
     <td valign='middle' align='right' style='padding:9px 12px 9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); border-right:1px solid $($Script:Theme.BorderLight); border-top-right-radius:6px; border-bottom-right-radius:6px; white-space:nowrap;'>
-        <a href='$link' style='text-decoration:none; color:inherit;'>$pillHtml</a>
+        <a href='$link' target='_blank' rel='noopener noreferrer'  style='text-decoration:none; color:inherit;'>$pillHtml</a>
     </td>
 </tr>
 "@
