@@ -275,7 +275,7 @@ function Build-ErrorWarningTableHC {
             Build the global "Detected issues" banner shown at the top of the
             email. Renders one red pill for errors and one amber pill for
             warnings. Both counts include matrix-level checks AND script-level
-            system errors (filtered by Type) — the counter object passed in
+            system errors, (filtered by Type) — the counter object passed in
             is the single source of truth (see Update-MatrixCounterHC).
     #>
     param($CounterData)
@@ -488,7 +488,7 @@ function Build-SettingsRowHC {
     $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
 
     $pathRaw = Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Path ''
-    $pathParts = Get-TruncatedPathHC -Path $pathRaw -MaxChars 32
+    $pathParts = Get-TruncatedPathHC -Path $pathRaw -MaxChars 48
     $pathDisp = [System.Net.WebUtility]::HtmlEncode($pathParts[0])
     $pathTitle = if ($pathParts[1]) {
         " title=`"$([System.Net.WebUtility]::HtmlEncode($pathRaw))`""
