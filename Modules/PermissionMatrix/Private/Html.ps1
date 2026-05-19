@@ -845,7 +845,9 @@ $($Html.Style)
 function Build-ExecutionDetailsBlockHC {
     param(
         [object]$FileResult,
-        [string]$DefaultsFilePath
+        [string]$DefaultsFilePath,
+        [datetime]$ScriptStartTime,
+        [datetime]$ScriptEndTime
     )
 
     # Helper: turn a Windows path into a clickable <a href="file://..."> link
@@ -868,12 +870,12 @@ function Build-ExecutionDetailsBlockHC {
         -Modified $FileResult.ExcelInfo.Modified
     $lastChangeValue = $lastChange -replace '^Last change:\s*', ''
 
-    $startTime = if ($FileResult.JobTime.StartTime -is [datetime]) {
-        $FileResult.JobTime.StartTime.ToString('dd/MM/yyyy HH:mm:ss')
+    $startTime = if ($ScriptStartTime -is [datetime]) {
+        $ScriptStartTime.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { '' }
-    $endTime = if ($FileResult.JobTime.EndTime -is [datetime]) {
-        $FileResult.JobTime.EndTime.ToString('dd/MM/yyyy HH:mm:ss')
+    $endTime = if ($ScriptEndTime -is [datetime]) {
+        $ScriptEndTime.ToString('dd/MM/yyyy HH:mm:ss')
     }
     else { '' }
 
@@ -921,6 +923,8 @@ function Write-MatrixExecutionReportHC {
     param(
         [Parameter(Mandatory)][object]$FileResult,
         [Parameter(Mandatory)][hashtable]$Html,
+        [Parameter(Mandatory)][datetime]$ScriptStartTime,
+        [Parameter(Mandatory)][datetime]$ScriptEndTime,
         [Parameter(Mandatory)][string]$LogFolder,
         [Parameter(Mandatory = $false)][string]$DefaultsFilePath
     )
@@ -1023,7 +1027,9 @@ $matrixRowsHtml
     # ---- Execution details block (collapsible, at the bottom) ----
     $executionDetailsHtml = Build-ExecutionDetailsBlockHC `
         -FileResult $FileResult `
-        -DefaultsFilePath $DefaultsFilePath
+        -DefaultsFilePath $DefaultsFilePath `
+        -ScriptStartTime $ScriptStartTime `
+        -ScriptEndTime $ScriptEndTime
 
     # Settings section header — only show if there are matrices
     $settingsHeaderHtml = if ($FileResult.Matrices -and @($FileResult.Matrices).Count -gt 0) {

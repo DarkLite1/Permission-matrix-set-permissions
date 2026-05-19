@@ -206,6 +206,8 @@ function Invoke-PermissionMatrixEndHC {
                     Write-MatrixExecutionReportHC `
                         -FileResult $fileResult `
                         -Html $htmlTemplates `
+                        -ScriptStartTime $Context.StartTime `
+                        -ScriptEndTime $scriptExecutionEndTime `
                         -LogFolder $fileLogFolder.FullName `
                         -DefaultsFilePath $Context.Config.Matrix.DefaultsFile
                 }
