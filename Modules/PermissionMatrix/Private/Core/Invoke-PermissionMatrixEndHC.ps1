@@ -205,7 +205,7 @@ function Invoke-PermissionMatrixEndHC {
                         -FileResult $fileResult `
                         -Html $htmlTemplates `
                         -LogFolder $fileLogFolder.FullName `
-                        -DefaultsFilePath $Context.Matrix.DefaultsFile
+                        -DefaultsFilePath $Context.Config.Matrix.DefaultsFile
                 }
             }
             
