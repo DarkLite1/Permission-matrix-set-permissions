@@ -70,12 +70,6 @@ $Script:Theme = @{
     BodyWidth      = 620
 }
 
-# =====================================================================
-# Initialize-HtmlStructureHC
-# Returns the shared style block + reusable template strings.
-# Kept for backwards compatibility with callers that consume .Style,
-# .TroubleshootingStyle, and .Templates.
-# =====================================================================
 function Initialize-HtmlStructureHC {
 
     $style = @"
@@ -133,10 +127,6 @@ function Initialize-HtmlStructureHC {
     }
 }
 
-# =====================================================================
-# Internal helpers
-# =====================================================================
-
 function Get-HtmlClassProbTypeHC {
     param([string]$Type)
     switch ($Type) {
@@ -154,7 +144,6 @@ function Format-DateTimeNoSecondsHC {
     return 'Unknown'
 }
 
-# Plural-aware label: "1 Error", "2 Errors", "1 Warning, 2 Errors"
 function Format-IssueCountLabelHC {
     param([int]$Errors, [int]$Warnings)
     $parts = @()
@@ -168,18 +157,28 @@ function Format-IssueCountLabelHC {
     return ($parts -join ', ')
 }
 
-# Convert a Windows path (UNC or local) to a `file://` URL suitable for
-# `href` attributes. Normalizes backslashes to forward slashes and
-# percent-encodes spaces. Returns empty string for null/empty input.
 function ConvertTo-FileUrlHC {
+    <# 
+    .DESCRIPTION
+        Convert a Windows path (UNC or local) to a `file://` URL suitable for
+        `href` attributes. Normalizes backslashes to forward slashes and
+        percent-encodes spaces. Returns empty string for null/empty input.
+    #>
     param([string]$Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
     return 'file://' + ($Path -replace '\\', '/' -replace ' ', '%20')
 }
 
-# Truncate a path in the middle with "\...\" preserving leading and trailing
-# segments. Returns an array @(displayString, wasTruncated).
 function Get-TruncatedPathHC {
+    <# 
+        .DESCRIPTION
+            Truncate a file path in the middle if it exceeds a certain length,
+            replacing the removed portion with an ellipsis. Attempts to break
+            on backslash boundaries for cleaner output, but falls back to
+            character-based truncation if necessary. Returns an array of the
+            truncated display string and a boolean indicating whether truncation
+            occurred.
+    #>
     param(
         [string]$Path,
         [int]$MaxChars = 32
@@ -222,8 +221,12 @@ function Get-TruncatedPathHC {
     return @("$($Path.Substring(0, $left))$ellipsis$($Path.Substring($Path.Length - $right))", $true)
 }
 
-# Render a colored pill — used for status labels in banners and rows.
 function New-PillHtmlHC {
+    <# 
+        .DESCRIPTION
+            Render a colored pill — used for status labels in banners and rows.
+    #>
+
     param(
         [string]$Text,
         [string]$Bg,
@@ -233,7 +236,6 @@ function New-PillHtmlHC {
     return "<span style=`"display:inline-block; padding:3px 10px; background-color:$Bg; color:$Color; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; line-height:1.6;`">$Text</span>"
 }
 
-# Theme tokens (background, accent, icon, label) for a given check type.
 function Get-CheckThemeHC {
     param([string]$Type)
     switch ($Type) {
@@ -267,31 +269,34 @@ function Get-CheckThemeHC {
     }
 }
 
-# =====================================================================
-# Build-ErrorWarningTableHC
-# Top-of-email "Detected issues" banner. Shows error/warning/system error
-# counts as pills. Returns empty string when there's nothing to report.
-# =====================================================================
 function Build-ErrorWarningTableHC {
+    <# 
+        .DESCRIPTION
+            Build an HTML table displaying error and warning counts as colored pills.
+    #>
+
     param($CounterData, $SystemErrors)
 
     $errs = [int]$CounterData.TotalErrors
     $warns = [int]$CounterData.TotalWarnings
     $sysErrs = 0
+    
     if ($SystemErrors -and $SystemErrors.Value) {
-        $sysErrs = @($SystemErrors.Value | Where-Object { $_.Type -eq 'FatalError' }).Count
+        $sysErrs = @($SystemErrors.Value |
+            Where-Object { $_.Type -eq 'FatalError' }).Count
     }
 
     if ($errs -eq 0 -and $warns -eq 0 -and $sysErrs -eq 0) { return '' }
 
-    # Banner stripe color leans red whenever there are any errors;
-    # falls back to amber for warnings-only.
+    <# 
+        Banner stripe color leans red whenever there are any errors;
+        falls back to amber for warnings-only. 
+    #>
     $bannerColor = if ($errs -gt 0 -or $sysErrs -gt 0) {
         $Script:Theme.AccentError
     }
     else { $Script:Theme.AccentWarning }
 
-    # Build summary pills. These keep counts since this banner *is* the summary.
     $pills = @()
     if ($errs -gt 0) {
         $errLabel = "$errs Error" + $(if ($errs -ne 1) { 's' })
@@ -322,13 +327,6 @@ function Build-ErrorWarningTableHC {
 "@
 }
 
-# =====================================================================
-# Build-SystemErrorsBlockHC
-# Renders a labeled block listing each system error as a red card with the
-# error category, name, full message, and a "SYSTEM ERROR" pill.
-# These are script-level exceptions — not file-level data issues — so they
-# get their own section above the file cards.
-# =====================================================================
 function Build-SystemErrorsBlockHC {
     param([array]$SystemErrors)
 
@@ -382,19 +380,6 @@ function Build-SystemErrorsBlockHC {
 "@
 }
 
-# =====================================================================
-# Build-FileLevelCheckRowHC
-# Renders a single file-level check (Excel File / FormData / Permissions
-# sheet) as a card with the sheet label, check name, description, and a
-# matching ERROR/WARNING/INFO pill.
-#
-# $IncludeWrapper controls the surrounding <tr><td> with horizontal
-# padding. When the row is being placed inside a file card (which has
-# its own 16px inner padding), pass $true so the row aligns with the
-# settings rows below it. When the row is being placed at the page
-# level (e.g. inside the standalone execution report, where there's no
-# card to align to), pass $false so the row spans the full width.
-# =====================================================================
 function Build-FileLevelCheckRowHC {
     param(
         [object]$Check,
@@ -450,13 +435,6 @@ function Build-FileLevelCheckRowHC {
     }
 }
 
-# =====================================================================
-# Build-SettingsRowHC
-# Renders ONE <tr> for a settings row. Caller wraps these in a shared
-# table per file (with a <colgroup> defining column widths) so all rows
-# in a file align column-by-column. The whole row is clickable and links
-# to the detail report.
-# =====================================================================
 function Build-SettingsRowHC {
     param([object]$MatrixItem)
 
@@ -541,13 +519,6 @@ function Build-SettingsRowHC {
 "@
 }
 
-# =====================================================================
-# Build-MatrixFileCardHC
-# Renders one Excel file as a card with a colored gradient header, then
-# (optionally) a "File Issues" section listing file-level check problems,
-# then a "Settings" section with the matrix rows, then a footer link to
-# the standalone report file.
-# =====================================================================
 function Build-MatrixFileCardHC {
     param([object]$FileContext)
 
@@ -558,16 +529,19 @@ function Build-MatrixFileCardHC {
     )
     $modDt = Format-DateTimeNoSecondsHC $FileContext.ExcelInfo.Modified
 
-    # Two distinct links live in this card:
-    # 1. $matrixLink — opens the source .xlsx file directly. Used by the
-    #    filename in the gradient header.
-    # 2. $reportLink — opens the standalone execution report HTML. Used by
-    #    the "Open full report &rarr;" footer link.
+    <#
+     Two distinct links live in this card:
+        1. $matrixLink — opens the source .xlsx file directly. Used by the
+        filename in the gradient header.
+        2. $reportLink — opens the standalone execution report HTML. Used by
+        the "Open full report &rarr;" footer link. 
+    #>
     $matrixPath = Get-StringOrDefaultHC $FileContext.Item.FullName ''
     $matrixLink = if ($matrixPath) {
         [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $matrixPath))
     }
     else { '#' }
+
     # Tooltip text shown when hovering the filename
     $matrixTitle = if ($matrixPath) { [System.Net.WebUtility]::HtmlEncode($matrixPath) } else { '' }
 
@@ -711,11 +685,6 @@ function Build-MatrixFileCardHC {
 "@
 }
 
-# =====================================================================
-# Build-MatrixEmailHtmlHC
-# Renders the matrix-cards section of the email by composing one file
-# card per FileResult. Signature preserved for backwards compatibility.
-# =====================================================================
 function Build-MatrixEmailHtmlHC {
     param(
         [Parameter(Mandatory)][array]$FileResults,
@@ -729,21 +698,6 @@ function Build-MatrixEmailHtmlHC {
     return $output
 }
 
-# =====================================================================
-# Generate-MailBodyHtmlHC
-# Top-level email body composer. Lays out:
-#   1. Script name header
-#   2. User-provided intro body
-#   3. "Detected issues" alert banner (when there are any)
-#   4. System errors block (when there are any)
-#   5. One card per matrix file
-# Width is fixed at $Script:Theme.BodyWidth via a centered container table.
-#
-# Accepts SystemErrors via either:
-#   - $Html.SystemErrors (an array or a [ref]) — preferred new pattern
-#   - omitted entirely — system errors block is skipped
-# This keeps the existing call sites working without modification.
-# =====================================================================
 function Generate-MailBodyHtmlHC {
     param(
         $Settings,
@@ -834,15 +788,6 @@ $($Html.Style)
 "@
 }
 
-# =====================================================================
-# Build-ExecutionDetailsBlockHC
-# Renders the collapsible "Execution details" panel at the bottom of the
-# standalone report. Uses the HTML <details>/<summary> element so users
-# can collapse it. Open by default.
-#
-# File paths are rendered as clickable file:// URLs so users can open
-# the matrix or defaults file directly from the report.
-# =====================================================================
 function Build-ExecutionDetailsBlockHC {
     param(
         [object]$FileResult,
@@ -913,12 +858,6 @@ function Build-ExecutionDetailsBlockHC {
 "@
 }
 
-# =====================================================================
-# Write-MatrixExecutionReportHC
-# Writes the standalone "00 - Execution Report.html" detail file that
-# the email body links to. Uses the same visual language as the email
-# so clicking through feels continuous.
-# =====================================================================
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
     param(
@@ -1108,21 +1047,6 @@ $detailsCss
     $reportHtml | Out-File -FilePath $logFilePath -Encoding UTF8 -Force
 }
 
-# =====================================================================
-# Build-MatrixDetailCardHC
-# Renders one matrix row as a card for the standalone execution report.
-#
-# Layout: three-column horizontal header
-#   Left:   status dot + computer name + path
-#   Middle: metadata grid (ID, Group, Site, Apply Defaults, Action, Duration)
-#   Right:  status label (SUCCESS / WARNING / ERROR)
-#
-# Visible dividers separate the three columns so the eye lands on each
-# area cleanly without crowding.
-#
-# Output is wrapped in <tr><td> with 16px horizontal inset so the card
-# aligns with File Issues rows (which use the same inset).
-# =====================================================================
 function Build-MatrixDetailCardHC {
     param([object]$MatrixItem)
 
@@ -1295,12 +1219,6 @@ function Build-MatrixDetailCardHC {
 "@
 }
 
-# =====================================================================
-# Legacy stubs preserved for backwards compatibility
-# These were used by older code paths; the new email layout doesn't call
-# them directly, but external callers (or other report writers) may.
-# =====================================================================
-
 function New-HtmlCheckRowHC {
     param([object]$CheckItem)
     # Simple two-cell row, kept minimal — used (if at all) by ad-hoc consumers.
@@ -1378,12 +1296,6 @@ $($Html.Style)
     $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force
 }
 
-# =====================================================================
-# New-OverviewHtmlHC
-# The standalone matrix-files-overview page (separate audience from the
-# email). Unchanged from previous version — green/dark-green palette
-# kept intentionally distinct from the email body.
-# =====================================================================
 function New-OverviewHtmlHC {
     <#
     .SYNOPSIS
