@@ -377,7 +377,7 @@ function Build-SystemErrorsBlockHC {
     <td style='padding:0 0 8px 0;'>
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
             <tr>
-                <td valign='middle' width='32' style='padding:10px 0 10px 12px; color:$accentColor; font-size:22px; font-weight:bold; line-height:1; text-align:left;'>$glyph</td>
+                <td valign='middle' width='32' style='padding:10px 0 10px 12px; color:$accentColor; font-size:16px; font-weight:bold; line-height:1; text-align:left;'>$glyph</td>
                 <td valign='middle' style='padding:10px 12px 10px 6px;'>
                     <div style='margin-bottom:4px;'>
                         $catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span>
