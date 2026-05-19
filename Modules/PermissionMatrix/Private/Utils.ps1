@@ -243,7 +243,24 @@ function New-CounterObjectHC {
 function Update-MatrixCounterHC {
     <#
     .SYNOPSIS
-        Calculates the total errors and warnings across all matrices and system errors.
+        Calculates the total errors and warnings across all matrix files and
+        system-level errors.
+    .DESCRIPTION
+        Walks $Context.FileResults — the same data shape used by
+        Build-MatrixFileCardHC — so the global "Detected issues" pills in the
+        email always match the per-file cards.
+
+        Buckets:
+            File        — fileResult.Check                       (workbook-level)
+            FormData    — fileResult.Sheets.FormData.Check       (FormData sheet)
+            Permissions — fileResult.Sheets.Permissions.Check    (Permissions sheet)
+            Settings    — fileResult.Matrices[].Check            (per-matrix rows)
+            System      — $SystemErrors.Value                    (script-level)
+
+        TotalErrors   = sum of all 'FatalError'-typed checks across every bucket,
+                        including system errors.
+        TotalWarnings = sum of all 'Warning'-typed checks across every bucket,
+                        including system errors.
     #>
     [CmdletBinding()]
     param(
@@ -251,42 +268,50 @@ function Update-MatrixCounterHC {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    # Reset counter to ensure a clean tally
     $Context.Counter = New-CounterObjectHC
 
-    if ($Context.Matrices) {
-        foreach ($matrix in $Context.Matrices) {
-            # File Checks
-            $Context.Counter.File.Errors += @($matrix.File.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
-            $Context.Counter.File.Warnings += @($matrix.File.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+    $countByType = {
+        param($Checks, [string]$Type)
+        if (-not $Checks) { return 0 }
+        return @($Checks | Where-Object { $_.Type -eq $Type }).Count
+    }
 
-            # FormData Checks
-            $Context.Counter.FormData.Errors += @($matrix.FormData.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
-            $Context.Counter.FormData.Warnings += @($matrix.FormData.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+    if ($Context.FileResults) {
+        foreach ($fileResult in $Context.FileResults) {
+            $Context.Counter.File.Errors += & $countByType $fileResult.Check 'FatalError'
+            $Context.Counter.File.Warnings += & $countByType $fileResult.Check 'Warning'
 
-            # Permissions Checks
-            $Context.Counter.Permissions.Errors += @($matrix.Permissions.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
-            $Context.Counter.Permissions.Warnings += @($matrix.Permissions.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+            $Context.Counter.FormData.Errors += & $countByType $fileResult.Sheets.FormData.Check 'FatalError'
+            $Context.Counter.FormData.Warnings += & $countByType $fileResult.Sheets.FormData.Check 'Warning'
 
-            # Settings Checks
-            foreach ($setting in $matrix.Settings) {
-                $Context.Counter.Settings.Errors += @($setting.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
-                $Context.Counter.Settings.Warnings += @($setting.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+            $Context.Counter.Permissions.Errors += & $countByType $fileResult.Sheets.Permissions.Check 'FatalError'
+            $Context.Counter.Permissions.Warnings += & $countByType $fileResult.Sheets.Permissions.Check 'Warning'
+
+            if ($fileResult.Matrices) {
+                foreach ($m in $fileResult.Matrices) {
+                    $Context.Counter.Settings.Errors += & $countByType $m.Check 'FatalError'
+                    $Context.Counter.Settings.Warnings += & $countByType $m.Check 'Warning'
+                }
             }
         }
     }
 
-    # Tally Totals (Including Orchestrator SystemErrors) [cite: 1612-1616]
-    $Context.Counter.TotalErrors = $Context.Counter.File.Errors + 
-    $Context.Counter.FormData.Errors + 
-    $Context.Counter.Permissions.Errors + 
-    $Context.Counter.Settings.Errors + 
-    $SystemErrors.Value.Count
+    $systemErrCount = & $countByType $SystemErrors.Value 'FatalError'
+    $systemWarnCount = & $countByType $SystemErrors.Value 'Warning'
 
-    $Context.Counter.TotalWarnings = $Context.Counter.File.Warnings + 
-    $Context.Counter.FormData.Warnings + 
-    $Context.Counter.Permissions.Warnings + 
-    $Context.Counter.Settings.Warnings
-                                     
+    $Context.Counter.TotalErrors =
+    $Context.Counter.File.Errors +
+    $Context.Counter.FormData.Errors +
+    $Context.Counter.Permissions.Errors +
+    $Context.Counter.Settings.Errors +
+    $systemErrCount
+
+    $Context.Counter.TotalWarnings =
+    $Context.Counter.File.Warnings +
+    $Context.Counter.FormData.Warnings +
+    $Context.Counter.Permissions.Warnings +
+    $Context.Counter.Settings.Warnings +
+    $systemWarnCount
+
     return $Context.Counter
 }

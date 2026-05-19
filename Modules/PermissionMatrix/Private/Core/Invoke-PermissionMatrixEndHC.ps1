@@ -244,6 +244,14 @@ function Invoke-PermissionMatrixEndHC {
     # execution report rather than falling back to the source xlsx.
     # =====================================================================
     try {
+        # Re-tally — system warnings/errors may have been added by
+        # Exports/ServiceNow, logging, or other branches since the initial
+        # count at the top of this function. Without this the banner pills
+        # under-count any system items added after line 9.
+        $Context.Counter = Update-MatrixCounterHC `
+            -Context $Context `
+            -SystemErrors $SystemErrors
+            
         $matrixHtml = if (
             $Context.FileResults -and $Context.FileResults.Count -gt 0
         ) { 
@@ -261,9 +269,7 @@ function Invoke-PermissionMatrixEndHC {
             MatrixTables      = $matrixHtml 
             SystemErrors      = $SystemErrors.Value
             ErrorWarningTable = (
-                Build-ErrorWarningTableHC `
-                    -CounterData $Context.Counter `
-                    -SystemErrors $SystemErrors
+                Build-ErrorWarningTableHC -CounterData $Context.Counter
             )
         }
     }

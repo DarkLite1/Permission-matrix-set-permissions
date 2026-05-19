@@ -270,32 +270,27 @@ function Get-CheckThemeHC {
 }
 
 function Build-ErrorWarningTableHC {
-    <# 
+    <#
         .DESCRIPTION
-            Build an HTML table displaying error and warning counts as colored pills.
+            Build the global "Detected issues" banner shown at the top of the
+            email. Renders one red pill for errors and one amber pill for
+            warnings. Both counts include matrix-level checks AND script-level
+            system errors (filtered by Type) — the counter object passed in
+            is the single source of truth (see Update-MatrixCounterHC).
     #>
-
-    param($CounterData, $SystemErrors)
+    param($CounterData)
 
     $errs = [int]$CounterData.TotalErrors
     $warns = [int]$CounterData.TotalWarnings
-    $sysErrs = 0
-    
-    if ($SystemErrors -and $SystemErrors.Value) {
-        $sysErrs = @($SystemErrors.Value |
-            Where-Object { $_.Type -eq 'FatalError' }).Count
-    }
 
-    if ($errs -eq 0 -and $warns -eq 0 -and $sysErrs -eq 0) { return '' }
+    if ($errs -eq 0 -and $warns -eq 0) { return '' }
 
-    <# 
-        Banner stripe color leans red whenever there are any errors;
-        falls back to amber for warnings-only. 
-    #>
-    $bannerColor = if ($errs -gt 0 -or $sysErrs -gt 0) {
+    $bannerColor = if ($errs -gt 0) {
         $Script:Theme.AccentError
     }
-    else { $Script:Theme.AccentWarning }
+    else {
+        $Script:Theme.AccentWarning
+    }
 
     $pills = @()
     if ($errs -gt 0) {
@@ -305,10 +300,6 @@ function Build-ErrorWarningTableHC {
     if ($warns -gt 0) {
         $warnLabel = "$warns Warning" + $(if ($warns -ne 1) { 's' })
         $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $warnLabel -Bg $Script:Theme.AccentWarning)</td>"
-    }
-    if ($sysErrs -gt 0) {
-        $sysLabel = "$sysErrs System Error" + $(if ($sysErrs -ne 1) { 's' })
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $sysLabel -Bg $Script:Theme.AccentSystem)</td>"
     }
 
     return @"
@@ -328,41 +319,72 @@ function Build-ErrorWarningTableHC {
 }
 
 function Build-SystemErrorsBlockHC {
+    <#
+        .DESCRIPTION
+            Renders the detailed cards for script-level system errors and
+            warnings — the items collected in $SystemErrors throughout the
+            run. Errors get a red stripe and ✖ glyph; warnings get an amber
+            stripe and ⚠ glyph. Anything that isn't a 'FatalError' or
+            'Warning' is ignored.
+    #>
     param([array]$SystemErrors)
 
     if (-not $SystemErrors -or $SystemErrors.Count -eq 0) { return '' }
 
-    $fatalErrors = @($SystemErrors | Where-Object { $_.Type -eq 'FatalError' })
-    if ($fatalErrors.Count -eq 0) { return '' }
+    $items = @($SystemErrors | Where-Object {
+            $_.Type -eq 'FatalError' -or $_.Type -eq 'Warning'
+        })
+    if ($items.Count -eq 0) { return '' }
 
     $rows = ''
-    foreach ($err in $fatalErrors) {
-        $name = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $err.Name 'Unnamed error'))
-        $msg = [System.Net.WebUtility]::HtmlEncode(
-            (Get-StringOrDefaultHC $err.Message (Get-StringOrDefaultHC $err.Description ''))
+    foreach ($item in $items) {
+        $isFatal = ($item.Type -eq 'FatalError')
+
+        if ($isFatal) {
+            $bgColor = $Script:Theme.StatusError
+            $accentColor = $Script:Theme.AccentError
+            $glyph = '✖'
+            $pillText = 'System Error'
+            $pillBg = $Script:Theme.AccentSystem
+        }
+        else {
+            $bgColor = $Script:Theme.StatusWarning
+            $accentColor = $Script:Theme.AccentWarning
+            $glyph = '⚠'
+            $pillText = 'System Warning'
+            $pillBg = $Script:Theme.AccentWarning
+        }
+
+        $name = [System.Net.WebUtility]::HtmlEncode(
+            (Get-StringOrDefaultHC $item.Name 'Unnamed item')
         )
-        $category = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $err.Category ''))
+        $msg = [System.Net.WebUtility]::HtmlEncode(
+            (Get-StringOrDefaultHC $item.Message (Get-StringOrDefaultHC $item.Description ''))
+        )
+        $category = [System.Net.WebUtility]::HtmlEncode(
+            (Get-StringOrDefaultHC $item.Category '')
+        )
 
         $catHtml = ''
         if ($category) {
             $catHtml = "<span style='display:inline-block; margin-right:8px; padding:1px 8px; background-color:$($Script:Theme.BgAlt); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; font-size:10px; font-weight:600; color:$($Script:Theme.TextMuted); text-transform:uppercase; letter-spacing:0.5px;'>$category</span>"
         }
 
-        $sysPill = New-PillHtmlHC -Text 'System Error' -Bg $Script:Theme.AccentSystem
+        $pill = New-PillHtmlHC -Text $pillText -Bg $pillBg
 
         $rows += @"
 <tr>
     <td style='padding:0 0 8px 0;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.StatusError); border-left:3px solid $($Script:Theme.AccentError); border-radius:6px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
             <tr>
-                <td valign='middle' width='32' style='padding:10px 0 10px 12px; color:$($Script:Theme.AccentError); font-size:14px; font-weight:bold; line-height:1; text-align:left;'>✖</td>
+                <td valign='middle' width='32' style='padding:10px 0 10px 12px; color:$accentColor; font-size:14px; font-weight:bold; line-height:1; text-align:left;'>$glyph</td>
                 <td valign='middle' style='padding:10px 12px 10px 6px;'>
                     <div style='margin-bottom:4px;'>
                         $catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span>
                     </div>
                     <div style='color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.5; font-family:$($Script:Theme.MonoStack);'>$msg</div>
                 </td>
-                <td valign='middle' align='right' width='130' style='padding:10px 12px 10px 8px; width:130px; white-space:nowrap;'>$sysPill</td>
+                <td valign='middle' align='right' width='130' style='padding:10px 12px 10px 8px; width:130px; white-space:nowrap;'>$pill</td>
             </tr>
         </table>
     </td>
@@ -370,10 +392,18 @@ function Build-SystemErrorsBlockHC {
 "@
     }
 
+    # Section header — pluralized and labeled to match what's actually rendered.
+    $errCount = @($items | Where-Object Type -EQ 'FatalError').Count
+    $warnCount = @($items | Where-Object Type -EQ 'Warning').Count
+    $labelParts = @()
+    if ($errCount -gt 0) { $labelParts += "$errCount Error" + $(if ($errCount -ne 1) { 's' }) }
+    if ($warnCount -gt 0) { $labelParts += "$warnCount Warning" + $(if ($warnCount -ne 1) { 's' }) }
+    $headerLabel = 'System Issues (' + ($labelParts -join ', ') + ')'
+
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 20px 0;">
     <tr>
-        <td style='padding:0 0 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>System Errors ($($fatalErrors.Count))</td>
+        <td style='padding:0 0 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$headerLabel</td>
     </tr>
     $rows
 </table>
