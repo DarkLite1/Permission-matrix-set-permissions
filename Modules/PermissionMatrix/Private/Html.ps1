@@ -697,7 +697,7 @@ function Build-MatrixFileCardHC {
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
                         <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;'>
-                            Last change: $modBy &middot; $modDt
+                            Last change: $modBy @ $modDt
                         </div>
                     </td>
                     <td valign='middle' align='right' style='padding:14px 18px 14px 10px; white-space:nowrap;'>$headerLabelHtml</td>
@@ -853,7 +853,7 @@ function Build-ExecutionDetailsBlockHC {
     $items = @(
         @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
         @{ Label = 'Defaults file'; Value = (Convert-PathToFileLink $defaultsPath); Mono = $true }
-        @{ Label = 'Last change'; Value = "$modBy &middot; $modDt"; Mono = $false }
+        @{ Label = 'Last change'; Value = "$modBy @ $modDt"; Mono = $false }
         @{ Label = 'Start time'; Value = [System.Net.WebUtility]::HtmlEncode($startTime); Mono = $true }
         @{ Label = 'End time'; Value = [System.Net.WebUtility]::HtmlEncode($endTime); Mono = $true }
     )
@@ -1042,7 +1042,7 @@ $detailsCss
                                                 <div style='font-size:11px; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;'>Execution Report</div>
                                                 <div style='font-size:20px; font-weight:700; color:#ffffff; line-height:1.25;'>$fileName</div>
                                                 <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:4px;'>
-                                                    Last change: $modBy &middot; $modDt
+                                                    Last change: $modBy @ $modDt
                                                 </div>
                                             </td>
                                             <td valign='middle' align='right' style='padding:18px 22px 18px 10px; white-space:nowrap;'>
