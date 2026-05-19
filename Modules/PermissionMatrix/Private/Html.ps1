@@ -729,12 +729,14 @@ function Generate-MailBodyHtmlHC {
         $Html,
         $ExportedFiles,
         $AttNote,
-        $DurStr,
         [datetime]$ScriptStartTime,
+        [datetime]$ScriptEndTime = (Get-Date),
         $LogFolder
     )
 
-    $scriptName = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $Settings.ScriptName 'Permission Matrix'))
+    $scriptName = [System.Net.WebUtility]::HtmlEncode(
+        (Get-StringOrDefaultHC $Settings.ScriptName 'Permission Matrix')
+    )
     $userBody = Get-StringOrDefaultHC $Settings.SendMail.Body ''
     $bodyWidth = $Script:Theme.BodyWidth
 
@@ -752,12 +754,35 @@ function Generate-MailBodyHtmlHC {
     }
     $systemErrorsBlock = Build-SystemErrorsBlockHC -SystemErrors $sysErrArr
 
-    # Footer line with start time and duration — small, muted, optional.
+    # ---- Footer with run timing: Started · Ended · Duration ----
+    # Compute duration here so callers don't have to format a TimeSpan themselves.
+    # All three fields are rendered as label/value pairs, matching the
+    # metadata grid style used elsewhere in the email and report.
     $footer = ''
     if ($ScriptStartTime) {
         $startStr = $ScriptStartTime.ToString('dd/MM/yyyy HH:mm')
-        $durLine = if ($DurStr) { "Duration: $([System.Net.WebUtility]::HtmlEncode($DurStr)) &middot; " } else { '' }
-        $footer = "<p style='margin:16px 0 0 0; font-size:11px; color:$($Script:Theme.TextLight);'>${durLine}Run started: $startStr</p>"
+        $endStr = $ScriptEndTime.ToString('dd/MM/yyyy HH:mm')
+        $span = $ScriptEndTime - $ScriptStartTime
+        $durStr = '{0:00}:{1:00}:{2:00}' -f $span.Hours, $span.Minutes, $span.Seconds
+
+        # Small helper for footer label/value pairs (kept local — no other
+        # caller needs this exact layout).
+        $renderField = {
+            param([string]$Label, [string]$Value)
+            "<span style='display:inline-block; margin-right:18px;'>" +
+            "<strong style='color:$($Script:Theme.TextLight); font-weight:700; " +
+            "text-transform:uppercase; letter-spacing:0.5px; margin-right:5px; font-size:10px;'>" +
+            "$Label</strong>" +
+            "<span style='font-size:11px; color:$($Script:Theme.TextLight); " +
+            "font-family:$($Script:Theme.MonoStack);'>$Value</span>" +
+            '</span>'
+        }
+
+        $startedHtml = & $renderField 'Started' ([System.Net.WebUtility]::HtmlEncode($startStr))
+        $endedHtml = & $renderField 'Ended' ([System.Net.WebUtility]::HtmlEncode($endStr))
+        $durationHtml = & $renderField 'Duration' ([System.Net.WebUtility]::HtmlEncode($durStr))
+
+        $footer = "<p style='margin:16px 0 0 0;'>$startedHtml$endedHtml$durationHtml</p>"
     }
 
     @"
