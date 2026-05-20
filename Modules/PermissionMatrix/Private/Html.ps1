@@ -1023,7 +1023,7 @@ function Build-MatrixDetailCardHC {
     $headerBlock = @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
     <tr>
-        <td valign='middle' width='30' style='padding:14px 0 14px 10px;'>$dotHtml</td>
+        <td valign='middle' width='40' style='padding:14px 8px 14px 10px;'>$dotHtml</td>
         <td valign='middle' style='padding:14px 16px 14px 0;'>
             <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp</div>
             <div style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
