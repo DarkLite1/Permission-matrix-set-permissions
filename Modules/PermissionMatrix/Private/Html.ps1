@@ -978,25 +978,27 @@ function Build-MatrixDetailCardHC {
         return "<td valign='middle'$titleHtml style='padding:3px 28px 3px 0; white-space:nowrap;'><div style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:1px;'>$Label</div><div style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</div></td>"
     }
 
-    # Two-row compact metadata layout:
-    #   Row 1: [icon] Action   [icon] Duration   [icon] ID   — icons replace
-    #          labels for compactness. Inline SVG (not webfont) so the report
-    #          renders correctly both as a local HTML file and inside email
-    #          clients that strip @font-face rules.
-    #   Row 2: GROUP: x   SITE: x   APPLY DEFAULTS: x   — inline labels.
-    # Column positions are reserved (with &nbsp; fallbacks for missing
-    # optional fields) so cells align vertically across the two rows.
+    # Two-row compact metadata layout. Column 1 anchors short values (Action,
+    # Duration), column 2 holds short labeled values (Apply Defaults, ID),
+    # column 3 holds the potentially-long values (Group, Site).
+    #
+    #   Col 1                Col 2                Col 3
+    #   ----------------     ------------------   ---------------
+    #   ACTION: x            APPLY DEFAULTS: x    GROUP: x
+    #   [clock] Duration     ID: x                SITE: x
+    #
+    # Duration keeps an inline SVG clock icon (universally readable as "time")
+    # in place of a text label. Everything else uses inline "LABEL: value"
+    # styling. Column positions are reserved (with &nbsp; fallbacks for
+    # missing optional fields) so cells align vertically across the two rows.
 
-    # Inline SVG icons from Tabler Icons (MIT). currentColor lets them inherit
-    # the cell's text color so they tint consistently with surrounding text.
+    # Inline SVG clock icon — Tabler Icons (MIT). Inline rather than webfont
+    # so it renders in both browser file-views and email clients that strip
+    # @font-face rules.
     $iconStyle = "width:13px; height:13px; vertical-align:-2px; margin-right:6px; stroke:$($Script:Theme.TextLight); fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;"
-
-    $iconAction = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' style='$iconStyle' aria-hidden='true'><path d='M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11'/></svg>"
     $iconDuration = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' style='$iconStyle' aria-hidden='true'><circle cx='12' cy='12' r='9'/><polyline points='12 7 12 12 15 15'/></svg>"
-    $iconId = "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' style='$iconStyle' aria-hidden='true'><line x1='5' y1='9' x2='19' y2='9'/><line x1='5' y1='15' x2='19' y2='15'/><line x1='11' y1='4' x2='7' y2='20'/><line x1='17' y1='4' x2='13' y2='20'/></svg>"
 
-    # Helper for icon-prefixed cells (row 1). Mirrors New-InlineMetaCellHtml
-    # but uses an SVG icon in place of the text label.
+    # Helper for the Duration cell — icon in place of a text label.
     function New-IconMetaCellHtml {
         param(
             [string]$IconHtml,
@@ -1010,7 +1012,7 @@ function Build-MatrixDetailCardHC {
         return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$IconHtml$valueHtml</td>"
     }
 
-    # Helper for inline "LABEL: value" cells (row 2). Unchanged from before.
+    # Helper for inline "LABEL: value" cells — used by every other cell.
     function New-InlineMetaCellHtml {
         param(
             [string]$Label,
@@ -1025,15 +1027,17 @@ function Build-MatrixDetailCardHC {
         return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$labelHtml$valueHtml</td>"
     }
 
+    # Row 1: Action          | Apply Defaults | Group
+    # Row 2: Duration (icon) | ID             | Site
     $row1Cells = @(
-        (New-IconMetaCellHtml -IconHtml $iconAction -Value $action)
-        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true)
-        (New-IconMetaCellHtml -IconHtml $iconId -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
+        (New-InlineMetaCellHtml -Label 'Action' -Value $action)
+        (New-InlineMetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
+        $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
     )
     $row2Cells = @(
-        $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
+        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true)
+        (New-InlineMetaCellHtml -Label 'ID' -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
         $(if ($siteCode) { New-InlineMetaCellHtml -Label 'Site' -Value $siteCode } else { '<td>&nbsp;</td>' })
-        (New-InlineMetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
     )
 
     $metadataTable = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'>" +
