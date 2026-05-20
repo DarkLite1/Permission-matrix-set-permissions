@@ -82,7 +82,13 @@ function Initialize-HtmlStructureHC {
         margin: 0;
         padding: 20px;
         -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
     }
+    /* Force the page-root table to honor the viewport instead of its
+       declared width. The report is browser-only, so we override the
+       email-compatibility 900px width when the viewport is narrower. */
+    body > table { max-width: 100% !important; }
+    body > table table { max-width: 100% !important; }
     a { color: $($Script:Theme.LinkColor); text-decoration: none; }
     a:hover { color: $($Script:Theme.LinkHoverColor); text-decoration: underline; }
     h1 {
@@ -455,17 +461,17 @@ function Build-FileLevelCheckRowHC {
     # gives 10px whitespace on each side of the dot — balanced visually,
     # and matches the Settings rows below for consistent vertical alignment.
     $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
+<table role="presentation" class="rr-check-row" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='30' style='padding:14px 0 14px 10px;'>
+        <td class="rr-icon-cell" valign='middle' width='30' style='padding:14px 0 14px 10px;'>
             <span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>
         </td>
-        <td valign='middle' style='padding:10px 8px 10px 0;'>
+        <td class="rr-content-cell" valign='middle' style='padding:10px 8px 10px 0;'>
             <div style='font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</div>
             <div style='font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$name</div>
             <div style='font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</div>
         </td>
-        <td valign='middle' align='right' width='110' style='padding:10px 12px 10px 8px; width:110px; white-space:nowrap;'>$pillHtml</td>
+        <td class="rr-check-pill" valign='middle' align='right' width='110' style='padding:10px 12px 10px 8px; width:110px; white-space:nowrap;'>$pillHtml</td>
     </tr>
 </table>
 "@
@@ -899,7 +905,7 @@ function Build-ExecutionDetailsBlockHC {
         $rowsHtml += @"
 <tr>
     <td valign='top' style='padding:8px 16px 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; width:120px;'>$($item.Label)</td>
-    <td valign='top' style='padding:8px 0; color:$($Script:Theme.TextMuted); $valueStyle word-break:break-all;'>$($item.Value)</td>
+    <td class="rr-mono-wrap" valign='top' style='padding:8px 0; color:$($Script:Theme.TextMuted); $valueStyle word-break:break-all;'>$($item.Value)</td>
 </tr>
 "@
     }
@@ -910,11 +916,15 @@ function Build-ExecutionDetailsBlockHC {
     # outer-table width (matching the Execution Report header bar at the
     # top of the page)
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin-top:32px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin-top:32px; table-layout:fixed;">
     <tr>
         <td style='padding:0;'>
             <div style='padding:14px 18px 8px 18px; background-color:$($Script:Theme.BgAlt); border-radius:8px;'>
-                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+                <table role="presentation" class="rr-footer-grid" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; table-layout:fixed;">
+                    <colgroup>
+                        <col style="width:120px;">
+                        <col>
+                    </colgroup>
                     $rowsHtml
                 </table>
             </div>
@@ -1037,18 +1047,21 @@ function Build-MatrixDetailCardHC {
     '</table>'
 
     # Three-column horizontal header — no visible dividers, just consistent
-    # padding. Dot cell has 10px whitespace on each side (width=30, left
-    # padding=10, dot=10) so the text after the dot starts close to it.
-    # Metadata column width=460 comfortably holds 3 nowrap cells in 2 rows.
+    # padding. table-layout:fixed plus an explicit 55% width on the metadata
+    # column gives the three pills (Action, Apply Defaults, Group) enough
+    # room to fit on one line at the report's 900px design width, and pushes
+    # the long monospace path to wrap onto its own line sooner — leaving
+    # more breathing room overall instead of forcing the whole card past
+    # the viewport edge.
     $headerBlock = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+<table role="presentation" class="rr-settings-head" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; table-layout:fixed;">
     <tr>
-        <td valign='middle' width='40' style='padding:14px 8px 14px 10px;'>$dotHtml</td>
-        <td valign='middle' style='padding:14px 16px 14px 0;'>
+        <td class="rr-icon-cell" valign='middle' width='40' style='padding:14px 8px 14px 10px;'>$dotHtml</td>
+        <td class="rr-content-cell" valign='middle' style='padding:14px 16px 14px 0;'>
             <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp</div>
-            <div style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
+            <div class="rr-path" style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
         </td>
-        <td valign='middle' width='460' style='padding:12px 16px;'>
+        <td class="rr-meta-cell" valign='middle' width='55%' style='padding:12px 16px;'>
             $metadataTable
         </td>
     </tr>
@@ -1060,7 +1073,7 @@ function Build-MatrixDetailCardHC {
     # ---------- COMPACT MODE: success rows ----------
     if (-not $hasChecks) {
         $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden; table-layout:fixed;">
     <tr><td style='padding:0;'>$headerBlock</td></tr>
 </table>
 "@
@@ -1091,14 +1104,14 @@ function Build-MatrixDetailCardHC {
         $checkRows += @"
 <tr>
     <td style='padding:0 0 8px 0;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($tt.Bg); border-left:3px solid $($tt.BorderLeft); border-radius:6px;">
+        <table role="presentation" class="rr-check-row" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($tt.Bg); border-left:3px solid $($tt.BorderLeft); border-radius:6px;">
             <tr>
-                <td valign='middle' width='36' style='padding:12px 0 12px 12px; text-align:left; color:$($tt.Accent); font-size:18px; font-weight:bold; line-height:1;'>$($tt.Symbol)</td>
-                <td valign='middle' style='padding:12px 12px 12px 0;'>
+                <td class="rr-icon-cell" valign='middle' width='36' style='padding:12px 0 12px 12px; text-align:left; color:$($tt.Accent); font-size:18px; font-weight:bold; line-height:1;'>$($tt.Symbol)</td>
+                <td class="rr-content-cell" valign='middle' style='padding:12px 12px 12px 0;'>
                     <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:4px;'>$nameHtml</div>
                     <div style='font-size:13px; color:$($Script:Theme.TextMuted); line-height:1.55;'>$desc</div>
                 </td>
-                <td valign='middle' align='right' width='110' style='padding:12px 14px 12px 8px; white-space:nowrap;'>$pillHtml</td>
+                <td class="rr-check-pill" valign='middle' align='right' width='110' style='padding:12px 14px 12px 8px; white-space:nowrap;'>$pillHtml</td>
             </tr>
         </table>
     </td>
@@ -1107,7 +1120,7 @@ function Build-MatrixDetailCardHC {
     }
 
     $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05); table-layout:fixed;">
     <tr><td style='padding:0; border-bottom:1px solid $($Script:Theme.BorderLight);'>$headerBlock</td></tr>
     <tr>
         <td style='padding:14px 18px 8px 18px;'>
@@ -1291,6 +1304,123 @@ $matrixRowsHtml
 </style>
 '@
 
+    # ---- Responsive CSS (browser-only) ----
+    # The page is built with email-compatible table markup (fixed widths,
+    # nowrap pill cells, multi-column rows). The rules below collapse those
+    # tables into stacked blocks below 900px so the report wraps cleanly
+    # on tablet/laptop window resizes without horizontal scroll.
+    #
+    # All rules are scoped to `.report-root` so they don't affect any other
+    # consumer of $Html.Style (the email body in particular).
+    #
+    # Strategy: at viewports below 900px (the page's design width), collapse
+    # the email-compatible multi-column rows into stacked single-column
+    # blocks. The pill cells drop below their content, the metadata sub-
+    # table (Action, Apply Defaults, Group, etc.) wraps as inline chips,
+    # the footer label/value grid stacks label above value, and long
+    # monospace paths break at any character so they never force a
+    # horizontal scrollbar. Looks good down to ~360px even though the
+    # explicit design target is ~768px (tablet).
+    $responsiveCss = @'
+<style type="text/css">
+    .report-root { width: 100%; max-width: 900px; margin: 0; box-sizing: border-box; }
+    .report-root * { box-sizing: border-box; }
+
+    /* Anywhere: long monospace paths must be allowed to wrap. */
+    .report-root .rr-path,
+    .report-root .rr-mono-wrap { word-break: break-all; overflow-wrap: anywhere; }
+
+    /* The metadata sub-table (Action / Apply Defaults / Group / etc.) is
+       built with white-space:nowrap on each cell so the cells stay on one
+       line in email clients. In the browser we allow them to wrap when
+       horizontal room runs out — single-line whenever they fit, multi-line
+       when they don't, with no clipping at any width. */
+    .report-root .rr-meta-cell table > tbody > tr > td { white-space: normal !important; }
+
+    @media (max-width: 900px) {
+        /* Page-header card: untable the icon | title | status-pill row.
+           The status pill is anchored top-right via absolute positioning
+           against the relatively-positioned <table>; the content area gets
+           padding-right reserved for it so text never runs under the pill. */
+        .report-root .rr-header-row { position: relative; }
+        .report-root .rr-header-row,
+        .report-root .rr-header-row > tbody,
+        .report-root .rr-header-row > tbody > tr { display: block; width: 100%; }
+        .report-root .rr-header-row > tbody > tr > td.rr-icon-cell {
+            float: left; width: 52px !important; text-align: left;
+            padding: 18px 0 18px 22px !important;
+        }
+        .report-root .rr-header-row > tbody > tr > td.rr-content-cell {
+            display: block; width: auto !important;
+            padding: 18px 130px 18px 10px !important;
+        }
+        .report-root .rr-header-row > tbody > tr > td.rr-status-cell {
+            position: absolute; top: 0; right: 0;
+            padding: 18px 22px 0 0 !important;
+            text-align: right !important; white-space: nowrap !important;
+        }
+
+        /* Settings card header: dot floats left next to computer name + path,
+           metadata block drops to its own row below. (No pill here, so no
+           absolute positioning needed.) */
+        .report-root .rr-settings-head,
+        .report-root .rr-settings-head > tbody,
+        .report-root .rr-settings-head > tbody > tr { display: block; width: 100%; }
+        .report-root .rr-settings-head > tbody > tr > td.rr-icon-cell {
+            float: left; width: 30px !important; text-align: left;
+            padding: 14px 0 0 14px !important;
+        }
+        .report-root .rr-settings-head > tbody > tr > td.rr-content-cell {
+            display: block; width: auto !important; white-space: normal !important;
+            padding: 14px 16px 4px 8px !important; margin-left: 30px;
+        }
+        .report-root .rr-settings-head > tbody > tr > td.rr-meta-cell {
+            display: block; clear: both; width: auto !important;
+            padding: 4px 16px 14px 22px !important;
+        }
+
+        /* Flow the metadata pill rows as inline-block chips. */
+        .report-root .rr-meta-cell table { width: 100% !important; }
+        .report-root .rr-meta-cell table,
+        .report-root .rr-meta-cell table > tbody { display: block; }
+        .report-root .rr-meta-cell table > tbody > tr { display: block; margin-bottom: 2px; }
+        .report-root .rr-meta-cell table > tbody > tr > td {
+            display: inline-block !important;
+            padding: 3px 16px 3px 0 !important; vertical-align: top;
+        }
+
+        /* Check rows: icon floats left, content fills the middle, status
+           pill is anchored top-right via absolute positioning (same trick
+           as the page header). Content reserves padding-right for the pill. */
+        .report-root .rr-check-row { position: relative; }
+        .report-root .rr-check-row,
+        .report-root .rr-check-row > tbody,
+        .report-root .rr-check-row > tbody > tr { display: block; width: 100%; }
+        .report-root .rr-check-row > tbody > tr > td.rr-icon-cell {
+            float: left; width: 36px !important; text-align: left;
+            padding: 12px 0 0 12px !important;
+        }
+        .report-root .rr-check-row > tbody > tr > td.rr-content-cell {
+            display: block; width: auto !important; white-space: normal !important;
+            padding: 12px 110px 12px 8px !important; margin-left: 36px;
+        }
+        .report-root .rr-check-row > tbody > tr > td.rr-check-pill {
+            position: absolute; top: 0; right: 0;
+            padding: 12px 14px 0 0 !important;
+            text-align: right !important; white-space: nowrap !important;
+            width: auto !important;
+        }
+
+        /* Footer "label : value" rows: stack label above value. */
+        .report-root .rr-footer-grid,
+        .report-root .rr-footer-grid > tbody { display: block; width: 100%; }
+        .report-root .rr-footer-grid > colgroup { display: none; }
+        .report-root .rr-footer-grid > tbody > tr { display: block; margin-bottom: 10px; }
+        .report-root .rr-footer-grid > tbody > tr > td { display: block; width: auto !important; white-space: normal !important; padding: 2px 0 !important; }
+    }
+</style>
+'@
+
     # ---- Final HTML ----
     $reportHtml = @"
 <!DOCTYPE html>
@@ -1302,29 +1432,31 @@ $matrixRowsHtml
 $($Html.Style)
 $($Html.TroubleshootingStyle)
 $detailsCss
+$responsiveCss
 </head>
 <body>
+<div class="report-root">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; background-color:$($Script:Theme.BgPage);">
     <tr>
         <td align="left" valign="top" style="padding:0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="900" style="border-collapse:collapse; width:900px; max-width:100%;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:900px;">
                 <!-- File header -->
                 <tr>
                     <td style="padding:0 0 24px 0;">
                         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
                             <tr>
                                 <td bgcolor="$gradTo" style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
-                                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+                                    <table role="presentation" class="rr-header-row" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                                         <tr>
-                                            <td valign='middle' width='52' style='padding:18px 0 18px 22px; font-size:24px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$hdrSymbol</td>
-                                            <td valign='middle' style='padding:18px 10px;'>
+                                            <td class="rr-icon rr-icon-cell" valign='middle' width='52' style='padding:18px 0 18px 22px; font-size:24px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$hdrSymbol</td>
+                                            <td class="rr-content-cell" valign='middle' style='padding:18px 10px;'>
                                                 <div style='font-size:11px; font-weight:700; color:rgba(255,255,255,0.8); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:4px;'>Execution Report</div>
                                                 <div style='font-size:20px; font-weight:700; color:#ffffff; line-height:1.25;'>$fileName</div>
                                                 <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:4px;font-style:italic;'>
                                                     $lastChangeInfo
                                                 </div>
                                             </td>
-                                            <td valign='middle' align='right' style='padding:18px 22px 18px 10px; white-space:nowrap;'>
+                                            <td class="rr-status-cell" valign='middle' align='right' style='padding:18px 22px 18px 10px; white-space:nowrap;'>
                                                 <span style="font-size:13px; font-weight:700; color:#ffffff; text-transform:uppercase; letter-spacing:0.5px;">$hdrLabel</span>
                                             </td>
                                         </tr>
@@ -1348,6 +1480,7 @@ $detailsCss
         </td>
     </tr>
 </table>
+</div>
 </body>
 </html>
 "@
