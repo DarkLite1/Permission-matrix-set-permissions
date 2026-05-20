@@ -1338,45 +1338,62 @@ $matrixRowsHtml
     .report-root .rr-meta-cell table > tbody > tr > td { white-space: normal !important; }
 
     @media (max-width: 900px) {
-        /* Page-header card: untable the icon | title | status-pill row.
-           The status pill is anchored top-right via absolute positioning
-           against the relatively-positioned <table>; the content area gets
-           padding-right reserved for it so text never runs under the pill. */
+        /* Strategy: turn the affected <tr> into a flex container with
+           flex-wrap. Cells stay as flex items, which natively gives us
+           vertical centering (align-items: center) and the ability to
+           force a cell onto its own row via `flex: 1 1 100%`.
+           
+           Why not the more conventional `display: block` on every cell?
+           Because then the icon stacks ABOVE the content instead of beside
+           it. And why not `float: left` on the icon? Because then a wrapped
+           third line in the content drops UNDER the float and shifts left,
+           breaking horizontal alignment with the lines above.
+           
+           Status pills (rr-status-cell / rr-check-pill) are taken out of
+           the flex flow with position:absolute + top:50% + translateY(-50%)
+           so they sit middle-right anchored to the relatively-positioned
+           parent table. The content cell reserves padding-right to keep
+           text from running under the pill. */
+
+        /* Page header */
         .report-root .rr-header-row { position: relative; }
-        .report-root .rr-header-row,
-        .report-root .rr-header-row > tbody,
-        .report-root .rr-header-row > tbody > tr { display: block; width: 100%; }
+        .report-root .rr-header-row > tbody > tr {
+            display: flex; align-items: center;
+        }
         .report-root .rr-header-row > tbody > tr > td.rr-icon-cell {
-            float: left; width: 52px !important; text-align: left;
+            flex: 0 0 auto; width: 52px !important; text-align: left;
             padding: 18px 0 18px 22px !important;
         }
         .report-root .rr-header-row > tbody > tr > td.rr-content-cell {
-            display: block; width: auto !important;
+            flex: 1 1 auto; min-width: 0;
             padding: 18px 130px 18px 10px !important;
         }
         .report-root .rr-header-row > tbody > tr > td.rr-status-cell {
-            position: absolute; top: 0; right: 0;
-            padding: 18px 22px 0 0 !important;
+            position: absolute; top: 50%; right: 22px;
+            transform: translateY(-50%);
+            padding: 0 !important;
             text-align: right !important; white-space: nowrap !important;
+            width: auto !important;
         }
 
-        /* Settings card header: dot floats left next to computer name + path,
-           metadata block drops to its own row below. (No pill here, so no
-           absolute positioning needed.) */
-        .report-root .rr-settings-head,
-        .report-root .rr-settings-head > tbody,
-        .report-root .rr-settings-head > tbody > tr { display: block; width: 100%; }
+        /* Settings card header: icon + content stay side-by-side (vertically
+           centered), meta drops to its own row. flex-wrap:wrap enables the
+           wrap; meta's flex-basis of 100% forces it onto a new line. */
+        .report-root .rr-settings-head > tbody > tr {
+            display: flex; flex-wrap: wrap; align-items: center;
+        }
         .report-root .rr-settings-head > tbody > tr > td.rr-icon-cell {
-            float: left; width: 30px !important; text-align: left;
-            padding: 14px 0 0 14px !important;
+            flex: 0 0 auto; width: 30px !important; text-align: left;
+            padding: 14px 0 14px 14px !important;
         }
         .report-root .rr-settings-head > tbody > tr > td.rr-content-cell {
-            display: block; width: auto !important; white-space: normal !important;
-            padding: 14px 16px 4px 8px !important; margin-left: 30px;
+            flex: 1 1 0; min-width: 0;
+            padding: 14px 16px 14px 8px !important;
+            white-space: normal !important;
         }
         .report-root .rr-settings-head > tbody > tr > td.rr-meta-cell {
-            display: block; clear: both; width: auto !important;
-            padding: 4px 16px 14px 22px !important;
+            flex: 1 1 100%; width: 100% !important;
+            padding: 0 16px 14px 22px !important;
         }
 
         /* Flow the metadata pill rows as inline-block chips. */
@@ -1389,24 +1406,24 @@ $matrixRowsHtml
             padding: 3px 16px 3px 0 !important; vertical-align: top;
         }
 
-        /* Check rows: icon floats left, content fills the middle, status
-           pill is anchored top-right via absolute positioning (same trick
-           as the page header). Content reserves padding-right for the pill. */
+        /* Check rows */
         .report-root .rr-check-row { position: relative; }
-        .report-root .rr-check-row,
-        .report-root .rr-check-row > tbody,
-        .report-root .rr-check-row > tbody > tr { display: block; width: 100%; }
+        .report-root .rr-check-row > tbody > tr {
+            display: flex; align-items: center;
+        }
         .report-root .rr-check-row > tbody > tr > td.rr-icon-cell {
-            float: left; width: 36px !important; text-align: left;
-            padding: 12px 0 0 12px !important;
+            flex: 0 0 auto; width: 36px !important; text-align: left;
+            padding: 12px 0 12px 12px !important;
         }
         .report-root .rr-check-row > tbody > tr > td.rr-content-cell {
-            display: block; width: auto !important; white-space: normal !important;
-            padding: 12px 110px 12px 8px !important; margin-left: 36px;
+            flex: 1 1 0; min-width: 0;
+            padding: 12px 110px 12px 8px !important;
+            white-space: normal !important;
         }
         .report-root .rr-check-row > tbody > tr > td.rr-check-pill {
-            position: absolute; top: 0; right: 0;
-            padding: 12px 14px 0 0 !important;
+            position: absolute; top: 50%; right: 14px;
+            transform: translateY(-50%);
+            padding: 0 !important;
             text-align: right !important; white-space: nowrap !important;
             width: auto !important;
         }
