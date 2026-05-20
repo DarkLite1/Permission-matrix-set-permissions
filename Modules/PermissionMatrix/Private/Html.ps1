@@ -963,21 +963,6 @@ function Build-MatrixDetailCardHC {
 
     $dotHtml = "<span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>"
 
-    # Helper: render a single metadata cell with label above value.
-    # Used to build a 2-row × 3-pair grid rather than a 6-row × 2-column stack
-    # — much shorter vertically.
-    function New-MetaCellHtml {
-        param(
-            [string]$Label,
-            [string]$Value,
-            [bool]$Mono = $false,
-            [string]$TitleAttr = ''
-        )
-        $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
-        $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
-        return "<td valign='middle'$titleHtml style='padding:3px 28px 3px 0; white-space:nowrap;'><div style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:1px;'>$Label</div><div style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</div></td>"
-    }
-
     # Two-row compact metadata layout. Column 1 anchors short values (Action,
     # Duration), column 2 holds short labeled values (Apply Defaults, ID),
     # column 3 holds the potentially-long values (Group, Site).
