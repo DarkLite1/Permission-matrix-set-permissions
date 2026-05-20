@@ -200,6 +200,39 @@ function ConvertTo-FileUrlHC {
     return 'file://' + ($Path -replace '\\', '/' -replace ' ', '%20')
 }
 
+function Get-CheckThemeHC {
+    param([string]$Type)
+    switch ($Type) {
+        'FatalError' {
+            return @{
+                Bg         = $Script:Theme.StatusError
+                Accent     = $Script:Theme.AccentError
+                Symbol     = '✖'
+                Label      = 'ERROR'
+                BorderLeft = $Script:Theme.AccentError
+            }
+        }
+        'Warning' {
+            return @{
+                Bg         = $Script:Theme.StatusWarning
+                Accent     = $Script:Theme.AccentWarning
+                Symbol     = '⚠'
+                Label      = 'WARNING'
+                BorderLeft = $Script:Theme.AccentWarning
+            }
+        }
+        default {
+            return @{
+                Bg         = $Script:Theme.BgAlt
+                Accent     = $Script:Theme.AccentInfo
+                Symbol     = 'ℹ'
+                Label      = 'INFO'
+                BorderLeft = $Script:Theme.AccentInfo
+            }
+        }
+    }
+}
+
 function Get-TruncatedPathHC {
     <# 
         .DESCRIPTION
@@ -265,39 +298,6 @@ function New-PillHtmlHC {
     )
     if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
     return "<span style=`"display:inline-block; padding:3px 10px; background-color:$Bg; color:$Color; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; line-height:1.6;`">$Text</span>"
-}
-
-function Get-CheckThemeHC {
-    param([string]$Type)
-    switch ($Type) {
-        'FatalError' {
-            return @{
-                Bg         = $Script:Theme.StatusError
-                Accent     = $Script:Theme.AccentError
-                Symbol     = '✖'
-                Label      = 'ERROR'
-                BorderLeft = $Script:Theme.AccentError
-            }
-        }
-        'Warning' {
-            return @{
-                Bg         = $Script:Theme.StatusWarning
-                Accent     = $Script:Theme.AccentWarning
-                Symbol     = '⚠'
-                Label      = 'WARNING'
-                BorderLeft = $Script:Theme.AccentWarning
-            }
-        }
-        default {
-            return @{
-                Bg         = $Script:Theme.BgAlt
-                Accent     = $Script:Theme.AccentInfo
-                Symbol     = 'ℹ'
-                Label      = 'INFO'
-                BorderLeft = $Script:Theme.AccentInfo
-            }
-        }
-    }
 }
 
 function Build-ErrorWarningTableHC {
@@ -918,6 +918,234 @@ function Build-ExecutionDetailsBlockHC {
 "@
 }
 
+function Build-MatrixDetailCardHC {
+    param([object]$MatrixItem)
+
+    # Determine card status
+    $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
+    $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
+    $hasChecks = ($err + $warn) -gt 0
+
+    if ($err -gt 0) {
+        $accent = $Script:Theme.AccentError
+    }
+    elseif ($warn -gt 0) {
+        $accent = $Script:Theme.AccentWarning
+    }
+    else {
+        $accent = $Script:Theme.AccentSuccess
+    }
+    $statusLabel = Format-IssueCountLabelHC -Errors $err -Warnings $warn
+
+    # Extract & encode row values
+    $idFull = Get-StringOrDefaultHC $MatrixItem.ID 'N/A'
+    $idShort = if ($idFull.Length -gt 9) {
+        "$($idFull.Substring(0, 3))...$($idFull.Substring($idFull.Length - 3))"
+    }
+    else { $idFull }
+    $idShortHtml = [System.Net.WebUtility]::HtmlEncode($idShort)
+    $idFullHtml = [System.Net.WebUtility]::HtmlEncode($idFull)
+
+    $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
+    $path = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Path ''))
+    $action = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Action ''))
+
+    $dur = if ($MatrixItem.JobTime.Duration) {
+        '{0:00}:{1:00}:{2:00}' -f $MatrixItem.JobTime.Duration.Hours, $MatrixItem.JobTime.Duration.Minutes, $MatrixItem.JobTime.Duration.Seconds
+    }
+    else { 'N/A' }
+
+    # Optional metadata — only shown if present on the matrix item
+    $groupName = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.GroupName ''))
+    $siteCode = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.SiteCode ''))
+    $applyDefaultVal = $MatrixItem.Setting.Formatted.ApplyDefaultPermissions
+    $applyDefaultStr = if ($null -ne $applyDefaultVal -and $applyDefaultVal) { 'Yes' } else { 'No' }
+
+    $dotHtml = "<span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>"
+
+    # Helper: render a single metadata cell with label above value.
+    # Used to build a 2-row × 3-pair grid rather than a 6-row × 2-column stack
+    # — much shorter vertically.
+    function New-MetaCellHtml {
+        param(
+            [string]$Label,
+            [string]$Value,
+            [bool]$Mono = $false,
+            [string]$TitleAttr = ''
+        )
+        $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
+        $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
+        return "<td valign='middle'$titleHtml style='padding:3px 28px 3px 0; white-space:nowrap;'><div style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:1px;'>$Label</div><div style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</div></td>"
+    }
+
+    # Two-row compact metadata layout — both rows use inline "LABEL: value"
+    # styling for consistency. Column positions are reserved (with &nbsp;
+    # fallbacks for missing optional fields) so cells align vertically
+    # across the two rows.
+    #   Row 1: ACTION: x   DURATION: x   ID: x
+    #   Row 2: GROUP:  x   SITE:     x   APPLY DEFAULTS: x
+
+    # Helper for inline "LABEL: value" cells. Used by both rows.
+    function New-InlineMetaCellHtml {
+        param(
+            [string]$Label,
+            [string]$Value,
+            [bool]$Mono = $false,
+            [string]$TitleAttr = ''
+        )
+        $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
+        $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
+        $labelHtml = "<span style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-right:6px;'>$Label`:</span>"
+        $valueHtml = "<span$titleHtml style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</span>"
+        return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$labelHtml$valueHtml</td>"
+    }
+
+    $row1Cells = @(
+        (New-InlineMetaCellHtml -Label 'Action' -Value $action)
+        (New-InlineMetaCellHtml -Label 'Duration' -Value $dur -Mono $true)
+        (New-InlineMetaCellHtml -Label 'ID' -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
+    )
+    $row2Cells = @(
+        $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
+        $(if ($siteCode) { New-InlineMetaCellHtml -Label 'Site' -Value $siteCode } else { '<td>&nbsp;</td>' })
+        (New-InlineMetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
+    )
+
+    $metadataTable = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'>" +
+    "<tr>$($row1Cells -join '')</tr>" +
+    "<tr>$($row2Cells -join '')</tr>" +
+    '</table>'
+
+    # Three-column horizontal header — no visible dividers, just consistent
+    # padding. Dot cell has 10px whitespace on each side (width=30, left
+    # padding=10, dot=10) so the text after the dot starts close to it.
+    # Metadata column width=460 comfortably holds 3 nowrap cells in 2 rows.
+    $headerBlock = @"
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+    <tr>
+        <td valign='middle' width='30' style='padding:14px 0 14px 10px;'>$dotHtml</td>
+        <td valign='middle' style='padding:14px 16px 14px 0;'>
+            <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp</div>
+            <div style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
+        </td>
+        <td valign='middle' width='460' style='padding:12px 16px;'>
+            $metadataTable
+        </td>
+        <td valign='middle' align='right' width='110' style='padding:14px 16px 14px 10px; white-space:nowrap;'>
+            <span style="font-size:11px; font-weight:700; color:$accent; text-transform:uppercase; letter-spacing:0.5px;">$statusLabel</span>
+        </td>
+    </tr>
+</table>
+"@
+
+    $borderStyle = "border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent;"
+
+    # ---------- COMPACT MODE: success rows ----------
+    if (-not $hasChecks) {
+        $cardHtml = @"
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden;">
+    <tr><td style='padding:0;'>$headerBlock</td></tr>
+</table>
+"@
+        # Wrap with 16px horizontal inset to align with File Issues rows
+        return @"
+<tr>
+    <td style='padding:0 16px 12px 16px;'>$cardHtml</td>
+</tr>
+"@
+    }
+
+    # ---------- FULL MODE: rows with errors/warnings ----------
+    $checkRows = ''
+    foreach ($c in $MatrixItem.Check) {
+        $tt = Get-CheckThemeHC $c.Type
+        $name = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $c.Name 'Unnamed check'))
+        $desc = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $c.Description ''))
+
+        if (-not [string]::IsNullOrWhiteSpace($c.JsonFileName)) {
+            $nameHtml = "<a href='$([System.Net.WebUtility]::HtmlEncode($c.JsonFileName))' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
+        }
+        else {
+            $nameHtml = $name
+        }
+
+        $pillHtml = New-PillHtmlHC -Text $tt.Label -Bg $tt.Accent
+
+        $checkRows += @"
+<tr>
+    <td style='padding:0 0 8px 0;'>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($tt.Bg); border-left:3px solid $($tt.BorderLeft); border-radius:6px;">
+            <tr>
+                <td valign='middle' width='36' style='padding:12px 0 12px 12px; text-align:left; color:$($tt.Accent); font-size:18px; font-weight:bold; line-height:1;'>$($tt.Symbol)</td>
+                <td valign='middle' style='padding:12px 12px 12px 0;'>
+                    <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:4px;'>$nameHtml</div>
+                    <div style='font-size:13px; color:$($Script:Theme.TextMuted); line-height:1.55;'>$desc</div>
+                </td>
+                <td valign='middle' align='right' width='110' style='padding:12px 14px 12px 8px; white-space:nowrap;'>$pillHtml</td>
+            </tr>
+        </table>
+    </td>
+</tr>
+"@
+    }
+
+    $cardHtml = @"
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <tr><td style='padding:0; border-bottom:1px solid $($Script:Theme.BorderLight);'>$headerBlock</td></tr>
+    <tr>
+        <td style='padding:14px 18px 8px 18px;'>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+                $checkRows
+            </table>
+        </td>
+    </tr>
+</table>
+"@
+
+    # Wrap with 16px horizontal inset to align with File Issues rows
+    return @"
+<tr>
+    <td style='padding:0 16px 12px 16px;'>$cardHtml</td>
+</tr>
+"@
+}
+
+function New-HtmlCheckRowHC {
+    param([object]$CheckItem)
+    # Simple two-cell row, kept minimal — used (if at all) by ad-hoc consumers.
+    $cls = Get-HtmlClassProbTypeHC $CheckItem.Type
+    $name = [System.Net.WebUtility]::HtmlEncode($CheckItem.Name)
+    $desc = [System.Net.WebUtility]::HtmlEncode($CheckItem.Description)
+    return "<tr class='$cls'><td style='padding:8px 6px; font-weight:600;'>$name</td><td style='padding:8px 6px;'>$desc</td></tr>"
+}
+
+function New-HtmlSectionHC {
+    param([string]$Title, [array]$Checks)
+    # Build a flat section using the new file-level check row style.
+    $out = ''
+    if (-not [string]::IsNullOrWhiteSpace($Title)) {
+        $out += "<tr><td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$([System.Net.WebUtility]::HtmlEncode($Title))</td></tr>"
+    }
+    foreach ($c in $Checks) {
+        $out += Build-FileLevelCheckRowHC -Check $c -SheetLabel $Title
+    }
+    return $out
+}
+
+function New-SettingsCardHtmlHC {
+    param(
+        [Parameter(Mandatory)][object]$MatrixItem,
+        [Parameter()][bool]$FileHasFatalError = $false
+    )
+    return Build-MatrixDetailCardHC -MatrixItem $MatrixItem
+}
+
+function New-SettingsOverviewHtmlHC {
+    param([array]$MatrixRows, [hashtable]$Html)
+    # No-op in the new layout — overview is now embedded in each file card.
+    return ''
+}
+
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
     param(
@@ -1109,214 +1337,6 @@ $detailsCss
 
     $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
     $reportHtml | Out-File -FilePath $logFilePath -Encoding UTF8 -Force
-}
-
-function Build-MatrixDetailCardHC {
-    param([object]$MatrixItem)
-
-    # Determine card status
-    $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
-    $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
-    $hasChecks = ($err + $warn) -gt 0
-
-    if ($err -gt 0) {
-        $accent = $Script:Theme.AccentError
-    }
-    elseif ($warn -gt 0) {
-        $accent = $Script:Theme.AccentWarning
-    }
-    else {
-        $accent = $Script:Theme.AccentSuccess
-    }
-    $statusLabel = Format-IssueCountLabelHC -Errors $err -Warnings $warn
-
-    # Extract & encode row values
-    $idFull = Get-StringOrDefaultHC $MatrixItem.ID 'N/A'
-    $idShort = if ($idFull.Length -gt 9) {
-        "$($idFull.Substring(0, 3))...$($idFull.Substring($idFull.Length - 3))"
-    }
-    else { $idFull }
-    $idShortHtml = [System.Net.WebUtility]::HtmlEncode($idShort)
-    $idFullHtml = [System.Net.WebUtility]::HtmlEncode($idFull)
-
-    $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
-    $path = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Path ''))
-    $action = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Action ''))
-
-    $dur = if ($MatrixItem.JobTime.Duration) {
-        '{0:00}:{1:00}:{2:00}' -f $MatrixItem.JobTime.Duration.Hours, $MatrixItem.JobTime.Duration.Minutes, $MatrixItem.JobTime.Duration.Seconds
-    }
-    else { 'N/A' }
-
-    # Optional metadata — only shown if present on the matrix item
-    $groupName = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.GroupName ''))
-    $siteCode = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.SiteCode ''))
-    $applyDefaultVal = $MatrixItem.Setting.Formatted.ApplyDefaultPermissions
-    $applyDefaultStr = if ($null -ne $applyDefaultVal -and $applyDefaultVal) { 'Yes' } else { 'No' }
-
-    $dotHtml = "<span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>"
-
-    # Helper: render a single metadata cell with label above value.
-    # Used to build a 2-row × 3-pair grid rather than a 6-row × 2-column stack
-    # — much shorter vertically.
-    function New-MetaCellHtml {
-        param(
-            [string]$Label,
-            [string]$Value,
-            [bool]$Mono = $false,
-            [string]$TitleAttr = ''
-        )
-        $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
-        $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
-        return "<td valign='middle'$titleHtml style='padding:3px 28px 3px 0; white-space:nowrap;'><div style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:1px;'>$Label</div><div style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</div></td>"
-    }
-
-    # Build a 2-row × 3-cell grid. Anchors stay fixed for consistent scanning:
-    # Row 1: Action | Duration | ID  (the operational essentials)
-    # Row 2: Group  | Site     | Apply Defaults  (configuration context)
-    # If Group or Site is missing, the cell falls back to a non-breaking
-    # space so column positions stay stable across rows.
-    $row1Cells = @(
-        (New-MetaCellHtml -Label 'Action' -Value $action)
-        (New-MetaCellHtml -Label 'Duration' -Value $dur -Mono $true)
-        (New-MetaCellHtml -Label 'ID' -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
-    )
-    $row2Cells = @(
-        $(if ($groupName) { New-MetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
-        $(if ($siteCode) { New-MetaCellHtml -Label 'Site' -Value $siteCode } else { '<td>&nbsp;</td>' })
-        (New-MetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
-    )
-
-    $metadataTable = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'><tr>$($row1Cells -join '')</tr><tr>$($row2Cells -join '')</tr></table>"
-
-    # Three-column horizontal header — no visible dividers, just consistent
-    # padding. Dot cell has 10px whitespace on each side (width=30, left
-    # padding=10, dot=10) so the text after the dot starts close to it.
-    # Metadata column width=460 comfortably holds 3 nowrap cells in 2 rows.
-    $headerBlock = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-    <tr>
-        <td valign='middle' width='30' style='padding:14px 0 14px 10px;'>$dotHtml</td>
-        <td valign='middle' style='padding:14px 16px 14px 0;'>
-            <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp</div>
-            <div style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
-        </td>
-        <td valign='middle' width='460' style='padding:12px 16px;'>
-            $metadataTable
-        </td>
-        <td valign='middle' align='right' width='110' style='padding:14px 16px 14px 10px; white-space:nowrap;'>
-            <span style="font-size:11px; font-weight:700; color:$accent; text-transform:uppercase; letter-spacing:0.5px;">$statusLabel</span>
-        </td>
-    </tr>
-</table>
-"@
-
-    $borderStyle = "border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent;"
-
-    # ---------- COMPACT MODE: success rows ----------
-    if (-not $hasChecks) {
-        $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden;">
-    <tr><td style='padding:0;'>$headerBlock</td></tr>
-</table>
-"@
-        # Wrap with 16px horizontal inset to align with File Issues rows
-        return @"
-<tr>
-    <td style='padding:0 16px 12px 16px;'>$cardHtml</td>
-</tr>
-"@
-    }
-
-    # ---------- FULL MODE: rows with errors/warnings ----------
-    $checkRows = ''
-    foreach ($c in $MatrixItem.Check) {
-        $tt = Get-CheckThemeHC $c.Type
-        $name = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $c.Name 'Unnamed check'))
-        $desc = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $c.Description ''))
-
-        if (-not [string]::IsNullOrWhiteSpace($c.JsonFileName)) {
-            $nameHtml = "<a href='$([System.Net.WebUtility]::HtmlEncode($c.JsonFileName))' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
-        }
-        else {
-            $nameHtml = $name
-        }
-
-        $pillHtml = New-PillHtmlHC -Text $tt.Label -Bg $tt.Accent
-
-        $checkRows += @"
-<tr>
-    <td style='padding:0 0 8px 0;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($tt.Bg); border-left:3px solid $($tt.BorderLeft); border-radius:6px;">
-            <tr>
-                <td valign='middle' width='36' style='padding:12px 0 12px 12px; text-align:left; color:$($tt.Accent); font-size:18px; font-weight:bold; line-height:1;'>$($tt.Symbol)</td>
-                <td valign='middle' style='padding:12px 12px 12px 0;'>
-                    <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:4px;'>$nameHtml</div>
-                    <div style='font-size:13px; color:$($Script:Theme.TextMuted); line-height:1.55;'>$desc</div>
-                </td>
-                <td valign='middle' align='right' width='110' style='padding:12px 14px 12px 8px; white-space:nowrap;'>$pillHtml</td>
-            </tr>
-        </table>
-    </td>
-</tr>
-"@
-    }
-
-    $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); $borderStyle border-radius:8px; overflow:hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-    <tr><td style='padding:0; border-bottom:1px solid $($Script:Theme.BorderLight);'>$headerBlock</td></tr>
-    <tr>
-        <td style='padding:14px 18px 8px 18px;'>
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-                $checkRows
-            </table>
-        </td>
-    </tr>
-</table>
-"@
-
-    # Wrap with 16px horizontal inset to align with File Issues rows
-    return @"
-<tr>
-    <td style='padding:0 16px 12px 16px;'>$cardHtml</td>
-</tr>
-"@
-}
-
-function New-HtmlCheckRowHC {
-    param([object]$CheckItem)
-    # Simple two-cell row, kept minimal — used (if at all) by ad-hoc consumers.
-    $cls = Get-HtmlClassProbTypeHC $CheckItem.Type
-    $name = [System.Net.WebUtility]::HtmlEncode($CheckItem.Name)
-    $desc = [System.Net.WebUtility]::HtmlEncode($CheckItem.Description)
-    return "<tr class='$cls'><td style='padding:8px 6px; font-weight:600;'>$name</td><td style='padding:8px 6px;'>$desc</td></tr>"
-}
-
-function New-HtmlSectionHC {
-    param([string]$Title, [array]$Checks)
-    # Build a flat section using the new file-level check row style.
-    $out = ''
-    if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $out += "<tr><td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$([System.Net.WebUtility]::HtmlEncode($Title))</td></tr>"
-    }
-    foreach ($c in $Checks) {
-        $out += Build-FileLevelCheckRowHC -Check $c -SheetLabel $Title
-    }
-    return $out
-}
-
-function New-SettingsCardHtmlHC {
-    param(
-        [Parameter(Mandatory)][object]$MatrixItem,
-        [Parameter()][bool]$FileHasFatalError = $false
-    )
-    return Build-MatrixDetailCardHC -MatrixItem $MatrixItem
-}
-
-function New-SettingsOverviewHtmlHC {
-    param([array]$MatrixRows, [hashtable]$Html)
-    # No-op in the new layout — overview is now embedded in each file card.
-    return ''
 }
 
 function Write-MatrixSettingLogHC {
