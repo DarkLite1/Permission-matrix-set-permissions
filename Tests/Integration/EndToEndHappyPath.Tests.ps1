@@ -229,6 +229,120 @@ Describe 'Permission Matrix - End to End' {
         Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT"
     }
 
+    It 'works the same way under parallel execution' -Skip:(-not $E2EPrereqsMet) {
+        # -------------------------------------------------------------------
+        # Same happy-path scenario as the sequential test, but with
+        # MaxConcurrent values that force real parallelism in BeginHC.
+        # This catches regressions where runspace-boundary changes break
+        # the pipeline (lost mocks, mis-scoped variables, race conditions
+        # on shared state, missing module imports inside child runspaces).
+        #
+        # The three knobs:
+        #   Computers              — parallelism across remote computers
+        #   FoldersPerMatrix       — parallelism within a matrix's folders
+        #   JobsPerRemoteComputer  — parallel jobs per remote machine
+        # Values >1 are required; values >=3 force the parallel code paths
+        # even with our small single-matrix fixture.
+        # -------------------------------------------------------------------
+        $rootFolder = Join-Path $TestDrive 'Target'
+        $matrixDir = (New-Item 'TestDrive:\Matrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Test-Group'
+                Action                  = 'New'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+
+        # The only meaningful difference from the sequential test:
+        # crank the concurrency knobs to force runspace-based parallelism.
+        $configFixture.MaxConcurrent.Computers = 10
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 3
+        $configFixture.MaxConcurrent.JobsPerRemoteComputer = 3
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Operations\UpdateServiceNow.ps1"
+        }
+
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $TestGroupBobSid } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $TestGroupMikeSid } }
+            )
+        }
+
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        # -------------------------------------------------------------------
+        # Same assertions as the sequential test. If parallel execution
+        # breaks the pipeline, we expect to see it here as either fatal
+        # errors, a missing mail send, or ACLs that never landed on disk.
+        # -------------------------------------------------------------------
+        $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
+        $fatals.Count | Should -Be 0 -Because (
+            "expected no fatal errors under parallel execution but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
+
+        $financeFolder = Join-Path $rootFolder 'Finance'
+        $docsFolder = Join-Path $rootFolder 'Finance\Docs'
+
+        Test-Path -LiteralPath $financeFolder -PathType Container |
+        Should -BeTrue -Because 'Action=New should have created Finance under parallel execution'
+        Test-Path -LiteralPath $docsFolder -PathType Container |
+        Should -BeTrue -Because 'Action=New should have created Finance\Docs under parallel execution'
+
+        $financeAcl = (Get-Acl -LiteralPath $financeFolder).Access
+        $docsAcl = (Get-Acl -LiteralPath $docsFolder).Access
+
+        $bobNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")).Value
+        $mikeNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupMike")).Value
+
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
+        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $bobNT under parallel execution"
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
+        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $mikeNT under parallel execution"
+
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
+        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT under parallel execution"
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
+        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT under parallel execution"
+    }
+
     It 'reports clear prerequisites when the environment is not set up' -Skip:$E2EPrereqsMet {
         # This test only runs when prerequisites are NOT met. It surfaces
         # the missing prerequisite as an actionable failure message so the
