@@ -1045,9 +1045,6 @@ function Build-MatrixDetailCardHC {
         <td valign='middle' width='460' style='padding:12px 16px;'>
             $metadataTable
         </td>
-        <td valign='middle' align='right' width='110' style='padding:14px 16px 14px 10px; white-space:nowrap;'>
-            <span style="font-size:11px; font-weight:700; color:$accent; text-transform:uppercase; letter-spacing:0.5px;">$statusLabel</span>
-        </td>
     </tr>
 </table>
 "@
