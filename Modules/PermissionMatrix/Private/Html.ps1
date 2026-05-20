@@ -904,17 +904,23 @@ function Build-ExecutionDetailsBlockHC {
 "@
     }
 
+    # Quiet metadata footer. No heading — the content (file paths, timestamps)
+    # is self-evident, and a thin horizontal separator above the panel is
+    # enough to mark it as a distinct section. The panel spans the full
+    # outer-table width (matching the Execution Report header bar at the
+    # top of the page)
     return @"
-<details style='margin:32px 0 0 0;' open>
-    <summary style='cursor:pointer; padding:12px 16px; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:8px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase; list-style:none; user-select:none;'>
-        Execution details
-    </summary>
-    <div style='padding:12px 16px 4px 16px; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-top:none; border-radius:0 0 8px 8px; margin-top:-1px;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-            $rowsHtml
-        </table>
-    </div>
-</details>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin-top:32px;">
+    <tr>
+        <td style='padding:0;'>
+            <div style='padding:14px 18px 8px 18px; background-color:$($Script:Theme.BgAlt); border-radius:8px;'>
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+                    $rowsHtml
+                </table>
+            </div>
+        </td>
+    </tr>
+</table>
 "@
 }
 
