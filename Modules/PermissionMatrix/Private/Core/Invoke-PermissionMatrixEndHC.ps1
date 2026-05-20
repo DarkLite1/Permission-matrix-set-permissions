@@ -359,6 +359,9 @@ function Invoke-PermissionMatrixEndHC {
                 }
             }
 
+            <# 
+            start (ls $emailLogFolder)[1].FullName
+            #>
             Send-MailKitMessageHC @mailParams
         }
         catch {

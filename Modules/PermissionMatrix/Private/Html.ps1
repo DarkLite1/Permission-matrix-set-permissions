@@ -555,16 +555,16 @@ function Build-SettingsRowHC {
         </a>
     </td>
     <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; white-space:nowrap;'>
-        <a href='$link' style='text-decoration:none; color:inherit;'>$comp</a>
+        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$comp</a>
     </td>
     <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:nowrap; overflow:hidden;'$pathTitle>
-        <a href='$link' style='text-decoration:none; color:inherit;'>$pathDisp</a>
+        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$pathDisp</a>
     </td>
     <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-size:11px; color:$($Script:Theme.TextLight); white-space:nowrap;'>
-        <a href='$link' style='text-decoration:none; color:inherit;'>$action</a>
+        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$action</a>
     </td>
     <td valign='middle' align='right' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextLight); white-space:nowrap;'>
-        <a href='$link' style='text-decoration:none; color:inherit;'>$dur</a>
+        <a href='$link' target='_blank' rel='noopener noreferrer'  style='text-decoration:none; color:inherit;'>$dur</a>
     </td>
     <td valign='middle' align='right' style='padding:9px 12px 9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); border-right:1px solid $($Script:Theme.BorderLight); border-top-right-radius:6px; border-bottom-right-radius:6px; white-space:nowrap;'>
         <a href='$link' target='_blank' rel='noopener noreferrer'  style='text-decoration:none; color:inherit;'>$pillHtml</a>
@@ -858,7 +858,7 @@ function Build-ExecutionDetailsBlockHC {
         $urlHtml = [System.Net.WebUtility]::HtmlEncode(
             (ConvertTo-FileUrlHC $Path)
         )
-        return "<a href=`"$urlHtml`" style=`"color:$($Script:Theme.LinkColor); text-decoration:none;`">$displayHtml</a>"
+        return "<a href=`"$urlHtml`" target='_blank' rel='noopener noreferrer'  style=`"color:$($Script:Theme.LinkColor); text-decoration:none;`">$displayHtml</a>"
     }
 
     # Gather values (any missing/empty values are simply skipped)
@@ -1236,7 +1236,7 @@ function Build-MatrixDetailCardHC {
         $desc = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $c.Description ''))
 
         if (-not [string]::IsNullOrWhiteSpace($c.JsonFileName)) {
-            $nameHtml = "<a href='$([System.Net.WebUtility]::HtmlEncode($c.JsonFileName))' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
+            $nameHtml = "<a href='$([System.Net.WebUtility]::HtmlEncode($c.JsonFileName))' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
         }
         else {
             $nameHtml = $name
@@ -1464,8 +1464,8 @@ table tbody tr:hover td a { color: #004e2b; }
 <tr>
     <td>$([System.Net.WebUtility]::HtmlEncode($_.MatrixCategoryName))</td>
     <td>$([System.Net.WebUtility]::HtmlEncode($_.MatrixSubCategoryName))</td>
-    <td><a href="$($_.MatrixFolderDisplayName)">$([System.Net.WebUtility]::HtmlEncode($_.MatrixFolderDisplayName))</a></td>
-    <td><a href="$($_.MatrixFilePath)">$([System.Net.WebUtility]::HtmlEncode($_.MatrixFileName))</a></td>
+    <td><a href="$($_.MatrixFolderDisplayName)" target='_blank' rel='noopener noreferrer' >$([System.Net.WebUtility]::HtmlEncode($_.MatrixFolderDisplayName))</a></td>
+    <td><a href="$($_.MatrixFilePath)" target='_blank' rel='noopener noreferrer' >$([System.Net.WebUtility]::HtmlEncode($_.MatrixFileName))</a></td>
     <td>$($emailLinks -join ' ')</td>
 </tr>
 "@
