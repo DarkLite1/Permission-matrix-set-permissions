@@ -22,7 +22,7 @@ function Cleanup-OldLogsHC {
                 Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
             }
             catch {
-                Add-ErrorByCategoryHC `
+                Add-ErrorHC `
                     -Type 'Warning' `
                     -Name 'LogCleanupFailedFile' `
                     -Message "Failed to delete log file '$($_.FullName)': $_" `
@@ -40,7 +40,7 @@ function Cleanup-OldLogsHC {
                     Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
                 }
                 catch {
-                    Add-ErrorByCategoryHC `
+                    Add-ErrorHC `
                         -Type 'Warning' `
                         -Name 'LogCleanupFailedDirectory' `
                         -Message "Failed to remove empty folder '$($_.FullName)': $_" `
@@ -51,7 +51,7 @@ function Cleanup-OldLogsHC {
         }
     }
     catch {
-        Add-ErrorByCategoryHC `
+        Add-ErrorHC `
             -Type 'Warning' `
             -Name 'LogCleanupFailedGeneral' `
             -Message "General log cleanup failure: $_" `
@@ -172,7 +172,7 @@ function Remove-FileHC {
     }
     catch {
         if ($SystemErrors) {
-            Add-ErrorByCategoryHC `
+            Add-ErrorHC `
                 -Type 'Warning' `
                 -Name 'RemoveFileFailed' `
                 -Message "Failed to remove '$FilePath': $_" `
@@ -240,7 +240,7 @@ function Write-EventLogSafe {
             -Events $EventLogData
     }
     catch {
-        Add-ErrorByCategoryHC `
+        Add-ErrorHC `
             -Type 'Warning' `
             -Name 'EventLogWriteFailed' `
             -Message "Failed writing to event log: $_" `
