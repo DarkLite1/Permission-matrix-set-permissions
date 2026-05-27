@@ -169,7 +169,7 @@ function Get-DatedLogFolderPathHC {
     param(
         [Parameter(Mandatory)][string]$LogFolder,
         [Parameter(Mandatory)][datetime]$ScriptStartTime,
-        [Parameter(Mandatory)][object]$JsonFile
+        [Parameter(Mandatory)][string]$JsonFileName
     )
 
     try {
@@ -181,7 +181,7 @@ function Get-DatedLogFolderPathHC {
             $ScriptStartTime.Hour,
             $ScriptStartTime.Minute,
             $ScriptStartTime.Second,
-            $JsonFile
+            $JsonFileName
         )
 
         return (New-Item -ItemType 'Directory' -Path $datedLogFolder -Force -EA Stop).FullName

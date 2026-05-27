@@ -8,7 +8,7 @@ function Write-SystemErrorLogHC {
         [Parameter(Mandatory)][string]$LogFolder,
         [Parameter(Mandatory)][ref]$MailParams,
         [datetime]$ScriptStartTime = (Get-Date),
-        [object]$JsonFileItem = @{ BaseName = 'MatrixConfig' }
+        [string]$JsonFileName = 'MatrixConfig' 
     )
 
     if ($SystemErrors.Count -eq 0) { return }
@@ -17,7 +17,7 @@ function Write-SystemErrorLogHC {
     $datedFolder = Get-DatedLogFolderPathHC `
         -LogFolder $LogFolder `
         -ScriptStartTime $ScriptStartTime `
-        -JsonFile $JsonFileItem
+        -JsonFileName $JsonFileName
 
     $partial = Join-Path $datedFolder 'SystemErrors'
 

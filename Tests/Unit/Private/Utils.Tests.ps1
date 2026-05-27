@@ -88,7 +88,7 @@ Describe 'Utils.ps1 - Shared Utility Functions' {
             $result = Get-DatedLogFolderPathHC `
                 -LogFolder $folder `
                 -ScriptStartTime (Get-Date '2020-01-01T12:00:00') `
-                -JsonFile @{ BaseName = 'MyConfig' }
+                -JsonFileName 'MyConfig'
 
             Test-Path $result | Should -BeTrue
         }

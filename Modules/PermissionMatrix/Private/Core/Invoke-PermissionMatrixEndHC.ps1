@@ -100,7 +100,7 @@ function Invoke-PermissionMatrixEndHC {
             Get-DatedLogFolderPathHC `
                 -LogFolder $logFolder `
                 -ScriptStartTime $Context.StartTime `
-                -JsonFile $Context.JsonFileName
+                -JsonFileName $Context.JsonFileName
         }
         
         try {
@@ -214,10 +214,15 @@ function Invoke-PermissionMatrixEndHC {
             }
             
             if ($SystemErrors.Value.Count -gt 0) {
+                <# 
+                ls TestDrive:\Logs\  
+                #>
+
                 Write-SystemErrorLogHC `
                     -SystemErrors $SystemErrors.Value `
                     -LogFolder $logFolder `
                     -MailParams ([ref]@{Attachments = $sysErrAttachments }) `
+                    -JsonFileName $Context.JsonFileName `
                     -ScriptStartTime $Context.StartTime
             }
         }
