@@ -3,10 +3,10 @@
 
 Describe 'Invoke-WithOptionalParallelismHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$moduleRoot\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
+        . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
     }
 
     # =========================================================================
