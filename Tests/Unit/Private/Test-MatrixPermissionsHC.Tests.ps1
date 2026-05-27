@@ -80,8 +80,6 @@ Describe 'Test-MatrixPermissionsHC' {
     }
 
     Context 'Data-driven checks from Get-MatrixPermissionsFixtures' {
-        # Each fixture row: @{ Issue; Mutation; Expected }
-        # 'Expected' is the check Name the function should emit.
         It 'flags <Issue> with check name <Expected>' -ForEach $PermissionFixtures {
 
             # The fixture 'Mutation' strings map 1:1 to a scenario name in
