@@ -17,7 +17,7 @@ function Write-SystemErrorLogHC {
     $datedFolder = Get-DatedLogFolderPathHC `
         -LogFolder $LogFolder `
         -ScriptStartTime $ScriptStartTime `
-        -JsonFileItem $JsonFileItem
+        -JsonFile $JsonFileItem
 
     $partial = Join-Path $datedFolder 'SystemErrors'
 
