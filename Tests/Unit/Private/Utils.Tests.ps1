@@ -9,10 +9,10 @@ Describe 'Utils.ps1 - Shared Utility Functions' {
     }
 
 
-    Context 'Add-ErrorByCategoryHC' {
+    Context 'Add-ErrorHC' {
         It 'Adds properly formatted error objects' {
             $errors = @()
-            Add-ErrorByCategoryHC -Type 'FatalError' -Name 'X' -Message 'Y' -Category 'Test' -SystemErrors ([ref]$errors)
+            Add-ErrorHC -Type 'FatalError' -Name 'X' -Message 'Y' -Category 'Test' -SystemErrors ([ref]$errors)
 
             $errors.Count | Should -Be 1
             $errors[0].Type | Should -Be 'FatalError'
