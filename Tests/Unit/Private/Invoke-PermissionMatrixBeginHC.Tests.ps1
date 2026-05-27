@@ -3,7 +3,7 @@
 
 Describe 'Invoke-PermissionMatrixBeginHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
         . "$root\Tests\Helpers\Helpers.HC.ps1"
@@ -15,11 +15,11 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         . "$moduleRoot\Private\Validation.ps1"
         . "$moduleRoot\Private\Matrix.ps1"
         . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Validation\Validate-ConfigurationStructureHC.ps1"
-        . "$moduleRoot\Private\Matrix\Import-MatrixFileHC.ps1"
-        . "$moduleRoot\Private\Matrix\Import-MatrixDefaultsFileHC.ps1"
-        . "$moduleRoot\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
-        . "$moduleRoot\Private\Core\Invoke-PermissionMatrixBeginHC.ps1"
+        . "$moduleRoot\Private\Validate-ConfigurationStructureHC.ps1"
+        . "$moduleRoot\Private\Import-MatrixFileHC.ps1"
+        . "$moduleRoot\Private\Import-MatrixDefaultsFileHC.ps1"
+        . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
+        . "$moduleRoot\Private\Invoke-PermissionMatrixBeginHC.ps1"
 
         function New-FakeScriptPath {
             param([string]$Root = 'TestDrive:')
