@@ -147,36 +147,4 @@ Describe 'Core.ps1 - Parallel Check Engine' {
             $final[0].Settings[0].Check | Should -Contain 'EC'
         }
     }
-
-
-    Context 'Invoke-MatrixChecksHC - Full Flow' {
-        It 'Runs entire check pipeline' {
-
-            # Simple fake matrix input
-            $import = @(
-                [pscustomobject]@{
-                    File        = @{Item = @{Name = 'A.xlsx' }; LogFolder = 'X'; Check = @() }
-                    Permissions = @{Import = @('P'); Check = @() }
-                    FormData    = @{Import = @{X = 1 }; Check = @() }
-                    Settings    = @(
-                        [pscustomobject]@{Import = @{GroupName = 'G'; SiteCode = 'S' }; Matrix = @(); Check = @() }
-                    )
-                }
-            )
-
-            $result = Invoke-MatrixChecksHC `
-                -ImportedMatrix $import `
-                -DefaultAcl @{} `
-                -AdGroupPlaceHolders @() `
-                -Throttle 1
-
-            # Ensure pipeline executed
-            Should -Invoke Test-MatrixFileHC -Times 1
-            Should -Invoke Test-MatrixPermissionsHC -Times 1
-            Should -Invoke Test-MatrixFormDataHC -Times 1
-            Should -Invoke Test-MatrixSettingHC -Times 1
-            Should -Invoke Test-AdObjectsHC -Times 1
-            Should -Invoke Test-ExpandedMatrixHC -Times 1
-        }
-    }
 }

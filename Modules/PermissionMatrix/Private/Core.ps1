@@ -244,55 +244,5 @@ function Merge-CheckResultsHC {
     return $ImportedMatrix
 }
 
-function Invoke-MatrixChecksHC {
-    <#
-        High-level orchestrator function for all check logic.
-        Steps:
-            1. Convert to safe DTOs
-            2. Phase 1 parallel (no AD)
-            3. Single AD lookup
-            4. Phase 2 parallel (with AD)
-            5. Merge results
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [array]$ImportedMatrix,
-
-        [Parameter(Mandatory)]
-        $DefaultAcl,
-
-        [Parameter(Mandatory)]
-        [string[]]$AdGroupPlaceHolders,
-
-        [int]$Throttle = 8
-    )
-
-    # 1. Convert DTOs
-    $WorkItems = ConvertTo-WorkItemsHC -ImportedMatrix $ImportedMatrix
-
-    # 2. Phase 1 parallel
-    $Phase1 = Invoke-MatrixPhase1ParallelHC `
-        -WorkItems $WorkItems `
-        -Throttle $Throttle
-
-    # 3. Single AD lookup
-    $AllIDs = Get-AllAdIdentifiersHC -ImportedMatrix $ImportedMatrix
-    $AdInfo = Get-ADObjectDetailHC -ADObjectName $AllIDs -Type SamAccountName
-
-    # 4. Phase 2 parallel
-    $Phase2 = Invoke-MatrixPhase2ParallelHC `
-        -WorkItems $Phase1 `
-        -AdInfo $AdInfo `
-        -DefaultAcl $DefaultAcl `
-        -AdGroupPlaceHolders $AdGroupPlaceHolders `
-        -Throttle $Throttle
-
-    # 5. Merge
-    return Merge-CheckResultsHC `
-        -ImportedMatrix $ImportedMatrix `
-        -Phase1 $Phase1 `
-        -Phase2 $Phase2
-}
 
 
