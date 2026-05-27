@@ -18,7 +18,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 [array]$FileResults = $null,
                 [hashtable]$ScriptPath = @{
                     TestRequirements = 'TestDrive:\TestReq.ps1'
-                    SetPermissionFile    = 'TestDrive:\SetPerm.ps1'
+                    SetPermissions   = 'TestDrive:\SetPerm.ps1'
                 },
                 [hashtable]$MaxConcurrent = @{
                     Computers        = 10
@@ -273,7 +273,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
     }
 
     Context 'Set Permissions phase' {
-        It 'calls SetPermissionFile for matrices that passed requirements with all expected arguments' {
+        It 'calls SetPermissions for matrices that passed requirements with all expected arguments' {
             $matrixContent = @(
                 [PSCustomObject]@{ Path = 'C:\Data\Sub1'; ACL = @{ 'user1' = 'R' } }
                 [PSCustomObject]@{ Path = 'C:\Data\Sub2'; ACL = @{ 'user2' = 'M' } }
