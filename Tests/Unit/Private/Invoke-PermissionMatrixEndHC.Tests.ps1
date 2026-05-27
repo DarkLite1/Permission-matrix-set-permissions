@@ -3,17 +3,15 @@
 
 Describe 'Invoke-PermissionMatrixEndHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
         . "$moduleRoot\Private\Utils.ps1"
         . "$moduleRoot\Private\Html.ps1"
         . "$moduleRoot\Private\Mail.ps1"
         . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Logging\Write-EventLogSafe.ps1"
-        . "$moduleRoot\Private\Logging\Cleanup-OldLogsHC.ps1"
-        . "$moduleRoot\Private\Logging\Write-SystemErrorLogHC.ps1"
-        . "$moduleRoot\Private\Core\Invoke-PermissionMatrixEndHC.ps1"
+        . "$moduleRoot\Private\Logging.ps1"
+        . "$moduleRoot\Private\Invoke-PermissionMatrixEndHC.ps1"
 
         function New-EndContext {
             param(
