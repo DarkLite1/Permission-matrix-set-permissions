@@ -3,13 +3,12 @@
 Describe 'Validation.ps1 - Updated Validation Functions' {
 
     BeforeAll {
-        $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-        $val = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Validation.ps1'
-        $utils = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Utils.ps1'
-        . $utils
-        . $val
-    }
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
 
+        . "$moduleRoot\Private\Utils.ps1"
+        . "$moduleRoot\Private\Validation.ps1"
+    }
 
     #
     # Matrix-level validation
