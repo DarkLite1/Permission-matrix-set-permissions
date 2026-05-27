@@ -107,6 +107,18 @@ function Initialize-HtmlStructureHC {
         margin: 16px 0 20px 0;
     }
     table { border-collapse: collapse; }
+    /* Settings rows are fluid flex cards. On narrow reading panes the
+       identifier and metadata wrap below the status line instead of the
+       status pill clipping off the right edge. New Outlook / Outlook web
+       use a Chromium engine, so this media query applies as in a browser. */
+    @media (max-width: 520px) {
+        .rr-srow { flex-wrap: wrap; }
+        .rr-srow .rr-srow-ident { flex-basis: 100%; order: 3; }
+        .rr-srow .rr-srow-meta { flex-basis: 100%; order: 4; }
+        .rr-syscard { flex-wrap: wrap; }
+        .rr-syscard .rr-syscard-body { flex-basis: 100%; order: 3; }
+        .rr-check-row { flex-wrap: wrap; }
+    }
     /* Legacy classes preserved for any external consumer; the new
        email layout uses inline styles exclusively. */
     .probTypeError { background-color: $($Script:Theme.StatusError); }
@@ -405,18 +417,14 @@ function Build-SystemErrorsBlockHC {
         $rows += @"
 <tr>
     <td style='padding:0 0 8px 0;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
-            <tr>
-                <td valign='middle' width='26' style='padding:10px 0 10px 12px; color:$accentColor; font-size:16px; font-weight:bold; line-height:1; text-align:left;'>$glyph</td>
-                <td valign='middle' style='padding:10px 12px 10px 6px;'>
-                    <div style='margin-bottom:4px;'>
-                        $catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span>
-                    </div>
-                    <div style='color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.5; font-family:$($Script:Theme.MonoStack);'>$msg</div>
-                </td>
-                <td valign='middle' align='right' width='130' style='padding:10px 12px 10px 8px; width:130px; white-space:nowrap;'>$pill</td>
-            </tr>
-        </table>
+        <div class="rr-syscard" style="display:flex; align-items:center; gap:16px; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px; padding:10px 14px;">
+            <span style='flex:0 0 auto; color:$accentColor; font-size:16px; padding-right:6px; font-weight:bold; line-height:1;'>$glyph</span>
+            <span class="rr-syscard-body" style='flex:1 1 auto; min-width:0;'>
+                <span style='display:block; margin-bottom:4px;'>$catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span></span>
+                <span style='display:block; color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.5; font-family:$($Script:Theme.MonoStack); overflow-wrap:anywhere;'>$msg</span>
+            </span>
+            <span class="rr-syscard-status" style='flex:0 0 auto;'>$pill</span>
+        </div>
     </td>
 </tr>
 "@
@@ -431,7 +439,7 @@ function Build-SystemErrorsBlockHC {
     $headerLabel = 'System Issues (' + ($labelParts -join ', ') + ')'
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 20px 0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 20px 0; table-layout:fixed; width:100%; max-width:100%;">
     <tr>
         <td style='padding:0 0 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$headerLabel</td>
     </tr>
@@ -456,24 +464,19 @@ function Build-FileLevelCheckRowHC {
     $desc = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $Check.Description ''))
     $label = [System.Net.WebUtility]::HtmlEncode($SheetLabel)
 
-    # The inner card markup is identical in both modes — only the outer
-    # wrapper changes. Dot cell geometry (width=30, left padding=10, dot=10px)
-    # gives 10px whitespace on each side of the dot — balanced visually,
-    # and matches the Settings rows below for consistent vertical alignment.
+    # Fluid flex card mirroring the settings rows: accent dot, the text block
+    # which flexes and wraps on narrow panes, then the status pill on the right
+    # (flex:0 0 auto so it never clips — the text block absorbs overflow).
     $cardHtml = @"
-<table role="presentation" class="rr-check-row" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
-    <tr>
-        <td class="rr-icon-cell" valign='middle' width='30' style='padding:14px 0 14px 10px;'>
-            <span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>
-        </td>
-        <td class="rr-content-cell" valign='middle' style='padding:10px 8px 10px 0;'>
-            <div style='font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</div>
-            <div style='font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$name</div>
-            <div style='font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</div>
-        </td>
-        <td class="rr-check-pill" valign='middle' align='right' width='110' style='padding:10px 12px 10px 8px; width:110px; white-space:nowrap;'>$pillHtml</td>
-    </tr>
-</table>
+<div class="rr-check-row" style="display:flex; align-items:center; gap:16px; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px; padding:12px 14px;">
+    <span style='flex:0 0 auto; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>
+    <span style='flex:1 1 auto; min-width:0;'>
+        <span style='display:block; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</span>
+        <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$name</span>
+        <span style='display:block; font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</span>
+    </span>
+    <span style='flex:0 0 auto;'>$pillHtml</span>
+</div>
 "@
 
     if ($IncludeWrapper) {
@@ -518,9 +521,11 @@ function Build-SettingsRowHC {
     $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
 
     $pathRaw = Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.Path ''
-    $pathParts = Get-TruncatedPathHC -Path $pathRaw -MaxChars 48
-    $pathDisp = [System.Net.WebUtility]::HtmlEncode($pathParts[0])
-    $pathTitle = if ($pathParts[1]) {
+    # Show the full path — it sits on its own line and wraps via CSS
+    # (overflow-wrap:anywhere) instead of being truncated server-side, so long
+    # paths are fully visible rather than clipped by the viewport.
+    $pathDisp = [System.Net.WebUtility]::HtmlEncode($pathRaw)
+    $pathTitle = if ($pathRaw) {
         " title=`"$([System.Net.WebUtility]::HtmlEncode($pathRaw))`""
     }
     else { '' }
@@ -546,36 +551,34 @@ function Build-SettingsRowHC {
     }
     else { '&nbsp;' }
 
-    # Two rows: a transparent spacer for separation between cards, then the
-    # data row whose cells carry the card styling (left accent border, top/bottom
-    # borders, rounded outer corners). All cells share the parent table's column
-    # widths so every row aligns column-for-column.
+    # Fluid flex card. The status pill sits on the RIGHT, but unlike the old
+    # fixed-column table it can no longer clip: it is flex:0 0 auto (never
+    # shrinks) and the PATH is the flexible element that absorbs horizontal
+    # overflow via ellipsis. On very narrow panes the whole row wraps (see the
+    # .rr-srow @media rule in the stylesheet). New Outlook / Outlook-on-the-web
+    # render this with a modern Chromium engine, so flexbox and max-width
+    # behave as in a browser.
+    #
+    # $pillCell is empty (no pill) for clean rows; we omit the element entirely
+    # rather than reserving width, since flex handles alignment without it.
+    $pillCell = if ($pillHtml -and $pillHtml -ne '&nbsp;') {
+        "<span class='rr-srow-status' style='flex:0 0 auto; margin-left:6px;'>$pillHtml</span>"
+    }
+    else { '' }
+
     return @"
-<tr>
-    <td colspan='6' style='padding:0 0 8px 0; height:0; line-height:0; font-size:0;'>&nbsp;</td>
-</tr>
-<tr>
-    <td valign='middle' style='padding:9px 0 9px 12px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-top-left-radius:6px; border-bottom-left-radius:6px;'>
-        <a href='$link' style='text-decoration:none; color:inherit; display:block;'>
-            <span style='display:inline-block; width:8px; height:8px; background-color:$accent; border-radius:50%;'></span>
-        </a>
-    </td>
-    <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; white-space:nowrap;'>
-        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$comp</a>
-    </td>
-    <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:nowrap; overflow:hidden;'$pathTitle>
-        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$pathDisp</a>
-    </td>
-    <td valign='middle' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-size:11px; color:$($Script:Theme.TextLight); white-space:nowrap;'>
-        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>$action</a>
-    </td>
-    <td valign='middle' align='right' style='padding:9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextLight); white-space:nowrap;'>
-        <a href='$link' target='_blank' rel='noopener noreferrer'  style='text-decoration:none; color:inherit;'>$dur</a>
-    </td>
-    <td valign='middle' align='right' style='padding:9px 12px 9px 8px; background-color:$($Script:Theme.BgWhite); border-top:1px solid $($Script:Theme.BorderLight); border-bottom:1px solid $($Script:Theme.BorderLight); border-right:1px solid $($Script:Theme.BorderLight); border-top-right-radius:6px; border-bottom-right-radius:6px; white-space:nowrap;'>
-        <a href='$link' target='_blank' rel='noopener noreferrer'  style='text-decoration:none; color:inherit;'>$pillHtml</a>
-    </td>
-</tr>
+<a href='$link' target='_blank' rel='noopener noreferrer' class='rr-srow' style='display:flex; align-items:center; gap:16px; text-decoration:none; color:inherit; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px; padding:10px 14px; margin:0 0 8px 0;'>
+    <span style='flex:0 0 auto; width:8px; height:8px;  margin-right:6px;background-color:$accent; border-radius:50%;'></span>
+    <span class='rr-srow-ident' style='flex:1 1 auto; min-width:0;'>
+        <span style='display:block; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</span>
+        <span class='rr-srow-path' style='display:block; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</span>
+    </span>
+    <span class='rr-srow-meta' style='flex:0 0 auto; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+        <span style='margin-right:14px;'>$action</span>
+        <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
+    </span>
+    $pillCell
+</a>
 "@
 }
 
@@ -672,7 +675,7 @@ function Build-MatrixFileCardHC {
         }
     }
 
-    # Settings rows table — shared <colgroup> guarantees alignment across all rows
+    # Settings rows — each row is a self-contained fluid flex card
     if ($FileContext.Matrices -and $FileContext.Matrices.Count -gt 0) {
         $sortedMatrices = $FileContext.Matrices |
         Sort-Object { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
@@ -689,17 +692,7 @@ function Build-MatrixFileCardHC {
 </tr>
 <tr>
     <td style='padding:0 16px;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-            <colgroup>
-                <col style="width:22px;">
-                <col style="width:108px;">
-                <col>
-                <col style="width:60px;">
-                <col style="width:65px;">
-                <col style="width:100px;">
-            </colgroup>
-            $settingsRowsHtml
-        </table>
+        $settingsRowsHtml
     </td>
 </tr>
 "@
@@ -716,13 +709,13 @@ function Build-MatrixFileCardHC {
     }
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; margin:0 0 24px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; margin:0 0 24px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
     <tr>
         <td bgcolor="$gradTo" style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
-                    <td valign='middle' width='44' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
-                    <td valign='middle' style='padding:14px 10px;'>
+                    <td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
+                    <td valign='middle' style='padding:14px 10px 14px 4px;'>
                         <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
@@ -832,7 +825,7 @@ $($Html.Style)
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; background-color:$($Script:Theme.BgPage);">
     <tr>
         <td align="left" valign="top" style="padding:0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" style="border-collapse:collapse; width:${bodyWidth}px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:${bodyWidth}px;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
                 <tr><td style="padding:0;">$($Html.ErrorWarningTable)</td></tr>
