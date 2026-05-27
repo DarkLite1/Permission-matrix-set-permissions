@@ -10,10 +10,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         . "$moduleRoot\Private\Validation.ps1"
     }
 
-    #
-    # Matrix-level validation
-    #
-
     Context 'Test-MatrixFileHC' {
         It 'Warns for missing settings' {
             $M = @{ Settings = @(); Permissions = @('x') }
@@ -28,20 +24,17 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-
     Context 'Test-MatrixPermissionsHC' {
         It 'Errors when <4 rows' {
             (Test-MatrixPermissionsHC -Permissions @('a', 'b')).Type | Should -Be 'FatalError'
         }
     }
 
-
     Context 'Test-MatrixFormDataHC' {
         It 'Warns if FormData missing' {
             (Test-MatrixFormDataHC -FormData $null).Type | Should -Be 'Warning'
         }
     }
-
 
     Context 'Test-MatrixSettingRowHC' {
         It 'Validates missing properties' {
@@ -51,10 +44,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-
-    #
-    # AD validation
-    #
     Context 'Test-AdObjectsHC' {
         It 'Warns if AD object missing' {
             $res = Test-AdObjectsHC -ADObjects @('A', 'B') -AdInfo @('A')
@@ -62,10 +51,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-
-    #
-    # Expanded matrix validation
-    #
     Context 'Test-ExpandedMatrixHC' {
         It 'Warns for unknown ACL principals' {
             $mat = @(
@@ -83,10 +68,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-
-    #
-    # JSON Schema validation
-    #
     Context 'Validate-ConfigurationStructure' {
 
         It 'Calls Add-JsonSchemaErrorHC for missing required properties' {
@@ -109,10 +90,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-
-    #
-    # Runtime settings validation
-    #
     Context 'Validate-RuntimeSettings' {
 
         It 'Warns when ScriptName missing and adds default' {
