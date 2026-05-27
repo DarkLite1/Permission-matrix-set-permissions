@@ -43,10 +43,10 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
     }
 
 
-    Context 'Test-MatrixSettingHC' {
+    Context 'Test-MatrixSettingRowHC' {
         It 'Validates missing properties' {
             $S = @{ }
-            $r = Test-MatrixSettingHC -Setting $S
+            $r = Test-MatrixSettingRowHC -SettingRow $S
             $r.Type | Should -Contain 'FatalError'
         }
     }
