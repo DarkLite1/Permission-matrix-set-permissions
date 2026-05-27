@@ -28,7 +28,7 @@
 #>
 
 BeforeDiscovery {
-    . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
+    . "$PSScriptRoot/../../Helpers/Fixtures.Matrix.ps1"
 
     $script:PermissionFixtures = Get-MatrixPermissionsFixtures
 }
@@ -149,8 +149,13 @@ Describe 'Test-MatrixPermissionsHC' {
     }
 
     Context 'Error handling' {
-        It 'throws a descriptive error when handed an empty array' {
+        It 'rejects an empty array at parameter binding' {
             { Test-MatrixPermissionsHC -Permissions @() } |
+            Should -Throw -ExpectedMessage '*empty array*'
+        }
+ 
+        It 'wraps an internal failure in a descriptive error' {
+            { Test-MatrixPermissionsHC -Permissions @($null) } |
             Should -Throw -ExpectedMessage "*Failed testing the Excel sheet 'Permissions'*"
         }
     }
