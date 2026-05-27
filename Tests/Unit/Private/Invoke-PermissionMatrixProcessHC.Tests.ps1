@@ -3,13 +3,13 @@
 
 Describe 'Invoke-PermissionMatrixProcessHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\..\.."
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
         . "$root\Tests\Helpers\Helpers.HC.ps1"
         . "$moduleRoot\Private\Utils.ps1"
-        . "$moduleRoot\Private\Core\Invoke-PermissionMatrixProcessHC.ps1"
-        . "$moduleRoot\Private\Infrastructure\Invoke-WithOptionalParallelismHC.ps1"
+        . "$moduleRoot\Private\Invoke-PermissionMatrixProcessHC.ps1"
+        . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
         . "$moduleRoot\Private\Validation.ps1"
 
         function New-TestContext {
