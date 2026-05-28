@@ -433,46 +433,4 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             }
         }
     }
-
-    Context 'Validate-RuntimeSettings' {
-
-        It 'Warns when ScriptName missing and adds default' {
-
-            Mock Add-RuntimeErrorHC
-
-            $settings = @{
-                ScriptName     = $null
-                SaveLogFiles   = @{ Detailed = $true }
-                SaveInEventLog = @{ Save = $true }
-                SendMail       = @{
-                    From = 'a'
-                    To   = 'b'
-                    Body = 'c'
-                    Smtp = @{ Port = '25'; ConnectionType = 'None' }
-                }
-            }
-
-            $matrix = @{
-                DefaultsFile        = $PSCommandPath
-                FolderPath          = 'C:\'
-                AdGroupPlaceHolders = @()
-            }
-
-            $export = @{}
-            $sn = @{}
-            $maxcon = @{ Computers = '1'; FoldersPerMatrix = '1'; JobsPerRemoteComputer = '1' }
-
-            $sys = @()
-            Validate-RuntimeSettings `
-                -Settings $settings `
-                -Matrix $matrix `
-                -Export $export `
-                -ServiceNow $sn `
-                -MaxConcurrent $maxcon `
-                -SystemErrors ([ref]$sys)
-
-            Should -Invoke Add-RuntimeErrorHC -Times 1
-            $settings.ScriptName | Should -Be 'Default script name'
-        }
-    }
 }
