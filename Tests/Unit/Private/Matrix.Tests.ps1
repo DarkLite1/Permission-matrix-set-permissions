@@ -52,7 +52,6 @@ Describe 'Matrix Logic Tests' {
         $testInputTemplate | 
         ConvertTo-Json -Depth 20 | Set-Content $jsonFile.FullName
 
-        # Share objects for tests
         $script:TestJsonFile = $jsonFile
         $script:TestInput = $testInputTemplate
         $script:TestScript = $testScript
