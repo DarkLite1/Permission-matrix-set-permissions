@@ -1,4 +1,4 @@
-function New-HcError {
+function New-ValidationCheckHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Type,
@@ -31,7 +31,10 @@ function ConvertTo-StructuredObjectHC {
             if ($null -eq $obj) { continue }
 
             if ($obj -is [string]) {
-                New-HcError -Type 'Information' -Name 'Message' -Description $obj
+                New-ValidationCheckHC `
+                    -Type 'Information' `
+                    -Name 'Message' `
+                    -Description $obj
                 continue
             }
 
@@ -40,7 +43,10 @@ function ConvertTo-StructuredObjectHC {
                 continue
             }
 
-            New-HcError -Type 'Information' -Name 'UnknownObject' -Description "$obj"
+            New-ValidationCheckHC `
+                -Type 'Information' `
+                -Name 'UnknownObject' `
+                -Description "$obj"
         }
     }
 }
@@ -52,13 +58,16 @@ function Test-MatrixFileHC {
     $checks = @()
 
     if (-not $MatrixObject.Settings -or $MatrixObject.Settings.Count -eq 0) {
-        $checks += New-HcError -Type 'Warning' -Name 'Matrix disabled' `
+        $checks += New-ValidationCheckHC -Type 'Warning' -Name 'Matrix disabled' `
             -Description 'No Settings rows found.' -Category 'File'
     }
 
     if (-not $MatrixObject.Permissions -or $MatrixObject.Permissions.Count -eq 0) {
-        $checks += New-HcError -Type 'FatalError' -Name 'Missing Permissions sheet' `
-            -Description 'Permissions sheet missing or empty.' -Category 'File'
+        $checks += New-ValidationCheckHC `
+            -Type 'FatalError' `
+            -Name 'Missing Permissions sheet' `
+            -Description 'Permissions sheet missing or empty.' `
+            -Category 'File'
     }
 
     return $checks
@@ -95,22 +104,24 @@ function Test-MatrixPermissionsHC {
 
         #region Structural Validation (Fatal - Exits Immediately)
         if ($Permissions.Count -lt 4) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing rows'
-                    Description = 'At least 4 rows are required: 3 header rows and 1 row for the parent folder.'
-                    Value       = "$($Permissions.Count) rows"
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing rows' `
+                    -Description 'At least 4 rows are required: 3 header rows and 1 row for the parent folder.' `
+                    -Value "$($Permissions.Count) rows")
+            )
             return $checks
         }
 
         if ($Props.Count -lt 2) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing columns'
-                    Description = 'At least 2 columns are required: 1 for the folder names and 1 where the permissions are defined.'
-                    Value       = "$($Props.Count) column"
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing columns' `
+                    -Description 'At least 2 columns are required: 1 for the folder names and 1 where the permissions are defined.' `
+                    -Value "$($Props.Count) column")
+            )
             return $checks
         }
         #endregion
@@ -129,12 +140,13 @@ function Test-MatrixPermissionsHC {
         }
 
         if ($missingSamAccountNames.Count -gt 0) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing AD object name'
-                    Description = 'The first 3 rows of the Permissions sheet are reserved for header information. Please provide the SamAccountName of the AD object in at least one of these rows for each column.'
-                    Value       = "Columns: $($missingSamAccountNames -join ', ')"
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing AD object name' `
+                    -Description 'The first 3 rows of the Permissions sheet are reserved for header information. Please provide the SamAccountName of the AD object in at least one of these rows for each column.' `
+                    -Value "Columns: $($missingSamAccountNames -join ', ')")
+            )
         }
         #endregion
 
@@ -159,12 +171,13 @@ function Test-MatrixPermissionsHC {
         }
 
         if ($InvalidChars.Count -gt 0) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Invalid permission character'
-                    Description = "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank."
-                    Value       = "Characters: $(($InvalidChars | Select-Object -Unique) -join ', ')"
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Invalid permission character' `
+                    -Description "Supported characters are 'F', 'W', 'R', 'L', 'I' or blank." `
+                    -Value "Characters: $(($InvalidChars | Select-Object -Unique) -join ', ')")
+            )
         }
         #endregion
 
@@ -174,24 +187,26 @@ function Test-MatrixPermissionsHC {
         )
 
         if ($MissingFolders.Count -gt 0) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing folder name'
-                    Description = 'Each row needs a folder name in the first column.'
-                    Value       = "$($MissingFolders.Count) missing folder name(s) in column 1"
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing folder name' `
+                    -Description 'Each row needs a folder name in the first column.' `
+                    -Value "$($MissingFolders.Count) missing folder name(s) in column 1")
+            )
         }
         #endregion
 
         #region Duplicate folder name
         $NotUniqueFolder = $FolderNames.$FirstProperty | Group-Object | Where-Object Count -GE 2
         if ($NotUniqueFolder) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Duplicate folder name'
-                    Description = 'Folder names in the first column need to be unique.'
-                    Value       = ($NotUniqueFolder.Name) -join ', '
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Duplicate folder name' `
+                    -Description 'Folder names in the first column need to be unique.' `
+                    -Value (($NotUniqueFolder.Name) -join ', '))
+            )
         }
         #endregion
 
@@ -227,12 +242,13 @@ function Test-MatrixPermissionsHC {
         }
 
         if ($inAccessibleFolders.Count -gt 0) {
-            $checks.Add([pscustomobject]@{
-                    Type        = 'Warning'
-                    Name        = 'Inaccessible folders'
-                    Description = 'The deepest folders have no permissions or only List permissions, and the parent folder does not have permissions that allow access. This means these folders will be inaccessible.'
-                    Value       = $inAccessibleFolders -join ', '
-                })
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'Warning' `
+                    -Name 'Inaccessible folders' `
+                    -Description 'The deepest folders have no permissions or only List permissions, and the parent folder does not have permissions that allow access. This means these folders will be inaccessible.' `
+                    -Value ($inAccessibleFolders -join ', '))
+            )
         }
         #endregion
 
@@ -252,7 +268,7 @@ function Test-MatrixFormDataHC {
     param([Parameter(Mandatory = $false)] $FormData)
 
     if (-not $FormData) {
-        return New-HcError `
+        return New-ValidationCheckHC `
             -Type 'Warning' `
             -Name 'FormData missing' `
             -Description 'FormData is required for specific exports.' `
@@ -273,73 +289,78 @@ function Test-MatrixSettingRowHC {
     $validActions = @('Fix', 'New', 'Check')   
 
     if ([string]::IsNullOrWhiteSpace($SettingRow.Action)) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing Action'
-                Description = "The column 'Action' cannot be empty."
-                Value       = $null
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing Action' `
+                -Description "The column 'Action' cannot be empty." `
+                -Value $null)
+        )
     }
     elseif ($SettingRow.Action -notin $validActions) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Invalid Action'
-                Description = "Supported Action values are '$($validActions -join "', '")'."
-                Value       = "Found: '$($SettingRow.Action)'"
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Invalid Action' `
+                -Description "Supported Action values are '$($validActions -join "', '")'." `
+                -Value "Found: '$($SettingRow.Action)'")
+        )
     }
 
     if ([string]::IsNullOrWhiteSpace($SettingRow.Path)) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing Path'
-                Description = "The column 'Path' cannot be empty."
-                Value       = $null
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing Path' `
+                -Description "The column 'Path' cannot be empty." `
+                -Value $null)
+        )
     }
 
     if ([string]::IsNullOrWhiteSpace($SettingRow.ComputerName)) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing ComputerName'
-                Description = "The column 'ComputerName' cannot be empty."
-                Value       = $null
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing ComputerName' `
+                -Description "The column 'ComputerName' cannot be empty." `
+                -Value $null)
+        )
     }
 
     if (
         $RequireSiteCode -and 
         [string]::IsNullOrWhiteSpace($SettingRow.SiteCode)
     ) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing SiteCode'
-                Description = "The column 'SiteCode' cannot be empty because it is used as a placeholder in the Permissions sheet."
-                Value       = $null
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing SiteCode' `
+                -Description "The column 'SiteCode' cannot be empty because it is used as a placeholder in the Permissions sheet." `
+                -Value $null)
+        )
     }
 
     if (
         $RequireGroupName -and
         [string]::IsNullOrWhiteSpace($SettingRow.GroupName)
     ) {
-        $checks.Add([pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing GroupName'
-                Description = "The column 'GroupName' cannot be empty because it is used as a placeholder in the Permissions sheet."
-                Value       = $null
-            })
+        $checks.Add(
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing GroupName' `
+                -Description "The column 'GroupName' cannot be empty because it is used as a placeholder in the Permissions sheet." `
+                -Value $null)
+        )
     } 
     
     $applyDefaults = $SettingRow.ApplyDefaultPermissions
     if ([string]::IsNullOrWhiteSpace($applyDefaults)) {
         $checks.Add(
-            [pscustomobject]@{
-                Type        = 'FatalError'
-                Name        = 'Missing ApplyDefaultPermissions'
-                Description = "The column 'ApplyDefaultPermissions' cannot be empty."
-                Value       = $null
-            }
+            (New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing ApplyDefaultPermissions' `
+                -Description "The column 'ApplyDefaultPermissions' cannot be empty." `
+                -Value $null)
         )
     }
     else {
@@ -347,12 +368,11 @@ function Test-MatrixSettingRowHC {
         $parsedBool = $false
         if (-not [bool]::TryParse($applyDefaults.ToString(), [ref]$parsedBool)) {
             $checks.Add(
-                [pscustomobject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Invalid ApplyDefaultPermissions'
-                    Description = "The column 'ApplyDefaultPermissions' must be a valid boolean (True or False)."
-                    Value       = "Found: '$applyDefaults'"
-                }
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Invalid ApplyDefaultPermissions' `
+                    -Description "The column 'ApplyDefaultPermissions' must be a valid boolean (True or False)." `
+                    -Value "Found: '$applyDefaults'")
             )
         }
     }
@@ -371,7 +391,7 @@ function Test-AdObjectsHC {
 
     foreach ($obj in $ADObjects) {
         if ($obj -notin $AdInfo) {
-            $checks += New-HcError `
+            $checks += New-ValidationCheckHC `
                 -Type 'Warning' `
                 -Name 'Missing AD Object' `
                 -Description "AD object '$obj' not found." `
@@ -402,12 +422,11 @@ function Test-AdObjectInMatrixHC {
     }
 
     if ($missingAdObjects) {
-        $checks += [PSCustomObject]@{
-            Type        = 'FatalError'
-            Name        = ' Unknown AD Objects in Matrix'
-            Description = 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.'
-            Value       = "Not existing AD Objects: $($missingAdObjects -join ', ')"
-        }
+        $checks += New-ValidationCheckHC `
+            -Type 'FatalError' `
+            -Name ' Unknown AD Objects in Matrix' `
+            -Description 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.' `
+            -Value "Not existing AD Objects: $($missingAdObjects -join ', ')"
     }
 
     return $checks
@@ -518,7 +537,7 @@ function Validate-ConfigurationStructureHC {
         }
         #endregion
 
-        if (-not $Json.Settings.ScriptName) {
+        if (-not $json.Settings.ScriptName) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Settings.ScriptName'" `
                 -Message 'ScriptName is required.' `
@@ -629,4 +648,3 @@ function Validate-ConfigurationStructureHC {
     }
     #endregion
 }
-
