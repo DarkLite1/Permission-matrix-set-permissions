@@ -139,17 +139,17 @@ function Get-StringOrDefaultHC {
 
     .EXAMPLE
         [System.Net.WebUtility]::HtmlEncode(
-            (Get-StringOrDefaultHC $excel.LastModifiedBy 'Unknown')
+            (Get-StringOrDefaultHC -Value $excel.LastModifiedBy -Default 'Unknown')
         )
     #>
     [CmdletBinding()]
     [OutputType([object])]
     param(
-        [Parameter(Position = 0, ValueFromPipeline)]
+        [Parameter(ValueFromPipeline)]
         [AllowNull()]
         $Value,
 
-        [Parameter(Position = 1, Mandatory)]
+        [Parameter(Position = 0, Mandatory)]
         [AllowEmptyString()]
         [string]$Default
     )

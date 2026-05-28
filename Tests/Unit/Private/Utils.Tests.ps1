@@ -1,96 +1,423 @@
-#requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
-Describe 'Utils.ps1 - Shared Utility Functions' {
+BeforeAll {
+    $root = Resolve-Path "$PSScriptRoot\..\..\.."
+    $moduleRoot = "$root\Modules\PermissionMatrix"
 
+    . "$moduleRoot\Private\Utils.ps1"
+}
+
+Describe 'Add-ErrorHC' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'adds a single object to the SystemErrors collection' {
+        Add-ErrorHC -Type 'FatalError' -Name 'Test' -Message 'Boom' `
+            -Category 'Matrix' -SystemErrors ([ref]$script:errors)
+
+        $script:errors.Count | Should -Be 1
+    }
+
+    It 'populates all provided fields' {
+        Add-ErrorHC `
+            -Type 'Warning' `
+            -Name 'N1' `
+            -Message 'M1' `
+            -Description 'D1' `
+            -Category 'Permissions' `
+            -SystemErrors ([ref]$script:errors)
+
+        $e = $script:errors[0]
+        $e.Type | Should -Be 'Warning'
+        $e.Name | Should -Be 'N1'
+        $e.Message | Should -Be 'M1'
+        $e.Description | Should -Be 'D1'
+        $e.Category | Should -Be 'Permissions'
+        $e.DateTime | Should -BeOfType [datetime]
+    }
+
+    It 'defaults Description to an empty string when omitted' {
+        Add-ErrorHC `
+            -Type 'FatalError' `
+            -Name 'N' `
+            -Message 'M' `
+            -Category 'JsonSchema' `
+            -SystemErrors ([ref]$script:errors)
+
+        $script:errors[0].Description | Should -Be ''
+    }
+
+    It 'appends without clearing existing entries' {
+        Add-ErrorHC `
+            -Type 'Warning' `
+            -Name 'A' `
+            -Message 'M' `
+            -Category 'C' `
+            -SystemErrors ([ref]$script:errors)
+        Add-ErrorHC `
+            -Type 'Warning' `
+            -Name 'B' `
+            -Message 'M' `
+            -Category 'C' `
+            -SystemErrors ([ref]$script:errors)
+
+        $script:errors.Count | Should -Be 2
+    }
+
+    It 'throws when a mandatory parameter is missing' {
+        # Splat with $null so binding fails as a terminating error instead of
+        # prompting interactively for the missing mandatory value.
+        $params = @{
+            Name         = 'N'
+            Message      = 'M'
+            Category     = 'C'
+            SystemErrors = ([ref]$script:errors)
+            Type         = $null
+        }
+        { Add-ErrorHC @params } | Should -Throw
+    }
+}
+
+Describe 'Category wrapper functions' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'Add-MatrixErrorHC sets Category to Matrix' {
+        Add-MatrixErrorHC `
+            -Type 'FatalError' `
+            -Name 'N' `
+            -Message 'M' `
+            -SystemErrors ([ref]$script:errors)
+        $script:errors[0].Category | Should -Be 'Matrix'
+    }
+
+    It 'Add-PermissionsErrorHC sets Category to Permissions' {
+        Add-PermissionsErrorHC `
+            -Type 'FatalError' `
+            -Name 'N' `
+            -Message 'M' `
+            -SystemErrors ([ref]$script:errors)
+        $script:errors[0].Category | Should -Be 'Permissions'
+    }
+
+    It 'Add-RuntimeErrorHC sets Category to RuntimeSettings' {
+        Add-RuntimeErrorHC `
+            -Type 'FatalError' `
+            -Name 'N' `
+            -Message 'M' `
+            -SystemErrors ([ref]$script:errors)
+        $script:errors[0].Category | Should -Be 'RuntimeSettings'
+    }
+
+    It 'Add-JsonSchemaErrorHC sets Category to JsonSchema' {
+        Add-JsonSchemaErrorHC `
+            -Type 'FatalError' `
+            -Name 'N' `
+            -Message 'M' `
+            -SystemErrors ([ref]$script:errors)
+        $script:errors[0].Category | Should -Be 'JsonSchema'
+    }
+
+    It 'forwards Description through the wrapper' {
+        Add-MatrixErrorHC `
+            -Type 'Warning' `
+            -Name 'N' `
+            -Message 'M' `
+            -Description 'forwarded' `
+            -SystemErrors ([ref]$script:errors)
+        $script:errors[0].Description | Should -Be 'forwarded'
+    }
+}
+
+Describe 'Get-StringValueHC' {
+    It 'returns null for null input' {
+        Get-StringValueHC -Name $null | Should -BeNullOrEmpty
+    }
+
+    It 'returns null for empty string' {
+        Get-StringValueHC -Name '' | Should -BeNullOrEmpty
+    }
+
+    It 'returns null for whitespace-only input' {
+        Get-StringValueHC -Name '   ' | Should -BeNullOrEmpty
+    }
+
+    It 'returns the literal value when no ENV: prefix' {
+        Get-StringValueHC -Name 'PlainValue' | Should -Be 'PlainValue'
+    }
+
+    Context 'ENV: prefix resolution' {
+        BeforeAll {
+            $env:PESTER_UTILS_VAR = 'resolved-value'
+        }
+        AfterAll {
+            Remove-Item -Path 'Env:\PESTER_UTILS_VAR' -ErrorAction Ignore
+        }
+
+        It 'resolves an existing environment variable' {
+            Get-StringValueHC -Name 'ENV:PESTER_UTILS_VAR' | Should -Be 'resolved-value'
+        }
+
+        It 'is case-insensitive on the ENV: prefix' {
+            Get-StringValueHC -Name 'env:PESTER_UTILS_VAR' | Should -Be 'resolved-value'
+        }
+
+        It 'trims whitespace around the variable name' {
+            Get-StringValueHC -Name 'ENV:  PESTER_UTILS_VAR  ' | Should -Be 'resolved-value'
+        }
+
+        It 'throws when the environment variable does not exist' {
+            { Get-StringValueHC -Name 'ENV:DOES_NOT_EXIST_XYZ' } |
+            Should -Throw "*'DOES_NOT_EXIST_XYZ' not found*"
+        }
+    }
+}
+
+Describe 'Get-StringOrDefaultHC' {
+    It 'returns Default for null' {
+        Get-StringOrDefaultHC -Value $null -Default 'fallback' | Should -Be 'fallback'
+    }
+
+    It 'returns Default for empty string' {
+        Get-StringOrDefaultHC -Value '' -Default 'fallback' | Should -Be 'fallback'
+    }
+
+    It 'returns Default for whitespace only' {
+        Get-StringOrDefaultHC -Value '   ' -Default 'fallback' | Should -Be 'fallback'
+    }
+
+    It 'returns the value when non-blank' {
+        Get-StringOrDefaultHC -Value 'real' -Default 'fallback' | Should -Be 'real'
+    }
+
+    It 'passes through 0 as non-blank' {
+        Get-StringOrDefaultHC -Value 0 -Default 'fallback' | Should -Be 0
+    }
+
+    It 'passes through $false as non-blank' {
+        Get-StringOrDefaultHC -Value $false -Default 'fallback' | Should -Be $false
+    }
+
+    It 'accepts the value from the pipeline' {
+        'piped' | Get-StringOrDefaultHC -Default 'fallback' | Should -Be 'piped'
+    }
+
+    It 'uses Default from the pipeline when value is blank' {
+        $null | Get-StringOrDefaultHC 'fallback' | Should -Be 'fallback'
+    }
+
+    It 'allows an empty string as the Default' {
+        Get-StringOrDefaultHC -Value $null -Default '' | Should -Be ''
+    }
+}
+
+Describe 'Get-DatedLogFolderPathHC' {
     BeforeAll {
-        $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-        $utils = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Utils.ps1'
-        . $utils
+        $script:startTime = [datetime]'2024-03-07 09:05:08'
     }
 
+    It 'creates a dated folder and returns its full path' {
+        $result = Get-DatedLogFolderPathHC `
+            -LogFolder 'TestDrive:\Logs' `
+            -ScriptStartTime $script:startTime `
+            -JsonFileName 'MyScript'
 
-    Context 'Add-ErrorHC' {
-        It 'Adds properly formatted error objects' {
-            $errors = @()
-            Add-ErrorHC -Type 'FatalError' -Name 'X' -Message 'Y' -Category 'Test' -SystemErrors ([ref]$errors)
-
-            $errors.Count | Should -Be 1
-            $errors[0].Type | Should -Be 'FatalError'
-            $errors[0].Category | Should -Be 'Test'
-        }
+        $result | Should -Not -BeNullOrEmpty
+        Test-Path -Path $result | Should -BeTrue
     }
 
+    It 'formats the folder name as yyyy_MM_dd_HHmmss (JsonFileName)' {
+        $result = Get-DatedLogFolderPathHC `
+            -LogFolder 'TestDrive:\Logs' `
+            -ScriptStartTime $script:startTime `
+            -JsonFileName 'MyScript'
 
-    Context 'Add-MatrixErrorHC' {
-        It 'Sets Category = Matrix' {
-            $errors = @()
-            Add-MatrixErrorHC -Type 'Warning' -Name 'W' -Message 'Msg' -SystemErrors ([ref]$errors)
-
-            $errors[0].Category | Should -Be 'Matrix'
-        }
+        Split-Path -Path $result -Leaf | Should -Be '2024_03_07_090508 (MyScript)'
     }
 
+    It 'returns the original LogFolder when creation fails' {
+        Mock New-Item { throw 'denied' }
 
-    Context 'Add-PermissionsErrorHC' {
-        It 'Sets Category = Permissions' {
-            $errors = @()
-            Add-PermissionsErrorHC -Type 'FatalError' -Name 'N' -Message 'M' -SystemErrors ([ref]$errors)
+        $result = Get-DatedLogFolderPathHC `
+            -LogFolder 'C:\Original' `
+            -ScriptStartTime $script:startTime `
+            -JsonFileName 'X'
 
-            $errors[0].Category | Should -Be 'Permissions'
-        }
+        $result | Should -Be 'C:\Original'
+    }
+}
+
+Describe 'Plural' {
+    It 'returns the singular word when count is 1' {
+        Plural -Count 1 -Word 'error' | Should -Be 'error'
     }
 
-
-    Context 'Get-StringValueHC' {
-
-        It 'Returns literal string for non-ENV values' {
-            Get-StringValueHC -Name 'ABC' | Should -Be 'ABC'
-        }
-
-        It 'Resolves an environment variable' {
-            $env:TEST_VALUE = 'Hello123'
-            Get-StringValueHC -Name 'ENV:TEST_VALUE' | Should -Be 'Hello123'
-        }
-
-        It 'Throws when ENV variable missing' {
-            { Get-StringValueHC -Name 'ENV:NOPEVAR' } | Should -Throw
-        }
+    It 'pluralizes when count is 0' {
+        Plural -Count 0 -Word 'error' | Should -Be 'errors'
     }
 
+    It 'pluralizes when count is greater than 1' {
+        Plural -Count 5 -Word 'warning' | Should -Be 'warnings'
+    }
+}
 
-    Context 'Plural' {
-        It 'Returns plural form' {
-            Plural -Count 5 -Word 'File' | Should -Be 'Files'
-        }
-
-        It 'Returns singular when Count=1' {
-            Plural -Count 1 -Word 'File' | Should -Be 'File'
-        }
+Describe 'Test-ItemHasFatalErrorHC' {
+    It 'returns false for null CheckList' {
+        Test-ItemHasFatalErrorHC -CheckList $null | Should -BeFalse
     }
 
+    It 'returns false for empty CheckList' {
+        Test-ItemHasFatalErrorHC -CheckList @() | Should -BeFalse
+    }
 
-    Context 'Test-ItemHasFatalErrorHC' {
-        It 'Detects FatalError in error list' {
-            $errors = @(
-                @{ Type = 'Warning' },
-                @{ Type = 'FatalError' }
+    It 'returns false when no FatalError is present' {
+        $list = @(
+            [PSCustomObject]@{ Type = 'Warning' }
+            [PSCustomObject]@{ Type = 'Info' }
+        )
+        Test-ItemHasFatalErrorHC -CheckList $list | Should -BeFalse
+    }
+
+    It 'returns true when a FatalError is present' {
+        $list = @(
+            [PSCustomObject]@{ Type = 'Warning' }
+            [PSCustomObject]@{ Type = 'FatalError' }
+        )
+        Test-ItemHasFatalErrorHC -CheckList $list | Should -BeTrue
+    }
+}
+
+Describe 'New-CounterObjectHC' {
+    BeforeAll {
+        $script:counter = New-CounterObjectHC
+    }
+
+    It 'initializes top-level totals to 0' {
+        $script:counter.TotalErrors | Should -Be 0
+        $script:counter.TotalWarnings | Should -Be 0
+    }
+
+    It 'creates all four buckets with zeroed Errors and Warnings' {
+        foreach ($bucket in 'FormData', 'Permissions', 'Settings', 'File') {
+            $script:counter.$bucket.Errors | Should -Be 0
+            $script:counter.$bucket.Warnings | Should -Be 0
+        }
+    }
+}
+
+Describe 'Update-MatrixCounterHC' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'returns an all-zero counter for empty input' {
+        $context = [PSCustomObject]@{ FileResults = @(); Counter = $null }
+
+        $result = Update-MatrixCounterHC `
+            -Context $context `
+            -SystemErrors ([ref]$script:errors)
+
+        $result.TotalErrors | Should -Be 0
+        $result.TotalWarnings | Should -Be 0
+    }
+
+    It 'counts file-, sheet-, and matrix-level checks into the right buckets' {
+        $context = [PSCustomObject]@{
+            Counter     = $null
+            FileResults = @(
+                [PSCustomObject]@{
+                    Check    = @([PSCustomObject]@{ Type = 'FatalError' })
+                    Sheets   = [PSCustomObject]@{
+                        FormData    = [PSCustomObject]@{ Check = @([PSCustomObject]@{ Type = 'Warning' }) }
+                        Permissions = [PSCustomObject]@{ Check = @([PSCustomObject]@{ Type = 'FatalError' }) }
+                    }
+                    Matrices = @(
+                        [PSCustomObject]@{ Check = @(
+                                [PSCustomObject]@{ Type = 'Warning' }
+                                [PSCustomObject]@{ Type = 'Warning' }
+                            ) 
+                        }
+                    )
+                }
             )
-            Test-ItemHasFatalErrorHC -CheckList $errors | Should -BeTrue
         }
+
+        $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
+
+        $result.File.Errors | Should -Be 1
+        $result.FormData.Warnings | Should -Be 1
+        $result.Permissions.Errors | Should -Be 1
+        $result.Settings.Warnings | Should -Be 2
     }
 
+    It 'includes system-level errors and warnings in totals' {
+        $script:errors.Add([PSCustomObject]@{ Type = 'FatalError' })
+        $script:errors.Add([PSCustomObject]@{ Type = 'Warning' })
+        $script:errors.Add([PSCustomObject]@{ Type = 'Warning' })
 
-    Context 'Get-DatedLogFolderPathHC' {
-        It 'Creates a folder and returns its path' {
-            $folder = Join-Path $TestDrive 'logs'
-            New-Item -ItemType Directory -Path $folder | Out-Null
+        $context = [PSCustomObject]@{ FileResults = @(); Counter = $null }
 
-            $result = Get-DatedLogFolderPathHC `
-                -LogFolder $folder `
-                -ScriptStartTime (Get-Date '2020-01-01T12:00:00') `
-                -JsonFileName 'MyConfig'
+        $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
 
-            Test-Path $result | Should -BeTrue
+        $result.TotalErrors | Should -Be 1
+        $result.TotalWarnings | Should -Be 2
+    }
+
+    It 'sums every bucket plus system errors into the grand totals' {
+        $script:errors.Add([PSCustomObject]@{ Type = 'FatalError' })
+
+        $context = [PSCustomObject]@{
+            Counter     = $null
+            FileResults = @(
+                [PSCustomObject]@{
+                    Check    = @(
+                        [PSCustomObject]@{ Type = 'FatalError' }
+                    )
+                    Sheets   = [PSCustomObject]@{
+                        FormData    = [PSCustomObject]@{ 
+                            Check = @(
+                                [PSCustomObject]@{ 
+                                    Type = 'Warning' 
+                                }
+                            ) 
+                        }
+                        Permissions = [PSCustomObject]@{
+                            Check = @() 
+                        }
+                    }
+                    Matrices = @(
+                        [PSCustomObject]@{ 
+                            Check = @(
+                                [PSCustomObject]@{ 
+                                    Type = 'FatalError' 
+                                }
+                            ) 
+                        }
+                    )
+                }
+            )
         }
+
+        $result = Update-MatrixCounterHC `
+            -Context $context `
+            -SystemErrors ([ref]$script:errors)
+
+        $result.TotalErrors | Should -Be 3
+        $result.TotalWarnings | Should -Be 1
+    }
+
+    It 'assigns the counter back onto the Context' {
+        $context = [PSCustomObject]@{ 
+            FileResults = @()
+            Counter     = $null
+        }
+
+        Update-MatrixCounterHC `
+            -Context $context `
+            -SystemErrors ([ref]$script:errors) | Out-Null
+
+        $context.Counter | Should -Not -BeNullOrEmpty
     }
 }
