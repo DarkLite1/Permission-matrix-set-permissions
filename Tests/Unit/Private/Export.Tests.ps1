@@ -1,14 +1,16 @@
 #Requires -Version 7
 #requires -Modules Pester
 
+BeforeAll {
+    $root = Resolve-Path "$PSScriptRoot\..\..\.."
+    $moduleRoot = "$root\Modules\PermissionMatrix"
+
+    . "$moduleRoot\Private\Export.ps1"
+    . "$moduleRoot\Private\Html.ps1"
+}
+
 Describe 'Export-FilesHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Html.ps1"
-
         $script:FakeMatrices = @(
             [pscustomobject]@{ Id = 1 }
             [pscustomobject]@{ Id = 2 }
@@ -221,103 +223,8 @@ Describe 'Export-FilesHC' {
     }
 }
 
-Describe 'Export.ps1 - Export Functions' {
+Describe 'Build-ExportDataHC' {
     BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-    }
-
-    Context 'Build-ExportDataHC' {
-
-        It 'Aggregates permissions and formdata rows' {
-            $imported = @(
-                [pscustomobject]@{
-                    File     = @{ Item = @{Name = 'A.xlsx' } }
-                    Settings = @(
-                        [pscustomobject]@{
-                            Import = @{
-                                ComputerName = 'PC1'
-                                Path         = 'C:\'
-                                Action       = 'Set'
-                            }
-                            Check  = @(
-                                @{ Type = 'FatalError' }
-                                @{ Type = 'Warning' }
-                            )
-                        }
-                    )
-                    FormData = @{
-                        Import = @(
-                            [pscustomobject]@{ Field = 'X'; Value = '1' }
-                        )
-                    }
-                }
-            )
-
-            $res = Build-ExportDataHC -ImportedMatrix $imported
-
-            # permissions
-            $res.Permissions.Count | Should -Be 1
-            $res.Permissions[0].Errors | Should -Be 1
-            $res.Permissions[0].Warnings | Should -Be 1
-
-            # formdata
-            $res.FormData.Count | Should -Be 1
-        }
-    }
-
-    Context 'Export-PermissionsFileHC' {
-
-        It 'Calls Export-Excel with correct path' {
-
-            Mock Export-Excel
-
-            $rows = @([pscustomobject]@{A = 1 })
-            $path = Join-Path $TestDrive 'perm.xlsx'
-
-            Export-PermissionsFileHC -Rows $rows -Path $path
-
-            Should -Invoke Export-Excel -Times 1 -ParameterFilter { $Path -eq $path }
-        }
-    }
-
-    Context 'Export-ServiceNowFormDataHC' {
-
-        It 'Calls Export-Excel for FormData' {
-            Mock Export-Excel
-
-            $rows = @([pscustomobject]@{F = 1 })
-            $path = Join-Path $TestDrive 'form.xlsx'
-
-            Export-ServiceNowFormDataHC -Rows $rows -Path $path
-
-            Should -Invoke Export-Excel -Times 1 -ParameterFilter { $Path -eq $path }
-        }
-    }
-
-    Context 'Export-OverviewHtmlHC' {
-
-        It 'Writes HTML file' {
-            $path = Join-Path $TestDrive 'overview.html'
-            $html = '<html><body>test</body></html>'
-
-            $result = Export-OverviewHtmlHC -Html $html -Path $path
-
-            Test-Path $result | Should -BeTrue
-            (Get-Content $path) | Should -Contain '<html><body>test</body></html>'
-        }
-    }
-}
-
-Describe 'Build-ExportDataHC - aggregation details' {
-    BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-
         # Builder mirroring the imported-matrix shape Build-ExportDataHC consumes:
         #   $I.File.Item.Name
         #   $I.Settings[].Import.{ComputerName,Path,Action}
@@ -506,13 +413,6 @@ Describe 'Build-ExportDataHC - aggregation details' {
 }
 
 Describe 'Export-PermissionsFileHC' {
-    BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-    }
-
     It 'writes to the "Permissions" worksheet with -AutoSize' {
         Mock Export-Excel
 
@@ -522,7 +422,7 @@ Describe 'Export-PermissionsFileHC' {
         Export-PermissionsFileHC -Rows $rows -Path $path | Out-Null
 
         Should -Invoke Export-Excel -Times 1 -ParameterFilter {
-            $WorksheetName -eq 'Permissions' -and $AutoSize -eq $true
+            $Path -eq $path -and $WorksheetName -eq 'Permissions' -and $AutoSize -eq $true
         }
     }
 
@@ -536,8 +436,6 @@ Describe 'Export-PermissionsFileHC' {
     }
 
     It 'forwards the supplied rows to Export-Excel' {
-        # Capture the piped input in the mock body rather than asserting on a
-        # specific parameter-variable name: Export-Excel's pipeline parameter
         # Capture the bound parameters in the mock body. Export-Excel's
         # pipeline parameter has differed across ImportExcel versions
         # (-TargetData / -InputObject), so we read whichever one bound rather
@@ -573,13 +471,6 @@ Describe 'Export-PermissionsFileHC' {
 }
 
 Describe 'Export-ServiceNowFormDataHC' {
-    BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-    }
-
     It 'writes to the "FormData" worksheet with -AutoSize' {
         Mock Export-Excel
 
@@ -589,7 +480,7 @@ Describe 'Export-ServiceNowFormDataHC' {
         Export-ServiceNowFormDataHC -Rows $rows -Path $path | Out-Null
 
         Should -Invoke Export-Excel -Times 1 -ParameterFilter {
-            $WorksheetName -eq 'FormData' -and $AutoSize -eq $true
+            $Path -eq $path -and $WorksheetName -eq 'FormData' -and $AutoSize -eq $true
         }
     }
 
@@ -633,13 +524,6 @@ Describe 'Export-ServiceNowFormDataHC' {
 }
 
 Describe 'Export-OverviewHtmlHC' {
-    BeforeAll {
-        $root = Resolve-Path "$PSScriptRoot\..\..\.."
-        $moduleRoot = "$root\Modules\PermissionMatrix"
-
-        . "$moduleRoot\Private\Export.ps1"
-    }
-
     It 'writes the HTML content to the target path' {
         $path = Join-Path $TestDrive 'overview.html'
         $html = '<html><body>test</body></html>'
