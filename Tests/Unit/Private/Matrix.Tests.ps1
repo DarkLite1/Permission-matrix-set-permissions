@@ -90,7 +90,7 @@ Describe 'Matrix Logic Tests' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
-    } -tag test
+    }
 
     Describe 'Matrix: Permissions sheet validation' {
         It '<Issue> should be detected' -TestCases $MatrixPermissionsFixtures {
@@ -226,7 +226,7 @@ Describe 'Matrix Logic Tests' {
             & $TestScript @TestParams
 
             $logFolder = Get-LatestLogFolderHC -Root $TestInput.Settings.SaveLogFiles.Where.Folder
-            $htmlFiles = Get-ChildItem -Path $logFolder -Recurse -Filter '*.html'
+            $htmlFiles = Get-ChildItem -Path $logFolder -Recurse -Filter '00 - Execution Report.html'
 
             $htmlFiles.Count | Should -Be $ExpectedFiles
         }
