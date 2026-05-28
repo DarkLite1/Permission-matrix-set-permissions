@@ -139,19 +139,19 @@ function Get-StringOrDefaultHC {
 
     .EXAMPLE
         [System.Net.WebUtility]::HtmlEncode(
-            (Get-StringOrDefaultHC -Value $excel.LastModifiedBy -Default 'Unknown')
+            (Get-StringOrDefaultHC $excel.LastModifiedBy 'Unknown')
         )
     #>
     [CmdletBinding()]
     [OutputType([object])]
     param(
-        [Parameter(ValueFromPipeline)]
+        [Parameter(Position = 0, ValueFromPipeline)]
         [AllowNull()]
         $Value,
 
-        [Parameter(Position = 0, Mandatory)]
+        [Parameter(Position = 1)]
         [AllowEmptyString()]
-        [string]$Default
+        [string]$Default = ''
     )
 
     process {
@@ -163,6 +163,7 @@ function Get-StringOrDefaultHC {
         }
     }
 }
+
 
 function Get-DatedLogFolderPathHC {
     [CmdletBinding()]
