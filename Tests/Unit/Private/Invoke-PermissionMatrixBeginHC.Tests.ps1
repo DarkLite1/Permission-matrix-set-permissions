@@ -15,7 +15,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         . "$moduleRoot\Private\Validation.ps1"
         . "$moduleRoot\Private\Matrix.ps1"
         . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Validate-ConfigurationStructureHC.ps1"
         . "$moduleRoot\Private\Import-MatrixFileHC.ps1"
         . "$moduleRoot\Private\Import-MatrixDefaultsFileHC.ps1"
         . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
