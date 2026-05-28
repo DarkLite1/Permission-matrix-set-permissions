@@ -1,6 +1,12 @@
-#requires -Modules Pester
+#Requires -Module @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+#Requires -Module ImportExcel
 
 Describe 'Validation.ps1 - Updated Validation Functions' {
+    BeforeDiscovery {
+        . "$PSScriptRoot/../../Helpers/Fixtures.Matrix.ps1"
+
+        $script:PermissionFixtures = Get-MatrixPermissionsFixtures
+    }
 
     BeforeAll {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
@@ -8,6 +14,24 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
         . "$moduleRoot\Private\Utils.ps1"
         . "$moduleRoot\Private\Validation.ps1"
+        . "$root/Tests/Helpers/Fixtures.Excel.ps1"
+        . "$root/Tests/Helpers/Fixtures.Matrix.ps1"
+
+        # Build a Permissions sheet from a scenario, round-trip it through Excel,
+        # and return the imported objects exactly as production sees them.
+        function Get-RoundTripPermissions {
+            param([Parameter(Mandatory)][string]$Scenario)
+
+            $spec = New-MatrixPermissionsFixtureRows -Scenario $Scenario
+
+            $dir = Join-Path 'TestDrive:' 'Matrix'
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir | Out-Null }
+            $path = Join-Path $dir "Permissions_$Scenario.xlsx"
+
+            New-MatrixPermissionsExcelFixture -Path $path -Spec $spec | Out-Null
+
+            return @(Import-Excel -Path $path -WorksheetName 'Permissions' -NoHeader -DataOnly -ErrorAction Stop)
+        }
     }
 
     Context 'Test-MatrixFileHC' {
@@ -25,8 +49,92 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
     }
 
     Context 'Test-MatrixPermissionsHC' {
-        It 'Errors when <4 rows' {
-            (Test-MatrixPermissionsHC -Permissions @('a', 'b')).Type | Should -Be 'FatalError'
+
+        Context 'Happy path' {
+            It 'returns nothing when the Valid fixture is supplied' {
+                $perms = Get-RoundTripPermissions -Scenario 'Valid'
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                # Function only returns $checks when Count -gt 0, so success => $null.
+                $result | Should -BeNullOrEmpty
+            }
+        }
+
+        Context 'Data-driven checks from Get-MatrixPermissionsFixtures' {
+            It 'flags <Issue> with check name <Expected>' -ForEach $PermissionFixtures {
+
+                # The fixture 'Mutation' strings map 1:1 to a scenario name in
+                # New-MatrixPermissionsFixtureRows; derive it from the Issue so we
+                # can round-trip in-process rather than Invoke-Expression a string
+                # that writes its own file.
+                $scenario = switch ($Issue) {
+                    'MissingADObjectName' { 'MissingADObjectName' }
+                    'InvalidPermissionChar' { 'InvalidPermissionChar' }
+                    'MissingRows' { 'MissingRows' }
+                    'MissingColumns' { 'MissingColumns' }
+                    'MissingFolderName' { 'MissingFolderName' }
+                    'DuplicateFolderName' { 'DuplicateFolderName' }
+                    'InaccessibleFolders' { 'InaccessibleFolders' }
+                    default { throw "No scenario mapping for Issue '$Issue'" }
+                }
+
+                $perms = Get-RoundTripPermissions -Scenario $scenario
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -Not -BeNullOrEmpty
+                ($result.Name) | Should -Contain $Expected
+            }
+        }
+
+        Context 'fatal errors exit immediately' {
+            It 'returns ONLY "Missing rows" for the MissingRows fixture' {
+                $perms = Get-RoundTripPermissions -Scenario 'MissingRows'
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                @($result).Count | Should -Be 1
+                $result[0].Type | Should -Be 'FatalError'
+                $result[0].Name | Should -Be 'Missing rows'
+            }
+
+            It 'returns ONLY "Missing columns" for the MissingColumns fixture' {
+                $perms = Get-RoundTripPermissions -Scenario 'MissingColumns'
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                @($result).Count | Should -Be 1
+                $result[0].Type | Should -Be 'FatalError'
+                $result[0].Name | Should -Be 'Missing columns'
+            }
+        }
+
+        Context 'Check types are correct' {
+            It 'classifies InaccessibleFolders as a Warning, not a FatalError' {
+                $perms = Get-RoundTripPermissions -Scenario 'InaccessibleFolders'
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Type | Should -Be 'Warning'
+            }
+
+            It 'classifies InvalidPermissionChar as a FatalError' {
+                $perms = Get-RoundTripPermissions -Scenario 'InvalidPermissionChar'
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $err = $result | Where-Object Name -EQ 'Invalid permission character'
+                $err | Should -Not -BeNullOrEmpty
+                $err.Type | Should -Be 'FatalError'
+            }
+        }
+
+        Context 'Error handling' {
+            It 'rejects an empty array at parameter binding' {
+                { Test-MatrixPermissionsHC -Permissions @() } |
+                Should -Throw -ExpectedMessage '*empty array*'
+            }
         }
     }
 
@@ -109,8 +217,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             }
 
             $matrix = @{
-                DefaultsFile           = $PSCommandPath
-                FolderPath             = 'C:\'
+                DefaultsFile        = $PSCommandPath
+                FolderPath          = 'C:\'
                 AdGroupPlaceHolders = @()
             }
 
