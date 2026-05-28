@@ -277,29 +277,43 @@ Describe 'Validate-ConfigurationStructureHC' {
         }
     }
 
-    Context 'KNOWN BUG: Export reads $ServiceNow (local) not $Json.ServiceNow' {
-        # The Export region checks the bare variable $ServiceNow, which is never
-        # assigned in function scope, so it is always $null. As a result, setting
-        # a valid ServiceNowFormDataExcelFile ALWAYS emits 'Incorrect configuration'
-        # even though $Json.ServiceNow is fully populated, and the per-property
-        # ServiceNow checks (else branch) are unreachable.
-        # These tests PIN that current behavior. If the function is fixed to read
-        # $Json.ServiceNow, both expectations below must be inverted.
-        It 'emits "Incorrect configuration" despite a valid ServiceNow block' {
+    Context 'Export.ServiceNowFormDataExcelFile cross-dependency on ServiceNow' {
+        # The Export region now correctly reads $Json.ServiceNow. When a
+        # ServiceNowFormDataExcelFile is set, ServiceNow must exist and have
+        # CredentialsFilePath / TableName / Environment populated.
+
+        It "emits 'Incorrect configuration' when ServiceNow is absent" {
             $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.ServiceNowFormDataExcelFile' -Value 'forms.xlsx')
+            $json.Remove('ServiceNow') | Out-Null
             $errors = Invoke-Validation -Json $json
 
             Get-ErrorNames $errors | Should -Contain 'Incorrect configuration'
         }
 
-        It 'never reaches the per-property ServiceNow checks (else branch is dead)' {
+        It 'records no ServiceNow errors when the block is present and fully populated' {
             $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.ServiceNowFormDataExcelFile' -Value 'forms.xlsx')
+            # The fixture ships CredentialsFilePath = '' (blank), so fill it to
+            # get a genuinely complete ServiceNow block.
+            $json.ServiceNow.CredentialsFilePath = 'TestDrive:\snow.cred'
             $errors = Invoke-Validation -Json $json
             $names = Get-ErrorNames $errors
 
+            $names | Should -Not -Contain 'Incorrect configuration'
             $names | Should -Not -Contain "Missing 'ServiceNow.CredentialsFilePath'"
             $names | Should -Not -Contain "Missing 'ServiceNow.TableName'"
             $names | Should -Not -Contain "Missing 'ServiceNow.Environment'"
+        }
+
+        It 'flags missing ServiceNow.<_> when that property is blank' -ForEach @(
+            'CredentialsFilePath', 'TableName', 'Environment'
+        ) {
+            $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.ServiceNowFormDataExcelFile' -Value 'forms.xlsx')
+            # Start from a complete block, then blank the one under test.
+            $json.ServiceNow.CredentialsFilePath = 'TestDrive:\snow.cred'
+            $json.ServiceNow.$_ = ''
+            $errors = Invoke-Validation -Json $json
+
+            Get-ErrorNames $errors | Should -Contain "Missing 'ServiceNow.$_'"
         }
     }
 }

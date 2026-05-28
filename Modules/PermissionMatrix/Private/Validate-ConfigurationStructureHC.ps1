@@ -103,7 +103,7 @@ function Validate-ConfigurationStructureHC {
         }
         #endregion
 
-        if (-not $json.Settings.ScriptName) {
+        if (-not $Json.Settings.ScriptName) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Missing 'Settings.ScriptName'" `
                 -Message 'ScriptName is required.' `
@@ -194,7 +194,7 @@ function Validate-ConfigurationStructureHC {
                     -SystemErrors $SystemErrors
             }
 
-            if (-not $ServiceNow) {
+            if (-not $Json.ServiceNow) {
                 Add-JsonSchemaErrorHC -Type 'FatalError' `
                     -Name 'Incorrect configuration' `
                     -Message 'ServiceNow must be defined when using ServiceNowFormDataExcelFile.' `
@@ -202,7 +202,7 @@ function Validate-ConfigurationStructureHC {
             }
             else {
                 foreach ($p in 'CredentialsFilePath', 'TableName', 'Environment') {
-                    if (-not $ServiceNow.$p) {
+                    if (-not $Json.ServiceNow.$p) {
                         Add-JsonSchemaErrorHC -Type 'FatalError' `
                             -Name "Missing 'ServiceNow.$p'" `
                             -Message "$p is required." `
