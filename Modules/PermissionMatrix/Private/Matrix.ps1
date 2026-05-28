@@ -161,7 +161,9 @@ function Get-DefaultAclHC {
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
-        [Parameter(Mandatory)][array]$Sheet,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$Sheet,
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
