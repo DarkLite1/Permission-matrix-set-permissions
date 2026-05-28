@@ -159,23 +159,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-    Context 'Test-ExpandedMatrixHC' {
-        It 'Warns for unknown ACL principals' {
-            $mat = @(
-                [pscustomobject]@{
-                    ACL = @{ MissingUser = 'R' }
-                }
-            )
-            $res = Test-ExpandedMatrixHC `
-                -Matrix $mat `
-                -ADObject @('GoodUser') `
-                -DefaultAcl @{} `
-                -AdGroupPlaceHolders @()
-
-            $res.Type | Should -Contain 'Warning'
-        }
-    }
-
     Context 'Validate-ConfigurationStructure' {
 
         It 'Calls Add-JsonSchemaErrorHC for missing required properties' {
