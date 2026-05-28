@@ -1,201 +1,470 @@
-#requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+#Requires -Modules ImportExcel
 
-Describe 'Logging.ps1 - Consolidated Logging' {
+BeforeAll {
+    $root = Resolve-Path "$PSScriptRoot\..\..\.."
+    $moduleRoot = "$root\Modules\PermissionMatrix"
 
+    # Logging.ps1 depends on Add-ErrorHC, Get-StringValueHC and
+    # Get-DatedLogFolderPathHC, all of which live in Utils.ps1.
+    . "$moduleRoot\Private\Utils.ps1"
+    . "$moduleRoot\Private\Logging.ps1"
+}
+
+Describe 'Cleanup-OldLogsHC' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'returns silently when RetentionDays is 0 or less' {
+        { Cleanup-OldLogsHC -LogFolder 'TestDrive:\Logs' -RetentionDays 0 `
+                -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
+    }
+
+    It 'returns silently when the folder does not exist' {
+        { Cleanup-OldLogsHC -LogFolder 'TestDrive:\DoesNotExist' -RetentionDays 30 `
+                -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
+        $script:errors.Count | Should -Be 0
+    }
+
+    It 'deletes files older than the retention window' {
+        $folder = Join-Path $TestDrive 'Logs1'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+
+        $old = Join-Path $folder 'old.log'
+        $new = Join-Path $folder 'new.log'
+        Set-Content -LiteralPath $old -Value 'old'
+        Set-Content -LiteralPath $new -Value 'new'
+        (Get-Item $old).CreationTime = (Get-Date).AddDays(-40)
+
+        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+            -SystemErrors ([ref]$script:errors)
+
+        Test-Path $old | Should -BeFalse
+        Test-Path $new | Should -BeTrue
+    }
+
+    It 'keeps files newer than the retention window' {
+        $folder = Join-Path $TestDrive 'Logs2'
+        New-Item -Path $folder -ItemType Directory -Force | Out-Null
+
+        $recent = Join-Path $folder 'recent.log'
+        Set-Content -LiteralPath $recent -Value 'x'
+        (Get-Item $recent).CreationTime = (Get-Date).AddDays(-5)
+
+        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+            -SystemErrors ([ref]$script:errors)
+
+        Test-Path $recent | Should -BeTrue
+    }
+
+    It 'removes empty sub-folders left behind after file deletion' {
+        $folder = Join-Path $TestDrive 'Logs3'
+        $sub = Join-Path $folder 'sub'
+        New-Item -Path $sub -ItemType Directory -Force | Out-Null
+
+        $old = Join-Path $sub 'old.log'
+        Set-Content -LiteralPath $old -Value 'x'
+        (Get-Item $old).CreationTime = (Get-Date).AddDays(-90)
+
+        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+            -SystemErrors ([ref]$script:errors)
+
+        Test-Path $old | Should -BeFalse
+        Test-Path $sub | Should -BeFalse
+    }
+
+    It 'leaves non-empty sub-folders intact' {
+        $folder = Join-Path $TestDrive 'Logs4'
+        $sub = Join-Path $folder 'sub'
+        New-Item -Path $sub -ItemType Directory -Force | Out-Null
+
+        $keep = Join-Path $sub 'keep.log'
+        Set-Content -LiteralPath $keep -Value 'x'
+        (Get-Item $keep).CreationTime = (Get-Date).AddDays(-1)
+
+        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+            -SystemErrors ([ref]$script:errors)
+
+        Test-Path $sub | Should -BeTrue
+    }
+}
+
+Describe 'Remove-FileHC' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'removes an existing file' {
+        $file = Join-Path $TestDrive 'remove-me.txt'
+        Set-Content -LiteralPath $file -Value 'x'
+
+        Remove-FileHC -FilePath $file -SystemErrors ([ref]$script:errors)
+
+        Test-Path $file | Should -BeFalse
+    }
+
+    It 'returns silently when the file does not exist' {
+        { Remove-FileHC -FilePath (Join-Path $TestDrive 'nope.txt') `
+                -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
+        $script:errors.Count | Should -Be 0
+    }
+
+    It 'returns silently when given a directory path (PathType Leaf)' {
+        $dir = Join-Path $TestDrive 'adir'
+        New-Item -Path $dir -ItemType Directory -Force | Out-Null
+
+        { Remove-FileHC -FilePath $dir -SystemErrors ([ref]$script:errors) } |
+        Should -Not -Throw
+        Test-Path $dir | Should -BeTrue
+    }
+
+    It 'records a warning when deletion fails and SystemErrors is supplied' {
+        $file = Join-Path $TestDrive 'locked.txt'
+        Set-Content -LiteralPath $file -Value 'x'
+
+        Mock Remove-Item { throw 'access denied' } -ParameterFilter {
+            $LiteralPath -eq $file
+        }
+
+        Remove-FileHC -FilePath $file -SystemErrors ([ref]$script:errors)
+
+        $script:errors.Count | Should -Be 1
+        $script:errors[0].Name | Should -Be 'Failed to remove file'
+    }
+
+    It 'falls back to Write-Warning when no SystemErrors ref is given' {
+        $file = Join-Path $TestDrive 'locked2.txt'
+        Set-Content -LiteralPath $file -Value 'x'
+
+        Mock Remove-Item { throw 'access denied' } -ParameterFilter {
+            $LiteralPath -eq $file
+        }
+
+        { Remove-FileHC -FilePath $file -WarningAction SilentlyContinue } |
+        Should -Not -Throw
+    }
+}
+
+Describe 'Out-LogFileHC' {
     BeforeAll {
-        $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-        $log = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Logging.ps1'
-        $utils = Join-Path $root '../Modules/Toolbox.PermissionMatrixHC/Private/Utils.ps1'
-        . $utils
-        . $log
+        $script:data = @(
+            [PSCustomObject]@{ Name = 'Alice'; Score = 1 }
+            [PSCustomObject]@{ Name = 'Bob'; Score = 2 }
+        )
     }
 
+    It 'creates a semicolon-delimited CSV' {
+        $partial = Join-Path $TestDrive 'out-csv'
 
-    # ----------------------------------------------------------------------
-    Context 'Cleanup-OldLogsHC' {
+        $paths = Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.csv'
 
-        It 'Removes old files and keeps recent ones' {
-            $sys = @()
-
-            $folder = Join-Path $TestDrive 'logs'
-            New-Item -ItemType Directory -Path $folder | Out-Null
-
-            $oldFile = Join-Path $folder 'old.txt'
-            Set-Content $oldFile 'x'
-            (Get-Item $oldFile).CreationTime = (Get-Date).AddDays(-50)
-
-            $newFile = Join-Path $folder 'new.txt'
-            Set-Content $newFile 'y'
-            (Get-Item $newFile).CreationTime = (Get-Date).AddDays(-1)
-
-            Cleanup-OldLogsHC `
-                -LogFolder $folder `
-                -RetentionDays 30 `
-                -SystemErrors ([ref]$sys)
-
-            Test-Path $oldFile | Should -BeFalse
-            Test-Path $newFile | Should -BeTrue
-        }
+        $paths | Should -Be "$partial.csv"
+        Test-Path "$partial.csv" | Should -BeTrue
+        (Get-Content "$partial.csv" -Raw) | Should -Match ';'
     }
 
+    It 'creates a JSON file with all rows' {
+        $partial = Join-Path $TestDrive 'out-json'
 
-    # ----------------------------------------------------------------------
-    Context 'Out-LogFileHC - CSV / JSON / TXT / XLSX' {
+        Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.json' | Out-Null
 
-        BeforeEach {
-            Mock Export-Excel
-        }
-
-        It 'Exports CSV successfully' {
-            $path = Join-Path $TestDrive 'export'
-            $rows = @([pscustomobject]@{A = 1 })
-
-            $result = Out-LogFileHC `
-                -DataToExport $rows `
-                -PartialPath $path `
-                -FileExtensions '.csv'
-
-            Test-Path ($result[0]) | Should -BeTrue
-        }
-
-        It 'Exports JSON successfully' {
-            $path = Join-Path $TestDrive 'log'
-            $rows = @([pscustomobject]@{A = 1 })
-
-            $result = Out-LogFileHC `
-                -DataToExport $rows `
-                -PartialPath $path `
-                -FileExtensions '.json'
-
-            Test-Path ($result[0]) | Should -BeTrue
-            (Get-Content $result[0] -Raw) | Should -Match '"A":'
-        }
-
-        It 'Exports TXT successfully' {
-            $path = Join-Path $TestDrive 'txtlog'
-            $rows = @([pscustomobject]@{A = 1; B = 2 })
-
-            $result = Out-LogFileHC `
-                -DataToExport $rows `
-                -PartialPath $path `
-                -FileExtensions '.txt'
-
-            Test-Path ($result[0]) | Should -BeTrue
-        }
-
-        It 'Exports XLSX via Export-Excel' {
-            $path = Join-Path $TestDrive 'excel'
-            $rows = @([pscustomobject]@{A = 1 })
-
-            Out-LogFileHC -DataToExport $rows -PartialPath $path -FileExtensions '.xlsx'
-
-            Should -Invoke Export-Excel -Times 1
-        }
+        $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
+        $obj.Count | Should -Be 2
+        $obj[0].Name | Should -Be 'Alice'
     }
 
+    It 'creates a TXT file' {
+        $partial = Join-Path $TestDrive 'out-txt'
 
-    # ----------------------------------------------------------------------
-    Context 'Remove-FileHC' {
+        Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.txt' | Out-Null
 
-        It 'Deletes file when present' {
-            $path = Join-Path $TestDrive 'del.txt'
-            Set-Content $path 'test'
-
-            Remove-FileHC -FilePath $path
-
-            Test-Path $path | Should -BeFalse
-        }
-
-        It 'Adds error when deletion fails' {
-            $sys = @()
-
-            Mock Remove-Item { throw 'Mock failure' }
-
-            $path = Join-Path $TestDrive 'err.txt'
-            Set-Content $path 'test'
-
-            Remove-FileHC -FilePath $path -SystemErrors ([ref]$sys)
-
-            $sys.Count | Should -Be 1
-            $sys[0].Category | Should -Be 'Logging'
-        }
+        Test-Path "$partial.txt" | Should -BeTrue
+        (Get-Content "$partial.txt" -Raw) | Should -Match 'Alice'
     }
 
+    It 'creates an XLSX file' {
+        $partial = Join-Path $TestDrive 'out-xlsx'
 
-    # ----------------------------------------------------------------------
-    Context 'Write-EventLogSafe' {
+        $paths = Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.xlsx'
 
-        It 'Skips event log write when disabled' {
-            Mock Write-EventsToEventLogHC
-
-            $settings = @{
-                SaveInEventLog = @{
-                    Save    = $false
-                    LogName = 'TestLog'
-                }
-            }
-
-            $sysErrors = @()
-            $data = [System.Collections.Generic.List[object]]::new()
-
-            Write-EventLogSafe `
-                -EventLogData $data `
-                -ScriptName 'X' `
-                -Settings $settings `
-                -SystemErrors ([ref]$sysErrors)
-
-            Should -Not -Invoke Write-EventsToEventLogHC
-        }
-
-        It 'Invokes Write-EventsToEventLogHC when enabled' {
-            Mock Write-EventsToEventLogHC
-
-            $settings = @{
-                SaveInEventLog = @{
-                    Save    = $true
-                    LogName = 'TestLog'
-                }
-            }
-
-            $sysErrors = @(
-                [pscustomobject]@{ Message = 'E1'; DateTime = Get-Date }
-            )
-            $data = [System.Collections.Generic.List[object]]::new()
-
-            Write-EventLogSafe `
-                -EventLogData $data `
-                -ScriptName 'TestScript' `
-                -Settings $settings `
-                -SystemErrors ([ref]$sysErrors)
-
-            Should -Invoke Write-EventsToEventLogHC -Times 1
-        }
+        $paths | Should -Be "$partial.xlsx"
+        Test-Path "$partial.xlsx" | Should -BeTrue
     }
 
+    It 'creates multiple files when several extensions are given' {
+        $partial = Join-Path $TestDrive 'out-multi'
 
-    # ----------------------------------------------------------------------
-    Context 'Write-SystemErrorLogHC' {
+        $paths = Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.csv', '.json'
 
-        It 'Creates JSON system error log and adds attachment' {
+        $paths.Count | Should -Be 2
+        Test-Path "$partial.csv" | Should -BeTrue
+        Test-Path "$partial.json" | Should -BeTrue
+    }
 
-            $sys = @(
-                [pscustomobject]@{ DateTime = Get-Date; Message = 'Err1' }
-            )
-            $folder = Join-Path $TestDrive 'syslogs'
-            New-Item -ItemType Directory -Path $folder | Out-Null
+    It 'de-duplicates repeated extensions' {
+        $partial = Join-Path $TestDrive 'out-dupe'
 
-            $mailParams = @{ } | Select-Object -Property * -ExpandProperty * -ErrorAction Ignore
-            $mailParams = [ref]@{}
+        $paths = Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.csv', '.csv'
 
-            Write-SystemErrorLogHC `
-                -SystemErrors $sys `
-                -LogFolder $folder `
-                -MailParams $mailParams `
-                -ScriptStartTime (Get-Date) `
-                -JsonFileItem @{ BaseName = 'Cfg' }
+        @($paths).Count | Should -Be 1
+    }
 
-            $mailParams.Value.Attachments.Count | Should -Be 1
-            Test-Path $mailParams.Value.Attachments[0] | Should -BeTrue
+    It 'warns and skips an unsupported extension instead of throwing' {
+        $partial = Join-Path $TestDrive 'out-bad'
+
+        $paths = Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.xyz' `
+            -WarningAction SilentlyContinue
+
+        @($paths).Count | Should -Be 0
+    }
+
+    It 'appends rows to an existing JSON file' {
+        $partial = Join-Path $TestDrive 'out-append'
+
+        Out-LogFileHC -DataToExport $script:data `
+            -PartialPath $partial -FileExtensions '.json' | Out-Null
+        Out-LogFileHC -DataToExport @([PSCustomObject]@{ Name = 'Carol'; Score = 3 }) `
+            -PartialPath $partial -FileExtensions '.json' -Append | Out-Null
+
+        $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
+        $obj.Count | Should -Be 3
+        ($obj.Name) | Should -Contain 'Carol'
+    }
+
+    It 'converts ErrorRecord properties to their message text in JSON' {
+        $partial = Join-Path $TestDrive 'out-errrec'
+        $rec = try { throw 'boom' } catch { $_ }
+        $row = [PSCustomObject]@{ Name = 'X'; Error = $rec }
+
+        Out-LogFileHC -DataToExport @($row) `
+            -PartialPath $partial -FileExtensions '.json' | Out-Null
+
+        $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
+        $obj.Error | Should -Be 'boom'
+    }
+}
+
+Describe 'Write-EventsToEventLogHC' {
+    BeforeAll {
+        Mock New-EventLog {}
+        Mock Write-EventLog {}
+    }
+
+    It 'does not throw for a basic event when source handling succeeds' {
+        Mock New-EventLog {}
+        Mock Write-EventLog {}
+
+        $events = @(
+            [PSCustomObject]@{ EntryType = 'Information'; EventID = 4; Message = 'hi' }
+        )
+
+        { Write-EventsToEventLogHC -Source 'PesterFakeSource' `
+                -LogName 'Application' -Events $events } | Should -Not -Throw
+    }
+
+    It 'writes one entry per event' {
+        Mock Write-EventLog {}
+        Mock New-EventLog {}
+
+        $events = @(
+            [PSCustomObject]@{ EntryType = 'Information'; EventID = 4; Message = 'a' }
+            [PSCustomObject]@{ EntryType = 'Error'; EventID = 2; Message = 'b' }
+        )
+
+        Write-EventsToEventLogHC -Source 'PesterFakeSource' `
+            -LogName 'Application' -Events $events
+
+        Should -Invoke Write-EventLog -Times 2 -Exactly
+    }
+
+    It 'defaults EntryType to Information and EventID to 4 when missing' {
+        Mock New-EventLog {}
+        Mock Write-EventLog {} -Verifiable -ParameterFilter {
+            $EntryType -eq 'Information' -and $EventID -eq 4
         }
+
+        $events = @([PSCustomObject]@{ Message = 'no type' })
+
+        Write-EventsToEventLogHC -Source 'PesterFakeSource' `
+            -LogName 'Application' -Events $events
+
+        Should -InvokeVerifiable
+    }
+
+    It 're-throws a wrapped error when Write-EventLog fails' {
+        Mock New-EventLog {}
+        Mock Write-EventLog { throw 'nope' }
+
+        $events = @([PSCustomObject]@{ EntryType = 'Information'; EventID = 4; Message = 'x' })
+
+        { Write-EventsToEventLogHC -Source 'PesterFakeSource' `
+                -LogName 'Application' -Events $events } |
+        Should -Throw '*Failed writing events*'
+    }
+}
+
+Describe 'Write-EventLogSafe' {
+    BeforeEach {
+        $script:errors = [System.Collections.Generic.List[PSObject]]::new()
+        $script:eventData = [System.Collections.Generic.List[PSObject]]::new()
+    }
+
+    It 'returns without writing when Save is false' {
+        Mock Write-EventsToEventLogHC {}
+
+        $settings = [PSCustomObject]@{
+            SaveInEventLog = [PSCustomObject]@{ Save = $false; LogName = 'App' }
+        }
+
+        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+            -Settings $settings -SystemErrors ([ref]$script:errors)
+
+        Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
+    }
+
+    It 'returns without writing when LogName is blank' {
+        Mock Write-EventsToEventLogHC {}
+
+        $settings = [PSCustomObject]@{
+            SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = '' }
+        }
+
+        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+            -Settings $settings -SystemErrors ([ref]$script:errors)
+
+        Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
+    }
+
+    It 'appends a System error entry plus a script-ended entry, then writes' {
+        Mock Write-EventsToEventLogHC {}
+
+        $script:errors.Add([PSCustomObject]@{ Message = 'bad'; DateTime = (Get-Date) })
+
+        $settings = [PSCustomObject]@{
+            SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
+        }
+
+        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+            -Settings $settings -SystemErrors ([ref]$script:errors)
+
+        # 1 error entry + 1 "Script ended" entry
+        $script:eventData.Count | Should -Be 2
+        $script:eventData[0].EntryType | Should -Be 'Error'
+        $script:eventData[1].Message | Should -Be 'Script ended'
+        Should -Invoke Write-EventsToEventLogHC -Times 1 -Exactly
+    }
+
+    It 'truncates messages longer than the 31000 char limit' {
+        Mock Write-EventsToEventLogHC {}
+
+        $script:eventData.Add([PSCustomObject]@{
+                Message   = ('x' * 32000)
+                DateTime  = (Get-Date)
+                EntryType = 'Information'
+                EventID   = '1'
+            })
+
+        $settings = [PSCustomObject]@{
+            SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
+        }
+
+        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+            -Settings $settings -SystemErrors ([ref]$script:errors)
+
+        $longEntry = $script:eventData | Where-Object { $_.EventID -eq '1' }
+        $longEntry.Message | Should -Match 'TRUNCATED'
+        $longEntry.Message.Length | Should -BeLessThan 31100
+    }
+
+    It 'records a warning when the underlying write throws' {
+        Mock Write-EventsToEventLogHC { throw 'boom' }
+
+        $settings = [PSCustomObject]@{
+            SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
+        }
+
+        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+            -Settings $settings -SystemErrors ([ref]$script:errors)
+
+        $script:errors.Count | Should -Be 1
+        $script:errors[0].Name | Should -Be 'Failed to write to event log'
+    }
+}
+
+Describe 'Write-SystemErrorLogHC' {
+    BeforeEach {
+        $script:mailParams = @{}
+    }
+
+    It 'returns silently when there are no system errors' {
+        Mock Out-LogFileHC {}
+
+        $errs = [System.Collections.Generic.List[PSObject]]::new()
+
+        Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
+            -MailParams ([ref]$script:mailParams)
+
+        Should -Invoke Out-LogFileHC -Times 0 -Exactly
+        $script:mailParams.ContainsKey('Attachments') | Should -BeFalse
+    }
+
+    It 'returns silently when the log folder is missing' {
+        Mock Out-LogFileHC {}
+
+        $errs = [System.Collections.Generic.List[PSObject]]::new()
+        $errs.Add([PSCustomObject]@{ Message = 'x' })
+
+        Write-SystemErrorLogHC -SystemErrors $errs `
+            -LogFolder (Join-Path $TestDrive 'missing') `
+            -MailParams ([ref]$script:mailParams)
+
+        Should -Invoke Out-LogFileHC -Times 0 -Exactly
+    }
+
+    It 'writes a JSON log and attaches it to the mail params' {
+        Mock Out-LogFileHC { @("$TestDrive\SystemErrors.json") }
+
+        $errs = [System.Collections.Generic.List[PSObject]]::new()
+        $errs.Add([PSCustomObject]@{ Message = 'x' })
+
+        Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
+            -MailParams ([ref]$script:mailParams)
+
+        $script:mailParams['Attachments'] | Should -Contain "$TestDrive\SystemErrors.json"
+    }
+
+    It 'appends to existing attachments rather than overwriting' {
+        Mock Out-LogFileHC { @("$TestDrive\SystemErrors.json") }
+
+        $script:mailParams['Attachments'] = @('existing.txt')
+
+        $errs = [System.Collections.Generic.List[PSObject]]::new()
+        $errs.Add([PSCustomObject]@{ Message = 'x' })
+
+        Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
+            -MailParams ([ref]$script:mailParams)
+
+        $script:mailParams['Attachments'].Count | Should -Be 2
+        $script:mailParams['Attachments'] | Should -Contain 'existing.txt'
+    }
+
+    It 'does not add Attachments when nothing was written' {
+        Mock Out-LogFileHC { $null }
+
+        $errs = [System.Collections.Generic.List[PSObject]]::new()
+        $errs.Add([PSCustomObject]@{ Message = 'x' })
+
+        Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
+            -MailParams ([ref]$script:mailParams)
+
+        $script:mailParams.ContainsKey('Attachments') | Should -BeFalse
     }
 }

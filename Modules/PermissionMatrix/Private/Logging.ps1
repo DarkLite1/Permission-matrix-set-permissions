@@ -27,7 +27,7 @@ function Cleanup-OldLogsHC {
                     -Name 'Log cleanup failed' `
                     -Message "Failed to delete log file '$($_.FullName)': $_" `
                     -Category 'Logging' `
-                    -SystemErrors ([ref]$SystemErrors)
+                    -SystemErrors $SystemErrors
             }
         }
 
@@ -45,7 +45,7 @@ function Cleanup-OldLogsHC {
                         -Name 'Log cleanup failed' `
                         -Message "Failed to remove empty folder '$($_.FullName)': $_" `
                         -Category 'Logging' `
-                        -SystemErrors ([ref]$SystemErrors)
+                        -SystemErrors $SystemErrors
                 }
             }
         }
@@ -56,7 +56,7 @@ function Cleanup-OldLogsHC {
             -Name 'Log cleanup failed' `
             -Message "General log cleanup failure: $_" `
             -Category 'Logging' `
-            -SystemErrors ([ref]$SystemErrors)
+            -SystemErrors $SystemErrors
     }
 }
 
@@ -177,7 +177,7 @@ function Remove-FileHC {
                 -Name 'Failed to remove file' `
                 -Message "Failed to remove '$FilePath': $_" `
                 -Category 'Logging' `
-                -SystemErrors ([ref]$SystemErrors)
+                -SystemErrors $SystemErrors
         }
         else {
             Write-Warning "Failed removing '$FilePath': $_"
@@ -245,7 +245,7 @@ function Write-EventLogSafe {
             -Name 'Failed to write to event log' `
             -Message "Failed writing to event log: $_" `
             -Category 'Logging' `
-            -SystemErrors ([ref]$SystemErrors)
+            -SystemErrors $SystemErrors
     }
 }
 
@@ -326,4 +326,3 @@ function Write-SystemErrorLogHC {
         $MailParams.Value['Attachments'] += $attachments
     }
 }
-
