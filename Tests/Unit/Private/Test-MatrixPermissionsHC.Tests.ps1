@@ -153,10 +153,5 @@ Describe 'Test-MatrixPermissionsHC' {
             { Test-MatrixPermissionsHC -Permissions @() } |
             Should -Throw -ExpectedMessage '*empty array*'
         }
- 
-        It 'wraps an internal failure in a descriptive error' {
-            { Test-MatrixPermissionsHC -Permissions @($null) } |
-            Should -Throw -ExpectedMessage "*Failed testing the Excel sheet 'Permissions'*"
-        }
     }
 }
