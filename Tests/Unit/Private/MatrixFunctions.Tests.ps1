@@ -4,7 +4,6 @@ BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."
     $moduleRoot = "$root\Modules\PermissionMatrix"
 
-    # Matrix.ps1 depends on Add-ErrorHC, which lives in Utils.ps1.
     . "$moduleRoot\Private\Utils.ps1"
     . "$moduleRoot\Private\Matrix.ps1"
 }

@@ -3,7 +3,7 @@
 
 Describe 'Matrix Logic Tests' {
     BeforeDiscovery {
-        . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
+        . "$PSScriptRoot/../../Helpers/Fixtures.Matrix.ps1"
 
         $script:MatrixSettingsFixtures = Get-MatrixSettingsFixtures
         $script:MatrixPermissionsFixtures = Get-MatrixPermissionsFixtures
@@ -13,21 +13,20 @@ Describe 'Matrix Logic Tests' {
         $script:ADBuildFixtures = Get-AdObjectBuildFixtures
         $script:MatrixBuildFixtures = Get-MatrixBuildFixtures
 
-        $script:testScript = Join-Path `
-            $PSScriptRoot `
-            '..\Scripts\Entrypoints\PermissionMatrix.ps1'
+        $script:testScript = "$PSScriptRoot\..\..\..\Scripts\Entrypoints\PermissionMatrix.ps1"
     }
 
     BeforeAll {
-        . "$PSScriptRoot\Helpers\Helpers.HC.ps1"
-        . "$PSScriptRoot\Helpers\Fixtures.Json.ps1"
-        . "$PSScriptRoot\Helpers\Fixtures.Matrix.ps1"
-        . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$PSScriptRoot\Helpers\Fixtures.Excel.ps1"
+        . "$moduleRoot\Private\Utils.ps1"
+        . "$moduleRoot\Private\Matrix.ps1"
 
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Matrix.ps1"
-        . "$PSScriptRoot\..\Modules\PermissionMatrix\Private\Utils.ps1"
+        . "$root/Tests/Helpers/Helpers.HC.ps1"
+        . "$root/Tests/Helpers/Fixtures.Excel.ps1"
+        . "$root/Tests/Helpers/Fixtures.Matrix.ps1"
+        . "$root/Tests/Helpers/Fixtures.Json.ps1"
 
         if (-not (Test-Path $testScript)) {
             throw "Script '$testScript' not found"
@@ -59,8 +58,7 @@ Describe 'Matrix Logic Tests' {
         $script:TestScript = $testScript
         $script:TestParams = $testParams
 
-        $modulePath = Join-Path $PSScriptRoot '..\Modules\PermissionMatrix\PermissionMatrix.psd1'
-        Import-Module $modulePath -Force
+        Import-Module "$moduleRoot\PermissionMatrix.psd1" -Force
 
         Mock Import-Module {
             Write-Verbose "Pester: Intercepted and skipped Import-Module for '$Name'"
