@@ -1,5 +1,5 @@
 #Requires -Version 7
-#Requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 Describe 'Invoke-WithOptionalParallelismHC' {
     BeforeAll {

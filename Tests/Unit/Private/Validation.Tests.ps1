@@ -1,4 +1,5 @@
-#Requires -Module @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+#Requires -Version 7
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 #Requires -Module ImportExcel
 
 Describe 'Validation.ps1 - Updated Validation Functions' {

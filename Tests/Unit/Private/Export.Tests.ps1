@@ -1,5 +1,5 @@
 #Requires -Version 7
-#requires -Modules Pester
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."

@@ -1,4 +1,5 @@
-#requires -Modules Pester
+#Requires -Version 7
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
 
 #
 # ActiveDirectory.ps1 INTEGRATION tests
