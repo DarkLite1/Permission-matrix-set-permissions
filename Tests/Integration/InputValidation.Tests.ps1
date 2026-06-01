@@ -80,7 +80,7 @@ Describe 'Input Validation Tests' {
                 -LogFolderPath $logFolder `
                 -Pattern "*Property '$Property' not found*"
         }
-    } -tag test
+    }
 
     Context 'missing MaxConcurrent sub-properties' {
         It 'MaxConcurrent.<Property> not found' -TestCases $MissingMaxConcurrentProps {
