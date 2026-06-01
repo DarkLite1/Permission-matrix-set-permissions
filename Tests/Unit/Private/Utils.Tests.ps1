@@ -278,6 +278,71 @@ Describe 'Plural' {
     }
 }
 
+Describe 'Remove-BlankValueHC' {
+    BeforeAll {
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$moduleRoot\Private\Utils.ps1"
+    }
+
+    It 'removes a key whose value is an empty string' {
+        $result = Remove-BlankValueHC -Hashtable @{ Keep = 'x'; Drop = '' }
+
+        $result.ContainsKey('Drop') | Should -BeFalse
+        $result.Keep | Should -Be 'x'
+    }
+
+    It 'removes a key whose value is whitespace only' {
+        $result = Remove-BlankValueHC -Hashtable @{ Drop = '   ' }
+
+        $result.ContainsKey('Drop') | Should -BeFalse
+    }
+
+    It 'removes a key whose value is $null' {
+        $result = Remove-BlankValueHC -Hashtable @{ Drop = $null }
+
+        $result.ContainsKey('Drop') | Should -BeFalse
+    }
+
+    It 'keeps non-string values: 0, $false and an empty array' {
+        $result = Remove-BlankValueHC -Hashtable @{ Zero = 0; Flag = $false; Empty = @() }
+
+        $result.ContainsKey('Zero') | Should -BeTrue
+        $result.ContainsKey('Flag') | Should -BeTrue
+        $result.ContainsKey('Empty') | Should -BeTrue
+    }
+
+    It 'keeps populated arrays' {
+        $result = Remove-BlankValueHC -Hashtable @{ To = @('a@example.com', 'b@example.com') }
+
+        $result.To | Should -HaveCount 2
+    }
+
+    It 'does not modify the original hashtable' {
+        $original = @{ Keep = 'x'; Drop = '' }
+
+        $null = Remove-BlankValueHC -Hashtable $original
+
+        $original.ContainsKey('Drop') | Should -BeTrue
+    }
+
+    It 'mirrors the failing mail case: a blank SmtpConnectionType is dropped so the default applies' {
+        $mailParams = @{
+            To                 = @('test@example.com')
+            From               = 'noreply@example.com'
+            SmtpConnectionType = $null   # unset config -> Get-StringValueHC returns $null
+            Attachments        = @()
+        }
+
+        $result = Remove-BlankValueHC -Hashtable $mailParams
+
+        $result.ContainsKey('SmtpConnectionType') | Should -BeFalse
+        $result.ContainsKey('To') | Should -BeTrue
+        $result.ContainsKey('Attachments') | Should -BeTrue
+    }
+}
+
 Describe 'Test-ItemHasFatalErrorHC' {
     It 'returns false for null CheckList' {
         Test-ItemHasFatalErrorHC -CheckList $null | Should -BeFalse

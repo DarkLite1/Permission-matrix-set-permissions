@@ -164,7 +164,6 @@ function Get-StringOrDefaultHC {
     }
 }
 
-
 function Get-DatedLogFolderPathHC {
     [CmdletBinding()]
     param(
@@ -201,6 +200,55 @@ function Plural {
 
     if ($Count -eq 1) { return $Word }
     return "$Word`s"
+}
+
+function Remove-BlankValueHC {
+    <#
+    .SYNOPSIS
+        Returns a copy of a hashtable with entries whose value is $null or a
+        blank/whitespace string removed.
+
+    .DESCRIPTION
+        Intended for cleaning a splatting hashtable so that missing optional
+        values fall back to a command's parameter defaults instead of being
+        passed as '' — which would be rejected by a [ValidateSet] at binding
+        time (the default cannot apply once a value, even an empty one, is
+        explicitly supplied).
+
+        Only $null and blank/whitespace *strings* are removed. Other values —
+        numbers, booleans, and arrays (including empty arrays) — are preserved,
+        so collection parameters such as To or Attachments are never dropped.
+
+        The input hashtable is not modified; a shallow clone is returned.
+
+    .PARAMETER Hashtable
+        The hashtable to clean.
+
+    .EXAMPLE
+        $mailParams = Remove-BlankValueHC -Hashtable $mailParams
+        Send-MailKitMessageHC @mailParams
+    #>
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory)]
+        [hashtable]$Hashtable
+    )
+
+    $clean = $Hashtable.Clone()
+
+    foreach ($key in @($clean.Keys)) {
+        $value = $clean[$key]
+
+        if (
+            $null -eq $value -or
+            ($value -is [string] -and [string]::IsNullOrWhiteSpace($value))
+        ) {
+            $clean.Remove($key)
+        }
+    }
+
+    $clean
 }
 
 function Test-ItemHasFatalErrorHC {

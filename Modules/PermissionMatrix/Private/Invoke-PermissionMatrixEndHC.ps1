@@ -367,6 +367,12 @@ function Invoke-PermissionMatrixEndHC {
             <# 
             start (ls $emailLogFolder)[1].FullName
             #>
+            
+            # Drop blank entries so splatting falls back to the function's
+            # parameter defaults (e.g. SmtpConnectionType -> 'None') instead of
+            # passing '' and tripping its ValidateSet.
+            $mailParams = Remove-BlankValueHC -Hashtable $mailParams
+
             Send-MailKitMessageHC @mailParams
         }
         catch {

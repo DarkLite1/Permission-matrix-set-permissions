@@ -164,7 +164,6 @@ Describe 'Invoke-PermissionMatrixEndHC' {
                 })
             $htmlWarnings.Count | Should -Be 1
 
-            # Pipeline continues: subsequent phases should still attempt to run
             Should -Invoke Send-MailKitMessageHC -Times 1
         }
 
