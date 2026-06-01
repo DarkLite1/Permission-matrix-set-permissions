@@ -303,7 +303,7 @@ function Invoke-PermissionMatrixEndHC {
                 -SendMailSettings $sendMail `
                 -MailToDefaultsFile $Context.Defaults.MailTo
 
-            $subject = Generate-MailSubjectHC `
+            $subject = Get-MailSubjectHC `
                 -SystemErrors $SystemErrors.Value `
                 -Counter $Context.Counter `
                 -MatrixCount $Context.AllMatrices.Count `

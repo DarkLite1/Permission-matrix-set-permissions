@@ -21,7 +21,7 @@ function Get-MailRecipientListHC {
     ) | Sort-Object -Unique
 }
 
-function Generate-MailSubjectHC {
+function Get-MailSubjectHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

@@ -5,7 +5,7 @@
 
     Covered functions:
         - Get-MailRecipientListHC   (pure)
-        - Generate-MailSubjectHC         (pure)
+        - Get-MailSubjectHC         (pure)
         - Save-MailBodyToLogHC           (file system, uses TestDrive)
         - Send-MailKitMessageHC          (stubbed mail stack, see note below)
 
@@ -157,7 +157,7 @@ Describe 'Get-MailRecipientListHC' {
     }
 }
 
-Describe 'Generate-MailSubjectHC' {
+Describe 'Get-MailSubjectHC' {
     BeforeAll {
         # A counter with no errors / warnings, reused where the branch ignores it.
         $script:zeroCounter = [PSCustomObject]@{ TotalErrors = 0; TotalWarnings = 0 }
@@ -172,14 +172,14 @@ Describe 'Generate-MailSubjectHC' {
 
     Context 'when system errors are present (takes priority over the counter)' {
         It 'reports a single matrix file and a single system error' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $zeroCounter -MatrixCount 1
 
             $result | Should -Be '1 matrix file, 1 System Error'
         }
 
         It 'pluralises matrix files and system errors' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 3) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 3) `
                 -Counter $zeroCounter -MatrixCount 2
 
             $result | Should -Be '2 matrix files, 3 System Errors'
@@ -188,14 +188,14 @@ Describe 'Generate-MailSubjectHC' {
         It 'ignores counter errors and warnings when system errors exist' {
             $counter = [PSCustomObject]@{ TotalErrors = 9; TotalWarnings = 9 }
 
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $counter -MatrixCount 1
 
             $result | Should -Be '1 matrix file, 1 System Error'
         }
 
         It 'appends the custom subject' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 2) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 2) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'Nightly run'
 
             $result | Should -Be '1 matrix file, 2 System Errors, Nightly run'
@@ -204,28 +204,28 @@ Describe 'Generate-MailSubjectHC' {
 
     Context 'when there are no system errors' {
         It 'reports only the matrix count when there are no errors or warnings' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1
 
             $result | Should -Be '1 matrix file'
         }
 
         It 'pluralises the matrix count' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 3
 
             $result | Should -Be '3 matrix files'
         }
 
         It 'pluralises a zero matrix count' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 0
 
             $result | Should -Be '0 matrix files'
         }
 
         It 'appends the custom subject' {
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'All good'
 
             $result | Should -Be '1 matrix file, All good'
@@ -243,7 +243,7 @@ Describe 'Generate-MailSubjectHC' {
 
             $counter = [PSCustomObject]@{ TotalErrors = $Errors; TotalWarnings = $Warnings }
 
-            $result = Generate-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $counter -MatrixCount 1
 
             $result | Should -Be $Expected

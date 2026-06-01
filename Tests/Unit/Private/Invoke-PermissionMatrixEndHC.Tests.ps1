@@ -120,7 +120,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         Mock Generate-MailBodyHtmlHC { return '<html><body>OK</body></html>' }
         Mock Export-FilesHC { return @{ HtmlOverview = 'TestDrive:\overview.html' } }
         Mock Get-MailRecipientListHC { return @('test@example.com') }
-        Mock Generate-MailSubjectHC { return 'Test Subject' }
+        Mock Get-MailSubjectHC { return 'Test Subject' }
         Mock Send-MailKitMessageHC { }
         Mock Save-MailBodyToLogHC { return 'TestDrive:\Logs\mail.html' }
         Mock Write-EventLogSafe { }
