@@ -34,6 +34,23 @@ BeforeAll {
 
     . "$moduleRoot\Private\Mail.ps1"
 
+    # Prefer the real MailKit / MimeKit assemblies when their paths are known
+    # (the script reads the same env vars). Loading the real types means the
+    # tests exercise the actual [MimeKit.MailboxAddress]::Parse contract and,
+    # crucially, leave NO conflicting stub type behind. The lightweight stubs
+    # below are only a fallback for environments without the DLLs (e.g. CI).
+    #
+    # The stub MimeKit.MailboxAddress does not derive from InternetAddress, so
+    # if it is compiled into a session it will shadow the real type and break
+    # any real send done later in the same process. Always run these tests in
+    # their own PowerShell process, e.g.:
+    #   pwsh -NoProfile -Command "Invoke-Pester -Path .\Tests\Unit\Private\Mail.Tests.ps1"
+    foreach ($dll in @($env:MIMEKIT_DLL, $env:MAILKIT_DLL)) {
+        if ($dll -and (Test-Path -LiteralPath $dll)) {
+            Add-Type -Path $dll -ErrorAction SilentlyContinue
+        }
+    }
+
     # Stub the types the sender references, but only if the real MailKit /
     # MimeKit assemblies are not already present in the session.
     if (-not ('MailKit.Security.SecureSocketOptions' -as [type])) {
@@ -248,7 +265,7 @@ Describe 'Save-MailBodyToLogHC' {
     It 'replaces characters that are invalid in a file name with a space' {
         # Pick a real invalid char for the current OS so the test is portable.
         $invalidChar = [System.IO.Path]::GetInvalidFileNameChars() |
-        Where-Object { $_ -ne ' ' } | Select-Object -First 1
+            Where-Object { $_ -ne ' ' } | Select-Object -First 1
         $params = @{ Subject = "report${invalidChar}name"; Body = '<p>x</p>' }
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
@@ -473,6 +490,31 @@ Describe 'Send-MailKitMessageHC' {
 
         It 'rejects an invalid connection type' {
             { Send-MailKitMessageHC @params -SmtpConnectionType 'Bogus' } | Should -Throw
+        }
+    }
+
+    Context 'assembly loading' {
+        It 'throws a clear, assembly-specific error when MimeKit fails to load' {
+            Mock Add-Type { throw 'Could not load file or assembly.' } `
+                -ParameterFilter { $Path -eq 'X:\MimeKit.dll' }
+
+            { Send-MailKitMessageHC @params } |
+                Should -Throw -ExpectedMessage '*MimeKit*X:\MimeKit.dll*'
+        }
+
+        It 'throws a clear, assembly-specific error when MailKit fails to load' {
+            Mock Add-Type { throw 'Bad image format.' } `
+                -ParameterFilter { $Path -eq 'X:\MailKit.dll' }
+
+            { Send-MailKitMessageHC @params } |
+                Should -Throw -ExpectedMessage '*MailKit*X:\MailKit.dll*'
+        }
+
+        It 'throws a clear error when an assembly path is only whitespace' {
+            $params.MimeKitAssemblyPath = '   '
+
+            { Send-MailKitMessageHC @params } |
+                Should -Throw -ExpectedMessage '*MimeKit*not set*'
         }
     }
 

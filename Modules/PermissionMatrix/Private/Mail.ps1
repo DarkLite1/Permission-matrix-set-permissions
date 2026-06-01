@@ -94,13 +94,32 @@ function Send-MailKitMessageHC {
         [PSCredential]$Credential
     )
 
-    Add-Type -Path $MimeKitAssemblyPath
-    Add-Type -Path $MailKitAssemblyPath
+    # Load assemblies (MimeKit first; MailKit depends on it). Wrap Add-Type so a
+    # missing, unset, or invalid DLL produces a clear, actionable error instead
+    # of a cryptic assembly-load failure.
+    foreach ($assembly in @(
+            [PSCustomObject]@{ Name = 'MimeKit'; Path = $MimeKitAssemblyPath },
+            [PSCustomObject]@{ Name = 'MailKit'; Path = $MailKitAssemblyPath }
+        )) {
+        if ([string]::IsNullOrWhiteSpace($assembly.Path)) {
+            throw "The $($assembly.Name) assembly path is not set. Provide the full path to $($assembly.Name).dll (e.g. via the configuration file or its environment variable)."
+        }
 
+        try {
+            Add-Type -Path $assembly.Path -ErrorAction Stop
+        }
+        catch {
+            throw "Failed to load the $($assembly.Name) assembly from '$($assembly.Path)'. $($_.Exception.Message) Verify the path is correct and that the MimeKit and MailKit NuGet packages are installed."
+        }
+    }
+
+    # Streams opened for attachments must stay open until after Send (MimeKit
+    # reads them during Send), then be disposed in the finally block.
     $attachmentStreams = [System.Collections.Generic.List[System.IO.Stream]]::new()
     $smtp = $null
 
     try {
+        # Create message
         $message = New-Object MimeKit.MimeMessage
         $fromAddress = New-Object MimeKit.MailboxAddress($FromDisplayName, $From)
         $message.From.Add($fromAddress)
@@ -116,12 +135,14 @@ function Send-MailKitMessageHC {
 
         $message.Subject = $Subject
 
+        # Priority header
         switch ($Priority) {
             'High' { $message.Headers.Add('X-Priority', '1 (Highest)') }
             'Normal' { $message.Headers.Add('X-Priority', '3 (Normal)') }
             'Low' { $message.Headers.Add('X-Priority', '5 (Lowest)') }
         }
 
+        # Body
         $bodyPart = New-Object MimeKit.TextPart('html')
         $bodyPart.Text = $Body
         $bodyContainer = New-Object MimeKit.Multipart 'mixed'
