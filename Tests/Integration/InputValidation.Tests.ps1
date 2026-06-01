@@ -17,12 +17,10 @@ Describe 'Input Validation Tests' {
         $root = Resolve-Path "$PSScriptRoot\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        Import-Module "$root\Modules\PermissionMatrix\PermissionMatrix.psm1" -Force
+        Import-Module "$moduleRoot\PermissionMatrix.psm1" -Force
 
         . "$root\Tests\Helpers\Helpers.HC.ps1"        
         . "$root\Tests\Helpers\Fixtures.Json.ps1"
-
-        . "$moduleRoot\Private\Mail.ps1"
 
         $script:TestScript = "$root\Scripts\Entrypoints\PermissionMatrix.ps1"
 
