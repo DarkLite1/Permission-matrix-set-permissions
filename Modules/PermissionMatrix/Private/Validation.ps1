@@ -513,7 +513,7 @@ function Test-AdObjectInMatrixHC {
     return $checks
 }
 
-function Validate-ConfigurationStructureHC {
+function Test-ConfigurationStructureHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Json,

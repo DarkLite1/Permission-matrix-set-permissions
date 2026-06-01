@@ -53,7 +53,7 @@ function Invoke-PermissionMatrixBeginHC {
         }
 
         #region Validate Configuration Structure
-        Validate-ConfigurationStructureHC `
+        Test-ConfigurationStructureHC `
             -Json $json `
             -SystemErrors $SystemErrors
         #endregion

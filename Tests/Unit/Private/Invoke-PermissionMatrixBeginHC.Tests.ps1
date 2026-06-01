@@ -165,7 +165,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
         # Default-safe mocks. Each Context overrides as needed.
-        Mock Validate-ConfigurationStructureHC { }
+        Mock Test-ConfigurationStructureHC { }
         Mock Invoke-WithOptionalParallelismHC { return @() }
         Mock Import-MatrixDefaultsFileHC { return @() }
         Mock Get-DefaultAclHC { return @() }
@@ -206,8 +206,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     }
 
     Context 'Configuration structure validation' {
-        It 'records FatalError when Validate-ConfigurationStructureHC adds one' {
-            Mock Validate-ConfigurationStructureHC {
+        It 'records FatalError when Test-ConfigurationStructureHC adds one' {
+            Mock Test-ConfigurationStructureHC {
                 $SystemErrors.Value.Add([pscustomobject]@{
                         Type = 'FatalError'; Category = 'Validation'; Message = 'bad schema'
                     })

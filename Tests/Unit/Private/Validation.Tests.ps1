@@ -299,7 +299,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-    Describe 'Validate-ConfigurationStructureHC' {
+    Describe 'Test-ConfigurationStructureHC' {
         BeforeAll {
             $script:ValidFolder = Join-Path 'TestDrive:' 'MatrixFolder'
             $script:ValidDefaults = Join-Path 'TestDrive:' 'defaults.json'
@@ -333,7 +333,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = [System.Collections.Generic.List[object]]::new()
                 $obj = ConvertTo-JsonObject -Hashtable $Json
-                Validate-ConfigurationStructureHC -Json $obj -SystemErrors ([ref]$errors)
+                Test-ConfigurationStructureHC -Json $obj -SystemErrors ([ref]$errors)
                 return $errors
             }
 
