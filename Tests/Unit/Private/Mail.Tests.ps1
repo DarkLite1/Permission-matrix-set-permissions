@@ -19,9 +19,10 @@
             * New-Object is mocked to return recording fakes. The fake
               SmtpClient records its Connect/Authenticate/Send/Disconnect/
               Dispose calls so the tests can assert on them.
-            * The two enum literals the function references
-              ([MailKit.Security.SecureSocketOptions] and
-              [MimeKit.ContentEncoding]) are stubbed via Add-Type only when
+            * The enum literals the function references
+              ([MailKit.Security.SecureSocketOptions], [MimeKit.ContentEncoding])
+              and the MimeKit.MailboxAddress type (whose static ::Parse the
+              function now calls for To/Bcc) are stubbed via Add-Type only when
               the real assemblies are not already loaded.
         A cleaner long-term seam would be to refactor the function to accept
         an injectable SMTP client; that would let the test mock just the send.
@@ -33,8 +34,8 @@ BeforeAll {
 
     . "$moduleRoot\Private\Mail.ps1"
 
-    # Stub the two enum types the sender references, but only if the real
-    # MailKit / MimeKit assemblies are not already present in the session.
+    # Stub the types the sender references, but only if the real MailKit /
+    # MimeKit assemblies are not already present in the session.
     if (-not ('MailKit.Security.SecureSocketOptions' -as [type])) {
         Add-Type -TypeDefinition @'
 namespace MailKit.Security {
@@ -50,6 +51,27 @@ namespace MailKit.Security {
 namespace MimeKit {
     public enum ContentEncoding {
         Default, Binary, EightBit, SevenBit, Base64, QuotedPrintable, UUEncode
+    }
+}
+'@
+    }
+
+    # The function calls the static [MimeKit.MailboxAddress]::Parse for To/Bcc
+    # and the (name, address) constructor for From, so the stub provides both
+    # plus the .Name / .Address properties the tests read.
+    if (-not ('MimeKit.MailboxAddress' -as [type])) {
+        Add-Type -TypeDefinition @'
+namespace MimeKit {
+    public class MailboxAddress {
+        public string Name { get; set; }
+        public string Address { get; set; }
+        public MailboxAddress(string name, string address) {
+            Name = name;
+            Address = address;
+        }
+        public static MailboxAddress Parse(string text) {
+            return new MailboxAddress(null, text);
+        }
     }
 }
 '@
@@ -77,6 +99,14 @@ Describe 'Generate-MailRecipientListHC' {
 
     It 'drops empty and whitespace-only entries' {
         $settings = [PSCustomObject]@{ To = @('amy@example.com', '', '   ') }
+
+        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+
+        $result | Should -Be 'amy@example.com'
+    }
+
+    It 'ignores a null entry in the list instead of throwing' {
+        $settings = [PSCustomObject]@{ To = @('amy@example.com', $null) }
 
         $result = Generate-MailRecipientListHC -SendMailSettings $settings
 
@@ -218,7 +248,7 @@ Describe 'Save-MailBodyToLogHC' {
     It 'replaces characters that are invalid in a file name with a space' {
         # Pick a real invalid char for the current OS so the test is portable.
         $invalidChar = [System.IO.Path]::GetInvalidFileNameChars() |
-            Where-Object { $_ -ne ' ' } | Select-Object -First 1
+        Where-Object { $_ -ne ' ' } | Select-Object -First 1
         $params = @{ Subject = "report${invalidChar}name"; Body = '<p>x</p>' }
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
@@ -280,7 +310,10 @@ Describe 'Send-MailKitMessageHC' {
                     $msg
                 }
                 'MimeKit.MailboxAddress' {
-                    [PSCustomObject]@{ Name = $ArgumentList[0]; Address = $ArgumentList[1] }
+                    # Use the real (or stubbed) type so these New-Object
+                    # instances and the static ::Parse the function calls for
+                    # To/Bcc share one shape with .Name and .Address.
+                    [MimeKit.MailboxAddress]::new($ArgumentList[0], $ArgumentList[1])
                 }
                 'MimeKit.TextPart' {
                     [PSCustomObject]@{ Kind = 'TextPart'; Subtype = $ArgumentList[0]; Text = $null }
@@ -411,9 +444,9 @@ Describe 'Send-MailKitMessageHC' {
         $script:LastMessage.From.Items[0].Address | Should -Be 'from@example.com'
         $script:LastMessage.From.Items[0].Name | Should -Be 'Sender Name'
 
-        $script:LastMessage.To.Items | Should -Contain 'a@example.com'
-        $script:LastMessage.To.Items | Should -Contain 'b@example.com'
-        $script:LastMessage.Bcc.Items | Should -Contain 'c@example.com'
+        $script:LastMessage.To.Items.Address | Should -Contain 'a@example.com'
+        $script:LastMessage.To.Items.Address | Should -Contain 'b@example.com'
+        $script:LastMessage.Bcc.Items.Address | Should -Contain 'c@example.com'
 
         $bodyPart = $script:LastMessage.Body.Parts | Where-Object { $_.Kind -eq 'TextPart' }
         $bodyPart.Text | Should -Be '<p>hi</p>'
@@ -433,20 +466,17 @@ Describe 'Send-MailKitMessageHC' {
         $header.Value | Should -Be $Expected
     }
 
-    Context 'attachments' {
-        # The function opens attachment streams with [System.IO.File]::OpenRead
-        # and never disposes them, so the file stays locked on Windows and
-        # Pester cannot remove TestDrive. Release any captured stream here.
-        AfterEach {
-            if ($script:LastMessage -and $script:LastMessage.Body -and $script:LastMessage.Body.Parts) {
-                foreach ($part in $script:LastMessage.Body.Parts) {
-                    if ($part.Kind -eq 'MimePart' -and $part.Content -and $part.Content.Stream) {
-                        try { $part.Content.Stream.Dispose() } catch { }
-                    }
-                }
-            }
+    Context 'parameter validation' {
+        It 'rejects an invalid priority' {
+            { Send-MailKitMessageHC @params -Priority 'Urgent' } | Should -Throw
         }
 
+        It 'rejects an invalid connection type' {
+            { Send-MailKitMessageHC @params -SmtpConnectionType 'Bogus' } | Should -Throw
+        }
+    }
+
+    Context 'attachments' {
         It 'includes an existing attachment and skips a missing one' {
             $existing = Join-Path $TestDrive 'note.txt'
             'attachment body' | Out-File -LiteralPath $existing
@@ -467,6 +497,18 @@ Describe 'Send-MailKitMessageHC' {
 
             $script:LastMessage.Body.Parts | Should -HaveCount 1
             $script:LastMessage.Body.Parts[0].Kind | Should -Be 'TextPart'
+        }
+
+        It 'disposes the attachment stream after sending' {
+            $existing = Join-Path $TestDrive 'disposed.txt'
+            'x' | Out-File -LiteralPath $existing
+
+            Send-MailKitMessageHC @params -Attachments @($existing)
+
+            # The fake MimeContent holds the real FileStream the function opened;
+            # a disposed FileStream reports CanRead = $false.
+            $attachment = $script:LastMessage.Body.Parts | Where-Object { $_.Kind -eq 'MimePart' }
+            $attachment.Content.Stream.CanRead | Should -BeFalse
         }
     }
 }
