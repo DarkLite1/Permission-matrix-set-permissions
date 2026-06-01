@@ -138,8 +138,149 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
     }
 
     Context 'Test-MatrixFormDataHC' {
-        It 'Warns if FormData missing' {
-            (Test-MatrixFormDataHC -FormData $null).Type | Should -Be 'Warning'
+        BeforeAll {
+            # A single, fully-valid FormData row. Negative cases call this and
+            # mutate one property so each test isolates exactly one failure.
+            function New-ValidFormDataRow {
+                [pscustomobject]@{
+                    MatrixFormStatus        = 'Enabled'
+                    MatrixCategoryName      = 'Default'
+                    MatrixSubCategoryName   = 'General'
+                    MatrixResponsible       = 'owner@example.com'
+                    MatrixFolderDisplayName = 'Finance'
+                    MatrixFolderPath        = 'E:\Folder'
+                }
+            }
+        }
+
+        Context 'when FormData is missing' {
+            It 'returns a Warning when FormData is $null' {
+                $result = Test-MatrixFormDataHC -FormData $null
+                $result.Type | Should -Be 'Warning'
+                $result.Name | Should -Be 'Missing FormData'
+            }
+
+            It 'returns a Warning when FormData is an empty array' {
+                $result = Test-MatrixFormDataHC -FormData @()
+                $result.Type | Should -Be 'Warning'
+                $result.Name | Should -Be 'Missing FormData'
+            }
+        }
+
+        Context 'row count' {
+            It 'returns nothing for a single fully-valid row' {
+                $result = Test-MatrixFormDataHC -FormData (New-ValidFormDataRow)
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'flags a FatalError when more than one row is supplied' {
+                $rows = @((New-ValidFormDataRow), (New-ValidFormDataRow))
+                $result = Test-MatrixFormDataHC -FormData $rows
+                $result.Type | Should -Be 'FatalError'
+                $result.Name | Should -Be 'Incorrect row count'
+                $result.Value | Should -Be 2
+            }
+        }
+
+        Context 'mandatory column headers' {
+            It 'flags a FatalError when a mandatory column is absent' {
+                # MatrixFolderDisplayName omitted entirely.
+                $row = [pscustomobject]@{
+                    MatrixFormStatus      = 'Enabled'
+                    MatrixCategoryName    = 'Default'
+                    MatrixSubCategoryName = 'General'
+                    MatrixResponsible     = 'owner@example.com'
+                    MatrixFolderPath      = 'E:\Folder'
+                }
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Type | Should -Be 'FatalError'
+                $result.Name | Should -Be 'Missing column header'
+                $result.Value | Should -Match 'MatrixFolderDisplayName'
+            }
+
+            It 'lists every absent column in the Value' {
+                $row = [pscustomobject]@{
+                    MatrixFormStatus   = 'Enabled'
+                    MatrixCategoryName = 'Default'
+                }
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Name | Should -Be 'Missing column header'
+                $result.Value | Should -Match 'MatrixSubCategoryName'
+                $result.Value | Should -Match 'MatrixResponsible'
+                $result.Value | Should -Match 'MatrixFolderDisplayName'
+                $result.Value | Should -Match 'MatrixFolderPath'
+            }
+
+            It 'flags absent columns even when the row is Disabled' {
+                # The header check runs regardless of status.
+                $row = [pscustomobject]@{
+                    MatrixFormStatus   = 'Disabled'
+                    MatrixCategoryName = 'Default'
+                }
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Type | Should -Be 'FatalError'
+                $result.Name | Should -Be 'Missing column header'
+            }
+        }
+
+        Context 'mandatory values when status is Enabled' {
+            It 'flags a FatalError when an Enabled row has a blank value' {
+                $row = New-ValidFormDataRow
+                $row.MatrixResponsible = ''
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Type | Should -Be 'FatalError'
+                $result.Name | Should -Be 'Missing value'
+                $result.Value | Should -Match 'MatrixResponsible'
+            }
+
+            It 'treats a whitespace-only value as blank' {
+                $row = New-ValidFormDataRow
+                $row.MatrixFolderPath = '   '
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Name | Should -Be 'Missing value'
+                $result.Value | Should -Match 'MatrixFolderPath'
+            }
+
+            It 'reports every blank mandatory value at once' {
+                $row = New-ValidFormDataRow
+                $row.MatrixResponsible = ''
+                $row.MatrixFolderPath = ''
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Name | Should -Be 'Missing value'
+                $result.Value | Should -Match 'MatrixResponsible'
+                $result.Value | Should -Match 'MatrixFolderPath'
+            }
+
+            It 'matches the Enabled status case-insensitively' {
+                # 'enabled' still triggers the value check (PowerShell -eq is
+                # case-insensitive), so a blank value is still flagged.
+                $row = New-ValidFormDataRow
+                $row.MatrixFormStatus = 'enabled'
+                $row.MatrixResponsible = ''
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result.Name | Should -Be 'Missing value'
+            }
+        }
+
+        Context 'when status is not Enabled' {
+            It 'skips the value checks for a Disabled row with blank values' {
+                $row = New-ValidFormDataRow
+                $row.MatrixFormStatus = 'Disabled'
+                $row.MatrixResponsible = ''
+                $row.MatrixFolderPath = ''
+                $row.MatrixFolderDisplayName = ''
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'treats a blank status as "not Enabled" and skips value checks' {
+                # Documents current behavior: only the literal 'Enabled' triggers
+                # value validation, so a blank/typo status silently passes.
+                $row = New-ValidFormDataRow
+                $row.MatrixFormStatus = ''
+                $result = Test-MatrixFormDataHC -FormData $row
+                $result | Should -BeNullOrEmpty
+            }
         }
     }
 
