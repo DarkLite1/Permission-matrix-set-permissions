@@ -94,7 +94,7 @@ function Import-MatrixFileHC {
 
                 $fileResult.Sheets.FormData.Raw = $formDataImport
 
-                $formDataCheck = Test-FormDataHC -FormData $formDataImport
+                $formDataCheck = Test-MatrixFormDataHC -FormData $formDataImport
 
                 if ($formDataCheck) {
                     $fileResult.Check.Add($formDataCheck)

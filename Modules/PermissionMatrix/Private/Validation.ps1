@@ -264,15 +264,96 @@ function Test-MatrixPermissionsHC {
 }
 
 function Test-MatrixFormDataHC {
-    [CmdletBinding()]
-    param([Parameter(Mandatory = $false)] $FormData)
+    <#
+    .SYNOPSIS
+        Verify input for the Excel sheet 'FormData'.
 
-    if (-not $FormData) {
-        return New-ValidationCheckHC `
-            -Type 'Warning' `
-            -Name 'FormData missing' `
-            -Description 'FormData is required for specific exports.' `
-            -Category 'FormData'
+    .DESCRIPTION
+        Verify if the Excel sheet 'FormData' contains the correct data.
+
+    .PARAMETER FormData
+        Represents the data coming from the Excel sheet 'FormData'. When no rows
+        are supplied (null or empty) a non-fatal Warning is returned, consistent
+        with the other Test-Matrix*HC validators. The parameter is intentionally
+        not Mandatory so a missing sheet can be reported rather than rejected at
+        parameter binding.
+    #>
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param (
+        [PSCustomObject[]]$FormData
+    )
+
+    process {
+        try {
+            #region No FormData -> Warning
+            if ((-not $FormData) -or ($FormData.Count -eq 0)) {
+                return [PSCustomObject]@{
+                    Type        = 'Warning'
+                    Name        = 'Missing FormData'
+                    Description = 'No FormData rows were found. ServiceNow form data will not be exported for this matrix file.'
+                    Value       = $null
+                }
+            }
+            #endregion
+
+            if ($FormData.Count -ne 1) {
+                return [PSCustomObject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Incorrect row count'
+                    Description = "Exactly one row of data is required. Found $($FormData.Count) row(s)."
+                    Value       = $FormData.Count
+                }
+            }
+
+            $Row = $FormData[0]
+            $Properties = ($Row | Get-Member -MemberType NoteProperty).Name
+
+            $MandatoryProperties = @(
+                'MatrixFormStatus',
+                'MatrixCategoryName',
+                'MatrixSubCategoryName',
+                'MatrixResponsible',
+                'MatrixFolderDisplayName',
+                'MatrixFolderPath'
+            )
+
+            #region Missing column headers
+            $MissingProperties = $MandatoryProperties.Where({ $_ -notin $Properties })
+
+            if ($MissingProperties) {
+                return [PSCustomObject]@{
+                    Type        = 'FatalError'
+                    Name        = 'Missing column header'
+                    Description = "The following column headers are mandatory: $($MandatoryProperties -join ', ')."
+                    Value       = $MissingProperties -join ', '
+                }
+            }
+            #endregion
+
+            #region Mandatory property values (Only if Enabled)
+            if ($Row.MatrixFormStatus -eq 'Enabled') {
+
+                $MandatoryPropertyValues = $MandatoryProperties.Where({ $_ -ne 'MatrixFormStatus' })
+
+                $BlankProperties = $MandatoryPropertyValues.Where({
+                        [string]::IsNullOrWhiteSpace($Row.$_)
+                    })
+
+                if ($BlankProperties) {
+                    return [PSCustomObject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Missing value'
+                        Description = "Values for the following columns are mandatory when status is Enabled: $($MandatoryPropertyValues -join ', ')."
+                        Value       = $BlankProperties -join ', '
+                    }
+                }
+            }
+            #endregion
+        }
+        catch {
+            throw "Failed testing the Excel sheet 'FormData': $_"
+        }
     }
 }
 

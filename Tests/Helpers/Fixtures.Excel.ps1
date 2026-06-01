@@ -453,15 +453,16 @@ function New-MatrixExcelFixture {
 
     # FORMDATA
     if (-not $FormDataRows) {
-        $fileName = Split-Path $Path -Leaf
+        # $fileName = Split-Path $Path -Leaf
         $FormDataRows = @(
             [pscustomobject]@{
-                MatrixFileName        = $fileName
-                MatrixFolderPath      = 'E:\Folder'
-                MatrixCategoryName    = 'Default'
-                MatrixSubCategoryName = 'General'
-                MatrixResponsible     = 'owner@example.com'
-                MatrixFormStatus      = $Disabled ? 'Disabled' : 'Enabled'
+                # MatrixFileName        = $fileName
+                MatrixFolderDisplayName = 'Default Folder'
+                MatrixFolderPath        = 'E:\Folder'
+                MatrixCategoryName      = 'Default'
+                MatrixSubCategoryName   = 'General'
+                MatrixResponsible       = 'owner@example.com'
+                MatrixFormStatus        = $Disabled ? 'Disabled' : 'Enabled'
             }
         )
     }
