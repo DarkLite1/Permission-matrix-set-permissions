@@ -270,7 +270,7 @@ function Invoke-PermissionMatrixEndHC {
         }
         else { '' }
 
-        $fullHtmlBody = Generate-MailBodyHtmlHC `
+        $fullHtmlBody = Get-MailBodyHtmlHC `
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -ScriptEndTime $scriptExecutionEndTime `

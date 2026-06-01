@@ -117,7 +117,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         Mock Initialize-HtmlStructureHC { return @{ Style = '<style></style>' } }
         Mock Build-MatrixEmailHtmlHC { return '<table>matrix</table>' }
         Mock Build-ErrorWarningTableHC { return '<table>errors</table>' }
-        Mock Generate-MailBodyHtmlHC { return '<html><body>OK</body></html>' }
+        Mock Get-MailBodyHtmlHC { return '<html><body>OK</body></html>' }
         Mock Export-FilesHC { return @{ HtmlOverview = 'TestDrive:\overview.html' } }
         Mock Get-MailRecipientListHC { return @('test@example.com') }
         Mock Get-MailSubjectHC { return 'Test Subject' }
@@ -145,16 +145,16 @@ Describe 'Invoke-PermissionMatrixEndHC' {
             Should -Invoke Build-MatrixEmailHtmlHC -Times 0
         }
 
-        It 'always calls Generate-MailBodyHtmlHC' {
+        It 'always calls Get-MailBodyHtmlHC' {
             $ctx = New-EndContext
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Generate-MailBodyHtmlHC -Times 1
+            Should -Invoke Get-MailBodyHtmlHC -Times 1
         }
 
         It 'records a Warning when HTML generation throws (does not abort pipeline)' {
-            Mock Generate-MailBodyHtmlHC { throw 'html boom' }
+            Mock Get-MailBodyHtmlHC { throw 'html boom' }
             $ctx = New-EndContext
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
@@ -463,7 +463,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Generate-MailBodyHtmlHC -Times 1
+            Should -Invoke Get-MailBodyHtmlHC -Times 1
             Should -Invoke Export-FilesHC -Times 1
             Should -Invoke Send-MailKitMessageHC -Times 1
             Should -Invoke Write-EventLogSafe -Times 1

@@ -751,7 +751,7 @@ function Build-MatrixEmailHtmlHC {
     return $output
 }
 
-function Generate-MailBodyHtmlHC {
+function Get-MailBodyHtmlHC {
     param(
         $Settings,
         $Html,

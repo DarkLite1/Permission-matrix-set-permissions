@@ -804,14 +804,14 @@ Describe 'Build-MatrixEmailHtmlHC' {
     }
 }
 
-Describe 'Generate-MailBodyHtmlHC' {
+Describe 'Get-MailBodyHtmlHC' {
     BeforeEach {
         $script:html = Initialize-HtmlStructureHC
     }
 
     It 'returns a complete HTML document' {
         $settings = [pscustomobject]@{ ScriptName = 'My Script'; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match '<!DOCTYPE html>'
         $out | Should -Match '</html>'
@@ -819,21 +819,21 @@ Describe 'Generate-MailBodyHtmlHC' {
 
     It 'renders the script name in an encoded h1' {
         $settings = [pscustomobject]@{ ScriptName = 'R&D Run'; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match '<h1>R&amp;D Run</h1>'
     }
 
     It 'falls back to a default script name when none is supplied' {
         $settings = [pscustomobject]@{ ScriptName = ''; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match '<h1>Permission Matrix</h1>'
     }
 
     It 'renders a footer with Started, Ended and Duration when a start time is given' {
         $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:30:00')
         $out | Should -Match 'Started'
@@ -845,7 +845,7 @@ Describe 'Generate-MailBodyHtmlHC' {
     It 'includes the MatrixTables fragment passed via the Html hashtable' {
         $html.MatrixTables = '<!-- MATRIX_TABLES_MARKER -->'
         $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match 'MATRIX_TABLES_MARKER'
     }
@@ -855,7 +855,7 @@ Describe 'Generate-MailBodyHtmlHC' {
         $errors.Add([pscustomobject]@{ Type = 'FatalError'; Name = 'SysBoom'; Message = 'bad'; Category = 'Matrix' })
         $html.SystemErrors = ([ref]$errors)
         $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
-        $out = Generate-MailBodyHtmlHC -Settings $settings -Html $html `
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match 'SysBoom'
         $out | Should -Match 'System Error'
