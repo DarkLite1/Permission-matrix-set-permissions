@@ -4,7 +4,7 @@
     Pester 5 tests for Modules\PermissionMatrix\Private\Mail.ps1
 
     Covered functions:
-        - Generate-MailRecipientListHC   (pure)
+        - Get-MailRecipientListHC   (pure)
         - Generate-MailSubjectHC         (pure)
         - Save-MailBodyToLogHC           (file system, uses TestDrive)
         - Send-MailKitMessageHC          (stubbed mail stack, see note below)
@@ -95,11 +95,11 @@ namespace MimeKit {
     }
 }
 
-Describe 'Generate-MailRecipientListHC' {
+Describe 'Get-MailRecipientListHC' {
     It 'merges the To list with the defaults file recipients' {
         $settings = [PSCustomObject]@{ To = @('bob@example.com') }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile @('amy@example.com')
+        $result = Get-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile @('amy@example.com')
 
         @($result) | Should -HaveCount 2
         $result | Should -Contain 'bob@example.com'
@@ -109,7 +109,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'trims surrounding whitespace from addresses' {
         $settings = [PSCustomObject]@{ To = @('  bob@example.com  ') }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+        $result = Get-MailRecipientListHC -SendMailSettings $settings
 
         $result | Should -Be 'bob@example.com'
     }
@@ -117,7 +117,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'drops empty and whitespace-only entries' {
         $settings = [PSCustomObject]@{ To = @('amy@example.com', '', '   ') }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+        $result = Get-MailRecipientListHC -SendMailSettings $settings
 
         $result | Should -Be 'amy@example.com'
     }
@@ -125,7 +125,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'ignores a null entry in the list instead of throwing' {
         $settings = [PSCustomObject]@{ To = @('amy@example.com', $null) }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+        $result = Get-MailRecipientListHC -SendMailSettings $settings
 
         $result | Should -Be 'amy@example.com'
     }
@@ -133,7 +133,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'removes duplicates and returns the list sorted' {
         $settings = [PSCustomObject]@{ To = @('zoe@example.com', 'amy@example.com', 'zoe@example.com') }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+        $result = Get-MailRecipientListHC -SendMailSettings $settings
 
         @($result) | Should -HaveCount 2
         $result[0] | Should -Be 'amy@example.com'
@@ -143,7 +143,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'returns nothing when there are no recipients' {
         $settings = [PSCustomObject]@{ To = @() }
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings
+        $result = Get-MailRecipientListHC -SendMailSettings $settings
 
         $result | Should -BeNullOrEmpty
     }
@@ -151,7 +151,7 @@ Describe 'Generate-MailRecipientListHC' {
     It 'works when only the defaults file recipients are supplied' {
         $settings = [PSCustomObject]@{}
 
-        $result = Generate-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile 'amy@example.com'
+        $result = Get-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile 'amy@example.com'
 
         $result | Should -Be 'amy@example.com'
     }

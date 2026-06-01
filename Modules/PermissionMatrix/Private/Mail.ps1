@@ -1,4 +1,4 @@
-function Generate-MailRecipientListHC {
+function Get-MailRecipientListHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

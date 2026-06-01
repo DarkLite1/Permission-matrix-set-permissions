@@ -299,7 +299,7 @@ function Invoke-PermissionMatrixEndHC {
         try {
             $sendMail = $Context.Config.Settings.SendMail
 
-            $recipients = Generate-MailRecipientListHC `
+            $recipients = Get-MailRecipientListHC `
                 -SendMailSettings $sendMail `
                 -MailToDefaultsFile $Context.Defaults.MailTo
 
