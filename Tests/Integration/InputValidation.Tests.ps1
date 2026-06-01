@@ -15,9 +15,14 @@ Describe 'Input Validation Tests' {
 
     BeforeAll {
         $root = Resolve-Path "$PSScriptRoot\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$root\Tests\Helpers\Helpers.HC.ps1"
+        Import-Module "$root\Modules\PermissionMatrix\PermissionMatrix.psm1" -Force
+
+        . "$root\Tests\Helpers\Helpers.HC.ps1"        
         . "$root\Tests\Helpers\Fixtures.Json.ps1"
+
+        . "$moduleRoot\Private\Mail.ps1"
 
         $script:TestScript = "$root\Scripts\Entrypoints\PermissionMatrix.ps1"
 
@@ -33,7 +38,8 @@ Describe 'Input Validation Tests' {
         $TestInput.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
         $TestInput.Settings.SaveLogFiles.Where.Folder = (New-Item 'TestDrive:\Logs' -ItemType Directory).FullName
 
-        $TestInput | ConvertTo-Json -Depth 20 | Set-Content $TestJsonFile.FullName
+        $TestInput | ConvertTo-Json -Depth 20 | 
+        Set-Content $TestJsonFile.FullName
 
         $script:TestParams = @{
             ConfigurationJsonFile = $TestJsonFile.FullName
@@ -50,9 +56,9 @@ Describe 'Input Validation Tests' {
     }
 
     BeforeEach {
-        Mock Write-EventLog
-        Mock Send-MailKitMessageHC
-        Mock Invoke-Command
+        Mock Write-EventLog -ModuleName PermissionMatrix
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix
+        Mock Invoke-Command -ModuleName PermissionMatrix
 
         Clear-TestLogFoldersHC `
             -ConfiguredLogFolder $TestInput.Settings.SaveLogFiles.Where.Folder

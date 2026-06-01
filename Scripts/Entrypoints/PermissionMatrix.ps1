@@ -34,8 +34,13 @@ begin {
             }
 
             try {
-                Write-Verbose "Importing PermissionMatrix module: $Path"
-                Import-Module $Path -Force -ErrorAction Stop
+                if (Get-Module -Name 'PermissionMatrix') {
+                    Write-Verbose 'PermissionMatrix module already loaded'
+                }
+                else {
+                    Write-Verbose "Importing PermissionMatrix module: $Path"
+                    Import-Module $Path -Force -ErrorAction Stop
+                }
             }
             catch {
                 $SystemErrors.Value.Add(
