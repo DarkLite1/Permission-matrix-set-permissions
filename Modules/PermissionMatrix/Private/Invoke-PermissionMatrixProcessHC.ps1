@@ -1,10 +1,54 @@
 function Invoke-PermissionMatrixProcessHC {
     <#
     .SYNOPSIS
-        PROCESS stage for the Permission Matrix pipeline.
+        Executes the core remote processing stage of the Permission Matrix 
+        pipeline.
+
     .DESCRIPTION
-        1. Parallel (Grouped by Computer): Run 'TestRequirements.ps1'
-        2. Parallel (Grouped by Computer): Run 'SetPermissions.ps1' on servers without FatalErrors.
+        This function serves as the 'PROCESS' stage of the orchestrator. It 
+        filters out any matrices that suffered validation failures during the 
+        'BEGIN' stage and executes the remaining jobs against their target 
+        servers.
+
+        Execution is broken into two highly optimized, multi-threaded phases:
+        
+        1. Requirements Validation: 
+            Groups jobs by target 'ComputerName' and executes 'TestRequirements.
+            ps1' in parallel. This verifies that the remote servers meet the 
+            minimum PowerShell/.NET requirements and enforces baseline SMB 
+            share settings.
+        2. Permission Application: 
+            Filters out any matrices that failed the requirements check, then 
+            flattens the matrix data into safe Data Transfer Objects (DTOs). It 
+            executes 'SetPermissions.ps1' in parallel, pushing the strict NTFS 
+            permission arrays down to the target servers for evaluation and 
+            enforcement.
+
+        Architectural Note: By grouping tasks by 'ComputerName' and executing 
+        via runspaces, the script drastically reduces WinRM connection overhead 
+        and maximizes network throughput.
+
+    .PARAMETER Context
+        The global pipeline context object built during the 'BEGIN' stage. Must 
+        contain the populated 'AllMatrices' array and configuration settings.
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        capture and bubble up terminating pipeline errors that occur during 
+        remote execution routing.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        Returns the updated `$Context` object, with the '.Check' lists of 
+        individual matrices populated with the remote execution results (Errors/
+        Warnings) and precise job duration timings.
+
+    .EXAMPLE
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        
+        $context = Invoke-PermissionMatrixProcessHC `
+            -Context $context `
+            -SystemErrors ([ref]$sysErrors)
     #>
     [CmdletBinding()]
     param(
