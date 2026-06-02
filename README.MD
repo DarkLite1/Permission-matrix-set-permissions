@@ -6,7 +6,7 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 
 - **Action Modes**: Supports `Check`, `Fix`, and `New` actions to audit or apply security settings.
 - **Multi-Threaded Performance**: Configure concurrent jobs across multiple computers and folders for high-speed execution.
-- **Comprehensive Reporting**: Generates HTML overviews and detailed reports of the current permission state and or changes.
+- **Comprehensive Reporting**: Generates HTML overviews and detailed reports of the current permission state and/or changes.
 - **Automated Notifications**: Integrated SMTP support (via MailKit/MimeKit) to send status updates by mail.
 - **Granular Logging**: Detailed logging to XLSX/JSON and the Windows Event Log.
 - **ServiceNow Integration**: Syncs with ServiceNow tables to manage roles and form data.
@@ -20,50 +20,14 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
   ```powershell
   Install-Module -Name 'ImportExcel' -Scope 'AllUsers'
   ```
-- **Emailing Prerequisites**: Required for email functionality.
+- **Emailing Prerequisites**: Required for email functionality. The installed DLL paths are referenced from `Settings.SendMail.AssemblyPath` in your configuration.
   ```powershell
   Install-Package -Name 'MailKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   Install-Package -Name 'MimeKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   ```
 - **Permissions**: Administrative rights on the target file systems and remote management permissions.
 
-## ⚙️ Configuration
-
-The script is driven by a `Configuration.json` file. Below is a breakdown of the primary configuration blocks:
-
-1. **Concurrency (`MaxConcurrent`)**
-
-   Controls the performance impact on the network and remote systems.
-   - **Computers**: Max unique computers to target simultaneously.
-   - **FoldersPerMatrix**: Max folders to iterate within a single job.
-
-2. **Matrix Settings (`Matrix`)**
-
-   Defines the source of truth for permissions.
-   - **FolderPath**: Where the individual matrix Excel files are stored.
-   - **DefaultsFile**: General settings and default permissions applied across all matrices.
-   - **AdGroupPlaceHolders**: AD accounts to ignore during group membership checks.
-
-3. **Permission Codes**
-
-   Permissions in the Excel matrix are defined using the following shorthand:
-
-   | Code | Permission   | Description                                                       |
-   | ---- | ------------ | ----------------------------------------------------------------- |
-   | L    | List         | Allows viewing the contents of the folder.                        |
-   | R    | Read         | Allows reading files and folder attributes.                       |
-   | W    | Write        | Allows creating and modifying files.                              |
-   | F    | Full Control | Grants all permissions, including changing permissions/ownership. |
-   | I    | Ignore       | The script will skip this entry without making changes.           |
-
-4. **Matrix Settings & Defaults (ApplyDefaultPermissions)**
-
-   Inside each Excel matrix, the `Settings` sheet controls how the folder is processed. A critical security control is the `ApplyDefaultPermissions` column (True/False):
-   - **True (Enabled)**: The script merges global fallback permissions from your `DefaultsFile` (e.g., ensuring "IT Staff" automatically gets baseline access). To prevent accidental lockouts, if an AD Object is explicitly defined in both the matrix and the defaults, the script halts and throws a conflict error.
-
-   - **False (Disabled)**: Global defaults are ignored entirely. The folder's security is strictly and exclusively managed by the explicit entries in that specific matrix (ideal for highly sensitive HR or Finance folders where IT should not have default access).
-
-## 🛠 Usage
+### Usage
 
 1.  Clone this repository to your local machine:
     ```bash
@@ -75,26 +39,64 @@ The script is driven by a `Configuration.json` file. Below is a breakdown of the
     - **Defaults file** — based on `Defaults.xlsx`.
     - **One or more matrix files** — based on `Matrix.xlsx`.
 
+    Then point `Matrix.FolderPath` and `Matrix.DefaultsFile` in your configuration at the matrix folder and defaults file you created.
+
+3.  Run the entrypoint, pointing it at your configuration file:
+    ```powershell
+    pwsh.exe -Command "& '.\Scripts\Entrypoints\PermissionMatrix.ps1' -ConfigurationJsonFile 'C:\MyConfig.json'; exit `$LASTEXITCODE"
+    ```
+
 💡 **TIP**: Use the `Detailed` logging setting in the JSON configuration during initial testing to see granular ACL comparisons (current vs. expected) before running a `Fix` action.
+
+## ⚙️ Configuration
+
+The script is driven by a single JSON configuration file, passed with `-ConfigurationJsonFile`. There's no schema to memorize: copy **[`Example.json`](Examples/Example.json)** and adjust the values to suit your environment. It's a complete, self-documenting template — every option is described inline in its `?` block, including whether it is mandatory, its accepted values, and its default.
+
+💡 **TIP**: Most fields accept an environment-variable reference such as `"ENV:SMTP_SERVER"` in place of a literal value, so secrets like SMTP or ServiceNow credentials never need to live in the file.
+
+## 📄 Matrix Files
+
+The per-folder rules live in the Excel matrix files, with shared fallbacks in the `DefaultsFile`. Two conventions are worth knowing.
+
+### Permission Codes
+
+Permissions in the matrix are defined using the following shorthand:
+
+| Code | Permission   | Description                                                       |
+| ---- | ------------ | ----------------------------------------------------------------- |
+| L    | List         | Allows viewing the contents of the folder.                        |
+| R    | Read         | Allows reading files and folder attributes.                       |
+| W    | Write        | Allows creating and modifying files.                              |
+| F    | Full Control | Grants all permissions, including changing permissions/ownership. |
+| I    | Ignore       | The script will skip this entry without making changes.           |
+
+ℹ️ **NOTE**: `I` (Ignore) is valid inside a matrix file but is **not** accepted in the `DefaultsFile`, where every default entry must be an explicit grant (`L`, `R`, `W`, or `F`).
+
+### Default Permissions (`ApplyDefaultPermissions`)
+
+Each matrix's `Settings` sheet has an `ApplyDefaultPermissions` column (`True`/`False`) that controls whether the shared defaults are applied to that folder:
+
+- **True** — merges the global fallback permissions from your `DefaultsFile` into the folder (e.g., ensuring "IT Staff" automatically gets baseline access). To prevent accidental lockouts, if an AD object is defined in **both** the matrix and the defaults, the script halts and throws a conflict error.
+- **False** — ignores the defaults entirely; the folder's security is managed strictly by the explicit entries in that matrix (ideal for sensitive HR or Finance folders where IT should not have default access).
 
 ## ⏱️ Scheduled Task Example
 
-For automated, recurring executions (e.g., via Windows Task Scheduler), invoke the script using `pwsh.exe -Command` to pass parameters directly:
+For automated, recurring executions (e.g., via Windows Task Scheduler), use the same invocation as above, wrapped for the scheduler to pass parameters directly:
 
 - Program: `pwsh.exe`
 - Arguments:
 
 ```
--Command  "& 'C:\Permission-matrix-set-permissions.ps1' -ConfigurationJsonFile 'C:\MyConfig.json'; exit $LASTEXITCODE"
+-Command "& 'C:\Tools\Permission-matrix-set-permissions\Scripts\Entrypoints\PermissionMatrix.ps1' -ConfigurationJsonFile 'C:\MyConfig.json'; exit $LASTEXITCODE"
 ```
 
 ## 📊 Logging & Monitoring
 
-The script provides three layers of feedback:
+The script provides three layers of feedback, all configured under `Settings`:
 
-1. **File Logs**: Saved to the path defined in `SaveLogFiles.Where.Folder`.
-2. **Event Log**: Writes to the Windows Event Log (e.g., `Scripts`) for system-level auditing.
-3. **Email Reports**: Summaries sent via SMTP based on your `SendMail` settings.
+1. **File Logs**: Saved to the path defined in `Settings.SaveLogFiles.Where.Folder`.
+2. **Event Log**: Writes to the Windows Event Log named in `Settings.SaveInEventLog.LogName` (e.g., `Scripts`) for system-level auditing.
+3. **Email Reports**: Summaries sent via SMTP based on your `Settings.SendMail` settings.
 
 ## 🙏 Acknowledgements
 
