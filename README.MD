@@ -70,10 +70,10 @@ The script is driven by a `Configuration.json` file. Below is a breakdown of the
     git clone https://github.com/DarkLite1/Permission-matrix-set-permissions.git
     cd Permission-matrix-set-permissions
     ```
-2.  Review and create your own
-    - configuration file (based on [Example.json](Scripts/Examples/Example.json)).
-    - defaults file (based on [Defaults.xlsx](Scripts/Examples/Defaults.xlsx))
-    - one or more matrix files (based on [Matrix.xlsx](Scripts/Examples/Matrix.xlsx))
+2.  Review the samples in the **[`Examples`](Examples)** folder, then create your own:
+    - **Configuration file** — based on [`Example.json`](Examples/Example.json).
+    - **Defaults file** — based on `Defaults.xlsx`.
+    - **One or more matrix files** — based on `Matrix.xlsx`.
 
 💡 **TIP**: Use the `Detailed` logging setting in the JSON configuration during initial testing to see granular ACL comparisons (current vs. expected) before running a `Fix` action.
 
