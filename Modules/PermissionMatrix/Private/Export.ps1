@@ -18,37 +18,42 @@ function Build-ExportDataHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][array]$ImportedMatrix
+        [Parameter(Mandatory)]
+        [array]$ImportedMatrix
     )
 
-    $permissionsRows = @()
-    $formDataRows = @()
+    $permissionsRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $formDataRows = [System.Collections.Generic.List[pscustomobject]]::new()
 
     foreach ($I in $ImportedMatrix) {
 
         # Permissions export rows
-        foreach ($S in $I.Settings) {
-            $permissionsRows += [pscustomobject]@{
-                MatrixFile = $I.File.Item.Name
-                Computer   = $S.Import.ComputerName
-                Path       = $S.Import.Path
-                Action     = $S.Import.Action
-                Errors     = ($S.Check | Where-Object { $_.Type -eq 'FatalError' }).Count
-                Warnings   = ($S.Check | Where-Object { $_.Type -eq 'Warning' }).Count
+        if ($I.Settings) {
+            foreach ($S in $I.Settings) {
+                $permissionsRows.Add([pscustomobject]@{
+                        MatrixFile = $I.File.Item.Name
+                        Computer   = $S.Import.ComputerName
+                        Path       = $S.Import.Path
+                        Action     = $S.Import.Action
+                        Errors     = @(
+                            $S.Check | 
+                            Where-Object { $_.Type -eq 'FatalError' }).Count
+                        Warnings   = @(
+                            $S.Check | 
+                            Where-Object { $_.Type -eq 'Warning' }).Count
+                    })
             }
         }
 
         # FormData sheet export rows
         if ($I.FormData.Import) {
-            foreach ($fd in $I.FormData.Import) {
-                $formDataRows += $fd
-            }
+            $formDataRows.AddRange([pscustomobject[]]@($I.FormData.Import))
         }
     }
 
     return [pscustomobject]@{
-        Permissions = $permissionsRows
-        FormData    = $formDataRows
+        Permissions = $permissionsRows.ToArray()
+        FormData    = $formDataRows.ToArray()
     }
 }
 
