@@ -2,9 +2,9 @@
 .SYNOPSIS
     Permission Matrix Orchestrator Script
 .DESCRIPTION
-    This script loads the Toolbox.PermissionMatrixHC module safely (preferring the
-    local copy in ./Modules) and invokes the main Permission Matrix operation using
-    the public entrypoint: Invoke-PermissionMatrix.
+    This script loads the PermissionMatrix module and invokes the main 
+    Permission Matrix operation using the public entrypoint: 
+    Invoke-PermissionMatrix.
 #>
 
 [CmdletBinding()]
