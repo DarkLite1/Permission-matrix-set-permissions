@@ -1,16 +1,61 @@
 function Invoke-PermissionMatrixBeginHC {
     <#
     .SYNOPSIS
-        BEGIN stage for the Permission Matrix pipeline.
-    .DESCRIPTION
-        1. Sequential: Validates JSON.
-        2. Parallel: Reads, validates, and archives Matrix Excel files.
-        3. Sequential: Checks for cross-matrix duplicates, loads Defaults, and 
-        performs bulk AD queries.
+        Initializes, validates, and builds the execution context for the 
+        Permission Matrix pipeline.
 
-        Convention: return $null only for pre-context failures (JSON load).
-        After $Context is constructed, return it on error so callers can 
-        inspect partial state.
+    .DESCRIPTION
+        This function serves as the 'BEGIN' stage of the orchestrator. It 
+        processes the foundational data required for the remote execution jobs 
+        through three distinct phases:
+
+        1. Initialization (Sequential): 
+            Validates the JSON configuration file and constructs the baseline 
+            `$Context` state object.
+        2. Ingestion (Parallel): 
+            Discovers, structurally validates, and archives the Excel Matrix 
+            files using a multi-threaded runspace pool to minimize I/O 
+            bottlenecks.
+        3. Global Resolution (Sequential): 
+            Performs cross-matrix duplicate detection, bulk queries Active 
+            Directory for unique objects, merges global default permissions, 
+            and permanently rewrites AD Account Names into SIDs (Security 
+            Identifiers) to guarantee precise permission application during the 
+            remote execution phase.
+
+        Architectural Convention: 
+        This function returns `$null` ONLY for catastrophic, pre-context 
+        failures (e.g., the JSON file is missing or corrupt). Once the 
+        `$Context` object is successfully constructed, the function will return 
+        it even if fatal errors occur later. This allows the calling script to 
+        inspect the partial state and generate comprehensive error reports 
+        rather than failing silently.
+
+    .PARAMETER ConfigurationJsonFile
+        The absolute path to the main JSON configuration file governing the 
+        execution.
+
+    .PARAMETER ScriptPath
+        A hashtable containing the absolute file paths to the required 
+        execution scripts and modules.
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        capture terminating pipeline errors.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        Returns the fully constructed `$Context` object containing the imported 
+        matrices, resolved AD details, and configurations. Returns `$null` only 
+        on pre-context initialization failures.
+
+    .EXAMPLE
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        
+        $context = Invoke-PermissionMatrixBeginHC `
+            -ConfigurationJsonFile 'C:\Config.json' `
+            -ScriptPath $scriptPaths `
+            -SystemErrors ([ref]$sysErrors)
     #>
     [CmdletBinding()]
     param(
