@@ -2,31 +2,52 @@
 #Requires -RunAsAdministrator
 
 <#
-    .SYNOPSIS
-        Scan an NTFS folder structure and create, check or fix the permissions.
+.SYNOPSIS
+    Scans an NTFS folder structure to create, check, or fix file system 
+    permissions.
 
-    .DESCRIPTION
-        All files and folders are checked with the permissions defined in the
-        matrix.
+.DESCRIPTION
+    This script iterates through a specified directory tree and strictly 
+    enforces NTFS permissions based on a provided matrix of Access Control 
+    Lists (ACLs). It handles explicit permissions for matrix-defined folders 
+    and enforces strict inheritance rules for unlisted subfolders and files.
 
-    .PARAMETER Path
-        The parent folder on the localhost where the folder tree starts.
+    It leverages a custom C# `TokenManipulator` class to temporarily grant the 
+    PowerShell process SeRestorePrivilege, SeBackupPrivilege, and 
+    SeTakeOwnershipPrivilege. This allows the script to forcefully correct ACLs 
+    and reclaim ownership even on folders where the Administrator currently 
+    receives an "Access Denied" error.
 
-    .PARAMETER Action
-        Valid values:
-        - New   : Creates a new folder structure with the correct permissions
-        - Check : Only check if the permissions are correct
-        - Fix   : Check and fix incorrect permissions
+.PARAMETER Path
+    The absolute path to the parent folder (local to the machine executing the 
+    script) where the folder tree begins.
 
-    .PARAMETER Matrix
-        The array containing the correct folder names and their permissions.
+.PARAMETER Action
+    The execution mode.
+    - New
+        Creates the missing folder structure and applies the correct explicit 
+        permissions.
+    - Check
+        Audits the current permissions and reports discrepancies without 
+        modifying them.
+    - Fix
+        Audits the permissions, automatically corrects discrepancies, and 
+        forces ownership if access is denied.
 
-    .PARAMETER DetailedLog
-        When incorrect permissions are found only the FullName of the path is
-        reported. However, when DetailedLog is enabled the current and desired
-        permissions are reported.
+.PARAMETER Matrix
+    An array of PSCustomObjects containing the structured folder paths, 
+    inheritance flags, and their corresponding ACL hashtables.
 
-        For performance reason, only enable this for troubleshooting.
+.PARAMETER JobThrottleLimit
+    The maximum number of concurrent runspaces to use when processing inherited 
+    folder and file permissions in parallel.
+
+.PARAMETER DetailedLog
+    If $true, captures the exact SDDL (Security Descriptor Definition Language) 
+    strings for both the old/incorrect permissions and the new/expected 
+    permissions, along with the matrix column headers. 
+    Note: Enabling this increases memory usage and reduces overall performance. 
+    Use primarily for troubleshooting.
 #>
 
 [OutputType([PSCustomObject[]])]
