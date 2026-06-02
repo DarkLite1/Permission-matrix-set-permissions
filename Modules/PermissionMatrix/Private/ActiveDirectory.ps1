@@ -219,16 +219,31 @@ function Get-ADObjectDetailHC {
 function Get-AdUserPrincipalNameHC {
     <#
     .SYNOPSIS
-        Convert a list of e-mail addresses to a list of UserPrincipalNames.
+        Converts a list of e-mail addresses or SamAccountNames into a unique array of Active Directory UserPrincipalNames.
 
     .DESCRIPTION
-        The list to convert can contain user e-mail addresses or group e-mail
-        addresses. For groups the user members are retrieved. The result will
-        only contain UserPrincipalNames from AD user accounts that are enabled.
+        Resolves a mixed array of user and group identifiers against Active Directory. 
+        
+        If a group is detected, the script recursively expands its membership to find all nested users. The final output is strictly filtered: only AD users that are currently Enabled, have a populated 'Mail' attribute, and are not explicitly excluded will be returned.
+
+        Returns a hashtable containing two arrays:
+        - 'notFound': Inputs that could not be matched to an AD object.
+        - 'userPrincipalName': The deduplicated list of resolved UPNs.
 
     .PARAMETER Name
-        Can be an e-mail address or a SamAccountName of a user object or a
-        group object in AD.
+        An array of strings. Can be a standard e-mail address (matched against ProxyAddresses) or a SamAccountName of a user or group object in AD.
+
+    .PARAMETER ExcludeSamAccountName
+        An optional array of SamAccountNames to explicitly ignore. This is highly useful for stripping service accounts or administrator accounts out of expanded group memberships.
+
+    .EXAMPLE
+        $targets = @('HR_Team@domain.com', 'jdoe')
+        $exclusions = @('svc_hr_scanner', 'admin_jdoe')
+        
+        $result = Get-AdUserPrincipalNameHC -Name $targets -ExcludeSamAccountName $exclusions
+        
+        Write-Host "Found UPNs: $($result.userPrincipalName -join ', ')"
+        Write-Host "Unresolved: $($result.notFound -join ', ')"
     #>
     [CmdletBinding()]
     [OutputType([hashtable])]
