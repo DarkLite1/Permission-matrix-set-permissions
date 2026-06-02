@@ -70,8 +70,8 @@ The script is driven by a `Configuration.json` file. Below is a breakdown of the
     git clone https://github.com/DarkLite1/Permission-matrix-set-permissions.git
     cd Permission-matrix-set-permissions
     ```
-2.  Review `Example.json` to understand the configuration options.
-3.  Create your own configuration file (e.g., `MyConfig.json`) based on `Example.json`.
+2.  Review [Example.json](Scripts/Examples/Example.json) to understand the configuration options.
+3.  Create your own configuration file (e.g., `MyConfig.json`) based on [Example.json](Scripts/Examples/Example.json).
 
 💡 **TIP**: Use the `Detailed` logging setting in the JSON configuration during initial testing to see granular ACL comparisons (current vs. expected) before running a `Fix` action.
 
