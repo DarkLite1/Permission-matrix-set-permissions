@@ -6,11 +6,12 @@
 
     Author               = 'DarkLite1'
     CompanyName          = ''
-    Copyright            = '(c) No warranty.'
+    Copyright            = '(c) No warranty. Provided as-is.'
 
     Description          = @'
-PermissionMatrix provides all private and public functions needed
-to process, validate, export, and analyze Permission Matrix Excel files.
+A robust PowerShell tool designed to apply, verify, and manage NTFS and SMB permissions at scale. 
+By reading a centralized Excel-based matrix and a JSON configuration file, the script automates 
+the complex task of ensuring folder security across multiple remote computers.
 '@
 
     PowerShellVersion    = '7.0'
@@ -32,9 +33,8 @@ to process, validate, export, and analyze Permission Matrix Excel files.
 
     PrivateData          = @{
         PSData = @{
-            Tags         = @('PermissionMatrix', 'Excel', 'Export', 'AD', 'Logging')
-            LicenseUri   = 'https://your-company/license'
-            ProjectUri   = 'https://your-repo/project'
+            Tags         = @('PermissionMatrix', 'Excel', 'NTFS', 'SMB', 'Security', 'ServiceNow', 'AD')
+            ProjectUri   = 'https://github.com/DarkLite1/Permission-matrix-set-permissions'
             ReleaseNotes = 'Initial release.'
         }
     }
