@@ -219,12 +219,17 @@ function Get-ADObjectDetailHC {
 function Get-AdUserPrincipalNameHC {
     <#
     .SYNOPSIS
-        Converts a list of e-mail addresses or SamAccountNames into a unique array of Active Directory UserPrincipalNames.
+        Converts a list of e-mail addresses or SamAccountNames into a unique 
+        array of Active Directory UserPrincipalNames.
 
     .DESCRIPTION
-        Resolves a mixed array of user and group identifiers against Active Directory. 
+        Resolves a mixed array of user and group identifiers against Active 
+        Directory. 
         
-        If a group is detected, the script recursively expands its membership to find all nested users. The final output is strictly filtered: only AD users that are currently Enabled, have a populated 'Mail' attribute, and are not explicitly excluded will be returned.
+        If a group is detected, the script recursively expands its membership 
+        to find all nested users. The final output is strictly filtered: only 
+        AD users that are currently Enabled, have a populated 'Mail' attribute, 
+        and are not explicitly excluded will be returned.
 
         Returns a hashtable containing two arrays:
         - 'notFound': Inputs that could not be matched to an AD object.
