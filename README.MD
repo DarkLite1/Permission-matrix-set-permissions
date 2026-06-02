@@ -73,7 +73,7 @@ The script is driven by a `Configuration.json` file. Below is a breakdown of the
 2.  Review and create your own
     - configuration file (based on [Example.json](Scripts/Examples/Example.json)).
     - defaults file (based on [Defaults.xlsx](Scripts/Examples/Defaults.xlsx))
-    - one or more matrix files (based on [Matrix template.xlsx](Scripts/Examples/Matrix%20Template.xlsx))
+    - one or more matrix files (based on [Matrix.xlsx](Scripts/Examples/Matrix.xlsx))
 
 💡 **TIP**: Use the `Detailed` logging setting in the JSON configuration during initial testing to see granular ACL comparisons (current vs. expected) before running a `Fix` action.
 
