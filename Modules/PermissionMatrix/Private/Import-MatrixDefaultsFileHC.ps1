@@ -1,4 +1,48 @@
 function Import-MatrixDefaultsFileHC {
+    <#
+    .SYNOPSIS
+        Validates and imports the global matrix defaults Excel file.
+
+    .DESCRIPTION
+        Reads the specified Defaults Excel file to extract global fallback 
+        permissions and notification email addresses. 
+        
+        The script strictly validates the file structure: it requires a 
+        'Settings' worksheet containing 'MailTo', 'ADObjectName', and 
+        'Permission' columns. If the file is missing, the worksheet is absent, 
+        or the mandatory columns are missing, it safely catches the exception 
+        and pushes a 'FatalError' to the global SystemErrors reference.
+
+    .PARAMETER Matrix
+        A custom object representing the 'Matrix' configuration node from the 
+        JSON file. It must contain a 'DefaultsFile' property with the absolute 
+        path to the defaults Excel file.
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        capture and bubble up terminating pipeline errors without crashing the 
+        main orchestrator.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject. 
+        Returns a custom object containing:
+        - FilePath   : Absolute path to the loaded defaults file.
+        - DefaultAcl : A hashtable mapping AD Objects to their default 
+                       Permission characters.
+        - MailTo     : A Generic List of email addresses extracted from the     
+                       file.
+        Returns $null if a FatalError occurs during import.
+
+    .EXAMPLE
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        $matrixConfig = [pscustomobject]@{ 
+            DefaultsFile = 'C:\Matrix\Defaults.xlsx' 
+        }
+        
+        $defaults = Import-MatrixDefaultsFileHC `
+            -Matrix $matrixConfig `
+            -SystemErrors ([ref]$sysErrors)
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
