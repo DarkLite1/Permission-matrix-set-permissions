@@ -1,4 +1,52 @@
 function Invoke-PermissionMatrixEndHC {
+    <#
+    .SYNOPSIS
+        The 'END' stage of the Permission Matrix pipeline, responsible for all 
+        reporting, logging, and data synchronization.
+
+    .DESCRIPTION
+        This function gracefully finalizes the pipeline execution by executing 
+        a series of 'Best Effort' reporting tasks:
+        
+        1. Tallying & Exports: 
+            Aggregates all errors/warnings. If no fatal system errors occurred, 
+            it exports the final permissions data to Excel and synchronizes the 
+            form data with ServiceNow.
+        2. Local Logging: 
+            Generates a dated log directory, writes detailed JSON files for 
+            every execution check, and compiles a comprehensive standalone HTML 
+            report for each matrix.
+        3. Notifications: 
+            Constructs a stylized HTML summary body (including system errors 
+            and statistic counters) and dispatches it via SMTP using MailKit. 
+            It also safely dumps the raw HTML email artifact to disk.
+        4. Auditing & Cleanup: 
+            Writes final execution statistics to the Windows Event Log (if 
+            configured) and purges old log folders based on the specified 
+            retention policy.
+
+        Architectural Note: This function relies on a 'Best Effort' execution 
+        model. Each major reporting phase is wrapped in its own try/catch 
+        block. If a non-critical phase fails (e.g., saving to the Event Log), 
+        it will not crash the script, ensuring that critical phases (like 
+        sending the failure email) still execute.
+
+    .PARAMETER Context
+        The global pipeline context object built during the 'BEGIN' stage and 
+        populated with execution results during the 'PROCESS' stage. Contains 
+        the configuration, file results, matrix objects, and runtime counters.
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        report accumulated pipeline errors in the final email/logs, and to 
+        capture any new reporting failures that occur during this 'END' stage.
+
+    .EXAMPLE
+        # Finalize the pipeline run and dispatch reports
+        Invoke-PermissionMatrixEndHC `
+            -Context $globalContext `
+            -SystemErrors ([ref]$sysErrors)
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Context,
