@@ -17,7 +17,7 @@ BeforeAll {
         { New-SmbShare -Name $_.Name -Path $_.Path }
     )
 
-    $testScript = "$PSScriptRoot\..\..\Operations\TestRequirements.ps1"
+    $testScript = "$PSScriptRoot\..\..\Scripts\Operations\TestRequirements.ps1"
 
     if (-not (Test-Path $testScript -PathType Leaf)) {
         throw "Path '$testScript' not found"

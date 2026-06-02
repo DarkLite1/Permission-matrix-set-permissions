@@ -25,7 +25,7 @@
 #>
 
 BeforeAll {
-    $script:ScriptPath = "$PSScriptRoot\..\..\Operations\UpdateServiceNow.ps1"
+    $script:ScriptPath = "$PSScriptRoot\..\..\Scripts\Operations\UpdateServiceNow.ps1"
 
     if (-not (Test-Path -LiteralPath $ScriptPath)) {
         throw "Script under test not found: '$ScriptPath'. Adjust the path resolution for this test's location."

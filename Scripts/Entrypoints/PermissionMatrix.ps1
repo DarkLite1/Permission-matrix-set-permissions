@@ -65,7 +65,7 @@ begin {
 
         $projectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
         $modulePath = Join-Path $projectRoot 'Modules\PermissionMatrix\PermissionMatrix.psm1'
-        $opsRoot = Join-Path $projectRoot 'Operations'
+        $opsRoot = Join-Path $projectRoot 'Scripts\Operations'
 
         $ScriptPath = @{
             PermissionMatrixModule = $modulePath

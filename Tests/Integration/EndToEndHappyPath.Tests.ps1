@@ -150,9 +150,9 @@ Describe 'Permission Matrix - End to End' {
         # -------------------------------------------------------------------
         $scriptPath = @{
             PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
-            SetPermissions         = "$root\Operations\SetPermissions.ps1"
-            TestRequirements       = "$root\Operations\TestRequirements.ps1"
-            UpdateServiceNow       = "$root\Operations\UpdateServiceNow.ps1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
         }
 
         # -------------------------------------------------------------------
@@ -285,9 +285,9 @@ Describe 'Permission Matrix - End to End' {
 
         $scriptPath = @{
             PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
-            SetPermissions         = "$root\Operations\SetPermissions.ps1"
-            TestRequirements       = "$root\Operations\TestRequirements.ps1"
-            UpdateServiceNow       = "$root\Operations\UpdateServiceNow.ps1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
         }
 
         Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {

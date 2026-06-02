@@ -202,7 +202,7 @@ BeforeAll {
     $testParentFolder = (New-Item 'TestDrive:\testFolder' -ItemType Directory -Force).FullName
 
 
-    $testScript = "$PSScriptRoot\..\..\Operations\SetPermissions.ps1"
+    $testScript = "$PSScriptRoot\..\..\Scripts\Operations\SetPermissions.ps1"
 
     if (-not (Test-Path $testScript -PathType Leaf)) {
         throw "Path '$testScript' not found"
