@@ -1,4 +1,55 @@
 function Import-MatrixFileHC {
+    <#
+    .SYNOPSIS
+        Safely imports and structures data from a Permission Matrix Excel file.
+
+    .DESCRIPTION
+        Reads the 'Settings', 'Permissions', and optional 'FormData' worksheets 
+        from a provided Excel matrix file. 
+        
+        The raw Excel data is converted into normalized, formatted PowerShell 
+        objects. For every 'Enabled' row found in the 'Settings' tab, the 
+        script generates a distinct job execution object (Matrix) complete with 
+        a unique GUID. 
+        
+        Architectural Note: This function avoids throwing terminating errors. 
+        If a file is corrupt or missing mandatory worksheets, it safely catches 
+        the exception and appends a 'FatalError' to the returned object's .
+        Check property, allowing the main orchestrator to gracefully skip it 
+        while continuing to process other valid files.
+
+    .PARAMETER MatrixFile
+        A [System.IO.FileInfo] object pointing to the specific Excel (.xlsx) 
+        file to be processed.
+
+    .PARAMETER Context
+        The global pipeline context object. Used to check the runtime 
+        configuration (e.g., determining if the 'FormData' sheet needs to be 
+        extracted based on ServiceNow/HTML export settings).
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject.
+        Returns a comprehensive $fileResult object containing:
+        - Item        : The original FileInfo object.
+        - Sheets      : The Raw and Formatted data extracted from the   
+                        worksheets.
+        - Matrices    : A List of initialized execution jobs (one for each 
+                        enabled Setting).
+        - Check       : A Generic List containing any structural file errors
+                        (e.g., Missing worksheets).
+
+    .EXAMPLE
+        $fileInfo = Get-Item -LiteralPath 'C:\MatrixFiles\Finance_Matrix.xlsx'
+        $globalContext = [pscustomobject]@{ Config = $jsonConfig }
+        
+        $result = Import-MatrixFileHC `
+            -MatrixFile $fileInfo `
+            -Context $globalContext
+        
+        if ($result.Check.Type -contains 'FatalError') {
+            Write-Warning "File was structurally invalid!"
+        }
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
