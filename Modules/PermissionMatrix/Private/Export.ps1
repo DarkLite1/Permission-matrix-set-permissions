@@ -1,8 +1,20 @@
 
 function Build-ExportDataHC {
     <#
-        Build aggregated export data for permissions and form data.
-        This is fed into actual export functions.
+    .SYNOPSIS
+        Builds aggregated export data for permissions and ServiceNow form data.
+
+    .DESCRIPTION
+        Iterates through the processed matrices and extracts the execution 
+        results (Errors, Warnings, Paths, Actions) and form data into flat, 
+        structured lists. 
+        This output is specifically formatted to be fed directly into the HTML 
+        and Excel reporting functions.
+
+    .PARAMETER ImportedMatrix
+        An array of processed matrix file objects (typically from $Context.
+        FileResults) containing the settings, execution checks, and associated 
+        form data.
     #>
     [CmdletBinding()]
     param(
