@@ -1,26 +1,50 @@
 function Get-ADObjectDetailHC {
     <#
     .SYNOPSIS
-        Retrieve details about an AD object.
+        High-speed, parallel retrieval of Active Directory object details and 
+        recursive group memberships.
 
     .DESCRIPTION
-        Retrieve details about an AD object. If the object is not found the
-        property 'adObject' is blank. If it is a group, the group members are
-        retrieved and stored in the property 'adGroupMember'.
+        Retrieves fundamental properties (SID, DistinguishedName, Manager, 
+        etc.) for an array of Active Directory objects. 
+        
+        If the targeted object is a Group, the script performs a recursive 
+        expansion (extracting users from nested child groups) and stores the 
+        results in the 'adGroupMember' property. Note: The 'Domain Users' group 
+        is explicitly bypassed for performance and safety reasons.
 
-        Searches the local domain first for speed; falls back to the forest
-        Global Catalog only when an object isn't found locally, so cross-domain
-        lookups still resolve without slowing down the common case.
+        Performance Features:
+        1. Multi-Threading: 
+            Processes the input array concurrently using PowerShell 7's 
+            Parallel runspaces.
+        2. Tiered Lookups: 
+            Searches the local domain first for maximum speed. It only falls 
+            back to the Forest Global Catalog (GC) when an object isn't found 
+            locally, ensuring cross-domain trust lookups succeed without 
+            penalizing the speed of the common case.
 
     .PARAMETER ADObjectName
-        Name of the user or group objects to search for.
+        An array of Active Directory object names (users or groups) to resolve.
 
     .PARAMETER Type
-        The type of strings passed to ADObjectName.
-        Valid values: SamAccountName, DistinguishedName
+        The format of the strings provided in the ADObjectName parameter. 
+        Valid values: 
+        'SamAccountName' (e.g., 'jdoe' or 'DOMAIN\jdoe') or 'DistinguishedName'.
 
     .PARAMETER MaxThreads
-        Maximum concurrent AD requests.
+        The maximum number of concurrent Active Directory LDAP queries to 
+        execute. (Default: 7)
+
+    .EXAMPLE
+        $targets = @('HR_Managers', 'DOMAIN\jdoe', 'asmith@domain.com')
+        $adDetails = Get-ADObjectDetailHC `
+            -ADObjectName $targets `
+            -Type 'SamAccountName' `
+            -MaxThreads 10
+
+        # View the recursive members of the HR_Managers group
+        $adDetails | Where-Object SamAccountName -eq 'HR_Managers' | 
+        Select-Object -ExpandProperty adGroupMember
     #>
 
     [CmdletBinding()]
