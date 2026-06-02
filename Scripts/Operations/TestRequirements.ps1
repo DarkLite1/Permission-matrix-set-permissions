@@ -3,33 +3,50 @@
 
 <#
     .SYNOPSIS
-        Test if a computer is capable of running the Permission Matrix script.
+        Validates system requirements and enforces standardized SMB share 
+        settings on a target computer.
 
     .DESCRIPTION
-        Test the current computer for administrator permissions, .NET version,
-        PowerShell version, ...
+        This script acts as the prerequisite validation and baseline 
+        configuration step for the Permission Matrix pipeline. 
+        It evaluates the local computer to ensure it meets the minimum 
+        execution requirements (Administrator privileges, PowerShell version, 
+        and .NET Framework 4.6.2+ for long-path support).
 
-        Also correct the smb share permissions when they are incorrect.
+        Additionally, it audits any SMB shares matching the provided paths. If 
+        discrepancies are found, it automatically corrects them by:
+        1. Toggling Access-Based Enumeration (ABE) to the desired state.
+        2. Resetting the SMB Share Permissions to a standardized baseline 
+        (defaulting to Administrators:Full, Authenticated Users:Change). 
+        
+        By standardizing the SMB layer, the script ensures that all effective 
+        access control is securely and exclusively managed at the NTFS file 
+        system layer.
 
     .PARAMETER Path
-        Shared folder paths.
+        An array of local directory paths to audit. If a path is actively 
+        shared via SMB, its share properties will be validated and corrected.
 
     .PARAMETER Flag
-        Valid values:
-        - True  : ABE will be enabled
-        - False : ABE will be disabled
+        Determines the Access-Based Enumeration (ABE) state for the matching 
+        SMB shares.
+        - $true  : ABE is enabled (Users only see files/folders they have 
+        permission to access).
+        - $false : ABE is disabled (Unrestricted enumeration).
 
     .PARAMETER RequiredSharePermissions
-        The smb share permissions that are required on the share. If the
-        current smb share permissions are not matching, they will be replaced
-        with the correct ones.
-
-        If a folder in Path is not configured as an smb share, it will be
-        ignored.
+        An array of hashtables defining the exact baseline permissions required 
+        on the SMB share. If the current share permissions deviate from this 
+        baseline, the script will revoke all existing share access and 
+        forcefully apply these exact rules.
 
     .PARAMETER MinimumPowerShellVersion
-        The minimal required PowerShell version to run the Permission Matrix
-        script.
+        A hashtable defining the absolute minimum required version of 
+        PowerShell (Default: Major 7, Minor 1).
+
+    .EXAMPLE
+        $paths = @('E:\Data\HR', 'E:\Data\Finance')
+        .\Test-Requirements.ps1 -Path $paths -Flag $true
 #>
 
 [OutputType([PSCustomObject])]
