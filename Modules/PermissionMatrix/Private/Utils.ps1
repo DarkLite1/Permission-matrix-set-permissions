@@ -326,6 +326,72 @@ function Add-JsonSchemaErrorHC {
 }
 
 function Get-StringValueHC {
+    <#
+    .SYNOPSIS
+        Resolve a string value that may be a literal or an 'ENV:'-prefixed
+        reference to an environment variable.
+
+    .DESCRIPTION
+        Returns a string based on the form of Name:
+
+        - Null, empty or whitespace: returns $null.
+        - Starts with 'ENV:' (case-insensitive): the text after the prefix is
+          trimmed and treated as an environment variable name. The variable's
+          value is returned. If the variable does not exist, the function
+          throws.
+        - Anything else: Name is returned unchanged.
+
+        This lets a configuration field hold either a literal value or a
+        pointer to an environment variable, so secrets and machine-specific
+        paths can be kept out of the configuration itself.
+
+    .PARAMETER Name
+        The value to resolve. Either a literal string, or 'ENV:' followed by an
+        environment variable name (for example 'ENV:SMTP_PASSWORD'). The prefix
+        match is case-insensitive and the variable name is trimmed before
+        lookup.
+
+    .EXAMPLE
+        Get-StringValueHC -Name 'smtp.contoso.com'
+
+        Returns 'smtp.contoso.com'. With no 'ENV:' prefix the value is returned
+        as-is.
+
+    .EXAMPLE
+        $env:SMTP_SERVER = 'smtp.contoso.com'
+        Get-StringValueHC -Name 'ENV:SMTP_SERVER'
+
+        Returns 'smtp.contoso.com', read from the SMTP_SERVER environment
+        variable.
+
+    .EXAMPLE
+        Get-StringValueHC -Name 'ENV:DOES_NOT_EXIST'
+
+        Throws "Environment variable 'DOES_NOT_EXIST' not found.", because the
+        referenced variable is not set.
+
+    .EXAMPLE
+        Get-StringValueHC -Name '   '
+
+        Returns $null, because the input is whitespace.
+
+    .OUTPUTS
+        System.String
+        The resolved value, or $null when Name is null/empty/whitespace.
+
+    .NOTES
+        - The 'ENV:' prefix match is case-insensitive (ordinal), so 'env:',
+          'Env:' and 'ENV:' all trigger environment-variable resolution.
+        - A missing environment variable is a terminating error, whereas a
+          missing/blank Name simply yields $null. The two "no value" situations
+          are handled differently by design.
+        - An environment variable that exists but is empty returns its empty
+          value; it is not treated as "not found".
+        - Only the leading 'ENV:' (4 characters) is stripped. A value like
+          'ENV: NAME' resolves the variable ' NAME', which is then trimmed to
+          'NAME'; but a literal value that genuinely begins with 'ENV:' cannot
+          be returned as-is, since it will always be interpreted as a reference.
+    #>
     [CmdletBinding()]
     param([String]$Name)
 
