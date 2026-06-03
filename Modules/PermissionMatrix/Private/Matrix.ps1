@@ -1,8 +1,63 @@
 function Format-FormDataStringsHC {
     <#
     .SYNOPSIS
-        Normalizes a FormData row. Ensures all string values are cleanly trimmed.
+        Return a copy of a FormData row with all string values trimmed.
+
+    .DESCRIPTION
+        Produces a new object from the input row in which every string-valued
+        property has its leading and trailing whitespace removed. Values that
+        are not strings (numbers, dates, booleans, $null, arrays, nested
+        objects, and so on) are copied across unchanged.
+
+        The original property order is preserved by building the result through
+        an ordered dictionary, so the column layout from the source (for example
+        an Excel or CSV import) is kept intact. The input object is not
+        modified; a new PSCustomObject is returned.
+
+        The function accepts pipeline input and processes one row at a time,
+        emitting one cleaned object per input row. This lets it sit directly in
+        a pipeline after a command such as Import-Csv or Import-Excel.
+
+    .PARAMETER Row
+        The row to normalize: any object whose properties should have their
+        string values trimmed. Accepts pipeline input, so a stream of rows can
+        be piped in and each is processed and emitted individually. Every
+        property exposed by the object (via PSObject.Properties) is examined.
+
+    .EXAMPLE
+        [pscustomobject]@{ Name = '  Bob  '; Age = 30 } | Format-FormDataStringsHC
+
+        Returns an object where Name is 'Bob' (trimmed) and Age is still the
+        integer 30 (left unchanged, because it is not a string).
+
+    .EXAMPLE
+        Import-Csv 'C:\data\forms.csv' | Format-FormDataStringsHC
+
+        Trims every string field of every row in the CSV, preserving the
+        original column order, and emits one cleaned object per row.
+
+    .EXAMPLE
+        $row = [pscustomobject]@{ Id = 5; Label = ' active ' }
+        $clean = $row | Format-FormDataStringsHC
+        $row.Label    # still ' active '
+        $clean.Label  # 'active'
+
+        Shows that a new object is returned and the original row is left
+        unmodified.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        One object per input row, exposing the same properties in the same
+        order, with string values trimmed.
+
+    .NOTES
+        - Only scalar [string] values are trimmed. Everything else is copied
+          unchanged, including $null, numbers, dates, booleans and arrays. A
+          string element inside an array property is therefore not trimmed.
+        - The input object is not mutated; a new object is returned.
+        - Property/column order is preserved via [ordered].
     #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, ValueFromPipeline = $true)]
