@@ -433,7 +433,6 @@ Describe 'Get-DefaultAclHC' {
         $script:errors[0].Name | Should -Be 'Duplicate default ACL entry'
     }
 
-
     It 'returns an empty hashtable when every row is a skip-row' {
         $sheet = @(
             [pscustomobject]@{ ADObjectName = ''; Permission = '' }
