@@ -1,4 +1,80 @@
 function ConvertTo-StructuredObjectHC {
+    <#
+    .SYNOPSIS
+        Normalize mixed pipeline input into structured records, wrapping strings
+        and unknown objects and passing structured objects through.
+
+    .DESCRIPTION
+        Takes a stream of arbitrary objects and emits a structured record for
+        each, so a mixed pipeline (strings, hashtables, custom objects, other
+        types) becomes a uniform sequence of objects downstream code can handle
+        consistently.
+
+        Each input item is classified as follows:
+
+        - $null: skipped, producing no output.
+        - [string]: wrapped via New-ValidationCheckHC with Type 'Information'
+          and Name 'Message', the string becoming the record's Description.
+        - [hashtable] or [pscustomobject]: passed through unchanged, on the
+          assumption it is already a structured record.
+        - Anything else: stringified and wrapped via New-ValidationCheckHC with
+          Type 'Information' and Name 'UnknownObject', the string form becoming
+          the record's Description.
+
+        The function processes pipeline input one item at a time and also
+        iterates the items of any array passed as a single argument.
+
+    .PARAMETER InputObject
+        The object(s) to normalize. Accepts pipeline input. Each item is
+        classified and emitted individually; $null items are dropped. Mandatory.
+
+    .EXAMPLE
+        'something happened' | ConvertTo-StructuredObjectHC
+
+        Emits a validation-check record: Type 'Information', Name 'Message',
+        Description 'something happened'.
+
+    .EXAMPLE
+        @(
+            'a message',
+            [pscustomobject]@{ Type = 'Warning'; Name = 'X' },
+            42,
+            $null
+        ) | ConvertTo-StructuredObjectHC
+
+        Emits three records: the string is wrapped as a 'Message', the
+        PSCustomObject passes through unchanged, 42 is wrapped as an
+        'UnknownObject' with Description '42', and the $null is skipped.
+
+    .EXAMPLE
+        Some-Step | ConvertTo-StructuredObjectHC | Where-Object Type -eq 'Information'
+
+        Normalizes whatever Some-Step emits (free-form strings, ready-made
+        records, or other values) so the downstream filter can rely on a
+        consistent record shape.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        For strings and unrecognized types, a record from New-ValidationCheckHC.
+        For hashtables and PSCustomObjects, the original object unchanged. No
+        output is produced for $null items.
+
+    .NOTES
+        - $null items are silently dropped.
+        - Strings and unknown types are wrapped with Type 'Information'; the
+          difference is the Name ('Message' vs 'UnknownObject'). Note an unknown
+          object is recorded as 'Information', not as a warning, even though it
+          was an unexpected type.
+        - Hashtables are passed through as-is and are not converted to
+          PSCustomObjects or validated; downstream code receiving a [hashtable]
+          alongside [pscustomobject] records should be ready for both shapes.
+        - The wrapped records carry only Description (no Value); their Value and
+          Category fields are $null.
+
+    .LINK
+        New-ValidationCheckHC
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory, ValueFromPipeline = $true)] 
