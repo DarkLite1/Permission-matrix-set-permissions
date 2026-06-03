@@ -336,9 +336,10 @@ function Get-StringValueHC {
 
         - Null, empty or whitespace: returns $null.
         - Starts with 'ENV:' (case-insensitive): the text after the prefix is
-          trimmed and treated as an environment variable name. The variable's
-          value is returned. If the variable does not exist, the function
-          throws.
+          trimmed and treated as an environment variable name. If nothing
+          usable remains after the prefix, the function throws. Otherwise the
+          variable's value is returned, or the function throws if the variable
+          does not exist.
         - Anything else: Name is returned unchanged.
 
         This lets a configuration field hold either a literal value or a
@@ -371,6 +372,12 @@ function Get-StringValueHC {
         referenced variable is not set.
 
     .EXAMPLE
+        Get-StringValueHC -Name 'ENV:'
+
+        Throws "No environment variable name given after 'ENV:'.", because the
+        prefix is present but no variable name follows it.
+
+    .EXAMPLE
         Get-StringValueHC -Name '   '
 
         Returns $null, because the input is whitespace.
@@ -382,16 +389,22 @@ function Get-StringValueHC {
     .NOTES
         - The 'ENV:' prefix match is case-insensitive (ordinal), so 'env:',
           'Env:' and 'ENV:' all trigger environment-variable resolution.
+        - 'ENV:' with nothing (or only whitespace) after it is a terminating
+          error with a dedicated message, rather than an attempted lookup of an
+          empty variable name.
         - A missing environment variable is a terminating error, whereas a
           missing/blank Name simply yields $null. The two "no value" situations
           are handled differently by design.
         - An environment variable that exists but is empty returns its empty
           value; it is not treated as "not found".
-        - Only the leading 'ENV:' (4 characters) is stripped. A value like
-          'ENV: NAME' resolves the variable ' NAME', which is then trimmed to
-          'NAME'; but a literal value that genuinely begins with 'ENV:' cannot
-          be returned as-is, since it will always be interpreted as a reference.
+        - The variable lookup is a literal name match; characters such as '*'
+          or '\' in the name are not interpreted as wildcards or provider
+          paths.
+        - Only the leading 'ENV:' (4 characters) is stripped. A literal value
+          that genuinely begins with 'ENV:' cannot be returned as-is, since it
+          will always be interpreted as a reference.
     #>
+
     [CmdletBinding()]
     param([String]$Name)
 
@@ -400,10 +413,21 @@ function Get-StringValueHC {
     }
     elseif ($Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)) {
         $envVariableName = $Name.Substring(4).Trim()
-        $envStringValue = Get-Item -Path "Env:\$envVariableName" -EA Ignore
 
-        if ($envStringValue) {
-            return $envStringValue.Value
+        # Guard against 'ENV:' with no usable variable name after the prefix,
+        # so the error names the problem instead of reporting an empty variable.
+        if ([string]::IsNullOrWhiteSpace($envVariableName)) {
+            throw "No environment variable name given after 'ENV:'."
+        }
+
+        # Plain literal lookup: no Env-provider path parsing, so characters
+        # like '*' or '\' in the name are matched as-is.
+        $envStringValue = [System.Environment]::GetEnvironmentVariable($envVariableName)
+
+        # Explicit $null check (not truthiness) so an existing-but-empty
+        # variable returns '' rather than being reported as "not found".
+        if ($null -ne $envStringValue) {
+            return $envStringValue
         }
         else {
             throw "Environment variable '$envVariableName' not found."
