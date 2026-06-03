@@ -155,6 +155,50 @@ function Add-MatrixErrorHC {
 }
 
 function Add-PermissionsErrorHC {
+     <#
+    .SYNOPSIS
+        Add a 'Permissions'-category error to the system-error accumulator.
+
+    .DESCRIPTION
+        Thin wrapper around Add-ErrorHC that fixes Category to 'Permissions'.
+        All other parameters are forwarded unchanged. See Add-ErrorHC for the
+        full description of the record created and how SystemErrors is used.
+
+    .PARAMETER Type
+        The error severity or kind (for example 'FatalError'). Forwarded to
+        Add-ErrorHC.
+
+    .PARAMETER Name
+        A short title for the error. Forwarded to Add-ErrorHC.
+
+    .PARAMETER Message
+        The human-readable description of the problem. Forwarded to
+        Add-ErrorHC.
+
+    .PARAMETER Description
+        Optional additional detail. Defaults to an empty string. Forwarded to
+        Add-ErrorHC.
+
+    .PARAMETER SystemErrors
+        A [ref] to the caller's error accumulator (a collection supporting
+        .Add()). Forwarded to Add-ErrorHC.
+
+    .EXAMPLE
+        $errors = [System.Collections.Generic.List[object]]::new()
+        Add-PermissionsErrorHC -Type 'FatalError' -Name 'Invalid permission' -Message "Unknown permission 'X'." -SystemErrors ([ref]$errors)
+
+        Appends a 'Permissions'-category error to $errors.
+
+    .OUTPUTS
+        None. Appends to the referenced collection and returns nothing.
+
+    .NOTES
+        Category is fixed to 'Permissions' and cannot be overridden through this
+        function.
+
+    .LINK
+        Add-ErrorHC
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Type,
