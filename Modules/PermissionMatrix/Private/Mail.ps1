@@ -191,22 +191,134 @@ function Get-MailSubjectHC {
 
 function Send-MailKitMessageHC {
     <#
-        Sends email using MailKit.
-        Expected parameters:
-            - MailKitAssemblyPath
-            - MimeKitAssemblyPath
-            - SmtpServerName
-            - SmtpPort
-            - SmtpConnectionType
-            - Credential (optional)
-            - From
-            - FromDisplayName
-            - To[]
-            - Bcc[]
-            - Body (HTML)
-            - Subject
-            - Attachments[]
-            - Priority
+    .SYNOPSIS
+        Send an e-mail message through an SMTP server using MailKit/MimeKit.
+
+    .DESCRIPTION
+        Loads the MimeKit and MailKit assemblies, builds an HTML e-mail message
+        and sends it through the specified SMTP server.
+
+        The function handles the full lifecycle: it validates and loads the
+        required assemblies with clear, actionable errors, constructs the
+        message (sender, recipients, subject, priority header, HTML body and
+        attachments), connects to the SMTP server, optionally authenticates,
+        sends the message, and disposes of the SMTP client and any open
+        attachment file streams.
+
+        The message body is always sent as HTML. Authentication is performed
+        only when a Credential is supplied; otherwise the message is sent
+        unauthenticated.
+
+    .PARAMETER MailKitAssemblyPath
+        Full path to MailKit.dll. Required. MailKit depends on MimeKit, which
+        is loaded first. A missing or invalid path throws a descriptive error.
+
+    .PARAMETER MimeKitAssemblyPath
+        Full path to MimeKit.dll. Required. Loaded before MailKit. A missing or
+        invalid path throws a descriptive error.
+
+    .PARAMETER SmtpServerName
+        Host name or IP address of the SMTP server.
+
+    .PARAMETER SmtpPort
+        TCP port of the SMTP server (for example 25, 587 or 465).
+
+    .PARAMETER Body
+        The message body, interpreted as HTML.
+
+    .PARAMETER Subject
+        The message subject line.
+
+    .PARAMETER From
+        The sender's e-mail address.
+
+    .PARAMETER FromDisplayName
+        Optional display name shown for the sender (for example 'IT Support').
+        When omitted, only the address is used.
+
+    .PARAMETER To
+        One or more recipient e-mail addresses.
+
+    .PARAMETER Bcc
+        One or more blind-carbon-copy recipient e-mail addresses.
+
+    .PARAMETER Priority
+        Message priority, mapped to the X-Priority header:
+        High maps to '1 (Highest)', Normal to '3 (Normal)' and Low to
+        '5 (Lowest)'. Defaults to 'Normal'.
+
+    .PARAMETER Attachments
+        One or more file paths to attach. Each path is checked with Test-Path;
+        paths that do not exist are skipped without raising an error. Existing
+        files are attached using Base64 content-transfer encoding.
+
+    .PARAMETER SmtpConnectionType
+        The secure-socket option passed to MailKit when connecting. One of
+        'None', 'Auto', 'SslOnConnect', 'StartTls' or
+        'StartTlsWhenAvailable'. Defaults to 'None'.
+
+    .PARAMETER Credential
+        Optional PSCredential used to authenticate with the SMTP server. When
+        omitted, the message is sent without authentication.
+
+    .EXAMPLE
+        Send-MailKitMessageHC `
+            -MailKitAssemblyPath 'C:\lib\MailKit.dll' `
+            -MimeKitAssemblyPath 'C:\lib\MimeKit.dll' `
+            -SmtpServerName 'smtp.contoso.com' `
+            -SmtpPort 25 `
+            -From 'noreply@contoso.com' `
+            -To 'bob@contoso.com' `
+            -Subject 'Report ready' `
+            -Body '<p>Your report is ready.</p>'
+
+        Sends a basic unauthenticated HTML message over an unencrypted
+        connection.
+
+    .EXAMPLE
+        $cred = Get-Credential
+        Send-MailKitMessageHC `
+            -MailKitAssemblyPath 'C:\lib\MailKit.dll' `
+            -MimeKitAssemblyPath 'C:\lib\MimeKit.dll' `
+            -SmtpServerName 'smtp.contoso.com' `
+            -SmtpPort 587 `
+            -SmtpConnectionType 'StartTls' `
+            -Credential $cred `
+            -From 'noreply@contoso.com' `
+            -FromDisplayName 'Contoso Alerts' `
+            -To 'bob@contoso.com', 'jane@contoso.com' `
+            -Subject 'Nightly run' `
+            -Body '<h1>Done</h1>' `
+            -Priority 'High'
+
+        Sends an authenticated, StartTLS-encrypted message to two recipients
+        with a sender display name and high priority.
+
+    .EXAMPLE
+        Send-MailKitMessageHC `
+            -MailKitAssemblyPath 'C:\lib\MailKit.dll' `
+            -MimeKitAssemblyPath 'C:\lib\MimeKit.dll' `
+            -SmtpServerName 'smtp.contoso.com' `
+            -SmtpPort 25 `
+            -From 'noreply@contoso.com' `
+            -To 'bob@contoso.com' `
+            -Subject 'Logs' `
+            -Body '<p>See attached.</p>' `
+            -Attachments 'C:\logs\run.log', 'C:\logs\missing.log'
+
+        Sends a message attaching run.log. The non-existent missing.log is
+        silently skipped.
+
+    .OUTPUTS
+        None. This function sends an e-mail and returns no output.
+
+    .NOTES
+        - Attachment paths that fail Test-Path are skipped silently; no error
+          or warning is raised for a missing attachment.
+        - To and Bcc are both optional. If neither is supplied the message is
+          built and sent with no recipients.
+        - Requires the MimeKit and MailKit NuGet packages; provide the paths to
+          their DLLs via the assembly-path parameters.
     #>
     [CmdletBinding()]
     param(
