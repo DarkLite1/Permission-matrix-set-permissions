@@ -266,7 +266,7 @@ Describe 'Save-MailBodyToLogHC' {
     It 'replaces characters that are invalid in a file name with a space' {
         # Pick a real invalid char for the current OS so the test is portable.
         $invalidChar = [System.IO.Path]::GetInvalidFileNameChars() |
-            Where-Object { $_ -ne ' ' } | Select-Object -First 1
+        Where-Object { $_ -ne ' ' } | Select-Object -First 1
         $params = @{ Subject = "report${invalidChar}name"; Body = '<p>x</p>' }
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
@@ -466,9 +466,11 @@ Describe 'Send-MailKitMessageHC' {
         $script:LastMessage.To.Items.Address | Should -Contain 'b@example.com'
         $script:LastMessage.Bcc.Items.Address | Should -Contain 'c@example.com'
 
-        $bodyPart = $script:LastMessage.Body.Parts | Where-Object { $_.Kind -eq 'TextPart' }
-        $bodyPart.Text | Should -Be '<p>hi</p>'
-        $bodyPart.Subtype | Should -Be 'html'
+        # No attachments here, so the body is the HTML TextPart itself,
+        # not a multipart container.
+        $script:LastMessage.Body.Kind | Should -Be 'TextPart'
+        $script:LastMessage.Body.Text | Should -Be '<p>hi</p>'
+        $script:LastMessage.Body.Subtype | Should -Be 'html'
     }
 
     It 'sets the X-Priority header to <Expected> for priority <Priority>' -TestCases @(
@@ -500,7 +502,7 @@ Describe 'Send-MailKitMessageHC' {
                 -ParameterFilter { $Path -eq 'X:\MimeKit.dll' }
 
             { Send-MailKitMessageHC @params } |
-                Should -Throw -ExpectedMessage '*MimeKit*X:\MimeKit.dll*'
+            Should -Throw -ExpectedMessage '*MimeKit*X:\MimeKit.dll*'
         }
 
         It 'throws a clear, assembly-specific error when MailKit fails to load' {
@@ -508,14 +510,14 @@ Describe 'Send-MailKitMessageHC' {
                 -ParameterFilter { $Path -eq 'X:\MailKit.dll' }
 
             { Send-MailKitMessageHC @params } |
-                Should -Throw -ExpectedMessage '*MailKit*X:\MailKit.dll*'
+            Should -Throw -ExpectedMessage '*MailKit*X:\MailKit.dll*'
         }
 
         It 'throws a clear error when an assembly path is only whitespace' {
             $params.MimeKitAssemblyPath = '   '
 
             { Send-MailKitMessageHC @params } |
-                Should -Throw -ExpectedMessage '*MimeKit*not set*'
+            Should -Throw -ExpectedMessage '*MimeKit*not set*'
         }
     }
 
@@ -535,11 +537,11 @@ Describe 'Send-MailKitMessageHC' {
             $attachment.ContentTransferEncoding.ToString() | Should -Be 'Base64'
         }
 
-        It 'adds only the HTML body part when there are no attachments' {
+        It 'uses the HTML body part directly as the message body when there are no attachments' {
             Send-MailKitMessageHC @params
 
-            $script:LastMessage.Body.Parts | Should -HaveCount 1
-            $script:LastMessage.Body.Parts[0].Kind | Should -Be 'TextPart'
+            $script:LastMessage.Body.Kind | Should -Be 'TextPart'
+            $script:LastMessage.Body.Text | Should -Be '<p>hi</p>'
         }
 
         It 'disposes the attachment stream after sending' {

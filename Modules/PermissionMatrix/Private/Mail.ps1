@@ -388,28 +388,36 @@ function Send-MailKitMessageHC {
             'Low' { $message.Headers.Add('X-Priority', '5 (Lowest)') }
         }
 
-        # Body
+        # HTML body part
         $bodyPart = New-Object MimeKit.TextPart('html')
         $bodyPart.Text = $Body
-        $bodyContainer = New-Object MimeKit.Multipart 'mixed'
-        $bodyContainer.Add($bodyPart)
 
-        # Attachments
-        foreach ($path in $Attachments) {
-            if (Test-Path $path) {
-                $file = New-Object MimeKit.MimePart
-                $stream = [System.IO.File]::OpenRead($path)
-                $attachmentStreams.Add($stream)
-                $content = New-Object MimeKit.MimeContent($stream)
-                $file.Content = $content
-                $file.FileName = [System.IO.Path]::GetFileName($path)
-                $file.ContentDisposition = New-Object MimeKit.ContentDisposition
-                $file.ContentTransferEncoding = [MimeKit.ContentEncoding]::Base64
+        $attachmentParts = @(
+            foreach ($path in $Attachments) {
+                if (Test-Path $path) {
+                    $file = New-Object MimeKit.MimePart
+                    $stream = [System.IO.File]::OpenRead($path)
+                    $attachmentStreams.Add($stream)
+                    $file.Content = New-Object MimeKit.MimeContent($stream)
+                    $file.FileName = [System.IO.Path]::GetFileName($path)
+                    $file.ContentDisposition = New-Object MimeKit.ContentDisposition
+                    $file.ContentTransferEncoding = [MimeKit.ContentEncoding]::Base64
+                    $file
+                }
+            }
+        )
+
+        if ($attachmentParts.Count -gt 0) {
+            $bodyContainer = New-Object MimeKit.Multipart 'mixed'
+            $bodyContainer.Add($bodyPart)
+            foreach ($file in $attachmentParts) {
                 $bodyContainer.Add($file)
             }
+            $message.Body = $bodyContainer
         }
-
-        $message.Body = $bodyContainer
+        else {
+            $message.Body = $bodyPart
+        }
 
         # SMTP client
         $smtp = New-Object MailKit.Net.Smtp.SmtpClient
