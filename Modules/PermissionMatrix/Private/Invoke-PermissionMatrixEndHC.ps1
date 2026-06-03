@@ -349,7 +349,7 @@ function Invoke-PermissionMatrixEndHC {
 
             $recipients = Get-MailRecipientListHC `
                 -SendMailSettings $sendMail `
-                -MailToDefaultsFile $Context.Defaults.MailTo
+                -DefaultsMailTo $Context.Defaults.MailTo
 
             $subject = Get-MailSubjectHC `
                 -SystemErrors $SystemErrors.Value `

@@ -4,12 +4,12 @@ function Get-MailRecipientListHC {
         [Parameter(Mandatory)]
         $SendMailSettings,
 
-        $MailToDefaultsFile
+        $DefaultsMailTo
     )
 
     $list = @()
     if ($SendMailSettings.To) { $list += $SendMailSettings.To }
-    if ($MailToDefaultsFile) { $list += $MailToDefaultsFile }
+    if ($DefaultsMailTo) { $list += $DefaultsMailTo }
 
     # First Where-Object drops $null / empty entries before .Trim() is called,
     # so a null in the array can no longer throw.

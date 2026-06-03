@@ -100,7 +100,7 @@ Describe 'Get-MailRecipientListHC' {
     It 'merges the To list with the defaults file recipients' {
         $settings = [PSCustomObject]@{ To = @('bob@example.com') }
 
-        $result = Get-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile @('amy@example.com')
+        $result = Get-MailRecipientListHC -SendMailSettings $settings -DefaultsMailTo @('amy@example.com')
 
         @($result) | Should -HaveCount 2
         $result | Should -Contain 'bob@example.com'
@@ -152,7 +152,7 @@ Describe 'Get-MailRecipientListHC' {
     It 'works when only the defaults file recipients are supplied' {
         $settings = [PSCustomObject]@{}
 
-        $result = Get-MailRecipientListHC -SendMailSettings $settings -MailToDefaultsFile 'amy@example.com'
+        $result = Get-MailRecipientListHC -SendMailSettings $settings -DefaultsMailTo 'amy@example.com'
 
         $result | Should -Be 'amy@example.com'
     }
