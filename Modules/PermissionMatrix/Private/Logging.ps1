@@ -257,6 +257,44 @@ function Out-LogFileHC {
 }
 
 function Remove-FileHC {
+    <#
+    .SYNOPSIS
+        Safely deletes a specified file and handles locking/permission errors 
+        non-destructively.
+
+    .DESCRIPTION
+        Attempts to forcefully remove a target file if it currently exists on 
+        the disk. 
+        
+        To ensure the stability of the broader orchestrator, this function will 
+        never throw a terminating error. If the file is locked by another 
+        process or access is denied, it safely catches the exception and logs 
+        it as a 'Warning'. 
+        
+        It intelligently routes this warning: if the `$SystemErrors` reference 
+        variable is provided, the error is added to the centralized collection. 
+        If it is omitted, it falls back to the standard PowerShell warning 
+        stream.
+
+    .PARAMETER FilePath
+        The absolute path to the target file that should be deleted.
+
+    .PARAMETER SystemErrors
+        An optional reference variable ([ref]) containing a List
+        [pscustomobject]. Used to capture and bubble up file deletion failures 
+        as structured warnings rather than crashing the script.
+
+    .EXAMPLE
+        # Standard deletion with console warnings on failure
+        Remove-FileHC -FilePath 'C:\Temp\OldLog.txt'
+
+    .EXAMPLE
+        # Silent deletion routing failures to the global error tracker
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        Remove-FileHC `
+            -FilePath 'C:\Temp\OldLog.txt' `
+            -SystemErrors ([ref]$sysErrors)
+    #> 
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string]$FilePath,
