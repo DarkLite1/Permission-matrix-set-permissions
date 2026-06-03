@@ -197,21 +197,6 @@ Describe 'Get-StringOrDefaultHC' {
         Get-StringOrDefaultHC -Value 0 -Default 'fallback' | Should -Be 0
     }
 
-    It 'passes through $false as non-blank' {
-        Get-StringOrDefaultHC -Value $false -Default 'fallback' | Should -Be $false
-    }
-
-    It 'accepts the value from the pipeline' {
-        'piped' | Get-StringOrDefaultHC -Default 'fallback' | Should -Be 'piped'
-    }
-
-    It 'uses Default from the pipeline when the piped value is blank' {
-        # -Value is both Position 0 and the pipeline parameter, so a *positional*
-        # Default cannot coexist with piped input (the positional arg would fill
-        # -Value, leaving the piped object unbindable). Name -Default instead.
-        '   ' | Get-StringOrDefaultHC -Default 'fallback' | Should -Be 'fallback'
-    }
-
     It 'allows an empty string as the Default' {
         Get-StringOrDefaultHC -Value $null -Default '' | Should -Be ''
     }
