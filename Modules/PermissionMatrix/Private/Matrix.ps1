@@ -82,9 +82,70 @@ function Format-FormDataStringsHC {
 
 function Format-PermissionsStringsHC {
     <#
-        Normalizes a row returned from Import-Excel for the Permissions sheet.
-        Ensures trimming, uppercasing, and removal of whitespace.
+    .SYNOPSIS
+        Return a copy of a Permissions row with all string values trimmed and
+        uppercased.
+
+    .DESCRIPTION
+        Produces a new object from a row returned by Import-Excel for the
+        Permissions sheet, in which every string-valued property is trimmed of
+        leading and trailing whitespace and converted to upper case. Values
+        that are not strings (numbers, dates, booleans, $null, arrays, nested
+        objects, and so on) are copied across unchanged.
+
+        The original property order is preserved by building the result through
+        an ordered dictionary, so the Excel column layout is kept intact. The
+        input object is not modified; a new PSCustomObject is returned.
+
+        The function accepts pipeline input and processes one row at a time,
+        emitting one normalized object per input row, so it can sit directly in
+        a pipeline after Import-Excel.
+
+    .PARAMETER Row
+        The row to normalize: any object whose string properties should be
+        trimmed and uppercased. Accepts pipeline input, so a stream of rows can
+        be piped in and each is processed and emitted individually. Every
+        property exposed by the object (via PSObject.Properties) is examined.
+
+    .EXAMPLE
+        [pscustomobject]@{ Account = '  domain\bob  '; Level = 30 } | Format-PermissionsStringsHC
+
+        Returns an object where Account is 'DOMAIN\BOB' (trimmed and uppercased)
+        and Level is still the integer 30 (left unchanged, because it is not a
+        string).
+
+    .EXAMPLE
+        Import-Excel 'C:\data\matrix.xlsx' -WorksheetName 'Permissions' | Format-PermissionsStringsHC
+
+        Trims and uppercases every string field of every row on the Permissions
+        sheet, preserving the original column order, and emits one normalized
+        object per row.
+
+    .EXAMPLE
+        $row = [pscustomobject]@{ Id = 5; Right = ' read ' }
+        $clean = $row | Format-PermissionsStringsHC
+        $row.Right    # still ' read '
+        $clean.Right  # 'READ'
+
+        Shows that a new object is returned and the original row is left
+        unmodified.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        One object per input row, exposing the same properties in the same
+        order, with string values trimmed and uppercased.
+
+    .NOTES
+        - Only scalar [string] values are trimmed and uppercased. Everything
+          else is copied unchanged, including $null, numbers, dates, booleans
+          and arrays. A string element inside an array property is therefore
+          left as-is.
+        - Trimming removes leading and trailing whitespace only; whitespace
+          inside the value (for example between words) is preserved.
+        - The input object is not mutated; a new object is returned.
+        - Property/column order is preserved via [ordered].
     #>
+
     [CmdletBinding()]
     param(
         # Allow the function to accept rows directly from the pipeline
