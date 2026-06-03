@@ -1,4 +1,63 @@
 function Get-MailRecipientListHC {
+    <#
+    .SYNOPSIS
+        Build a clean, de-duplicated list of e-mail recipients.
+
+    .DESCRIPTION
+        Combines the recipients defined in a mail settings object with an
+        optional set of default recipients, then returns a single tidied list.
+
+        The combined addresses are processed as follows:
+        - $null and empty/blank entries are removed
+        - leading and trailing whitespace is trimmed from each address
+        - the result is sorted and de-duplicated
+
+        When no valid recipients remain, nothing is returned.
+
+    .PARAMETER SendMailSettings
+        An object that exposes a 'To' property holding one or more recipient
+        e-mail addresses, typically the mail configuration for a single
+        notification or report. Only the 'To' property is read; any other
+        properties on the object are ignored.
+
+    .PARAMETER DefaultsMailTo
+        One or more default recipient e-mail addresses that should always be
+        included, regardless of what is defined in SendMailSettings.To. Useful
+        for ensuring a central mailbox or administrator is always added.
+
+    .EXAMPLE
+        $settings = [PSCustomObject]@{ 
+            To = 'bob@contoso.com', ' jane@contoso.com ' 
+        }
+        Get-MailRecipientListHC -SendMailSettings $settings
+
+        Returns 'bob@contoso.com' and 'jane@contoso.com'. The whitespace around
+        the second address is trimmed.
+
+    .EXAMPLE
+        $settings = [PSCustomObject]@{ To = 'bob@contoso.com' }
+        Get-MailRecipientListHC `
+            -SendMailSettings $settings `
+            -DefaultsMailTo 'admin@contoso.com', 'bob@contoso.com'
+
+        Returns 'admin@contoso.com' and 'bob@contoso.com'. The duplicate
+        'bob@contoso.com' is collapsed to a single entry.
+
+    .EXAMPLE
+        $settings = [PSCustomObject]@{ To = $null }
+        Get-MailRecipientListHC -SendMailSettings $settings
+
+        Returns nothing, because there are no valid recipients to list.
+
+    .OUTPUTS
+        System.String
+        Zero or more unique recipient e-mail addresses, sorted alphabetically.
+
+    .NOTES
+        De-duplication is performed by Sort-Object -Unique, which compares
+        strings case-insensitively. Addresses differing only in casing are
+        therefore collapsed into one entry.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
