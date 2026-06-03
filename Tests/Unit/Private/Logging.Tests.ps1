@@ -10,18 +10,18 @@ BeforeAll {
     ForEach-Object { . $_.FullName }
 }
 
-Describe 'Cleanup-OldLogsHC' {
+Describe 'Remove-OldLogsHC' {
     BeforeEach {
         $script:errors = [System.Collections.Generic.List[PSObject]]::new()
     }
 
     It 'returns silently when RetentionDays is 0 or less' {
-        { Cleanup-OldLogsHC -LogFolder 'TestDrive:\Logs' -RetentionDays 0 `
+        { Remove-OldLogsHC -LogFolder 'TestDrive:\Logs' -RetentionDays 0 `
                 -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
     }
 
     It 'returns silently when the folder does not exist' {
-        { Cleanup-OldLogsHC -LogFolder 'TestDrive:\DoesNotExist' -RetentionDays 30 `
+        { Remove-OldLogsHC -LogFolder 'TestDrive:\DoesNotExist' -RetentionDays 30 `
                 -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
         $script:errors.Count | Should -Be 0
     }
@@ -36,7 +36,7 @@ Describe 'Cleanup-OldLogsHC' {
         Set-Content -LiteralPath $new -Value 'new'
         (Get-Item $old).CreationTime = (Get-Date).AddDays(-40)
 
-        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+        Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
         Test-Path $old | Should -BeFalse
@@ -51,7 +51,7 @@ Describe 'Cleanup-OldLogsHC' {
         Set-Content -LiteralPath $recent -Value 'x'
         (Get-Item $recent).CreationTime = (Get-Date).AddDays(-5)
 
-        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+        Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
         Test-Path $recent | Should -BeTrue
@@ -66,7 +66,7 @@ Describe 'Cleanup-OldLogsHC' {
         Set-Content -LiteralPath $old -Value 'x'
         (Get-Item $old).CreationTime = (Get-Date).AddDays(-90)
 
-        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+        Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
         Test-Path $old | Should -BeFalse
@@ -82,7 +82,7 @@ Describe 'Cleanup-OldLogsHC' {
         Set-Content -LiteralPath $keep -Value 'x'
         (Get-Item $keep).CreationTime = (Get-Date).AddDays(-1)
 
-        Cleanup-OldLogsHC -LogFolder $folder -RetentionDays 30 `
+        Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
         Test-Path $sub | Should -BeTrue

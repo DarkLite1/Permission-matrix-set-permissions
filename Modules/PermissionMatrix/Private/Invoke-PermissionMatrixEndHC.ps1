@@ -464,7 +464,7 @@ function Invoke-PermissionMatrixEndHC {
                 -SystemErrors $SystemErrors
         }
         if ($Context.Config.Settings.SaveLogFiles.DeleteLogsAfterDays -gt 0 -and $logFolder) {
-            Cleanup-OldLogsHC `
+            Remove-OldLogsHC `
                 -LogFolder $logFolder `
                 -RetentionDays $Context.Config.Settings.SaveLogFiles.DeleteLogsAfterDays `
                 -SystemErrors $SystemErrors

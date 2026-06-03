@@ -1,4 +1,4 @@
-function Cleanup-OldLogsHC {
+function Remove-OldLogsHC {
     <#
     .SYNOPSIS
         Purges old log files and orphaned directories based on a retention 
@@ -35,7 +35,7 @@ function Cleanup-OldLogsHC {
     .EXAMPLE
         $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
         
-        Cleanup-OldLogsHC `
+        Remove-OldLogsHC `
             -LogFolder 'C:\MatrixLogs' `
             -RetentionDays 30 `
             -SystemErrors ([ref]$sysErrors)

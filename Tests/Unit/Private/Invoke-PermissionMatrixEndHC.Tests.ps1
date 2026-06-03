@@ -120,7 +120,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         Mock Send-MailKitMessageHC { }
         Mock Save-MailBodyToLogHC { return 'TestDrive:\Logs\mail.html' }
         Mock Write-EventLogSafe { }
-        Mock Cleanup-OldLogsHC { }
+        Mock Remove-OldLogsHC { }
         Mock Write-MatrixExecutionReportHC { }
     }
 
@@ -430,7 +430,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Cleanup-OldLogsHC -Times 1
+            Should -Invoke Remove-OldLogsHC -Times 1
         }
     
         It 'skips cleanup when DeleteLogsAfterDays is 0' {
@@ -438,7 +438,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Cleanup-OldLogsHC -Times 0
+            Should -Invoke Remove-OldLogsHC -Times 0
         }
     
         It 'does not throw when phase 5 itself fails (final catch is silent)' {
