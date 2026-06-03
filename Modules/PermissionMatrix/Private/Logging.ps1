@@ -436,6 +436,62 @@ function Write-EventLogSafe {
 }
 
 function Write-EventsToEventLogHC {
+    <#
+    .SYNOPSIS
+        Dynamically formats and writes an array of custom objects to the 
+        Windows Event Log.
+
+    .DESCRIPTION
+        This function handles the physical writing of data to the Windows Event 
+        Log. It evaluates the provided array of event objects and processes 
+        them using the following logic:
+
+        1. Source Registration: 
+            Checks if the specified Event Source exists in the target Log. If 
+            it is missing, it automatically creates it (Note: creating a new 
+            Event Source requires Administrator privileges).
+        2. Dynamic Message Construction: 
+            It extracts the 'EntryType' and 'EventID' properties from the 
+            object. All remaining properties are dynamically iterated over and 
+            flattened into a bulleted string to construct the final Event Log 
+            'Message'.
+        3. Fallbacks: 
+            If an object is missing an 'EntryType', it defaults to 
+            'Information'. If it is missing an 'EventID', it defaults to '4'.
+
+        Unlike its parent wrapper (Write-EventLogSafe), this function will 
+        throw a terminating error if it fails to write, passing the exception 
+        back up the chain.
+
+    .PARAMETER Source
+        The name of the application or script generating the event 
+        (e.g., 'Permission Matrix'). This becomes the 'Source' column in the 
+        Event Viewer.
+
+    .PARAMETER LogName
+        The name of the target Windows Event Log 
+        (e.g., 'Application' or 'System').
+
+    .PARAMETER Events
+        An array of PSCustomObjects containing the data to log. Properties 
+        named 'EntryType' and 'EventID' map directly to Event Log fields, while 
+        all other properties are concatenated into the message body.
+
+    .EXAMPLE
+        $events = @(
+            [pscustomobject]@{
+                EntryType = 'Warning'
+                EventID   = 99
+                Action    = 'Cleanup'
+                Status    = 'Folder locked by another process'
+            }
+        )
+        
+        Write-EventsToEventLogHC `
+            -Source 'MyScript' `
+            -LogName 'Application' `
+            -Events $events
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][String]$Source,
