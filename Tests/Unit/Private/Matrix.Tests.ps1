@@ -420,9 +420,9 @@ Describe 'Get-DefaultAclHC' {
         $script:errors[0].Name | Should -Be 'Invalid default ACL permission'
     }
 
-    It 'flags a duplicate ADObjectName' {
+    It 'flags a duplicate ADObjectName (case insensitive)' {
         $sheet = @(
-            [pscustomobject]@{ ADObjectName = 'Bob'; Permission = 'R' }
+            [pscustomobject]@{ ADObjectName = 'BOB'; Permission = 'R' }
             [pscustomobject]@{ ADObjectName = 'Bob'; Permission = 'W' }
         )
 
@@ -432,6 +432,7 @@ Describe 'Get-DefaultAclHC' {
         $acl['Bob'] | Should -Be 'R'   # first one wins
         $script:errors[0].Name | Should -Be 'Duplicate default ACL entry'
     }
+
 
     It 'returns an empty hashtable when every row is a skip-row' {
         $sheet = @(
