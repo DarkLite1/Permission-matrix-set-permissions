@@ -1,5 +1,80 @@
 
 function Add-ErrorHC {
+    <#
+    .SYNOPSIS
+        Append a structured error record to a system-error accumulator.
+
+    .DESCRIPTION
+        Builds a structured error object and adds it to the collection
+        referenced by SystemErrors. The record captures the moment it was
+        created (DateTime is stamped via Get-Date at call time) together with
+        the supplied classification and message fields: Type, Name, Message,
+        Description and Category.
+
+        The function records rather than throws: it appends to the accumulator
+        and returns, leaving the caller to inspect the collected errors and
+        decide how to proceed.
+
+        SystemErrors is passed by reference and must point at a collection that
+        exposes an .Add() method (for example [System.Collections.ArrayList] or
+        [System.Collections.Generic.List[object]]). A fixed-size array created
+        with @() does not support .Add() and causes a terminating error.
+
+    .PARAMETER Type
+        The error severity or kind, for example 'FatalError' or 'Warning'. Free
+        text; not validated against a fixed set.
+
+    .PARAMETER Name
+        A short title for the error, used to identify or group similar
+        problems.
+
+    .PARAMETER Message
+        The human-readable description of what went wrong.
+
+    .PARAMETER Description
+        Optional additional detail or remediation guidance. Defaults to an
+        empty string.
+
+    .PARAMETER Category
+        The error category, for example 'Matrix', 'Permissions',
+        'RuntimeSettings' or 'JsonSchema'. The Add-*ErrorHC wrappers each supply
+        a fixed value here.
+
+    .PARAMETER SystemErrors
+        A [ref] to the caller's error accumulator: a collection supporting
+        .Add(). The new record is appended to SystemErrors.Value. This is an
+        in/out parameter.
+
+    .EXAMPLE
+        $errors = [System.Collections.Generic.List[object]]::new()
+        Add-ErrorHC -Type 'FatalError' -Name 'Bad row' -Message 'Missing path.' -Category 'Matrix' -SystemErrors ([ref]$errors)
+
+        Appends one error record to $errors, with DateTime set to the current
+        time and Description left empty.
+
+    .OUTPUTS
+        None. The function appends to the referenced collection and returns
+        nothing.
+
+    .NOTES
+        - The function records errors; it does not throw. Callers inspect the
+          accumulator afterwards.
+        - DateTime is captured with Get-Date at the moment of the call (local
+          time).
+        - If SystemErrors.Value is a [System.Collections.ArrayList], its .Add()
+          returns the insertion index, which would leak onto the pipeline. A
+          generic List[T] returns void and avoids this.
+
+    .LINK
+        Add-MatrixErrorHC
+    .LINK
+        Add-PermissionsErrorHC
+    .LINK
+        Add-RuntimeErrorHC
+    .LINK
+        Add-JsonSchemaErrorHC
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Type,       
