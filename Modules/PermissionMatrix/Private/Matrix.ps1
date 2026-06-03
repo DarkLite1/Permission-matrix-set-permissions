@@ -803,6 +803,98 @@ function ConvertTo-MatrixAclHC {
 }
 
 function Merge-DefaultPermissionsHC {
+      <#
+    .SYNOPSIS
+        Merge the default ACL into a matrix ACL, unless defaults are disabled or
+        the two define the same AD object.
+
+    .DESCRIPTION
+        Combines a path's matrix ACL with the default ACL and returns the
+        result as a new hashtable. The input hashtables are never modified; the
+        function works on clones.
+
+        Behavior depends on ApplyDefaultPermissions:
+
+        - When $false, defaults are ignored entirely and a clone of MatrixAcl is
+          returned unchanged.
+        - When $true, the function first checks for conflicts — AD object names
+          present in both Defaults and MatrixAcl. If any exist, it throws,
+          listing the conflicting names, and returns nothing. If there are no
+          conflicts, the default entries are added to a clone of MatrixAcl and
+          the merged hashtable is returned.
+
+        A conflict is treated as a hard error rather than resolved by
+        precedence: an AD object must be defined by the matrix or by the
+        defaults, not both.
+
+    .PARAMETER Defaults
+        The default ACL: a hashtable mapping AD object names to permission
+        characters (typically from Get-DefaultAclHC). Its entries are added to
+        the matrix ACL when ApplyDefaultPermissions is $true and there are no
+        conflicts. Mandatory.
+
+    .PARAMETER MatrixAcl
+        The per-path ACL from the matrix: a hashtable mapping AD object names to
+        permission characters (typically the ACL property of a
+        ConvertTo-MatrixAclHC entry). This is the base that defaults are merged
+        into. Mandatory.
+
+    .PARAMETER ApplyDefaultPermissions
+        When $true, defaults are merged into the matrix ACL (subject to the
+        conflict check). When $false, defaults are skipped and the matrix ACL is
+        returned as-is. Mandatory.
+
+    .EXAMPLE
+        $defaults = @{ 'Admins' = 'F' }
+        $matrix   = @{ 'Users GRP' = 'R' }
+        Merge-DefaultPermissionsHC `
+            -Defaults $defaults `
+            -MatrixAcl $matrix `
+            -ApplyDefaultPermissions $true
+
+        Returns @{ 'Users GRP' = 'R'; 'Admins' = 'F' }. The default entry is
+        added because there is no overlap with the matrix ACL.
+
+    .EXAMPLE
+        $defaults = @{ 'Admins' = 'F' }
+        $matrix   = @{ 'Users GRP' = 'R' }
+        Merge-DefaultPermissionsHC `
+            -Defaults $defaults `
+            -MatrixAcl $matrix `
+            -ApplyDefaultPermissions $false
+
+        Returns @{ 'Users GRP' = 'R' } — a clone of the matrix ACL. Because
+        defaults are disabled, Defaults is not consulted at all.
+
+    .EXAMPLE
+        $defaults = @{ 'Admins' = 'F' }
+        $matrix   = @{ 'Admins' = 'R' }
+        Merge-DefaultPermissionsHC `
+            -Defaults $defaults `
+            -MatrixAcl $matrix `
+            -ApplyDefaultPermissions $true
+
+        Throws, because 'Admins' is defined in both the matrix and the
+        defaults.
+
+    .OUTPUTS
+        System.Collections.Hashtable
+        A new hashtable mapping AD object names to permission characters: either
+        a clone of MatrixAcl (when defaults are disabled) or the clone with the
+        default entries added (when enabled and conflict-free).
+
+    .NOTES
+        - The result is always a clone; neither Defaults nor MatrixAcl is
+          mutated.
+        - On a conflict the function throws and returns nothing, so callers
+          should be prepared to handle a terminating error rather than an empty
+          result.
+        - Conflict detection uses ContainsKey on a default @{} hashtable, so AD
+          object names are matched case-insensitively: 'Admins' and 'admins'
+          count as a conflict.
+        - The merge does not validate or normalize permission characters; it
+          copies whatever values the two hashtables hold.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][hashtable]$Defaults,
