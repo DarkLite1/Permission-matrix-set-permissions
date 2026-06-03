@@ -687,6 +687,90 @@ function Get-MatrixADObjectsMapHC {
 }
 
 function ConvertTo-MatrixAclHC {
+     <#
+    .SYNOPSIS
+        Convert Permissions data rows into per-path ACL objects, using a
+        column-to-AD-name map to resolve each permission column.
+
+    .DESCRIPTION
+        Walks the data rows of the Permissions sheet and produces one object per
+        path, pairing the path with an ACL hashtable that maps resolved AD
+        object names to permission characters.
+
+        For each data row:
+
+        - P1 holds the path. Rows with no P1 are skipped entirely.
+        - For every column in AdObjectsMap (P2, P3, ...), the row's value in
+          that column is the permission for the corresponding AD object. The
+          permission is added to the row's ACL only when it is non-empty and
+          not 'I' (inherit); the ACL key is the resolved AD name taken from
+          AdObjectsMap, and the value is the permission character.
+
+        Each surviving row becomes a PSCustomObject with Path and ACL
+        properties. The collected objects are returned as an array.
+
+    .PARAMETER DataRows
+        The data rows of the Permissions sheet (the rows below the header
+        rows), as an array of objects. Each row is expected to expose P1 (the
+        path) and the permission columns P2, P3, and so on. Rows whose P1 is
+        empty are ignored. Mandatory.
+
+    .PARAMETER AdObjectsMap
+        A hashtable mapping permission column names (P2, P3, ...) to the
+        resolved AD object names for those columns — typically the output of
+        Get-MatrixADObjectsMapHC. Only the columns present as keys here are
+        read from each data row; any other columns on the row are ignored.
+        Mandatory.
+
+    .EXAMPLE
+        $map = @{ P2 = 'Mgrs BRU GRP'; P3 = 'Users GRP' }
+        $rows = @(
+            [pscustomobject]@{ P1 = '\\srv\Finance'; P2 = 'F'; P3 = 'R' },
+            [pscustomobject]@{ P1 = '\\srv\HR';      P2 = 'I'; P3 = 'W' }
+        )
+        ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
+
+        Returns two objects. '\\srv\Finance' gets ACL
+        @{ 'Mgrs BRU GRP' = 'F'; 'Users GRP' = 'R' }. '\\srv\HR' gets ACL
+        @{ 'Users GRP' = 'W' } — its P2 value 'I' is an inherit marker and is
+        excluded.
+
+    .EXAMPLE
+        $map = @{ P2 = 'Mgrs BRU GRP' }
+        $rows = @(
+            [pscustomobject]@{ P1 = '';           P2 = 'F' },
+            [pscustomobject]@{ P1 = '\\srv\Logs'; P2 = 'I' }
+        )
+        ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
+
+        Returns one object: Path '\\srv\Logs' with an empty ACL hashtable. The
+        first row has no P1 and is skipped; the second has a path but its only
+        permission is 'I', so nothing is added to its ACL.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject[]
+        An array of objects, one per data row with a non-empty P1, each having:
+        - Path: the value of the row's P1.
+        - ACL:  a hashtable mapping resolved AD object names to permission
+                characters. May be empty if the row has no granted permissions.
+        Returns an empty array when no rows qualify.
+
+    .NOTES
+        - Rows with an empty P1 are dropped; a path is required to produce an
+          entry.
+        - Permission values are taken from the row as-is: they are not trimmed,
+          upper-cased or validated against a permitted set, unlike
+          Get-DefaultAclHC. Only two values are special-cased — empty (skipped)
+          and 'I' (skipped). The 'I' comparison is case-insensitive, so 'i' is
+          also excluded, but a value with surrounding whitespace such as ' I '
+          does not match and would be kept.
+        - A path whose every permission is empty or 'I' still produces an entry,
+          with an empty ACL hashtable.
+        - The ACL is a default @{} hashtable, so its AD-name keys are matched
+          case-insensitively. If two columns in AdObjectsMap resolve to the same
+          AD name, the later column's permission overwrites the earlier one's
+          for that path, silently.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$DataRows,
