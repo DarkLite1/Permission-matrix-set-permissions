@@ -92,6 +92,20 @@ function Invoke-PermissionMatrix {
                 -Context $context `
                 -SystemErrors $SystemErrors
         }
+        elseif ($context -and $hasFatal) {
+            foreach ($matrixObj in $context.AllMatrices) {
+                if (-not (Test-ItemHasFatalErrorHC -CheckList $matrixObj.Check)) {
+                    $matrixObj.Check.Add(
+                        [pscustomobject]@{
+                            Type        = 'FatalError'
+                            Name        = 'Run aborted'
+                            Description = 'This matrix was not processed because a system-level error aborted the run. See the system errors for the cause.'
+                            Value       = ''
+                        }
+                    )
+                }
+            }
+        }
         #endregion
     }
     catch {
