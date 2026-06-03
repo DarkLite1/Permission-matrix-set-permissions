@@ -433,7 +433,7 @@ function Get-DefaultAclHC {
         function appends to whatever it references. Mandatory.
 
     .EXAMPLE
-        $errors = @()
+        $errors = [System.Collections.Generic.List[object]]::new()
         $sheet = @(
             [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'w' },
             [pscustomobject]@{ ADObjectName = 'GRP-RO'; Permission = 'R' }
@@ -444,7 +444,7 @@ function Get-DefaultAclHC {
         upper-cased. $errors stays empty because both rows are valid.
 
     .EXAMPLE
-        $errors = @()
+        $errors = [System.Collections.Generic.List[object]]::new()
         $sheet = @(
             [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'F' },
             [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'R' },
