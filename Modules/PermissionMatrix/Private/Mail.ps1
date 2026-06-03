@@ -442,6 +442,80 @@ function Send-MailKitMessageHC {
 }
 
 function Save-MailBodyToLogHC {
+    <#
+    .SYNOPSIS
+        Save an e-mail's HTML body to a log file named after its subject.
+
+    .DESCRIPTION
+        Writes the Body of a mail-parameters object to an .html file in the
+        specified log folder. The file name is derived from the mail Subject,
+        prefixed with 'Mail - ' and suffixed with '.html'.
+
+        Any character that is invalid in a file name is replaced with a space,
+        so subjects containing characters such as ':' or '/' still produce a
+        valid file name. If the subject is missing, empty, or consists only of
+        characters that get stripped, a timestamp is used in place of the
+        subject so a valid, non-empty file name is always produced.
+
+        If the log folder does not exist, the function does nothing: no file is
+        written and nothing is returned. When the body is written, the full
+        path to the created file is returned. An existing file with the same
+        name is overwritten.
+
+    .PARAMETER MailParams
+        An object exposing Subject and Body properties. Subject is used to
+        build the file name; Body is the content written to the file. Other
+        properties on the object are ignored.
+
+    .PARAMETER LogFolder
+        Path to the folder in which the log file is created. The folder must
+        already exist as a directory; if it does not, the function returns
+        without writing anything.
+
+    .EXAMPLE
+        $mail = @{ Subject = 'Daily report'; Body = '<p>All good</p>' }
+        Save-MailBodyToLogHC -MailParams $mail -LogFolder 'C:\Logs'
+
+        Writes the HTML body to 'C:\Logs\Mail - Daily report.html' and returns
+        that path.
+
+    .EXAMPLE
+        $mail = @{ Subject = 'Results Q1/Q2'; Body = '<p>...</p>' }
+        Save-MailBodyToLogHC -MailParams $mail -LogFolder 'C:\Logs'
+
+        Writes to 'C:\Logs\Mail - Results Q1 Q2.html'. The '/' in the subject,
+        which is invalid in a file name, is replaced with a space.
+
+    .EXAMPLE
+        $mail = @{ Subject = $null; Body = '<p>...</p>' }
+        Save-MailBodyToLogHC -MailParams $mail -LogFolder 'C:\Logs'
+
+        Writes to a file such as 'C:\Logs\Mail - 2026-06-03 142530.html'.
+        Because the subject is missing, a timestamp is used in its place.
+
+    .EXAMPLE
+        $mail = @{ Subject = 'Daily report'; Body = '<p>All good</p>' }
+        Save-MailBodyToLogHC -MailParams $mail -LogFolder 'C:\DoesNotExist'
+
+        Returns nothing and writes nothing, because the log folder does not
+        exist.
+
+    .OUTPUTS
+        System.String
+        The full path to the written log file, or nothing when the log folder
+        does not exist.
+
+    .NOTES
+        - When the log folder is missing the function is a silent no-op: it
+          neither creates the folder nor raises an error.
+        - When Subject is null, empty, or reduced to only whitespace after
+          invalid characters are stripped, the file name uses a timestamp
+          (format 'yyyy-MM-dd HHmmss') in place of the subject.
+        - An existing file with the same name is overwritten (Out-File -Force).
+        - The file is written as UTF-8.
+        - Only the Subject and Body properties of MailParams are used.
+    #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -457,6 +531,10 @@ function Save-MailBodyToLogHC {
     # Splitting on the invalid-char set avoids the $OFS-dependent string cast.
     $invalid = [System.IO.Path]::GetInvalidFileNameChars()
     $safeSubject = ([string]$MailParams.Subject).Split($invalid) -join ' '
+
+    if ([string]::IsNullOrWhiteSpace($safeSubject)) {
+        $safeSubject = Get-Date -Format 'yyyy-MM-dd HHmmss'
+    }
 
     $path = Join-Path $LogFolder ('Mail - {0}.html' -f $safeSubject)
 
