@@ -301,14 +301,72 @@ function Format-SettingStringsHC {
 
 function ConvertTo-MatrixADNamesHC {
     <#
-        Converts matrix column headers + GroupName + SiteCode into AD lookup objects.
-        This is used to build per-settings AD identifiers.
+    .SYNOPSIS
+        Build a sorted, de-duplicated list of AD names from a group name, a
+        site code and the SamAccountNames in the Permissions header rows.
 
-        Params:
-            -Begin         = GroupName
-            -Middle        = SiteCode
-            -ColumnHeaders = First 3 header rows from Permissions sheet
+    .DESCRIPTION
+        Collects a flat list of name strings to be used later for AD lookups,
+        drawn from three sources:
+
+        - Begin (the group name), added as-is.
+        - Middle (the site code), added as-is.
+        - The P2 property of each object in ColumnHeaders (a SamAccountName).
+
+        The combined values are then filtered to drop empty entries, sorted and
+        de-duplicated. The result is a list of plain strings, not objects; these
+        names are the inputs to a subsequent AD lookup rather than AD objects
+        themselves.
+
+    .PARAMETER Begin
+        The group name (GroupName). Added directly to the result list.
+        Mandatory.
+
+    .PARAMETER Middle
+        The site code (SiteCode). Added directly to the result list. Mandatory.
+
+    .PARAMETER ColumnHeaders
+        An array of header-row objects from the Permissions sheet (the caller
+        typically passes the first three header rows). The P2 property of each
+        object — a SamAccountName — is collected; all other properties are
+        ignored. Objects without a P2 value contribute nothing.
+
+    .EXAMPLE
+        $headers = @(
+            [pscustomobject]@{ P2 = 'svc-app1' },
+            [pscustomobject]@{ P2 = 'svc-app2' },
+            [pscustomobject]@{ P2 = $null }
+        )
+        ConvertTo-MatrixADNamesHC -Begin 'Finance-RW' -Middle 'BRU' -ColumnHeaders $headers
+
+        Returns 'BRU', 'Finance-RW', 'svc-app1' and 'svc-app2', sorted and
+        unique. The header whose P2 is $null contributes nothing.
+
+    .EXAMPLE
+        $headers = @([pscustomobject]@{ P2 = 'BRU' })
+        ConvertTo-MatrixADNamesHC -Begin 'Finance-RW' -Middle 'BRU' -ColumnHeaders $headers
+
+        Returns 'BRU' and 'Finance-RW'. The site code 'BRU' and the header's P2
+        'BRU' are the same value, so the duplicate is collapsed.
+
+    .OUTPUTS
+        System.String
+        Zero or more unique name strings, sorted alphabetically.
+
+    .NOTES
+        - The result is a flat list of strings, not objects; the names are
+          intended as input for later AD lookups.
+        - Only the P2 property of each ColumnHeaders object is read. Other
+          properties (P1, P3, and so on) are ignored.
+        - The "first 3 header rows" is a caller convention; the function
+          processes every element of ColumnHeaders, however many are passed.
+        - Values are not trimmed. A value consisting only of whitespace is
+          truthy, so it passes both the per-item check and the final filter and
+          survives into the result.
+        - De-duplication via Sort-Object -Unique is case-insensitive, so names
+          differing only in casing are collapsed into one entry.
     #>
+
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Begin,
