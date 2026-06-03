@@ -15,7 +15,7 @@
 #     mail and falls back to the Event Log;
 #   - an unexpected exception inside a stage is caught, recorded as a 'Runtime'
 #     fatal, and does NOT crash the orchestrator;
-#   - a failure resolving AD objects is downgraded to a warning, not a fatal;
+#   - a total AD resolution failure is fatal, skipping PROCESS so no matrices run;
 #   - a failing SMTP send is caught and recorded, not propagated out of END.
 #
 # These assert PIPELINE OUTCOMES, not validation messages - the message-level
@@ -71,8 +71,8 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         # error under ErrorActionPreference='Stop' and defeat -Not -Throw.
         Mock Invoke-Command -ModuleName PermissionMatrix { }
         Mock Write-EventLog -ModuleName PermissionMatrix { }
-        Mock New-EventLog -ModuleName PermissionMatrix { }
-        Mock Write-Error -ModuleName PermissionMatrix { }
+        Mock New-EventLog   -ModuleName PermissionMatrix { }
+        Mock Write-Error    -ModuleName PermissionMatrix { }
     }
 
     It 'sends no mail and records errors when the config file is missing (catastrophic)' {
@@ -113,7 +113,7 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         $configPath = Join-Path $TestDrive 'Input-validation.json'
         Save-Config -Config $config -Path $configPath
 
-        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix { @() }
+        Mock Get-ADObjectDetailHC  -ModuleName PermissionMatrix { @() }
         Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
         # Mocked purely so we can prove it is NEVER invoked on a fatal input.
         Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { }
@@ -202,13 +202,15 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         )
     }
 
-    It 'downgrades an AD lookup failure to a warning and still completes' {
-        # BeginHC wraps the bulk AD query, so an unreachable/erroring directory
-        # becomes a 'Warning' (Name 'AD Bulk Lookup Failure') rather than a
-        # fatal: the context is still returned and the run reports as normal.
+    It 'treats a total AD lookup failure as fatal, skips processing, and still mails' {
+        # BeginHC wraps the bulk AD query: if the directory is unreachable the
+        # lookup is recorded as a 'FatalError' (Name 'AD Bulk Lookup Failure')
+        # and the context is returned. The orchestrator's $hasFatal gate then
+        # skips the PROCESS stage entirely, so no permission is applied, while
+        # END still runs and mails the report.
         # (An AD name that merely resolves to nothing is handled separately, as
-        # a per-matrix Check via Test-AdObjectInMatrixHC, not in SystemErrors -
-        # that path belongs to MatrixValidation, not here.)
+        # a per-matrix Check via Test-AdObjectInMatrixHC, and is gated inside
+        # PROCESS - that path belongs to MatrixValidation, not here.)
         $matrixDir = (New-Item 'TestDrive:\Matrix-ad' -ItemType Directory -Force).FullName
         $logsDir = (New-Item 'TestDrive:\Logs-ad' -ItemType Directory -Force).FullName
 
@@ -243,11 +245,9 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         # The directory query itself fails.
         Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix { throw 'AD unreachable' }
         Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
-        # Neutralise PROCESS (this test is about BEGIN-stage AD handling, not
-        # permission application). Return the context so the orchestrator's
-        # `$context = Invoke-PermissionMatrixProcessHC ...` keeps it non-null and
-        # the END stage still runs.
-        Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { $Context }
+        # Mocked only so we can prove PROCESS is never reached once the AD
+        # failure is recorded as fatal.
+        Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { }
 
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
@@ -257,14 +257,15 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
                 -SystemErrors ([ref]$systemErrors) } |
         Should -Not -Throw -Because 'an AD lookup failure is caught inside the BEGIN stage'
 
-        ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' })).Count |
-        Should -BeGreaterThan 0 -Because 'a failed bulk AD lookup is recorded'
-
         ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' -and $_.Type -eq 'FatalError' })).Count |
-        Should -Be 0 -Because 'the AD lookup failure must be a warning, not a fatal that aborts the run'
+        Should -BeGreaterThan 0 -Because 'a total AD lookup failure is fatal so no matrices run'
+
+        Should -Invoke Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
+            'a fatal AD lookup failure must skip the PROCESS stage so no permission is applied'
+        )
 
         Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
-            'the run continues to the END stage and mails the report after an AD warning'
+            'the END stage still runs and mails the report even when AD resolution fails fatally'
         )
     }
 
