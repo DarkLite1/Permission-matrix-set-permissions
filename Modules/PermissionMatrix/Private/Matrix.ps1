@@ -555,6 +555,93 @@ function Get-DefaultAclHC {
 }
 
 function Get-MatrixADObjectsMapHC {
+    <#
+    .SYNOPSIS
+        Build an ordered map of permission column name to assembled AD object
+        name, resolving GroupName/SiteCode placeholders from a setting row.
+
+    .DESCRIPTION
+        Reads the header rows of the Permissions sheet and, for each permission
+        column, assembles the AD object name that column refers to. The result
+        is an ordered dictionary keyed by column name (P2, P3, ...) whose values
+        are the assembled names.
+
+        The first three rows of PermissionsSheet are treated as header rows.
+        Columns are scanned starting at P2 and increasing (P2, P3, P4, ...);
+        scanning stops at the first column name that is not present on the first
+        header row.
+
+        For each column, the three header cells are walked from the bottom row
+        up to the top row. Each cell is resolved as follows:
+
+        - An empty or whitespace cell is skipped (so it cannot introduce a blank
+          part).
+        - A cell equal to 'GroupName' is replaced with SettingRow.GroupName.
+        - A cell equal to 'SiteCode' is replaced with SettingRow.SiteCode.
+        - Any other cell is used literally.
+
+        The resolved parts are joined with a single space and trimmed to form
+        the AD object name. Columns whose assembled name is empty are omitted
+        from the map.
+
+    .PARAMETER PermissionsSheet
+        The Permissions sheet as an array of row objects (for example from
+        Import-Excel). Only the first three rows are used, as the header rows.
+        Each row is expected to expose the permission columns as properties
+        named P2, P3, and so on. Mandatory.
+
+    .PARAMETER SettingRow
+        The single setting row that supplies the placeholder values. Its
+        GroupName and SiteCode properties are substituted wherever the header
+        cells contain the literals 'GroupName' or 'SiteCode'. Mandatory.
+
+    .EXAMPLE
+        $setting = [pscustomobject]@{ GroupName = 'GRP'; SiteCode = 'BRU' }
+        $sheet = @(
+            [pscustomobject]@{ P2 = 'GroupName'; P3 = 'GroupName' }
+            [pscustomobject]@{ P2 = 'SiteCode';  P3 = '' }
+            [pscustomobject]@{ P2 = 'Mgrs';      P3 = 'Users' }
+        )
+        Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
+
+        Returns an ordered map @{ P2 = 'Mgrs BRU GRP'; P3 = 'Users GRP' }.
+        For P2 the rows are walked bottom-to-top: 'Mgrs' (literal), then
+        'SiteCode' -> 'BRU', then 'GroupName' -> 'GRP'. For P3 the empty middle
+        cell is skipped, leaving 'Users' and 'GRP'.
+
+    .EXAMPLE
+        $setting = [pscustomobject]@{ GroupName = 'GRP'; SiteCode = 'BRU' }
+        $sheet = @(
+            [pscustomobject]@{ P2 = 'GroupName'; P3 = '' }
+            [pscustomobject]@{ P2 = 'SiteCode';  P3 = '' }
+            [pscustomobject]@{ P2 = 'Admins';    P3 = '' }
+        )
+        Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
+
+        Returns @{ P2 = 'Admins BRU GRP' }. P3 has only empty header cells, so
+        its assembled name is empty and the column is left out of the map.
+
+    .OUTPUTS
+        System.Collections.Specialized.OrderedDictionary
+        An ordered map whose keys are permission column names (P2, P3, ...) in
+        ascending order and whose values are the assembled AD object names.
+        Columns that assemble to an empty string are not included.
+
+    .NOTES
+        - Only the first three rows of PermissionsSheet are used as header rows.
+        - Columns are scanned from P2 upward and scanning stops at the first
+          column name absent from the first header row, so a gap in the column
+          numbering (e.g. P2, P3, then P5) ends the scan early.
+        - Column presence is tested against the first header row only; columns
+          that exist on a later header row but not the first are never reached.
+        - Header rows are walked bottom-to-top, so the lowest header row's value
+          appears first in the assembled name.
+        - Placeholder matching uses a switch, which is case-insensitive by
+          default, so 'groupname'/'sitecode' in any casing are also resolved.
+        - Empty header cells are skipped, but an empty *resolved* placeholder is
+          not: if a cell says 'GroupName' and SettingRow.GroupName is empty, an
+          empty part is still produced.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$PermissionsSheet,
