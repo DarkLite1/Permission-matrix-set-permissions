@@ -14,7 +14,9 @@
 #   - a catastrophic failure (no execution context could be built) sends no
 #     mail and falls back to the Event Log;
 #   - an unexpected exception inside a stage is caught, recorded as a 'Runtime'
-#     fatal, and does NOT crash the orchestrator.
+#     fatal, and does NOT crash the orchestrator;
+#   - a failure resolving AD objects is downgraded to a warning, not a fatal;
+#   - a failing SMTP send is caught and recorded, not propagated out of END.
 #
 # These assert PIPELINE OUTCOMES, not validation messages - the message-level
 # checks already live in InputValidation.Tests.ps1 and
@@ -69,8 +71,8 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         # error under ErrorActionPreference='Stop' and defeat -Not -Throw.
         Mock Invoke-Command -ModuleName PermissionMatrix { }
         Mock Write-EventLog -ModuleName PermissionMatrix { }
-        Mock New-EventLog   -ModuleName PermissionMatrix { }
-        Mock Write-Error    -ModuleName PermissionMatrix { }
+        Mock New-EventLog -ModuleName PermissionMatrix { }
+        Mock Write-Error -ModuleName PermissionMatrix { }
     }
 
     It 'sends no mail and records errors when the config file is missing (catastrophic)' {
@@ -111,7 +113,7 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         $configPath = Join-Path $TestDrive 'Input-validation.json'
         Save-Config -Config $config -Path $configPath
 
-        Mock Get-ADObjectDetailHC  -ModuleName PermissionMatrix { @() }
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix { @() }
         Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
         # Mocked purely so we can prove it is NEVER invoked on a fatal input.
         Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { }
@@ -198,5 +200,134 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
         Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'the END stage runs in the finally block even after a stage throws'
         )
+    }
+
+    It 'downgrades an AD lookup failure to a warning and still completes' {
+        # BeginHC wraps the bulk AD query, so an unreachable/erroring directory
+        # becomes a 'Warning' (Name 'AD Bulk Lookup Failure') rather than a
+        # fatal: the context is still returned and the run reports as normal.
+        # (An AD name that merely resolves to nothing is handled separately, as
+        # a per-matrix Check via Test-AdObjectInMatrixHC, not in SystemErrors -
+        # that path belongs to MatrixValidation, not here.)
+        $matrixDir = (New-Item 'TestDrive:\Matrix-ad' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\Logs-ad' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E'
+                SiteCode                = 'E2E'
+                ComputerName            = 'TESTHOST'
+                Path                    = 'C:\DoesNotMatter'
+                GroupName               = 'E2E-Test-Group'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        $config = New-JsonFixture
+        $config.Matrix.FolderPath = $matrixDir
+        $config.Matrix.DefaultsFile = $defaultsPath
+        $config.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $config.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        Save-Config -Config $config -Path $configPath
+
+        # The directory query itself fails.
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix { throw 'AD unreachable' }
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
+        # Neutralise PROCESS (this test is about BEGIN-stage AD handling, not
+        # permission application). Return the context so the orchestrator's
+        # `$context = Invoke-PermissionMatrixProcessHC ...` keeps it non-null and
+        # the END stage still runs.
+        Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { $Context }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        { Invoke-PermissionMatrix `
+                -ConfigurationJsonFile $configPath `
+                -ScriptPath $ScriptPath `
+                -SystemErrors ([ref]$systemErrors) } |
+        Should -Not -Throw -Because 'an AD lookup failure is caught inside the BEGIN stage'
+
+        ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' })).Count |
+        Should -BeGreaterThan 0 -Because 'a failed bulk AD lookup is recorded'
+
+        ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' -and $_.Type -eq 'FatalError' })).Count |
+        Should -Be 0 -Because 'the AD lookup failure must be a warning, not a fatal that aborts the run'
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+            'the run continues to the END stage and mails the report after an AD warning'
+        )
+    }
+
+    It 'survives a failing SMTP send by recording it as a warning' {
+        # Everything succeeds except the SMTP send. EndHC wraps the send in its
+        # own try/catch, so a throwing Send-MailKitMessageHC becomes a 'Warning'
+        # (Name 'Email Failed') rather than escaping the finally block and
+        # crashing the orchestrator.
+        $matrixDir = (New-Item 'TestDrive:\Matrix-smtp' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\Logs-smtp' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E'
+                SiteCode                = 'E2E'
+                ComputerName            = 'TESTHOST'
+                Path                    = 'C:\DoesNotMatter'
+                GroupName               = 'E2E-Test-Group'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        $config = New-JsonFixture
+        $config.Matrix.FolderPath = $matrixDir
+        $config.Matrix.DefaultsFile = $defaultsPath
+        $config.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $config.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        Save-Config -Config $config -Path $configPath
+
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = 'S-1-5-21-0-0-0-1001' } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = 'S-1-5-21-0-0-0-1002' } }
+            )
+        }
+        # PROCESS neutralised (return the context so END still runs); the SMTP
+        # send is the only thing that fails.
+        Mock Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix { $Context }
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { throw 'smtp down' }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        { Invoke-PermissionMatrix `
+                -ConfigurationJsonFile $configPath `
+                -ScriptPath $ScriptPath `
+                -SystemErrors ([ref]$systemErrors) } |
+        Should -Not -Throw -Because 'EndHC swallows a send failure instead of letting it escape the finally'
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+            'the send is attempted exactly once before it fails'
+        )
+
+        ($systemErrors.Where({ $_.Name -eq 'Email Failed' })).Count |
+        Should -BeGreaterThan 0 -Because 'a failed send is recorded as a warning so the operator can see mail did not go out'
     }
 }
