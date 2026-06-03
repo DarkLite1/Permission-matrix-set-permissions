@@ -325,88 +325,112 @@ function Add-JsonSchemaErrorHC {
     Add-ErrorHC -Category 'JsonSchema' @PSBoundParameters
 }
 
-function New-ValidationCheckHC {
+function ConvertTo-StructuredObjectHC {
     <#
     .SYNOPSIS
-        Create a structured validation-check record and return it.
+        Normalize mixed pipeline input into structured records, wrapping strings
+        and unknown objects and passing structured objects through.
 
     .DESCRIPTION
-        Builds a single PSCustomObject describing a validation check or result
-        and returns it. The DateTime field is stamped with Get-Date at creation
-        time; the remaining fields are taken from the parameters.
+        Takes a stream of arbitrary objects and emits a structured record for
+        each, so a mixed pipeline (strings, hashtables, custom objects, other
+        types) becomes a uniform sequence of objects downstream code can handle
+        consistently.
 
-        Unlike the Add-*ErrorHC family, which appends to a referenced
-        accumulator, this function returns the record to the caller, who
-        decides where to store or emit it. The record carries a free-form Value
-        (any type) in place of the error family's string Message.
+        Each input item is classified as follows:
 
-    .PARAMETER Type
-        The kind or severity of the check (for example 'Info', 'Warning',
-        'FatalError'). Free text; not validated against a fixed set. Mandatory.
+        - $null: skipped, producing no output.
+        - [string]: wrapped via New-ValidationCheckHC with Type 'Information'
+          and Name 'Message', the string becoming the record's Description.
+        - [hashtable] or [pscustomobject]: passed through unchanged, on the
+          assumption it is already a structured record.
+        - Anything else: stringified and wrapped via New-ValidationCheckHC with
+          Type 'Information' and Name 'UnknownObject', the string form becoming
+          the record's Description.
 
-    .PARAMETER Name
-        A short title identifying the check. Mandatory.
+        The function processes pipeline input one item at a time and also
+        iterates the items of any array passed as a single argument.
 
-    .PARAMETER Description
-        Optional human-readable detail about the check. When omitted, the
-        record's Description is $null.
-
-    .PARAMETER Value
-        Optional payload of any type — the data the check produced or examined
-        (a count, a list, an object, and so on). When omitted, the record's
-        Value is $null.
-
-    .PARAMETER Category
-        Optional grouping label (for example 'Matrix', 'Permissions'). When
-        omitted, the record's Category is $null.
+    .PARAMETER InputObject
+        The object(s) to normalize. Accepts pipeline input. Each item is
+        classified and emitted individually; $null items are dropped. Mandatory.
 
     .EXAMPLE
-        New-ValidationCheckHC -Type 'Info' -Name 'Row count' -Value 42 -Category 'Matrix'
+        'something happened' | ConvertTo-StructuredObjectHC
 
-        Returns a record with Type 'Info', Name 'Row count', Value 42, Category
-        'Matrix', a current DateTime, and a $null Description.
+        Emits a validation-check record: Type 'Information', Name 'Message',
+        Description 'something happened'.
 
     .EXAMPLE
-        $checks = [System.Collections.Generic.List[object]]::new()
-        $checks.Add((New-ValidationCheckHC -Type 'Warning' -Name 'Empty sheet' -Description 'No data rows found.'))
+        @(
+            'a message',
+            [pscustomobject]@{ Type = 'Warning'; Name = 'X' },
+            42,
+            $null
+        ) | ConvertTo-StructuredObjectHC
 
-        Creates a record and adds it to the caller's own collection. Because the
-        function returns rather than accumulates, the caller controls storage.
+        Emits three records: the string is wrapped as a 'Message', the
+        PSCustomObject passes through unchanged, 42 is wrapped as an
+        'UnknownObject' with Description '42', and the $null is skipped.
+
+    .EXAMPLE
+        Some-Step | ConvertTo-StructuredObjectHC | Where-Object Type -eq 'Information'
+
+        Normalizes whatever Some-Step emits (free-form strings, ready-made
+        records, or other values) so the downstream filter can rely on a
+        consistent record shape.
 
     .OUTPUTS
         System.Management.Automation.PSCustomObject
-        One record with the fields DateTime, Type, Name, Description, Value and
-        Category.
+        For strings and unrecognized types, a record from New-ValidationCheckHC.
+        For hashtables and PSCustomObjects, the original object unchanged. No
+        output is produced for $null items.
 
     .NOTES
-        - DateTime is captured with Get-Date at creation (local time).
-        - Value accepts any type; the other fields are strings (or $null when
-          their optional parameter is omitted).
-        - This is the return-a-record counterpart to the Add-*ErrorHC functions,
-          which instead append to a [ref] accumulator. The field shape is
-          parallel except this record's Value replaces the error record's
-          Message.
+        - $null items are silently dropped.
+        - Strings and unknown types are wrapped with Type 'Information'; the
+          difference is the Name ('Message' vs 'UnknownObject'). Note an unknown
+          object is recorded as 'Information', not as a warning, even though it
+          was an unexpected type.
+        - Hashtables are passed through as-is and are not converted to
+          PSCustomObjects or validated; downstream code receiving a [hashtable]
+          alongside [pscustomobject] records should be ready for both shapes.
+        - The wrapped records carry only Description (no Value); their Value and
+          Category fields are $null.
 
     .LINK
-        Add-ErrorHC
+        New-ValidationCheckHC
     #>
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter()][string]$Description,
-        [Parameter()][object]$Value,
-        [Parameter()][string]$Category
+        [Parameter(Mandatory, ValueFromPipeline = $true)] 
+        $InputObject
     )
 
-    return [pscustomobject]@{
-        DateTime    = Get-Date
-        Type        = $Type
-        Name        = $Name
-        Description = $Description
-        Value       = $Value
-        Category    = $Category
+    process {
+        foreach ($obj in $InputObject) {
+            
+            if ($null -eq $obj) { continue }
+
+            if ($obj -is [string]) {
+                New-ValidationCheckHC `
+                    -Type 'Information' `
+                    -Name 'Message' `
+                    -Description $obj
+                continue
+            }
+
+            if ($obj -is [hashtable] -or $obj -is [pscustomobject]) {
+                $obj
+                continue
+            }
+
+            New-ValidationCheckHC `
+                -Type 'Information' `
+                -Name 'UnknownObject' `
+                -Description "$obj"
+        }
     }
 }
 
@@ -725,6 +749,91 @@ function New-CounterObjectHC {
         Permissions   = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
         Settings      = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
         File          = [PSCustomObject]@{ Errors = 0; Warnings = 0 }
+    }
+}
+
+function New-ValidationCheckHC {
+    <#
+    .SYNOPSIS
+        Create a structured validation-check record and return it.
+
+    .DESCRIPTION
+        Builds a single PSCustomObject describing a validation check or result
+        and returns it. The DateTime field is stamped with Get-Date at creation
+        time; the remaining fields are taken from the parameters.
+
+        Unlike the Add-*ErrorHC family, which appends to a referenced
+        accumulator, this function returns the record to the caller, who
+        decides where to store or emit it. The record carries a free-form Value
+        (any type) in place of the error family's string Message.
+
+    .PARAMETER Type
+        The kind or severity of the check (for example 'Info', 'Warning',
+        'FatalError'). Free text; not validated against a fixed set. Mandatory.
+
+    .PARAMETER Name
+        A short title identifying the check. Mandatory.
+
+    .PARAMETER Description
+        Optional human-readable detail about the check. When omitted, the
+        record's Description is $null.
+
+    .PARAMETER Value
+        Optional payload of any type — the data the check produced or examined
+        (a count, a list, an object, and so on). When omitted, the record's
+        Value is $null.
+
+    .PARAMETER Category
+        Optional grouping label (for example 'Matrix', 'Permissions'). When
+        omitted, the record's Category is $null.
+
+    .EXAMPLE
+        New-ValidationCheckHC -Type 'Info' -Name 'Row count' -Value 42 -Category 'Matrix'
+
+        Returns a record with Type 'Info', Name 'Row count', Value 42, Category
+        'Matrix', a current DateTime, and a $null Description.
+
+    .EXAMPLE
+        $checks = [System.Collections.Generic.List[object]]::new()
+        $checks.Add((New-ValidationCheckHC -Type 'Warning' -Name 'Empty sheet' -Description 'No data rows found.'))
+
+        Creates a record and adds it to the caller's own collection. Because the
+        function returns rather than accumulates, the caller controls storage.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        One record with the fields DateTime, Type, Name, Description, Value and
+        Category.
+
+    .NOTES
+        - DateTime is captured with Get-Date at creation (local time).
+        - Value accepts any type; the other fields are strings (or $null when
+          their optional parameter is omitted).
+        - This is the return-a-record counterpart to the Add-*ErrorHC functions,
+          which instead append to a [ref] accumulator. The field shape is
+          parallel except this record's Value replaces the error record's
+          Message.
+
+    .LINK
+        Add-ErrorHC
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter()][string]$Description,
+        [Parameter()][object]$Value,
+        [Parameter()][string]$Category
+    )
+
+    return [pscustomobject]@{
+        DateTime    = Get-Date
+        Type        = $Type
+        Name        = $Name
+        Description = $Description
+        Value       = $Value
+        Category    = $Category
     }
 }
 
