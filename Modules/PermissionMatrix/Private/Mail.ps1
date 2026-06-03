@@ -81,6 +81,81 @@ function Get-MailRecipientListHC {
 }
 
 function Get-MailSubjectHC {
+    <#
+    .SYNOPSIS
+        Build the subject line for a matrix-processing notification e-mail.
+
+    .DESCRIPTION
+        Produces a single, human-readable subject line that summarises the
+        outcome of a matrix-processing run. The wording adapts automatically,
+        including correct singular/plural forms.
+
+        The subject is built in one of two mutually exclusive modes:
+
+        - System errors present (SystemErrors.Count greater than 0):
+          the subject reports the matrix file count and the number of system
+          errors. The per-matrix error and warning counts from Counter are
+          intentionally omitted, as the system errors take priority.
+
+        - No system errors:
+          the subject reports the matrix file count followed by the total
+          error and warning counts from Counter. Each part is only added when
+          its count is greater than zero, so a clean run shows just the matrix
+          file count.
+
+        In both modes, an optional CustomSubject is appended at the end.
+
+    .PARAMETER SystemErrors
+        A collection of system-level errors. Only its Count is used. When the
+        count is greater than zero, the subject switches to system-error mode
+        and the Counter totals are not included.
+
+    .PARAMETER Counter
+        An object exposing the properties TotalErrors and TotalWarnings. These
+        are only used when no system errors are present.
+
+    .PARAMETER MatrixCount
+        The number of matrix files processed. Always reported in the subject
+        and drives the 'matrix file' / 'matrix files' wording.
+
+    .PARAMETER CustomSubject
+        Optional free text appended to the end of the subject, prefixed with a
+        comma and space (for example ', Nightly run'). When omitted, nothing
+        is appended.
+
+    .EXAMPLE
+        $counter = [PSCustomObject]@{ TotalErrors = 5; TotalWarnings = 2 }
+        Get-MailSubjectHC `
+            -SystemErrors @('disk full', 'timeout') `
+            -Counter $counter `
+            -MatrixCount 3
+
+        Returns '3 matrix files, 2 system errors'. Because system errors are
+        present, the error and warning counts from Counter are omitted.
+
+    .EXAMPLE
+        $counter = [PSCustomObject]@{ TotalErrors = 1; TotalWarnings = 4 }
+        Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 1
+
+        Returns '1 matrix file, 1 error, 4 warnings'. No system errors, so the
+        Counter totals are included with correct pluralisation.
+
+    .EXAMPLE
+        $counter = [PSCustomObject]@{ TotalErrors = 0; TotalWarnings = 0 }
+        Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 2 -CustomSubject 'Nightly run'
+
+        Returns '2 matrix files, Nightly run'. A clean run shows only the matrix
+        file count plus the custom suffix.
+
+    .OUTPUTS
+        System.String
+        A single subject line describing the run outcome.
+
+    .NOTES
+        System errors take priority: when SystemErrors contains any items, the
+        per-matrix error and warning counts are not reported, even if Counter
+        holds non-zero totals.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
@@ -101,7 +176,7 @@ function Get-MailSubjectHC {
     # If system errors exist
     if ($SystemErrors.Count -gt 0) {
         $sysPlural = if ($SystemErrors.Count -ne 1) { 's' } else { '' }
-        return "$MatrixCount matrix file$matrixPlural, $($SystemErrors.Count) System Error$sysPlural$cSuffix"
+        return "$MatrixCount matrix file$matrixPlural, $($SystemErrors.Count) system error$sysPlural$cSuffix"
     }
 
     # No system errors: embed matrix counts + warnings/errors
