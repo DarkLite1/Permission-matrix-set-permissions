@@ -408,28 +408,6 @@ function Test-MatrixSettingRowHC {
     return $checks
 }
 
-function Test-AdObjectsHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][array]$ADObjects,
-        [Parameter(Mandatory)]       $AdInfo
-    )
-
-    $checks = @()
-
-    foreach ($obj in $ADObjects) {
-        if ($obj -notin $AdInfo) {
-            $checks += New-ValidationCheckHC `
-                -Type 'Warning' `
-                -Name 'Missing AD Object' `
-                -Description "AD object '$obj' not found." `
-                -Category 'AD'
-        }
-    }
-
-    return $checks
-}
-
 function Test-AdObjectInMatrixHC {
     [CmdletBinding()]
     param(

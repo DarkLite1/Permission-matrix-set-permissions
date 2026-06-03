@@ -294,13 +294,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-    Context 'Test-AdObjectsHC' {
-        It 'Warns if AD object missing' {
-            $res = Test-AdObjectsHC -ADObjects @('A', 'B') -AdInfo @('A')
-            $res.Type | Should -Contain 'Warning'
-        }
-    }
-
     Describe 'Test-ConfigurationStructureHC' {
         BeforeAll {
             $script:ValidFolder = Join-Path 'TestDrive:' 'MatrixFolder'
