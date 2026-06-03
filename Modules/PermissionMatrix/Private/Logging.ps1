@@ -534,7 +534,56 @@ function Write-EventsToEventLogHC {
 
 function Write-SystemErrorLogHC {
     <#
-        Creates JSON log file of system errors and attaches to email params.
+    .SYNOPSIS
+        Exports system errors to a JSON log file and automatically attaches it 
+        to the outgoing email parameters.
+
+    .DESCRIPTION
+        This function processes the global collection of system errors 
+        encountered during the pipeline's execution. 
+        
+        If errors exist, it resolves the appropriately dated log directory and 
+        serializes the error records into a 'SystemErrors.json' file using the 
+        Out-LogFileHC engine. Finally, it safely modifies the referenced 
+        `$MailParams` hashtable to append the newly generated JSON file to its 
+        'Attachments' array. This ensures that administrators receive the full, 
+        raw error data alongside the HTML summary email.
+
+    .PARAMETER SystemErrors
+        An array or collection of PSCustomObjects representing the captured 
+        pipeline errors and warnings.
+
+    .PARAMETER LogFolder
+        The absolute path to the root logging directory where the file will be 
+        saved.
+
+    .PARAMETER MailParams
+        A reference variable ([ref]) containing the hashtable of SMTP 
+        parameters destined for the email sending function. The function will 
+        dynamically create or update the 'Attachments' key within this 
+        hashtable.
+
+    .PARAMETER ScriptStartTime
+        The exact DateTime the script started executing. Used to ensure the log 
+        file is placed in the correct timestamped subfolder.
+
+    .PARAMETER JsonFileName
+        The base name of the configuration file, utilized by the folder 
+        creation logic to maintain consistent directory naming conventions.
+
+    .EXAMPLE
+        $mailSplat = @{ 
+            To      = 'admin@domain.com'
+            Subject = 'Execution Report' 
+        }
+        
+        Write-SystemErrorLogHC `
+            -SystemErrors $sysErrors `
+            -LogFolder 'C:\MatrixLogs' `
+            -MailParams ([ref]$mailSplat)
+            
+        # $mailSplat now contains an 'Attachments' array with the path to 
+        SystemErrors.json
     #>
     [CmdletBinding()]
     param(
