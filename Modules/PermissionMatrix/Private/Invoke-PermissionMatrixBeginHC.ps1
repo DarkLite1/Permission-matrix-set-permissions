@@ -405,11 +405,12 @@ function Invoke-PermissionMatrixBeginHC {
             }
             catch {
                 Add-ErrorHC `
-                    -Type 'Warning' `
+                    -Type 'FatalError' `
                     -Name 'AD Bulk Lookup Failure' `
                     -Message "Failed during bulk AD lookup. Some AD objects may be marked as unknown. Error: $_" `
                     -Category 'ExpandedMatrix' `
                     -SystemErrors $SystemErrors
+                return $Context
             }
             #endregion
 
