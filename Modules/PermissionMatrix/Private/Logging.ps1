@@ -1,4 +1,45 @@
 function Cleanup-OldLogsHC {
+    <#
+    .SYNOPSIS
+        Purges old log files and orphaned directories based on a retention 
+        policy.
+
+    .DESCRIPTION
+        Evaluates files within the specified log directory against a given 
+        retention threshold (in days). Files with a 'CreationTime' older than 
+        the threshold are permanently deleted. 
+        
+        Following the file cleanup, the function performs a highly efficient 
+        bottom-up (descending sort) evaluation of the directory tree, removing 
+        any subdirectories that are now empty. 
+        
+        Architectural Note: Deletion operations frequently encounter locked 
+        files (e.g., if a log is currently open in another process). This 
+        function safely catches those exceptions and appends them as 
+        non-terminating 'Warning' records to the SystemErrors reference, 
+        ensuring that cleanup failures never crash the main orchestrator.
+
+    .PARAMETER LogFolder
+        The absolute path to the root logging directory to be evaluated.
+
+    .PARAMETER RetentionDays
+        The number of days to retain logs. Files older than this threshold will 
+        be deleted. A value of 0 or less will instantly bypass the cleanup 
+        process.
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        capture and bubble up file-lock exceptions or permission errors as 
+        warnings.
+
+    .EXAMPLE
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        
+        Cleanup-OldLogsHC `
+            -LogFolder 'C:\MatrixLogs' `
+            -RetentionDays 30 `
+            -SystemErrors ([ref]$sysErrors)
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string]$LogFolder,
@@ -62,7 +103,63 @@ function Cleanup-OldLogsHC {
 
 function Out-LogFileHC {
     <#
-        Generic exporter for CSV / JSON / TXT / XLSX log files.
+    .SYNOPSIS
+        A versatile data export engine that writes PowerShell objects to 
+        multiple file formats simultaneously.
+
+    .DESCRIPTION
+        Takes an array of custom objects and exports them to one or more 
+        requested file formats (CSV, JSON, TXT, XLSX) using a shared base path. 
+        
+        It includes intelligent data handling for specific formats:
+        - JSON: 
+            Automatically intercepts and unwraps [System.Management. Automation.
+            ErrorRecord] objects into flat string messages to prevent 
+            serialization depth failures. Custom logic is also used to safely 
+            append to existing JSON arrays.
+        - XLSX: 
+            Leverages the ImportExcel module to dynamically build formatted 
+            Excel tables with frozen headers and auto-sized columns.
+
+    .PARAMETER DataToExport
+        An array of PSCustomObject items containing the data rows to be written 
+        to disk.
+
+    .PARAMETER PartialPath
+        The absolute file path minus the extension 
+        (e.g., 'C:\Logs\ExecutionReport'). The script will append the requested 
+        extensions to this base path.
+
+    .PARAMETER FileExtensions
+        An array of string extensions dictating the desired output formats. 
+        Valid values: '.csv', '.json', '.txt', '.xlsx'.
+
+    .PARAMETER ExcelFile
+        A hashtable defining the structural formatting rules for '.xlsx' 
+        exports. 
+        Expected keys: 'SheetName', 'TableName', and 'CellStyle'.
+
+    .PARAMETER Append
+        If specified, the function will attempt to append the new data to 
+        existing files rather than overwriting them. 
+
+    .OUTPUTS
+        System.String[]
+        Returns an array of strings representing the absolute paths of all 
+        successfully generated or updated log files.
+
+    .EXAMPLE
+        $data = @(
+            [pscustomobject]@{ Status = 'Success'; Server = 'SRV-01' }
+            [pscustomobject]@{ Status = 'Failed'; Server = 'SRV-02' }
+        )
+        
+        $extensions = @('.csv', '.json', '.xlsx')
+        
+        $exportedPaths = Out-LogFileHC `
+            -DataToExport $data `
+            -PartialPath 'C:\Logs\DailyReport' `
+            -FileExtensions $extensions
     #>
     [CmdletBinding()]
     param (
