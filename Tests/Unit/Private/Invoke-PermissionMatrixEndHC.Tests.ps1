@@ -119,7 +119,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         Mock Get-MailSubjectHC { return 'Test Subject' }
         Mock Send-MailKitMessageHC { }
         Mock Save-MailBodyToLogHC { return 'TestDrive:\Logs\mail.html' }
-        Mock Write-EventLogSafe { }
+        Mock Write-EventLogSafeHC { }
         Mock Remove-OldLogsHC { }
         Mock Write-MatrixExecutionReportHC { }
     }
@@ -395,7 +395,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafe -Times 1
+            Should -Invoke Write-EventLogSafeHC -Times 1
         }
     
         It 'skips event log when SaveInEventLog.Save is false' {
@@ -403,7 +403,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafe -Times 0
+            Should -Invoke Write-EventLogSafeHC -Times 0
         }
     
         It 'falls back to default ScriptName when not set' {
@@ -413,7 +413,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafe -ParameterFilter {
+            Should -Invoke Write-EventLogSafeHC -ParameterFilter {
                 $ScriptName -eq 'Permission Matrix'
             }
         }
@@ -442,7 +442,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
         }
     
         It 'does not throw when phase 5 itself fails (final catch is silent)' {
-            Mock Write-EventLogSafe { throw 'eventlog boom' }
+            Mock Write-EventLogSafeHC { throw 'eventlog boom' }
             $ctx = New-EndContext -SaveInEventLog @{ Save = $true; LogName = 'Application' }
     
             { Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors) } |
@@ -462,7 +462,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Should -Invoke Get-MailBodyHtmlHC -Times 1
             Should -Invoke Export-FilesHC -Times 1
             Should -Invoke Send-MailKitMessageHC -Times 1
-            Should -Invoke Write-EventLogSafe -Times 1
+            Should -Invoke Write-EventLogSafeHC -Times 1
         }
     
         It 'continues through later phases when earlier phases fail' {

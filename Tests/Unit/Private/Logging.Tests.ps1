@@ -310,7 +310,7 @@ Describe 'Write-EventsToEventLogHC' {
     }
 }
 
-Describe 'Write-EventLogSafe' {
+Describe 'Write-EventLogSafeHC' {
     BeforeEach {
         $script:errors = [System.Collections.Generic.List[PSObject]]::new()
         $script:eventData = [System.Collections.Generic.List[PSObject]]::new()
@@ -323,7 +323,7 @@ Describe 'Write-EventLogSafe' {
             SaveInEventLog = [PSCustomObject]@{ Save = $false; LogName = 'App' }
         }
 
-        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+        Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
@@ -336,7 +336,7 @@ Describe 'Write-EventLogSafe' {
             SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = '' }
         }
 
-        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+        Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
@@ -351,7 +351,7 @@ Describe 'Write-EventLogSafe' {
             SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
         }
 
-        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+        Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         # 1 error entry + 1 "Script ended" entry
@@ -375,7 +375,7 @@ Describe 'Write-EventLogSafe' {
             SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
         }
 
-        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+        Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         $longEntry = $script:eventData | Where-Object { $_.EventID -eq '1' }
@@ -390,7 +390,7 @@ Describe 'Write-EventLogSafe' {
             SaveInEventLog = [PSCustomObject]@{ Save = $true; LogName = 'Application' }
         }
 
-        Write-EventLogSafe -EventLogData $script:eventData -ScriptName 'S' `
+        Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         $script:errors.Count | Should -Be 1

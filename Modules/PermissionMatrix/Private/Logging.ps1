@@ -320,7 +320,7 @@ function Remove-FileHC {
     }
 }
 
-function Write-EventLogSafe {
+function Write-EventLogSafeHC {
     <#
     .SYNOPSIS
         Safely formats and writes aggregated execution data and system errors 
@@ -369,7 +369,7 @@ function Write-EventLogSafe {
         $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
         $eventData = [System.Collections.Generic.List[pscustomobject]]::new()
         
-        Write-EventLogSafe `
+        Write-EventLogSafeHC `
             -EventLogData $eventData `
             -ScriptName 'Permission Matrix' `
             -Settings $Context.Config.Settings `
@@ -459,7 +459,7 @@ function Write-EventsToEventLogHC {
             If an object is missing an 'EntryType', it defaults to 
             'Information'. If it is missing an 'EventID', it defaults to '4'.
 
-        Unlike its parent wrapper (Write-EventLogSafe), this function will 
+        Unlike its parent wrapper (Write-EventLogSafeHC), this function will 
         throw a terminating error if it fails to write, passing the exception 
         back up the chain.
 

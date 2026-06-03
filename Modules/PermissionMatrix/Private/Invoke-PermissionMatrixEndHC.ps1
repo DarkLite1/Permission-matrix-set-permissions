@@ -457,7 +457,7 @@ function Invoke-PermissionMatrixEndHC {
             )
 
 
-            Write-EventLogSafe `
+            Write-EventLogSafeHC `
                 -EventLogData $eventData `
                 -ScriptName $scriptName `
                 -Settings $Context.Config.Settings `
