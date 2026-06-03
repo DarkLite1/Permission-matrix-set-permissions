@@ -332,7 +332,7 @@ function Write-EventLogSafeHC {
         function performs three critical steps:
         
         1. Error Consolidation: 
-            Extracts all accumulated pipeline failures from the `$SystemErrors` 
+            Extracts all accumulated pipeline failures from the '$SystemErrors' 
             collection and translates them into standalone 'Error' events 
             (EventID 2).
         2. Execution Closure: 
