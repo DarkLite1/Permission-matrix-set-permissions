@@ -7,10 +7,9 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
         . "$root\Tests\Helpers\Helpers.HC.ps1"
-        . "$moduleRoot\Private\Utils.ps1"
-        . "$moduleRoot\Private\Invoke-PermissionMatrixProcessHC.ps1"
-        . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
-        . "$moduleRoot\Private\Validation.ps1"
+        
+        Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
 
         function New-TestContext {
             param(

@@ -5,8 +5,8 @@ BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."
     $moduleRoot = "$root\Modules\PermissionMatrix"
 
-    . "$moduleRoot\Private\Utils.ps1"
-    . "$moduleRoot\Private\Matrix.ps1"
+    Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+    ForEach-Object { . $_.FullName }
 }
 
 Describe 'Format-FormDataStringsHC' {

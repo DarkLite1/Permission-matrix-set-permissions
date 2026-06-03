@@ -13,8 +13,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$moduleRoot\Private\Utils.ps1"
-        . "$moduleRoot\Private\Validation.ps1"
+        Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
+    
         . "$root/Tests/Helpers/Fixtures.Excel.ps1"
         . "$root/Tests/Helpers/Fixtures.Matrix.ps1"
         . "$root/Tests/Helpers/Fixtures.Json.ps1"

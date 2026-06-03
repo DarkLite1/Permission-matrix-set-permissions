@@ -5,8 +5,8 @@ BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."
     $moduleRoot = "$root\Modules\PermissionMatrix"
 
-    . "$moduleRoot\Private\Export.ps1"
-    . "$moduleRoot\Private\Html.ps1"
+    Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+    ForEach-Object { . $_.FullName }
 }
 
 Describe 'Export-FilesHC' {

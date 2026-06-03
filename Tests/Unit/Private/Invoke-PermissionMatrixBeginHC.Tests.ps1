@@ -10,15 +10,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         . "$root\Tests\Helpers\Fixtures.Json.ps1"
         . "$root\Tests\Helpers\Fixtures.Excel.ps1"
 
-        . "$moduleRoot\Private\Utils.ps1"
-        . "$moduleRoot\Private\ActiveDirectory.ps1"
-        . "$moduleRoot\Private\Validation.ps1"
-        . "$moduleRoot\Private\Matrix.ps1"
-        . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Import-MatrixFileHC.ps1"
-        . "$moduleRoot\Private\Import-MatrixDefaultsFileHC.ps1"
-        . "$moduleRoot\Private\Invoke-WithOptionalParallelismHC.ps1"
-        . "$moduleRoot\Private\Invoke-PermissionMatrixBeginHC.ps1"
+        Get-ChildItem -Path "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
 
         function New-FakeScriptPath {
             param([string]$Root = 'TestDrive:')

@@ -31,7 +31,8 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$moduleRoot\Private\ActiveDirectory.ps1"
+        Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
 
         # ---- Hard requirement: ActiveDirectory module + reachable domain ----
         if (-not (Get-Module -ListAvailable -Name ActiveDirectory)) {

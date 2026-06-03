@@ -6,12 +6,8 @@ Describe 'Invoke-PermissionMatrixEndHC' {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
         $moduleRoot = "$root\Modules\PermissionMatrix"
 
-        . "$moduleRoot\Private\Utils.ps1"
-        . "$moduleRoot\Private\Html.ps1"
-        . "$moduleRoot\Private\Mail.ps1"
-        . "$moduleRoot\Private\Export.ps1"
-        . "$moduleRoot\Private\Logging.ps1"
-        . "$moduleRoot\Private\Invoke-PermissionMatrixEndHC.ps1"
+        Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
 
         function New-EndContext {
             param(

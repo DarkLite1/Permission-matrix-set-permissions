@@ -6,10 +6,8 @@ BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."
     $moduleRoot = "$root\Modules\PermissionMatrix"
 
-    # Logging.ps1 depends on Add-ErrorHC, Get-StringValueHC and
-    # Get-DatedLogFolderPathHC, all of which live in Utils.ps1.
-    . "$moduleRoot\Private\Utils.ps1"
-    . "$moduleRoot\Private\Logging.ps1"
+    Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
+    ForEach-Object { . $_.FullName }
 }
 
 Describe 'Cleanup-OldLogsHC' {
