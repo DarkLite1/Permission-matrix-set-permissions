@@ -322,7 +322,58 @@ function Remove-FileHC {
 
 function Write-EventLogSafe {
     <#
-        Safe wrapper to write data into Windows EventLog.
+    .SYNOPSIS
+        Safely formats and writes aggregated execution data and system errors 
+        to the Windows Event Log.
+
+    .DESCRIPTION
+        Acts as a robust, non-terminating wrapper for system-level event 
+        logging. When Event Logging is enabled in the configuration, this 
+        function performs three critical steps:
+        
+        1. Error Consolidation: 
+            Extracts all accumulated pipeline failures from the `$SystemErrors` 
+            collection and translates them into standalone 'Error' events 
+            (EventID 2).
+        2. Execution Closure: 
+            Appends a standardized "Script ended" 'Information' event (EventID 
+            199) to formally mark the end of the run.
+        3. Safety Truncation: 
+            Automatically scans all outgoing messages and truncates anything 
+            exceeding 31,000 characters. This prevents the underlying Windows 
+            Event Log API from throwing fatal serialization errors when 
+            processing massive stack traces or data dumps.
+
+        If the function lacks permissions to create the Event Source or write 
+        to the log, it safely catches the exception and appends a 'Warning' 
+        back to the `$SystemErrors` reference.
+
+    .PARAMETER EventLogData
+        A generic list of PSCustomObjects containing the baseline event data 
+        (like execution statistics and timestamps) to be written to the log.
+
+    .PARAMETER ScriptName
+        The string name to be used as the Event Log 'Source' 
+        (e.g., 'Permission Matrix').
+
+    .PARAMETER Settings
+        The parsed JSON configuration settings object containing the 
+        `SaveInEventLog` rules (LogName, Save boolean).
+
+    .PARAMETER SystemErrors
+        A reference variable ([ref]) containing a List[pscustomobject]. These 
+        captured errors are unwrapped and directly injected into the Event Log 
+        stream.
+
+    .EXAMPLE
+        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
+        $eventData = [System.Collections.Generic.List[pscustomobject]]::new()
+        
+        Write-EventLogSafe `
+            -EventLogData $eventData `
+            -ScriptName 'Permission Matrix' `
+            -Settings $Context.Config.Settings `
+            -SystemErrors ([ref]$sysErrors)
     #>
     [CmdletBinding()]
     param(
