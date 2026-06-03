@@ -325,6 +325,91 @@ function Add-JsonSchemaErrorHC {
     Add-ErrorHC -Category 'JsonSchema' @PSBoundParameters
 }
 
+function New-ValidationCheckHC {
+    <#
+    .SYNOPSIS
+        Create a structured validation-check record and return it.
+
+    .DESCRIPTION
+        Builds a single PSCustomObject describing a validation check or result
+        and returns it. The DateTime field is stamped with Get-Date at creation
+        time; the remaining fields are taken from the parameters.
+
+        Unlike the Add-*ErrorHC family, which appends to a referenced
+        accumulator, this function returns the record to the caller, who
+        decides where to store or emit it. The record carries a free-form Value
+        (any type) in place of the error family's string Message.
+
+    .PARAMETER Type
+        The kind or severity of the check (for example 'Info', 'Warning',
+        'FatalError'). Free text; not validated against a fixed set. Mandatory.
+
+    .PARAMETER Name
+        A short title identifying the check. Mandatory.
+
+    .PARAMETER Description
+        Optional human-readable detail about the check. When omitted, the
+        record's Description is $null.
+
+    .PARAMETER Value
+        Optional payload of any type — the data the check produced or examined
+        (a count, a list, an object, and so on). When omitted, the record's
+        Value is $null.
+
+    .PARAMETER Category
+        Optional grouping label (for example 'Matrix', 'Permissions'). When
+        omitted, the record's Category is $null.
+
+    .EXAMPLE
+        New-ValidationCheckHC -Type 'Info' -Name 'Row count' -Value 42 -Category 'Matrix'
+
+        Returns a record with Type 'Info', Name 'Row count', Value 42, Category
+        'Matrix', a current DateTime, and a $null Description.
+
+    .EXAMPLE
+        $checks = [System.Collections.Generic.List[object]]::new()
+        $checks.Add((New-ValidationCheckHC -Type 'Warning' -Name 'Empty sheet' -Description 'No data rows found.'))
+
+        Creates a record and adds it to the caller's own collection. Because the
+        function returns rather than accumulates, the caller controls storage.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        One record with the fields DateTime, Type, Name, Description, Value and
+        Category.
+
+    .NOTES
+        - DateTime is captured with Get-Date at creation (local time).
+        - Value accepts any type; the other fields are strings (or $null when
+          their optional parameter is omitted).
+        - This is the return-a-record counterpart to the Add-*ErrorHC functions,
+          which instead append to a [ref] accumulator. The field shape is
+          parallel except this record's Value replaces the error record's
+          Message.
+
+    .LINK
+        Add-ErrorHC
+    #>
+
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter()][string]$Description,
+        [Parameter()][object]$Value,
+        [Parameter()][string]$Category
+    )
+
+    return [pscustomobject]@{
+        DateTime    = Get-Date
+        Type        = $Type
+        Name        = $Name
+        Description = $Description
+        Value       = $Value
+        Category    = $Category
+    }
+}
+
 function Get-StringValueHC {
     <#
     .SYNOPSIS

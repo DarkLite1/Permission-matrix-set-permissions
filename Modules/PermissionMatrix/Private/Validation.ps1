@@ -1,23 +1,3 @@
-function New-ValidationCheckHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Type,
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter()][string]$Description,
-        [Parameter()][object]$Value,
-        [Parameter()][string]$Category
-    )
-
-    return [pscustomobject]@{
-        DateTime    = Get-Date
-        Type        = $Type
-        Name        = $Name
-        Description = $Description
-        Value       = $Value
-        Category    = $Category
-    }
-}
-
 function ConvertTo-StructuredObjectHC {
     [CmdletBinding()]
     param(
