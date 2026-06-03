@@ -452,7 +452,7 @@ function Test-AdObjectInMatrixHC {
     if ($missingAdObjects) {
         $checks += New-ValidationCheckHC `
             -Type 'FatalError' `
-            -Name ' Unknown AD Objects in Matrix' `
+            -Name 'Unknown AD Objects in Matrix' `
             -Description 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.' `
             -Value "Not existing AD Objects: $($missingAdObjects -join ', ')"
     }
