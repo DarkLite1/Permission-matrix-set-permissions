@@ -391,24 +391,92 @@ function ConvertTo-MatrixADNamesHC {
 function Get-DefaultAclHC {
     <#
     .SYNOPSIS
-        Builds the default ACL hash table from the Defaults.xlsx Settings sheet.
+        Build the default ACL hashtable from the Defaults.xlsx Settings sheet,
+        validating each entry and recording problems in SystemErrors.
 
     .DESCRIPTION
-        Validates each row that has either ADObjectName or Permission populated:
-        - both must be present (incomplete pairs are flagged)
-        - Permission must be a valid character (L, R, W, F)
-        - duplicate ADObjectNames are flagged
+        Walks the rows of the Defaults Settings sheet and builds a hashtable
+        mapping each ADObjectName to its permission character.
 
-        Rows where both ADObjectName and Permission are empty are ignored
-        (these are typically MailTo-only rows or trailing blank rows).
+        Each row is classified by whether ADObjectName and/or Permission are
+        populated (both are trimmed first; Permission is also upper-cased):
 
-        Permission 'I' (inherit) is intentionally rejected here — defaults
-        are explicit grants by definition; "inherit by default" is meaningless.
+        - Both empty: the row is not an ACL entry (typically a MailTo-only row
+          or a trailing blank row) and is skipped silently.
+        - Only one of the two populated: the pair is incomplete and a
+          FatalError is recorded; the row is skipped.
+        - Permission populated but not one of the valid characters: a
+          FatalError is recorded; the row is skipped.
+        - ADObjectName already seen: the duplicate is reported as a FatalError
+          and skipped, so the first occurrence wins.
+        - Otherwise: the ADObjectName/Permission pair is added to the result.
 
-        Returns a hashtable:
-            Key:   ADObjectName
-            Value: Permission Char
+        Valid permission characters are L, R, W and F. The permission 'I'
+        (inherit) is intentionally rejected: defaults are explicit grants by
+        definition, so "inherit by default" is meaningless.
+
+        Validation problems are not thrown; they are appended to the
+        SystemErrors accumulator via Add-ErrorHC, so the function always
+        returns a hashtable (containing only the rows that passed validation),
+        and the caller inspects SystemErrors to decide how to proceed.
+
+    .PARAMETER Sheet
+        The rows of the Defaults Settings sheet, as an array of objects (for
+        example from Import-Excel). Each row is expected to expose ADObjectName
+        and Permission properties. An empty collection is allowed and yields an
+        empty hashtable. Mandatory.
+
+    .PARAMETER SystemErrors
+        A [ref] to the caller's system-error accumulator. Validation failures
+        (incomplete pairs, invalid permissions, duplicates) are added to it via
+        Add-ErrorHC rather than thrown. This is an in/out parameter: the
+        function appends to whatever it references. Mandatory.
+
+    .EXAMPLE
+        $errors = @()
+        $sheet = @(
+            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'w' },
+            [pscustomobject]@{ ADObjectName = 'GRP-RO'; Permission = 'R' }
+        )
+        $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+        Returns @{ 'GRP-RW' = 'W'; 'GRP-RO' = 'R' }. The lower-case 'w' is
+        upper-cased. $errors stays empty because both rows are valid.
+
+    .EXAMPLE
+        $errors = @()
+        $sheet = @(
+            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'F' },
+            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'R' },
+            [pscustomobject]@{ ADObjectName = 'GRP-X';  Permission = 'I' },
+            [pscustomobject]@{ ADObjectName = '';       Permission = 'R' }
+        )
+        $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
+
+        Returns @{ 'GRP-RW' = 'F' }. The second 'GRP-RW' is a duplicate, 'I' is
+        not a valid default permission, and the last row has a permission but no
+        ADObjectName — each adds a FatalError to $errors and is skipped.
+
+    .OUTPUTS
+        System.Collections.Hashtable
+        A hashtable whose keys are ADObjectNames and whose values are the
+        validated, upper-cased permission characters. Only rows that passed all
+        validation are included.
+
+    .NOTES
+        - The function does not throw on bad data; it accumulates FatalErrors in
+          SystemErrors and returns whatever passed validation. Callers must
+          check SystemErrors, not just the returned hashtable.
+        - On a duplicate ADObjectName the first occurrence is kept and later
+          ones are rejected.
+        - ADObjectName and Permission are trimmed; Permission is upper-cased, so
+          permission matching is case-insensitive. Key matching on ADObjectName
+          is whatever the hashtable uses by default — case-insensitive for
+          string keys — so names differing only in case collide and the second
+          is treated as a duplicate.
+        - The valid set (L, R, W, F) mirrors Test-MatrixPermissionsHC minus 'I'.
     #>
+
     [CmdletBinding()]
     [OutputType([hashtable])]
     param(
