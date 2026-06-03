@@ -172,8 +172,85 @@ function Format-PermissionsStringsHC {
 function Format-SettingStringsHC {
     <#
     .SYNOPSIS
-        Normalizes a Settings row. Ensures trimming, clean paths, and 
-        normalized action casing.
+        Return a normalized copy of a Settings row: trimmed strings, cleaned
+        Path, uppercased ComputerName, title-cased Action, and a boolean
+        ApplyDefaultPermissions.
+
+    .DESCRIPTION
+        Takes a Settings object (typically a row from Import-Excel) and returns
+        a cleaned shallow copy. The original object is not reassigned in place;
+        a copy is made via PSObject.Copy() and all changes are applied to the
+        copy.
+
+        The following normalizations are applied, in order:
+
+        - Every string-valued property has its leading and trailing whitespace
+          trimmed. Non-string properties are left unchanged.
+        - Path has any trailing '\' and '/' characters removed.
+        - ComputerName is converted to upper case.
+        - Action is converted to title case (for example 'fIx' becomes 'Fix'
+          and 'REPORT' becomes 'Report'), for consistent UI reporting.
+        - ApplyDefaultPermissions, when present and non-empty, is parsed into a
+          real [bool].
+
+        Each of the named transforms is applied only when its property is
+        present and not null/empty/whitespace, so a Settings object missing any
+        of these properties is handled without error.
+
+        The function accepts pipeline input and processes one row at a time,
+        emitting one normalized object per input row, so it can sit directly in
+        a pipeline after Import-Excel.
+
+    .PARAMETER Settings
+        The Settings row to normalize. Accepts pipeline input, so a stream of
+        rows can be piped in and each is processed and emitted individually.
+        All string properties are trimmed; the properties Path, ComputerName,
+        Action and ApplyDefaultPermissions receive additional, property-specific
+        treatment when present.
+
+    .EXAMPLE
+        $s = [pscustomobject]@{
+            Path                    = '  C:\Data\Share\  '
+            ComputerName            = ' server01 '
+            Action                  = 'fIx'
+            ApplyDefaultPermissions = 'true'
+        }
+        $s | Format-SettingStringsHC
+
+        Returns an object with Path 'C:\Data\Share', ComputerName 'SERVER01',
+        Action 'Fix', and ApplyDefaultPermissions as the boolean $true.
+
+    .EXAMPLE
+        Import-Excel 'C:\data\matrix.xlsx' -WorksheetName 'Settings' | Format-SettingStringsHC
+
+        Normalizes every row on the Settings sheet, emitting one cleaned object
+        per row.
+
+    .EXAMPLE
+        $s = [pscustomobject]@{ Path = 'C:\Logs'; Note = '  keep me  ' }
+        $s | Format-SettingStringsHC
+
+        Returns Path 'C:\Logs' and Note 'keep me'. ComputerName, Action and
+        ApplyDefaultPermissions are absent, so only the universal string
+        trimming applies.
+
+    .OUTPUTS
+        System.Management.Automation.PSCustomObject
+        One normalized object per input row, of the same type and shape as the
+        input, with the transforms above applied.
+
+    .NOTES
+        - The copy is shallow (PSObject.Copy()). Reassigning scalar string and
+          boolean properties on the copy does not affect the input, but any
+          reference-type property (array, nested object) is shared with the
+          original; mutating its contents would affect both.
+        - ApplyDefaultPermissions is parsed with [bool]::TryParse, which only
+          recognizes the text 'true'/'false' (case-insensitive). Any other
+          value, including '1', '0', 'yes' and 'no', fails to parse and results
+          in $false.
+        - Path trimming removes every trailing slash/backslash, not just one.
+        - ComputerName uppercasing and Action title-casing use the current
+          culture.
     #>
     [CmdletBinding()]
     param(
