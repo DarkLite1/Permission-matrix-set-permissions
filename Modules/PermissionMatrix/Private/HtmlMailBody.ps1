@@ -186,13 +186,14 @@ function Build-MatrixFileCardHC {
         -Modified $FileContext.ExcelInfo.Modified
 
     <#
-     Two distinct links live in this card:
+     Two link locations live in this card:
         1. $matrixLink — opens the source .xlsx file directly. Used by the
         filename in the gradient header. When the file was archived
         (Matrix.Archive = true), it no longer exists at its original
         location, so we link to the archived copy instead.
-        2. $reportLink — opens the standalone execution report HTML. Used by
-        the "Open full report &rarr;" footer link.
+        2. The footer link list — built further down, after the check
+        tally. It links to the execution report and to the matrix Excel
+        copy in the log folder.
     #>
     $matrixPath = if (
         $FileContext.PSObject.Properties.Match('ArchivedPath').Count -and
@@ -211,14 +212,47 @@ function Build-MatrixFileCardHC {
     # Tooltip text shown when hovering the filename
     $matrixTitle = if ($matrixPath) { [System.Net.WebUtility]::HtmlEncode($matrixPath) } else { '' }
 
-    $reportLink = if ($FileContext.ReportFilePath) {
-        [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $FileContext.ReportFilePath))
+    <#
+     The footer offers direct links to the artifacts in the log folder:
+        1. The standalone execution report ('00 - Execution Report.html').
+        2. The copy of the processed matrix Excel file, including the
+           'AccessList', 'GroupManagers' and 'AdObjects' sheets
+           ($FileContext.LogMatrixFilePath, set by the END stage).
+     Each link is only rendered when its file was actually created. When
+     neither exists, fall back to the source/archived matrix file so the
+     footer is never empty.
+    #>
+    $footerLinkStyle = "color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;"
+    $footerLinks = [System.Collections.Generic.List[string]]::new()
+
+    if ($FileContext.ReportFilePath) {
+        $reportLink = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $FileContext.ReportFilePath))
+        $reportTitle = [System.Net.WebUtility]::HtmlEncode($FileContext.ReportFilePath)
+        $footerLinks.Add("<a href='$reportLink' title=`"$reportTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open execution report &rarr;</a>")
     }
-    elseif ($matrixPath) {
-        # Fall back to the matrix file if no report was written
-        [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $matrixPath))
+
+    $logMatrixPath = if (
+        $FileContext.PSObject.Properties.Match('LogMatrixFilePath').Count -and
+        -not [string]::IsNullOrWhiteSpace($FileContext.LogMatrixFilePath)
+    ) {
+        $FileContext.LogMatrixFilePath
     }
-    else { '#' }
+    if ($logMatrixPath) {
+        $excelLink = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $logMatrixPath))
+        $excelTitle = [System.Net.WebUtility]::HtmlEncode($logMatrixPath)
+        $footerLinks.Add("<a href='$excelLink' title=`"$excelTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open matrix Excel file &rarr;</a>")
+    }
+
+    if ($footerLinks.Count -eq 0 -and $matrixPath) {
+        # Fall back to the source/archived matrix file if no log
+        # artifacts were written
+        $footerLinks.Add("<a href='$matrixLink' title=`"$matrixTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open matrix file &rarr;</a>")
+    }
+
+    $footerLinksHtml = if ($footerLinks.Count -gt 0) {
+        $footerLinks -join "<span style='color:$($Script:Theme.TextLight); padding:0 10px;'>&middot;</span>"
+    }
+    else { '&nbsp;' }
 
     # Tally checks across all sources to decide header color and summary text
     $allChecks = @()
@@ -334,7 +368,7 @@ function Build-MatrixFileCardHC {
     $contentRows
     <tr>
         <td style='padding:6px 16px 14px 16px; text-align:center; font-size:12px; color:$($Script:Theme.TextLight);'>
-            <a href='$reportLink' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;'>Open full report &rarr;</a>
+            $footerLinksHtml
         </td>
     </tr>
 </table>
@@ -443,4 +477,3 @@ $($Html.Style)
 </html>
 "@
 }
-

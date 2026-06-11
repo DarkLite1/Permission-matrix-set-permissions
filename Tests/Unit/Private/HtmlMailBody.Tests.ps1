@@ -126,10 +126,12 @@ Describe 'Build-MatrixEmailHtmlHC' {
                 [object[]]$Check = @(),
                 [object[]]$FormDataCheck = @(),
                 [object[]]$PermissionsCheck = @(),
-                [object[]]$Matrices = @()
+                [object[]]$Matrices = @(),
+                [string]$ReportFilePath = '',
+                [string]$LogMatrixFilePath = ''
             )
 
-            return [pscustomobject]@{
+            $obj = [pscustomobject]@{
                 Item      = [pscustomobject]@{ Name = $Name; FullName = $FullName }
                 ExcelInfo = [pscustomobject]@{
                     LastModifiedBy = $LastModifiedBy
@@ -142,6 +144,19 @@ Describe 'Build-MatrixEmailHtmlHC' {
                 }
                 Matrices  = $Matrices
             }
+
+            # Added conditionally so the default fixtures keep the old
+            # object shape, exercising the absent-property code path
+            if ($ReportFilePath) {
+                $obj | Add-Member -NotePropertyName ReportFilePath `
+                    -NotePropertyValue $ReportFilePath
+            }
+            if ($LogMatrixFilePath) {
+                $obj | Add-Member -NotePropertyName LogMatrixFilePath `
+                    -NotePropertyValue $LogMatrixFilePath
+            }
+
+            return $obj
         }
 
         function New-MatrixRow {
@@ -201,8 +216,77 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            # Each card is anchored by its "Open full report" footer link.
-            ([regex]::Matches($out, 'Open full report')).Count | Should -Be 3
+            # Each card is anchored by its footer link list. These
+            # fixtures have no ReportFilePath or LogMatrixFilePath, so
+            # the fallback 'Open matrix file' link renders once per card.
+            ([regex]::Matches($out, 'Open matrix file')).Count | Should -Be 3
+        }
+    }
+
+    Context 'footer links' {
+        It 'renders an execution report link when ReportFilePath is set' {
+            $files = @(
+                New-FileResult `
+                    -ReportFilePath 'C:\logs\00 - Execution Report.html'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Open execution report'
+            $out | Should -Match "href='file://C:/logs/00%20-%20Execution%20Report\.html'"
+            # No fallback link when a log artifact exists
+            $out | Should -Not -Match 'Open matrix file'
+        }
+
+        It 'renders a matrix Excel file link when LogMatrixFilePath is set' {
+            $files = @(
+                New-FileResult -LogMatrixFilePath 'C:\logs\A.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Open matrix Excel file'
+            $out | Should -Match "href='file://C:/logs/A\.xlsx'"
+            $out | Should -Not -Match 'Open matrix file'
+            $out | Should -Not -Match 'Open execution report'
+        }
+
+        It 'puts the raw Windows path in the tooltip of the matrix Excel link' {
+            $files = @(
+                New-FileResult -LogMatrixFilePath 'C:\logs\A.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'title="C:\\logs\\A\.xlsx"'
+        }
+
+        It 'renders both links separated by a middot when both artifacts exist' {
+            $files = @(
+                New-FileResult `
+                    -ReportFilePath 'C:\logs\report.html' `
+                    -LogMatrixFilePath 'C:\logs\A.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Open execution report'
+            $out | Should -Match 'Open matrix Excel file'
+            # The two anchors are joined by a middot separator span
+            $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
+        }
+
+        It 'falls back to the source matrix file link when no log artifacts exist' {
+            $files = @( New-FileResult -FullName 'C:\share\A.xlsx' )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match 'Open matrix file'
+            # The fallback footer anchor uses single-quoted href, unlike
+            # the double-quoted header link to the same file URL
+            $out | Should -Match "href='file://C:/share/A\.xlsx'"
+            $out | Should -Not -Match 'Open execution report'
+            $out | Should -Not -Match 'Open matrix Excel file'
         }
     }
 
@@ -380,4 +464,3 @@ Describe 'Get-MailBodyHtmlHC' {
         $out | Should -Match 'System Error'
     }
 }
-

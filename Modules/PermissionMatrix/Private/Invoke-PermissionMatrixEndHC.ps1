@@ -283,12 +283,19 @@ function Invoke-PermissionMatrixEndHC {
                                 -FileResult $fileResult `
                                 -AdObjectDetails $Context.AdObjectDetails
 
-                            $null = Copy-MatrixFileToLogFolderHC `
+                            $copiedMatrixPath = Copy-MatrixFileToLogFolderHC `
                                 -SourceFilePath $sourceFilePath `
                                 -LogFolder $fileLogFolder.FullName `
                                 -AccessListRows $logSheets.AccessList `
                                 -GroupManagerRows $logSheets.GroupManagers `
                                 -AdObjectRows $logSheets.AdObjects
+
+                            # Used by the 'Open matrix Excel file' footer
+                            # link in the summary email
+                            $fileResult | Add-Member `
+                                -NotePropertyName 'LogMatrixFilePath' `
+                                -NotePropertyValue $copiedMatrixPath `
+                                -Force
                         }
                     }
                     catch {
@@ -340,7 +347,9 @@ function Invoke-PermissionMatrixEndHC {
     # Deferred until after log files + Write-MatrixExecutionReportHC have
     # run, so that $fileResult.ReportFilePath is populated and the
     # "Open full report" link in the email points to the standalone
-    # execution report rather than falling back to the source xlsx.
+    # execution report rather than falling back to the source xlsx. The
+    # same applies to $fileResult.LogMatrixFilePath, which feeds the
+    # 'Open matrix Excel file' footer link.
     # =====================================================================
     try {
         # Re-tally — system warnings/errors may have been added by
