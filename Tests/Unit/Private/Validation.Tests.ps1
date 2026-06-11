@@ -15,7 +15,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
         Get-ChildItem "$moduleRoot\Private" -Filter '*.ps1' -File |
         ForEach-Object { . $_.FullName }
-    
+
         . "$root/Tests/Helpers/Fixtures.Excel.ps1"
         . "$root/Tests/Helpers/Fixtures.Matrix.ps1"
         . "$root/Tests/Helpers/Fixtures.Json.ps1"
@@ -128,6 +128,246 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $err = $result | Where-Object Name -EQ 'Invalid permission character'
                 $err | Should -Not -BeNullOrEmpty
                 $err.Type | Should -Be 'FatalError'
+            }
+        }
+
+        Context 'Inaccessible folders: deepest folder detection' {
+            BeforeAll {
+                <#
+                 Build an in-memory Permissions sheet shaped exactly like the
+                 output of 'Import-Excel -NoHeader' (properties P1..Pn):
+                 - rows 0-2 : header rows (SamAccountName per column)
+                 - row 3    : parent folder permissions
+                 - rows 4+  : folder rows
+                 Building rows in-memory keeps each test focused on the
+                 parent/child path logic without an Excel round trip.
+                #>
+                function New-PermissionsSheet {
+                    param(
+                        # One permission char (or $null) per AD object column
+                        [array]$ParentPermissions = @('L', 'L'),
+                        # Folder rows: @{ Path = '...'; Permissions = @(...) }
+                        [array]$FolderRows
+                    )
+
+                    $permColCount = $ParentPermissions.Count
+                    $colNames = @(1..($permColCount + 1)).ForEach({ "P$_" })
+
+                    $newRow = {
+                        param($firstColumn, $permissions)
+
+                        $props = [ordered]@{ $colNames[0] = $firstColumn }
+                        for ($i = 0; $i -lt $permColCount; $i++) {
+                            $props[$colNames[$i + 1]] = if (
+                                $permissions -and ($i -lt $permissions.Count)
+                            ) {
+                                $permissions[$i]
+                            }
+                            else { $null }
+                        }
+                        [pscustomobject]$props
+                    }
+
+                    $rows = [System.Collections.Generic.List[object]]::new()
+
+                    # Header rows: SamAccountName on the first header row
+                    $rows.Add(
+                        (& $newRow $null @(1..$permColCount).ForEach({ "group$_" }))
+                    )
+                    $rows.Add((& $newRow $null $null))
+                    $rows.Add((& $newRow $null $null))
+
+                    # Parent folder permissions (row index 3)
+                    $rows.Add((& $newRow $null $ParentPermissions))
+
+                    foreach ($f in $FolderRows) {
+                        $rows.Add((& $newRow $f.Path $f.Permissions))
+                    }
+
+                    return , $rows.ToArray()
+                }
+            }
+
+            It 'does not flag a parent typed with a trailing backslash when its children grant access' {
+                # Regression: 'BEL\L&D\Certificates\' (trailing backslash, only
+                # L) was wrongly reported as a deepest folder even though
+                # 'BEL\L&D\Certificates\AGG' below it grants W.
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\L&D\Certificates\'; Permissions = @('L', 'L') }
+                    @{ Path = 'BEL\L&D\Certificates\AGG'; Permissions = @('W', 'W') }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'flags a genuinely deepest folder with only List permissions' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Marketing'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+            }
+
+            It 'reports only the truly inaccessible folder, not the trailing-backslash parent' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\L&D\Certificates\'; Permissions = @('L', 'L') }
+                    @{ Path = 'BEL\L&D\Certificates\AGG'; Permissions = @('W', 'W') }
+                    @{ Path = 'BEL\Dead'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Dead'))
+                $warn.Value | Should -Not -Match 'Certificates'
+            }
+
+            It 'matches parent and child paths case-insensitively' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\ARCHIVE'; Permissions = @('L', 'L') }
+                    @{ Path = 'bel\archive\2020'; Permissions = @('W', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'handles wildcard characters in folder names' {
+                # '-like' would treat '[2026]' as a wildcard set and break
+                # parent/child matching; String.StartsWith must not.
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Reports[2026]'; Permissions = @('L', 'L') }
+                    @{ Path = 'BEL\Reports[2026]\Q1'; Permissions = @('W', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'flags a List-only deepest folder even when the parent row grants access' {
+                # An explicit 'L' sets a List-only ACL on the folder itself,
+                # so the parent's W cannot make it accessible.
+                $perms = New-PermissionsSheet -ParentPermissions @('W', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Marketing'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+            }
+
+            It 'does not flag a blank deepest folder when the parent row grants access' {
+                # A row without any permission inherits the parent ACL, so
+                # the parent's W makes it accessible.
+                $perms = New-PermissionsSheet -ParentPermissions @('W', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Marketing'; Permissions = @($null, $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'flags a blank deepest folder when the parent row grants no access' {
+                # Inheriting from a parent that only grants L leaves the
+                # folder without read or write access.
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Marketing'; Permissions = @($null, $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+            }
+
+            It 'does not treat a folder with a similar name prefix as a child' {
+                # 'BEL\App2' must not count as a child of 'BEL\App' — only
+                # 'BEL\App\...' qualifies. 'BEL\App' has only L and no real
+                # children, so it must be flagged.
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\App'; Permissions = @('L', $null) }
+                    @{ Path = 'BEL\App2'; Permissions = @('W', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\App'))
+            }
+
+            It 'reports the folder exactly as typed in Excel, trailing backslash included' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Lonely\'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Lonely\'))
+            }
+
+            It 'does not flag a deepest folder marked with I (Ignore)' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Temp'; Permissions = @('I', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'does not flag subfolders of a folder marked with I (Ignore)' {
+                # 'BEL\Temp\Cache' is List-only and deepest, but it sits
+                # under an ignored folder, so the matrix does not manage it.
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Temp'; Permissions = @('I', $null) }
+                    @{ Path = 'BEL\Temp\Cache'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
+            }
+
+            It 'still flags inaccessible folders outside an ignored subtree' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\Temp'; Permissions = @('I', $null) }
+                    @{ Path = 'BEL\Temp\Cache'; Permissions = @('L', $null) }
+                    @{ Path = 'BEL\Dead'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
+                $warn | Should -Not -BeNullOrEmpty
+                $warn.Value | Should -Match ([regex]::Escape('BEL\Dead'))
+                $warn.Value | Should -Not -Match 'Temp'
+            }
+
+            It 'matches ignored subtrees case-insensitively and with trailing backslashes' {
+                $perms = New-PermissionsSheet -ParentPermissions @('L', 'L') -FolderRows @(
+                    @{ Path = 'BEL\TEMP\'; Permissions = @('I', $null) }
+                    @{ Path = 'bel\temp\cache'; Permissions = @('L', $null) }
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $result | Should -BeNullOrEmpty
             }
         }
 

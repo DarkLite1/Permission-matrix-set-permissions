@@ -28,7 +28,7 @@ function Test-MatrixPermissionsHC {
     .DESCRIPTION
         Verify if all input in the Excel sheet 'Permissions' is correct. When
         incorrect input is detected an object is returned containing all the
-        details about the issue. 
+        details about the issue.
         This test is best run before expanding the matrix as it will save time.
 
     .PARAMETER Permissions
@@ -79,8 +79,8 @@ function Test-MatrixPermissionsHC {
         foreach ($col in $Props) {
             if ($col -eq $FirstProperty) { continue }
 
-            if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and 
-                [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and 
+            if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and
+                [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and
                 [string]::IsNullOrWhiteSpace($Permissions[2].$col)) {
                 $missingSamAccountNames.Add($col)
             }
@@ -103,13 +103,13 @@ function Test-MatrixPermissionsHC {
 
         #region Permission character unknown
         $InvalidChars = [System.Collections.Generic.List[string]]::new()
-        
+
         foreach ($Row in $NonHeaderRows) {
             $PermColumns = $Row.PSObject.Properties.Where({ $_.Name -ne $FirstProperty })
             foreach ($Col in $PermColumns) {
                 $Ace = $Col.Value
                 if (
-                    -not [string]::IsNullOrWhiteSpace($Ace) -and 
+                    -not [string]::IsNullOrWhiteSpace($Ace) -and
                     $Ace -notmatch '^(L|R|W|I|F)$'
                 ) {
                     $InvalidChars.Add($Ace)
@@ -159,32 +159,131 @@ function Test-MatrixPermissionsHC {
 
         #region Deepest folder has only List permissions or none at all
         $FolderRows = $Permissions | Select-Object -Skip 4
-        $Paths = @($FolderRows.$FirstProperty)
+
+        <#
+         Normalize paths before comparing: trim surrounding whitespace and
+         trailing backslashes, so a cell typed as 'BEL\L&D\Certificates\' is
+         still recognized as the parent of 'BEL\L&D\Certificates\AGG'.
+         Child detection uses String.StartsWith instead of '-like' so
+         wildcard characters in folder names ('[', ']', '*', '?') cannot
+         break the match. NTFS paths are case-insensitive, so all
+         comparisons use OrdinalIgnoreCase.
+        #>
+        $normalizePath = { param($p) ([string]$p).Trim().TrimEnd('\') }
+
+        $Paths = @(
+            $FolderRows.$FirstProperty.Where({
+                    -not [string]::IsNullOrWhiteSpace($_)
+                }).ForEach({ & $normalizePath $_ })
+        )
 
         # Faster check for deepest folders
-        $DeepestFolders = foreach ($P in $Paths) {
-            if (-not ($Paths.Where({ $_ -ne $P -and $_ -like "$P\*" }))) {
-                $P
+        $DeepestFolders = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::OrdinalIgnoreCase
+        )
+
+        foreach ($P in $Paths) {
+            $childPrefix = '{0}\' -f $P
+            $hasChild = $false
+
+            foreach ($other in $Paths) {
+                if (
+                    ($other.Length -gt $childPrefix.Length) -and
+                    $other.StartsWith(
+                        $childPrefix,
+                        [System.StringComparison]::OrdinalIgnoreCase
+                    )
+                ) {
+                    $hasChild = $true
+                    break
+                }
             }
+
+            if (-not $hasChild) { [void]$DeepestFolders.Add($P) }
         }
 
         # Parent folder permissions (Row index 3)
-        $ParentFolderPermissions = $Permissions[3].PSObject.Properties.Where({ 
-                $_.Name -ne $FirstProperty -and -not [string]::IsNullOrWhiteSpace($_.Value) 
+        $ParentFolderPermissions = $Permissions[3].PSObject.Properties.Where({
+                $_.Name -ne $FirstProperty -and -not [string]::IsNullOrWhiteSpace($_.Value)
             }).Value
 
         $ParentFolderHasPermission = [bool]($ParentFolderPermissions.Where({ $_ -ne 'L' }))
         $inAccessibleFolders = [System.Collections.Generic.List[string]]::new()
 
-        foreach ($Row in $FolderRows.Where({ $_.$FirstProperty -in $DeepestFolders })) {
-            $Perms = $Row.PSObject.Properties.Where({
-                    $_.Name -ne $FirstProperty -and 
-                    -not [string]::IsNullOrWhiteSpace($_.Value) -and 
-                    $_.Value -ne 'L'
+        <#
+         Folders marked with 'I' (Ignore) are not managed by the matrix.
+         Exclude them, and every subfolder beneath them, from the
+         inaccessible check. Ignored rows do still count as children when
+         determining the deepest folders, so a parent whose only children
+         are ignored is not treated as a leaf.
+        #>
+        $ignoredRoots = [System.Collections.Generic.List[string]]::new()
+
+        foreach ($Row in $FolderRows) {
+            $isIgnored = [bool]$Row.PSObject.Properties.Where({
+                    $_.Name -ne $FirstProperty -and $_.Value -eq 'I'
+                }, 'First').Count
+
+            if ($isIgnored) {
+                $p = & $normalizePath $Row.$FirstProperty
+                if (-not [string]::IsNullOrWhiteSpace($p)) {
+                    $ignoredRoots.Add($p)
+                }
+            }
+        }
+
+        $isInIgnoredSubtree = {
+            param($p)
+            foreach ($root in $ignoredRoots) {
+                if (
+                    $p.Equals(
+                        $root, [System.StringComparison]::OrdinalIgnoreCase
+                    ) -or
+                    $p.StartsWith(
+                        ('{0}\' -f $root),
+                        [System.StringComparison]::OrdinalIgnoreCase
+                    )
+                ) {
+                    return $true
+                }
+            }
+            return $false
+        }
+
+        foreach ($Row in $FolderRows) {
+            $rowPath = & $normalizePath $Row.$FirstProperty
+
+            if (
+                [string]::IsNullOrWhiteSpace($rowPath) -or
+                (-not $DeepestFolders.Contains($rowPath)) -or
+                (& $isInIgnoredSubtree $rowPath)
+            ) {
+                continue
+            }
+
+            $definedPermissions = $Row.PSObject.Properties.Where({
+                    $_.Name -ne $FirstProperty -and
+                    -not [string]::IsNullOrWhiteSpace($_.Value)
                 }).Value
 
-            if ((-not $Perms) -and (-not $ParentFolderHasPermission)) {
-                $inAccessibleFolders.Add($Row.$FirstProperty)
+            $accessPermissions = $definedPermissions.Where({ $_ -ne 'L' })
+
+            if (-not $accessPermissions) {
+                <#
+                 Two distinct situations for a deepest folder without any
+                 access-granting (non 'L') permission on its row:
+                 - The row defines only 'L': the folder gets an explicit
+                   List-only ACL. Users can never read or write there, no
+                   matter what the parent grants => always inaccessible.
+                 - The row is completely blank: the folder simply inherits
+                   the parent ACL => only inaccessible when the parent
+                   does not grant access either.
+                #>
+                if ($definedPermissions -or (-not $ParentFolderHasPermission)) {
+                    # Report the cell content as typed in Excel, so the user
+                    # can easily find the row back in the worksheet.
+                    $inAccessibleFolders.Add($Row.$FirstProperty)
+                }
             }
         }
 
@@ -193,7 +292,7 @@ function Test-MatrixPermissionsHC {
                 (New-ValidationCheckHC `
                     -Type 'Warning' `
                     -Name 'Inaccessible folders' `
-                    -Description 'The deepest folders have no permissions or only List permissions, and the parent folder does not have permissions that allow access. This means these folders will be inaccessible.' `
+                    -Description 'The deepest folders are not accessible: they either define only List permissions, or they define no permissions at all while the parent folder does not grant access. Users can list but never read or write content in these folders. Folders marked with ''I'' (Ignore) and their subfolders are excluded from this check.' `
                     -Value ($inAccessibleFolders -join ', '))
             )
         }
@@ -313,8 +412,8 @@ function Test-MatrixSettingRowHC {
     )
 
     $checks = [System.Collections.Generic.List[pscustomobject]]::new()
-    
-    $validActions = @('Fix', 'New', 'Check')   
+
+    $validActions = @('Fix', 'New', 'Check')
 
     if ([string]::IsNullOrWhiteSpace($SettingRow.Action)) {
         $checks.Add(
@@ -356,7 +455,7 @@ function Test-MatrixSettingRowHC {
     }
 
     if (
-        $RequireSiteCode -and 
+        $RequireSiteCode -and
         [string]::IsNullOrWhiteSpace($SettingRow.SiteCode)
     ) {
         $checks.Add(
@@ -379,8 +478,8 @@ function Test-MatrixSettingRowHC {
                 -Description "The column 'GroupName' cannot be empty because it is used as a placeholder in the Permissions sheet." `
                 -Value $null)
         )
-    } 
-    
+    }
+
     $applyDefaults = $SettingRow.ApplyDefaultPermissions
     if ([string]::IsNullOrWhiteSpace($applyDefaults)) {
         $checks.Add(
@@ -421,10 +520,10 @@ function Test-AdObjectInMatrixHC {
 
     if (-not $matrixAdObjects) { return $checks }
 
-    $missingAdObjects = $matrixAdObjects | Where-Object { 
+    $missingAdObjects = $matrixAdObjects | Where-Object {
         $name = $_
         $match = $ADObject | Where-Object { $_.SamAccountName -eq $name }
-        $null -eq $match.adObject 
+        $null -eq $match.adObject
     }
 
     if ($missingAdObjects) {
@@ -539,7 +638,7 @@ function Test-ConfigurationStructureHC {
                 -Name "Missing 'Settings.SendMail'" `
                 -Message 'SendMail block is mandatory.' `
                 -SystemErrors $SystemErrors
-            
+
         }
         #endregion
 
@@ -594,7 +693,7 @@ function Test-ConfigurationStructureHC {
                 -Message "Property 'Matrix.Archive' must be boolean." `
                 -SystemErrors $SystemErrors
         }
-    } 
+    }
     #endregion
 
     #region MaxConcurrent
