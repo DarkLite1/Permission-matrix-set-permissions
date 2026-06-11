@@ -76,9 +76,9 @@ Describe 'Export-FilesHC' {
                 ServiceNowFormDataExcelFile = $null
                 OverviewHtmlFile            = $null
             }
- 
+
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
- 
+
             Should -Invoke Export-PermissionsFileHC -Times 1 -ParameterFilter {
                 # Array -eq is element-wise filter in PowerShell, not equality.
                 # Assert on a property of the rows we expect to have been passed.
@@ -139,9 +139,9 @@ Describe 'Export-FilesHC' {
                 ServiceNowFormDataExcelFile = $null
                 OverviewHtmlFile            = 'TestDrive:\Overview.html'
             }
- 
+
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
- 
+
             Should -Invoke New-OverviewHtmlHC -Times 1 -ParameterFilter {
                 # Verify the rows came from FakeExportData.FormData (which has
                 # MatrixFileName='X.xlsx'), not from $FakeMatrices (which has
@@ -562,5 +562,329 @@ Describe 'Export-OverviewHtmlHC' {
 
         { Export-OverviewHtmlHC -Html '<html></html>' -Path $badPath } |
         Should -Throw -ExpectedMessage '*Failed exporting Overview HTML file*'
+    }
+}
+
+Describe 'Copy-MatrixFileToLogFolderHC' {
+    BeforeAll {
+        $script:AccessListHeaders = @(
+            'SamAccountName', 'Name', 'Type',
+            'MemberName', 'MemberSamAccountName', 'MemberEnabled'
+        )
+        $script:GroupManagerHeaders = @(
+            'GroupName', 'ManagerName', 'ManagerType', 'ManagerMemberName'
+        )
+        $script:AdObjectHeaders = @(
+            'MatrixFileName', 'SamAccountName',
+            'GroupName', 'SiteCode', 'Name', 'Enabled'
+        )
+
+        # Creates a realistic source matrix file: an xlsx with a
+        # 'Permissions' sheet, in its own 'Source' folder so the copy
+        # into the log folder is a real cross-folder copy
+        function New-SourceMatrixFile {
+            param([string]$Name = 'TestMatrix.xlsx')
+
+            $sourceFolder = Join-Path $TestDrive 'Source'
+            $null = New-Item -Path $sourceFolder -ItemType Directory -Force
+
+            $path = Join-Path $sourceFolder $Name
+
+            @(
+                [pscustomobject]@{
+                    Status = 'Enabled'; ComputerName = 'PC1'; Path = 'D:\data'
+                }
+            ) | Export-Excel -Path $path -WorksheetName 'Permissions'
+
+            return $path
+        }
+
+        function New-LogFolder {
+            (New-Item -Path (Join-Path $TestDrive 'Logs') `
+                -ItemType Directory -Force).FullName
+        }
+
+        # Reads the header row of one worksheet; returns $null when the
+        # worksheet does not exist
+        function Get-WorksheetHeader {
+            param(
+                [string]$Path,
+                [string]$WorksheetName
+            )
+
+            $package = Open-ExcelPackage -Path $Path
+            try {
+                $sheet = $package.Workbook.Worksheets[$WorksheetName]
+                if (-not $sheet -or -not $sheet.Dimension) { return $null }
+
+                return @(
+                    for ($c = 1; $c -le $sheet.Dimension.End.Column; $c++) {
+                        $sheet.Cells[1, $c].Text
+                    }
+                )
+            }
+            finally {
+                Close-ExcelPackage -ExcelPackage $package -NoSave
+            }
+        }
+
+        $script:TestAccessListRows = @(
+            [pscustomobject]@{
+                SamAccountName       = 'GRP Plant manager'
+                Name                 = 'GRP Plant manager'
+                Type                 = 'group'
+                MemberName           = 'Doe, John'
+                MemberSamAccountName = 'jdoe'
+                MemberEnabled        = $true
+            }
+            [pscustomobject]@{
+                SamAccountName       = 'GRP Plant manager'
+                Name                 = 'GRP Plant manager'
+                Type                 = 'group'
+                MemberName           = 'Smith, Anna'
+                MemberSamAccountName = 'asmith'
+                MemberEnabled        = $false
+            }
+        )
+
+        $script:TestGroupManagerRows = @(
+            [pscustomobject]@{
+                GroupName         = 'GRP Plant manager'
+                ManagerName       = 'Boss, Big'
+                ManagerType       = 'user'
+                ManagerMemberName = $null
+            }
+        )
+
+        $script:TestAdObjectRows = @(
+            [pscustomobject]@{
+                MatrixFileName = 'TestMatrix'
+                SamAccountName = 'GRP Plant manager'
+                GroupName      = 'GRP'
+                SiteCode       = $null
+                Name           = 'Plant manager'
+                Enabled        = $null
+            }
+            [pscustomobject]@{
+                MatrixFileName = 'TestMatrix'
+                SamAccountName = 'jdoe'
+                GroupName      = $null
+                SiteCode       = $null
+                Name           = $null
+                Enabled        = $true
+            }
+        )
+    }
+
+    BeforeEach {
+        Remove-Item 'TestDrive:\*' -Recurse -Force -ErrorAction Ignore
+    }
+
+    Context 'copying the source file' {
+        It 'copies the source file into the log folder and returns the destination path' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder
+
+            $expected = Join-Path $logFolder 'TestMatrix.xlsx'
+            $result | Should -Be $expected
+            Test-Path -LiteralPath $expected | Should -BeTrue
+        }
+
+        It 'leaves the original source file in place' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder | Out-Null
+
+            Test-Path -LiteralPath $source | Should -BeTrue
+
+            # The original must not gain the extra worksheets
+            Get-WorksheetHeader -Path $source -WorksheetName 'AccessList' |
+            Should -BeNullOrEmpty
+        }
+
+        It 'overwrites a pre-existing file with the same name in the log folder' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $stale = Join-Path $logFolder 'TestMatrix.xlsx'
+            Set-Content -LiteralPath $stale -Value 'stale content'
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder
+
+            # The stale text file was replaced by a real workbook
+            Get-WorksheetHeader -Path $result -WorksheetName 'Permissions' |
+            Should -Not -BeNullOrEmpty
+        }
+
+        It 'removes the read-only attribute so the copy can be extended' {
+            $source = New-SourceMatrixFile
+            Set-ItemProperty -LiteralPath $source -Name IsReadOnly -Value $true
+
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder
+
+            (Get-Item -LiteralPath $result).IsReadOnly | Should -BeFalse
+
+            # Appending the worksheets succeeded despite the read-only source
+            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' |
+            Should -Not -BeNullOrEmpty
+        }
+
+        It 'throws a descriptive terminating error when the source file does not exist' {
+            $logFolder = New-LogFolder
+
+            {
+                Copy-MatrixFileToLogFolderHC `
+                    -SourceFilePath (Join-Path $TestDrive 'missing.xlsx') `
+                    -LogFolder $logFolder
+            } |
+            Should -Throw -ExpectedMessage '*Failed copying matrix file*not found*'
+        }
+    }
+
+    Context 'adding the worksheets' {
+        It 'preserves the original worksheets and their content' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -AccessListRows $TestAccessListRows
+
+            $permissions = @(
+                Import-Excel -Path $result -WorksheetName 'Permissions'
+            )
+            $permissions.Count | Should -Be 1
+            $permissions[0].ComputerName | Should -Be 'PC1'
+        }
+
+        It 'always adds the AccessList, GroupManagers and AdObjects worksheets' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -AccessListRows $TestAccessListRows `
+                -GroupManagerRows $TestGroupManagerRows `
+                -AdObjectRows $TestAdObjectRows
+
+            foreach ($sheetName in 'AccessList', 'GroupManagers', 'AdObjects') {
+                Get-WorksheetHeader -Path $result -WorksheetName $sheetName |
+                Should -Not -BeNullOrEmpty -Because "worksheet '$sheetName' must exist"
+            }
+        }
+
+        It 'writes the AccessList rows with the MemberEnabled column' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -AccessListRows $TestAccessListRows
+
+            $rows = @(Import-Excel -Path $result -WorksheetName 'AccessList')
+
+            $rows.Count | Should -Be 2
+            $rows[0].MemberSamAccountName | Should -Be 'jdoe'
+            "$($rows[0].MemberEnabled)" | Should -Be 'True'
+            $rows[1].MemberSamAccountName | Should -Be 'asmith'
+            "$($rows[1].MemberEnabled)" | Should -Be 'False'
+        }
+
+        It 'writes the GroupManagers rows' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -GroupManagerRows $TestGroupManagerRows
+
+            $rows = @(Import-Excel -Path $result -WorksheetName 'GroupManagers')
+
+            $rows.Count | Should -Be 1
+            $rows[0].GroupName | Should -Be 'GRP Plant manager'
+            $rows[0].ManagerName | Should -Be 'Boss, Big'
+            $rows[0].ManagerType | Should -Be 'user'
+        }
+
+        It 'writes the AdObjects rows with the Enabled column' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -AdObjectRows $TestAdObjectRows
+
+            $rows = @(Import-Excel -Path $result -WorksheetName 'AdObjects')
+
+            $rows.Count | Should -Be 2
+            $rows[0].SamAccountName | Should -Be 'GRP Plant manager'
+            $rows[1].SamAccountName | Should -Be 'jdoe'
+            "$($rows[1].Enabled)" | Should -Be 'True'
+        }
+    }
+
+    Context 'empty row sets' {
+        It 'creates header-only worksheets with the correct column names when no rows are supplied' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder
+
+            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' |
+            Should -Be $AccessListHeaders
+
+            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' |
+            Should -Be $GroupManagerHeaders
+
+            Get-WorksheetHeader -Path $result -WorksheetName 'AdObjects' |
+            Should -Be $AdObjectHeaders
+        }
+
+        It 'leaves header-only worksheets without data rows' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder
+
+            @(
+                Import-Excel -Path $result -WorksheetName 'AccessList' `
+                    -ErrorAction Ignore
+            ).Count |
+            Should -Be 0
+        }
+
+        It 'creates header-only worksheets only for the row sets that are empty' {
+            $source = New-SourceMatrixFile
+            $logFolder = New-LogFolder
+
+            $result = Copy-MatrixFileToLogFolderHC `
+                -SourceFilePath $source -LogFolder $logFolder `
+                -AccessListRows $TestAccessListRows
+
+            # Filled sheet has data rows
+            @(Import-Excel -Path $result -WorksheetName 'AccessList').Count |
+            Should -Be 2
+
+            # Empty sheets exist with headers but no data rows
+            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' |
+            Should -Be $GroupManagerHeaders
+
+            @(
+                Import-Excel -Path $result -WorksheetName 'AdObjects' `
+                    -ErrorAction Ignore
+            ).Count |
+            Should -Be 0
+        }
     }
 }
