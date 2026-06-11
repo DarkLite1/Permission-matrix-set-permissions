@@ -3,50 +3,50 @@
 
 <#
 .SYNOPSIS
-    Scans an NTFS folder structure to create, check, or fix file system 
+    Scans an NTFS folder structure to create, check, or fix file system
     permissions.
 
 .DESCRIPTION
-    This script iterates through a specified directory tree and strictly 
-    enforces NTFS permissions based on a provided matrix of Access Control 
-    Lists (ACLs). It handles explicit permissions for matrix-defined folders 
+    This script iterates through a specified directory tree and strictly
+    enforces NTFS permissions based on a provided matrix of Access Control
+    Lists (ACLs). It handles explicit permissions for matrix-defined folders
     and enforces strict inheritance rules for unlisted subfolders and files.
 
-    It leverages a custom C# `TokenManipulator` class to temporarily grant the 
-    PowerShell process SeRestorePrivilege, SeBackupPrivilege, and 
-    SeTakeOwnershipPrivilege. This allows the script to forcefully correct ACLs 
-    and reclaim ownership even on folders where the Administrator currently 
+    It leverages a custom C# `TokenManipulator` class to temporarily grant the
+    PowerShell process SeRestorePrivilege, SeBackupPrivilege, and
+    SeTakeOwnershipPrivilege. This allows the script to forcefully correct ACLs
+    and reclaim ownership even on folders where the Administrator currently
     receives an "Access Denied" error.
 
 .PARAMETER Path
-    The absolute path to the parent folder (local to the machine executing the 
+    The absolute path to the parent folder (local to the machine executing the
     script) where the folder tree begins.
 
 .PARAMETER Action
     The execution mode.
     - New
-        Creates the missing folder structure and applies the correct explicit 
+        Creates the missing folder structure and applies the correct explicit
         permissions.
     - Check
-        Audits the current permissions and reports discrepancies without 
+        Audits the current permissions and reports discrepancies without
         modifying them.
     - Fix
-        Audits the permissions, automatically corrects discrepancies, and 
+        Audits the permissions, automatically corrects discrepancies, and
         forces ownership if access is denied.
 
 .PARAMETER Matrix
-    An array of PSCustomObjects containing the structured folder paths, 
+    An array of PSCustomObjects containing the structured folder paths,
     inheritance flags, and their corresponding ACL hashtables.
 
 .PARAMETER JobThrottleLimit
-    The maximum number of concurrent runspaces to use when processing inherited 
+    The maximum number of concurrent runspaces to use when processing inherited
     folder and file permissions in parallel.
 
 .PARAMETER DetailedLog
-    If $true, captures the exact SDDL (Security Descriptor Definition Language) 
-    strings for both the old/incorrect permissions and the new/expected 
-    permissions, along with the matrix column headers. 
-    Note: Enabling this increases memory usage and reduces overall performance. 
+    If $true, captures the exact SDDL (Security Descriptor Definition Language)
+    strings for both the old/incorrect permissions and the new/expected
+    permissions, along with the matrix column headers.
+    Note: Enabling this increases memory usage and reduces overall performance.
     Use primarily for troubleshooting.
 #>
 
@@ -201,12 +201,25 @@ begin {
             [String]$TokenPrivileges,
 
             [Parameter()]
-            [hashtable]$AdNames,
-    
+            [PSObject]$AdNames,
+
             [Boolean]$DetailedLog
         )
 
         $ErrorActionPreference = 'Stop'
+
+        #region Normalize AdNames to a real hashtable
+        # Defensive: when this scriptblock is invoked with data that crossed a
+        # remoting/serialization boundary, a nested hashtable arrives as a
+        # Deserialized.PSCustomObject. Rebuild it so .Keys/.Count work below.
+        if (($null -ne $AdNames) -and ($AdNames -isnot [System.Collections.IDictionary])) {
+            $realHash = @{}
+            foreach ($prop in $AdNames.PSObject.Properties) {
+                if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
+            }
+            $AdNames = $realHash
+        }
+        #endregion
 
         try { Import-Module -Name 'Microsoft.PowerShell.Security' } catch { throw "Failed loading .NET library: $_" }
 
@@ -236,7 +249,7 @@ begin {
                 foreach ($D in $DifferenceAce) {
                     # Generate the fingerprint using [int] to bypass slow string evaluations
                     $id = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
-                    
+
                     if (-not $ReferenceSet.Contains($id)) { return $false }
                 }
                 return $true
@@ -273,8 +286,8 @@ begin {
                     continue
                 }
 
-                if ($IgnoredFolderPaths.ContainsKey($child.FullName)) { 
-                    continue 
+                if ($IgnoredFolderPaths.ContainsKey($child.FullName)) {
+                    continue
                 }
 
                 $isContainer = $child -is [System.IO.DirectoryInfo]
@@ -308,7 +321,7 @@ begin {
                         }
                         else {
                             $errorMessage = "Failed retrieving the ACL of '$child': $_"
-                            
+
                             Write-Warning $errorMessage
 
                             if ($DetailedLog) {
@@ -609,6 +622,23 @@ process {
                     }
                     $M.ACL = $realHash
                 }
+
+                # PSRemoting deserializes nested hashtables to PSCustomObject.
+                # Rebuild 'AdNames' (added by the BEGIN stage via Add-Member)
+                # just like 'ACL' above, so it binds to the strictly typed
+                # [hashtable]$AdNames parameter of the inherited permissions
+                # scriptblock.
+                if (
+                    $M.PSObject.Properties.Match('AdNames').Count -and
+                    ($null -ne $M.AdNames) -and
+                    ($M.AdNames -isnot [System.Collections.IDictionary])
+                ) {
+                    $realHash = @{}
+                    foreach ($prop in $M.AdNames.PSObject.Properties) {
+                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
+                    }
+                    $M.AdNames = $realHash
+                }
             }
         }
         #endregion
@@ -876,16 +906,28 @@ process {
                             # Each entry is keyed by the display form (DOMAIN\name
                             # when the SID translates, raw SID when it doesn't),
                             # which matches what AccessToString puts in Old/New.
-                            if ($folder.AdNames -and $folder.AdNames.Count -gt 0) {
+                            # Defensive: rebuild AdNames if it crossed a
+                            # serialization boundary and arrived as a
+                            # Deserialized.PSCustomObject (no .Keys/.Count).
+                            $folderAdNames = $folder.AdNames
+                            if (($null -ne $folderAdNames) -and ($folderAdNames -isnot [System.Collections.IDictionary])) {
+                                $realHash = @{}
+                                foreach ($prop in $folderAdNames.PSObject.Properties) {
+                                    if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
+                                }
+                                $folderAdNames = $realHash
+                            }
+
+                            if ($folderAdNames -and $folderAdNames.Count -gt 0) {
                                 $matrixObjects = @{}
-                                foreach ($sid in $folder.AdNames.Keys) {
+                                foreach ($sid in $folderAdNames.Keys) {
                                     $displayKey = try {
                                         ([System.Security.Principal.SecurityIdentifier]::new($sid)).
                                         Translate([System.Security.Principal.NTAccount]).Value
                                     }
                                     catch { $sid }
 
-                                    $matrixObjects[$displayKey] = $folder.AdNames[$sid]
+                                    $matrixObjects[$displayKey] = $folderAdNames[$sid]
                                 }
                                 $entry['MatrixAdObjects'] = $matrixObjects
                             }
