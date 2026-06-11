@@ -314,14 +314,14 @@ function New-HtmlCheckRowHC {
 }
 
 function New-HtmlSectionHC {
-    param([string]$Title, [array]$Checks)
+    param([string]$Title, [array]$Checks, [bool]$LinkJsonDetail = $false)
     # Build a flat section using the new file-level check row style.
     $out = ''
     if (-not [string]::IsNullOrWhiteSpace($Title)) {
         $out += "<tr><td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$([System.Net.WebUtility]::HtmlEncode($Title))</td></tr>"
     }
     foreach ($c in $Checks) {
-        $out += Build-FileLevelCheckRowHC -Check $c -SheetLabel $Title
+        $out += Build-FileLevelCheckRowHC -Check $c -SheetLabel $Title -LinkJsonDetail $LinkJsonDetail
     }
     return $out
 }
@@ -408,7 +408,13 @@ function Write-MatrixExecutionReportHC {
                 foreach ($c in $g.Checks) {
                     # Standalone report: include the 16px inset wrapper so File Issues rows
                     # have the same indented look as the Settings rows below them.
-                    $issueRows += Build-FileLevelCheckRowHC -Check $c -SheetLabel $g.Label
+                    # LinkJsonDetail: the detail JSON (written only when the
+                    # check has a 'Value') sits next to this report, so the
+                    # check name links to it — same as matrix-level checks.
+                    $issueRows += Build-FileLevelCheckRowHC `
+                        -Check $c `
+                        -SheetLabel $g.Label `
+                        -LinkJsonDetail $true
                 }
             }
         }

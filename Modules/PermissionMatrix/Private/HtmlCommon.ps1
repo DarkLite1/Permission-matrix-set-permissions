@@ -212,7 +212,7 @@ function Format-LastChangeHC {
 }
 
 function ConvertTo-FileUrlHC {
-    <# 
+    <#
     .DESCRIPTION
         Convert a Windows path (UNC or local) to a `file://` URL suitable for
         `href` attributes. Normalizes backslashes to forward slashes and
@@ -257,7 +257,7 @@ function Get-CheckThemeHC {
 }
 
 function Get-TruncatedPathHC {
-    <# 
+    <#
         .DESCRIPTION
             Truncate a file path in the middle if it exceeds a certain length,
             replacing the removed portion with an ellipsis. Attempts to break
@@ -309,7 +309,7 @@ function Get-TruncatedPathHC {
 }
 
 function New-PillHtmlHC {
-    <# 
+    <#
         .DESCRIPTION
             Render a colored pill — used for status labels in banners and rows.
     #>
@@ -369,7 +369,14 @@ function Build-FileLevelCheckRowHC {
     param(
         [object]$Check,
         [string]$SheetLabel,
-        [bool]$IncludeWrapper = $true
+        [bool]$IncludeWrapper = $true,
+        # When $true and the check has a JSON detail file (only created when
+        # the check's 'Value' is not null), the check name becomes a link to
+        # that file. The href is relative (just the file name) because the
+        # detail JSON is written to the same folder as the execution report.
+        # Keep this $false in the email context, where a relative link is
+        # meaningless.
+        [bool]$LinkJsonDetail = $false
     )
 
     $themeTokens = Get-CheckThemeHC $Check.Type
@@ -381,6 +388,16 @@ function Build-FileLevelCheckRowHC {
     $desc = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $Check.Description ''))
     $label = [System.Net.WebUtility]::HtmlEncode($SheetLabel)
 
+    $nameHtml = $name
+    if (
+        $LinkJsonDetail -and
+        $Check.PSObject.Properties.Match('JsonFileName').Count -and
+        -not [string]::IsNullOrWhiteSpace($Check.JsonFileName)
+    ) {
+        $jsonHref = [System.Net.WebUtility]::HtmlEncode($Check.JsonFileName)
+        $nameHtml = "<a href='$jsonHref' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
+    }
+
     # Fluid flex card mirroring the settings rows: accent dot, the text block
     # which flexes and wraps on narrow panes, then the status pill on the right
     # (flex:0 0 auto so it never clips — the text block absorbs overflow).
@@ -389,7 +406,7 @@ function Build-FileLevelCheckRowHC {
     <span style='flex:0 0 auto; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>
     <span style='flex:1 1 auto; min-width:0;'>
         <span style='display:block; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</span>
-        <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$name</span>
+        <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$nameHtml</span>
         <span style='display:block; font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</span>
     </span>
     <span style='flex:0 0 auto;'>$pillHtml</span>
@@ -414,4 +431,3 @@ function Build-FileLevelCheckRowHC {
 "@
     }
 }
-
