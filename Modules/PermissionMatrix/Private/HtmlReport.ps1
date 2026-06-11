@@ -71,8 +71,8 @@ function Build-ExecutionDetailsBlockHC {
 
     # Each row: (label, value-html, use-mono-font?)
     $items = @(
-        @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
         @{ Label = 'Matrix log copy'; Value = (Convert-PathToFileLink -Path $logMatrixPath -Title 'Copy of the processed matrix file, including the AccessList, GroupManagers and AdObjects sheets'); Mono = $true }
+        @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
         @{ Label = 'Defaults file'; Value = (Convert-PathToFileLink $defaultsPath); Mono = $true }
         @{ Label = 'Last change'; Value = $lastChangeValue; Mono = $false }
         @{ Label = 'Start time'; Value = [System.Net.WebUtility]::HtmlEncode($startTime); Mono = $true }
