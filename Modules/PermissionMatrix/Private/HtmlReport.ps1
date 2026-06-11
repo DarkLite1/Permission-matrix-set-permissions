@@ -22,7 +22,17 @@ function Build-ExecutionDetailsBlockHC {
     }
 
     # Gather values (any missing/empty values are simply skipped)
-    $matrixPath = Get-StringOrDefaultHC $FileResult.Item.FullName ''
+    # When the matrix file was archived (Matrix.Archive = true), the original
+    # path no longer exists — link to the archived copy instead.
+    $matrixPath = if (
+        $FileResult.PSObject.Properties.Match('ArchivedPath').Count -and
+        -not [string]::IsNullOrWhiteSpace($FileResult.ArchivedPath)
+    ) {
+        $FileResult.ArchivedPath
+    }
+    else {
+        Get-StringOrDefaultHC $FileResult.Item.FullName ''
+    }
     $defaultsPath = Get-StringOrDefaultHC $DefaultsFilePath ''
 
     $lastChange = Format-LastChangeHC `
@@ -496,13 +506,13 @@ $matrixRowsHtml
            flex-wrap. Cells stay as flex items, which natively gives us
            vertical centering (align-items: center) and the ability to
            force a cell onto its own row via `flex: 1 1 100%`.
-           
+
            Why not the more conventional `display: block` on every cell?
            Because then the icon stacks ABOVE the content instead of beside
            it. And why not `float: left` on the icon? Because then a wrapped
            third line in the content drops UNDER the float and shifts left,
            breaking horizontal alignment with the lines above.
-           
+
            Status pills (rr-status-cell / rr-check-pill) are taken out of
            the flex flow with position:absolute + top:50% + translateY(-50%)
            so they sit middle-right anchored to the relatively-positioned

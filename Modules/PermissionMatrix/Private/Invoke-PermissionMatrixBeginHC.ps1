@@ -1,57 +1,57 @@
 function Invoke-PermissionMatrixBeginHC {
     <#
     .SYNOPSIS
-        Initializes, validates, and builds the execution context for the 
+        Initializes, validates, and builds the execution context for the
         Permission Matrix pipeline.
 
     .DESCRIPTION
-        This function serves as the 'BEGIN' stage of the orchestrator. It 
-        processes the foundational data required for the remote execution jobs 
+        This function serves as the 'BEGIN' stage of the orchestrator. It
+        processes the foundational data required for the remote execution jobs
         through three distinct phases:
 
-        1. Initialization (Sequential): 
-            Validates the JSON configuration file and constructs the baseline 
+        1. Initialization (Sequential):
+            Validates the JSON configuration file and constructs the baseline
             `$Context` state object.
-        2. Ingestion (Parallel): 
-            Discovers, structurally validates, and archives the Excel Matrix 
-            files using a multi-threaded runspace pool to minimize I/O 
+        2. Ingestion (Parallel):
+            Discovers, structurally validates, and archives the Excel Matrix
+            files using a multi-threaded runspace pool to minimize I/O
             bottlenecks.
-        3. Global Resolution (Sequential): 
-            Performs cross-matrix duplicate detection, bulk queries Active 
-            Directory for unique objects, merges global default permissions, 
-            and permanently rewrites AD Account Names into SIDs (Security 
-            Identifiers) to guarantee precise permission application during the 
+        3. Global Resolution (Sequential):
+            Performs cross-matrix duplicate detection, bulk queries Active
+            Directory for unique objects, merges global default permissions,
+            and permanently rewrites AD Account Names into SIDs (Security
+            Identifiers) to guarantee precise permission application during the
             remote execution phase.
 
-        Architectural Convention: 
-        This function returns `$null` ONLY for catastrophic, pre-context 
-        failures (e.g., the JSON file is missing or corrupt). Once the 
-        `$Context` object is successfully constructed, the function will return 
-        it even if fatal errors occur later. This allows the calling script to 
-        inspect the partial state and generate comprehensive error reports 
+        Architectural Convention:
+        This function returns `$null` ONLY for catastrophic, pre-context
+        failures (e.g., the JSON file is missing or corrupt). Once the
+        `$Context` object is successfully constructed, the function will return
+        it even if fatal errors occur later. This allows the calling script to
+        inspect the partial state and generate comprehensive error reports
         rather than failing silently.
 
     .PARAMETER ConfigurationJsonFile
-        The absolute path to the main JSON configuration file governing the 
+        The absolute path to the main JSON configuration file governing the
         execution.
 
     .PARAMETER ScriptPath
-        A hashtable containing the absolute file paths to the required 
+        A hashtable containing the absolute file paths to the required
         execution scripts and modules.
 
     .PARAMETER SystemErrors
-        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to
         capture terminating pipeline errors.
 
     .OUTPUTS
         System.Management.Automation.PSCustomObject
-        Returns the fully constructed `$Context` object containing the imported 
-        matrices, resolved AD details, and configurations. Returns `$null` only 
+        Returns the fully constructed `$Context` object containing the imported
+        matrices, resolved AD details, and configurations. Returns `$null` only
         on pre-context initialization failures.
 
     .EXAMPLE
         $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
-        
+
         $context = Invoke-PermissionMatrixBeginHC `
             -ConfigurationJsonFile 'C:\Config.json' `
             -ScriptPath $scriptPaths `
@@ -118,7 +118,7 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         if ($SystemErrors.Value.Count -gt 0) { return $Context }
-        
+
         #region Get Matrix Files
         try {
             $matrixFiles = Get-ChildItem -Path $Context.Config.Matrix.FolderPath -Filter '*.xlsx' -File -ErrorAction Stop
@@ -132,13 +132,13 @@ function Invoke-PermissionMatrixBeginHC {
                 -SystemErrors $SystemErrors
             return $Context
         }
-        
-        $matrixFiles = $matrixFiles | Where-Object { 
-            $_.FullName -ne $Context.Config.Matrix.DefaultsFile 
+
+        $matrixFiles = $matrixFiles | Where-Object {
+            $_.FullName -ne $Context.Config.Matrix.DefaultsFile
         }
-        
+
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
-            return $Context 
+            return $Context
         }
 
         $Context.FoundMatrices = $true
@@ -149,8 +149,8 @@ function Invoke-PermissionMatrixBeginHC {
             -Matrix $Context.Config.Matrix `
             -SystemErrors $SystemErrors
 
-        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) { 
-            return $Context 
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
+            return $Context
         }
 
         $Context.Defaults = $defaults
@@ -166,7 +166,7 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
-        #region Import, validate and archive in Parallel   
+        #region Import, validate and archive in Parallel
         $throttle = $Context.Config.MaxConcurrent.FoldersPerMatrix ?? 4
 
         $parallelResults = Invoke-WithOptionalParallelismHC `
@@ -183,10 +183,10 @@ function Invoke-PermissionMatrixBeginHC {
                 -Path (Split-Path $context.ScriptPath.PermissionMatrixModule) `
                 -ChildPath 'Private'
 
-            Get-ChildItem -Path $privateFolder -Recurse -Filter '*.ps1' | 
+            Get-ChildItem -Path $privateFolder -Recurse -Filter '*.ps1' |
             ForEach-Object { . $_.FullName }
             #endregion
-            
+
             try {
                 #region Import & validate matrix
                 $fileResult = Import-MatrixFileHC `
@@ -198,18 +198,18 @@ function Invoke-PermissionMatrixBeginHC {
 
                 if ($fileResult.Sheets.Permissions.Raw) {
                     #region Check if GroupName and SiteCode columns are required
-                    $headerRows = $fileResult.Sheets.Permissions.Raw | 
+                    $headerRows = $fileResult.Sheets.Permissions.Raw |
                     Select-Object -First 3
 
                     foreach ($row in $headerRows) {
                         foreach ($p in $row.PSObject.Properties) {
                             Write-Verbose "Checking Permissions header: $($p.Name) = '$($p.Value)'"
                             if ($p.Value -is [string]) {
-                                if ($p.Value -match 'GroupName') { 
-                                    $reqGroupName = $true 
+                                if ($p.Value -match 'GroupName') {
+                                    $reqGroupName = $true
                                 }
-                                if ($p.Value -match 'SiteCode') { 
-                                    $reqSiteCode = $true 
+                                if ($p.Value -match 'SiteCode') {
+                                    $reqSiteCode = $true
                                 }
                             }
                         }
@@ -220,7 +220,7 @@ function Invoke-PermissionMatrixBeginHC {
                     if ($fileResult.Sheets.Permissions.Formatted) {
                         $permErrors = Test-MatrixPermissionsHC `
                             -Permissions $fileResult.Sheets.Permissions.Formatted
-    
+
                         if ($permErrors) {
                             $fileResult.Check.AddRange(
                                 [pscustomobject[]]@($permErrors)
@@ -241,8 +241,8 @@ function Invoke-PermissionMatrixBeginHC {
                             -RequireGroupName $reqGroupName `
                             -RequireSiteCode $reqSiteCode
 
-                        if ($rowErrors) { 
-                            $m.Check.AddRange([pscustomobject[]]@($rowErrors)) 
+                        if ($rowErrors) {
+                            $m.Check.AddRange([pscustomobject[]]@($rowErrors))
                         }
 
                         $isFileBroken = Test-ItemHasFatalErrorHC `
@@ -251,7 +251,7 @@ function Invoke-PermissionMatrixBeginHC {
                             -CheckList $m.Check
 
                         if (
-                            -not $isFileBroken -and 
+                            -not $isFileBroken -and
                             -not $isRowBroken -and
                             $permSheet
                         ) {
@@ -269,7 +269,7 @@ function Invoke-PermissionMatrixBeginHC {
                             if ($context.Defaults.DefaultAcl.Count -gt 0) {
                                 try {
                                     $applyDefaultPerms = $m.Setting.Formatted.ApplyDefaultPermissions
-                                    
+
                                     foreach ($folder in $m.Matrix) {
                                         $folder.ACL = Merge-DefaultPermissionsHC `
                                             -Defaults $context.Defaults.DefaultAcl `
@@ -301,7 +301,7 @@ function Invoke-PermissionMatrixBeginHC {
                         Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
                     }
                 }
-                
+
                 $fileResult.Check.Add(
                     [pscustomobject]@{
                         Type        = 'FatalError'
@@ -317,11 +317,18 @@ function Invoke-PermissionMatrixBeginHC {
                     try {
                         $destination = Join-Path -Path $archiveFolder -ChildPath $file.Name
                         Move-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+
+                        # The original path no longer exists after the move.
+                        # Record the new location so the HTML mail and report
+                        # can link the matrix file name to the archived file.
+                        $fileResult | Add-Member `
+                            -NotePropertyName 'ArchivedPath' `
+                            -NotePropertyValue $destination -Force
                     }
                     catch {
-                        $fileResult.File.Check.Add(
+                        $fileResult.Check.Add(
                             [pscustomobject]@{
-                                Type        = 'Warning' 
+                                Type        = 'Warning'
                                 Name        = 'Archiving failed'
                                 Description = 'File could not be moved to archive.'
                                 Value       = $_
@@ -329,7 +336,7 @@ function Invoke-PermissionMatrixBeginHC {
                     }
                 }
                 #endregion
-    
+
                 $fileResult
             }
         }
@@ -350,8 +357,8 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         #region Duplicate ComputerName/Path Validation
-        $duplicateMatrices = $Context.AllMatrices | 
-        Group-Object -Property { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path } | 
+        $duplicateMatrices = $Context.AllMatrices |
+        Group-Object -Property { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path } |
         Where-Object Count -GE 2
 
         foreach ($DupGroup in $duplicateMatrices) {
@@ -373,7 +380,7 @@ function Invoke-PermissionMatrixBeginHC {
 
         #region Get all AD Objects from matrices and defaults
         $allAdObjects = [System.Collections.Generic.List[string]]::new()
-        
+
         foreach ($matrixObj in $Context.AllMatrices) {
             foreach ($folder in $matrixObj.Matrix) {
                 if ($folder.ACL) {
@@ -381,7 +388,7 @@ function Invoke-PermissionMatrixBeginHC {
                 }
             }
         }
-        
+
         if ($Context.Defaults.DefaultAcl) {
             $allAdObjects.AddRange(
                 [string[]]@($Context.Defaults.DefaultAcl.Keys)
@@ -497,7 +504,7 @@ function Invoke-PermissionMatrixBeginHC {
                 return $Context
             }
             elseif (
-                -not $anyUsesDefaults -and 
+                -not $anyUsesDefaults -and
                 $Context.Defaults.DefaultAcl.Count -gt 0
             ) {
                 Add-ErrorHC `

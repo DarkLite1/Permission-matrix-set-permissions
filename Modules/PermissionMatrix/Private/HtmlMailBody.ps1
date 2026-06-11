@@ -180,7 +180,7 @@ function Build-MatrixFileCardHC {
 
     # File header info
     $fileName = [System.Net.WebUtility]::HtmlEncode($FileContext.Item.Name)
-    
+
     $lastChangeInfo = Format-LastChangeHC `
         -LastModifiedBy $FileContext.ExcelInfo.LastModifiedBy `
         -Modified $FileContext.ExcelInfo.Modified
@@ -188,11 +188,21 @@ function Build-MatrixFileCardHC {
     <#
      Two distinct links live in this card:
         1. $matrixLink — opens the source .xlsx file directly. Used by the
-        filename in the gradient header.
+        filename in the gradient header. When the file was archived
+        (Matrix.Archive = true), it no longer exists at its original
+        location, so we link to the archived copy instead.
         2. $reportLink — opens the standalone execution report HTML. Used by
-        the "Open full report &rarr;" footer link. 
+        the "Open full report &rarr;" footer link.
     #>
-    $matrixPath = Get-StringOrDefaultHC $FileContext.Item.FullName ''
+    $matrixPath = if (
+        $FileContext.PSObject.Properties.Match('ArchivedPath').Count -and
+        -not [string]::IsNullOrWhiteSpace($FileContext.ArchivedPath)
+    ) {
+        $FileContext.ArchivedPath
+    }
+    else {
+        Get-StringOrDefaultHC $FileContext.Item.FullName ''
+    }
     $matrixLink = if ($matrixPath) {
         [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $matrixPath))
     }
