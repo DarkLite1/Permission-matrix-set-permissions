@@ -251,15 +251,10 @@ function Invoke-PermissionMatrixEndHC {
                     (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | ForEach-Object {start $_}
                     #>
 
-                    Write-MatrixExecutionReportHC `
-                        -FileResult $fileResult `
-                        -Html $htmlTemplates `
-                        -ScriptStartTime $Context.StartTime `
-                        -ScriptEndTime $scriptExecutionEndTime `
-                        -LogFolder $fileLogFolder.FullName `
-                        -DefaultsFilePath $Context.Config.Matrix.DefaultsFile
-
                     #region Copy matrix file with AD detail sheets
+                    # Runs BEFORE Write-MatrixExecutionReportHC so the
+                    # report's 'Matrix log copy' footer row can link to
+                    # the copy via $fileResult.LogMatrixFilePath
                     try {
                         $sourceFilePath = if (
                             $fileResult.PSObject.Properties['ArchivedPath'] -and
@@ -307,6 +302,15 @@ function Invoke-PermissionMatrixEndHC {
                             -SystemErrors $SystemErrors
                     }
                     #endregion
+
+                    Write-MatrixExecutionReportHC `
+                        -FileResult $fileResult `
+                        -Html $htmlTemplates `
+                        -ScriptStartTime $Context.StartTime `
+                        -ScriptEndTime $scriptExecutionEndTime `
+                        -LogFolder $fileLogFolder.FullName `
+                        -DefaultsFilePath $Context.Config.Matrix.DefaultsFile
+
                 }
             }
 
@@ -349,7 +353,7 @@ function Invoke-PermissionMatrixEndHC {
     # "Open full report" link in the email points to the standalone
     # execution report rather than falling back to the source xlsx. The
     # same applies to $fileResult.LogMatrixFilePath, which feeds the
-    # 'Open matrix Excel file' footer link.
+    # 'Open matrix log copy' footer link.
     # =====================================================================
     try {
         # Re-tally — system warnings/errors may have been added by
@@ -506,7 +510,6 @@ function Invoke-PermissionMatrixEndHC {
                     }
                 }
             )
-
 
             Write-EventLogSafeHC `
                 -EventLogData $eventData `

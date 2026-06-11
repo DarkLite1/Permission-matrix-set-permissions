@@ -10,15 +10,23 @@ function Build-ExecutionDetailsBlockHC {
         [datetime]$ScriptEndTime
     )
 
-    # Helper: turn a Windows path into a clickable <a href="file://..."> link
+    # Helper: turn a Windows path into a clickable <a href="file://..."> link.
+    # An optional -Title renders as a hover tooltip on the link.
     function Convert-PathToFileLink {
-        param([string]$Path)
+        param(
+            [string]$Path,
+            [string]$Title
+        )
         if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
         $displayHtml = [System.Net.WebUtility]::HtmlEncode($Path)
         $urlHtml = [System.Net.WebUtility]::HtmlEncode(
             (ConvertTo-FileUrlHC $Path)
         )
-        return "<a href=`"$urlHtml`" target='_blank' rel='noopener noreferrer'  style=`"color:$($Script:Theme.LinkColor); text-decoration:none;`">$displayHtml</a>"
+        $titleAttr = if ($Title) {
+            " title=`"$([System.Net.WebUtility]::HtmlEncode($Title))`""
+        }
+        else { '' }
+        return "<a href=`"$urlHtml`"$titleAttr target='_blank' rel='noopener noreferrer'  style=`"color:$($Script:Theme.LinkColor); text-decoration:none;`">$displayHtml</a>"
     }
 
     # Gather values (any missing/empty values are simply skipped)
@@ -34,6 +42,18 @@ function Build-ExecutionDetailsBlockHC {
         Get-StringOrDefaultHC $FileResult.Item.FullName ''
     }
     $defaultsPath = Get-StringOrDefaultHC $DefaultsFilePath ''
+
+    # Copy of the processed matrix file in the log folder, written by the
+    # END stage and extended with the 'AccessList', 'GroupManagers' and
+    # 'AdObjects' sheets. Older runs and partially built file results
+    # don't have this property; the row is then skipped.
+    $logMatrixPath = if (
+        $FileResult.PSObject.Properties.Match('LogMatrixFilePath').Count -and
+        -not [string]::IsNullOrWhiteSpace($FileResult.LogMatrixFilePath)
+    ) {
+        $FileResult.LogMatrixFilePath
+    }
+    else { '' }
 
     $lastChange = Format-LastChangeHC `
         -LastModifiedBy $FileResult.ExcelInfo.LastModifiedBy `
@@ -52,6 +72,7 @@ function Build-ExecutionDetailsBlockHC {
     # Each row: (label, value-html, use-mono-font?)
     $items = @(
         @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
+        @{ Label = 'Matrix log copy'; Value = (Convert-PathToFileLink -Path $logMatrixPath -Title 'Copy of the processed matrix file, including the AccessList, GroupManagers and AdObjects sheets'); Mono = $true }
         @{ Label = 'Defaults file'; Value = (Convert-PathToFileLink $defaultsPath); Mono = $true }
         @{ Label = 'Last change'; Value = $lastChangeValue; Mono = $false }
         @{ Label = 'Start time'; Value = [System.Net.WebUtility]::HtmlEncode($startTime); Mono = $true }

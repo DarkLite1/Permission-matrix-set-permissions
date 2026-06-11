@@ -238,20 +238,20 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should -Not -Match 'Open matrix file'
         }
 
-        It 'renders a matrix Excel file link when LogMatrixFilePath is set' {
+        It 'renders a matrix log copy link when LogMatrixFilePath is set' {
             $files = @(
                 New-FileResult -LogMatrixFilePath 'C:\logs\A.xlsx'
             )
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Open matrix Excel file'
+            $out | Should -Match 'Open matrix log copy'
             $out | Should -Match "href='file://C:/logs/A\.xlsx'"
             $out | Should -Not -Match 'Open matrix file'
             $out | Should -Not -Match 'Open execution report'
         }
 
-        It 'puts the raw Windows path in the tooltip of the matrix Excel link' {
+        It 'puts the raw Windows path in the tooltip of the matrix log copy link' {
             $files = @(
                 New-FileResult -LogMatrixFilePath 'C:\logs\A.xlsx'
             )
@@ -271,7 +271,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
             $out | Should -Match 'Open execution report'
-            $out | Should -Match 'Open matrix Excel file'
+            $out | Should -Match 'Open matrix log copy'
             # The two anchors are joined by a middot separator span
             $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
         }
@@ -286,7 +286,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
             # the double-quoted header link to the same file URL
             $out | Should -Match "href='file://C:/share/A\.xlsx'"
             $out | Should -Not -Match 'Open execution report'
-            $out | Should -Not -Match 'Open matrix Excel file'
+            $out | Should -Not -Match 'Open matrix log copy'
         }
     }
 
@@ -464,3 +464,4 @@ Describe 'Get-MailBodyHtmlHC' {
         $out | Should -Match 'System Error'
     }
 }
+

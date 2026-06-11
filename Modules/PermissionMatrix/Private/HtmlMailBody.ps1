@@ -215,7 +215,7 @@ function Build-MatrixFileCardHC {
     <#
      The footer offers direct links to the artifacts in the log folder:
         1. The standalone execution report ('00 - Execution Report.html').
-        2. The copy of the processed matrix Excel file, including the
+        2. The matrix log copy: the processed matrix Excel file, including the
            'AccessList', 'GroupManagers' and 'AdObjects' sheets
            ($FileContext.LogMatrixFilePath, set by the END stage).
      Each link is only rendered when its file was actually created. When
@@ -240,7 +240,7 @@ function Build-MatrixFileCardHC {
     if ($logMatrixPath) {
         $excelLink = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $logMatrixPath))
         $excelTitle = [System.Net.WebUtility]::HtmlEncode($logMatrixPath)
-        $footerLinks.Add("<a href='$excelLink' title=`"$excelTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open matrix Excel file &rarr;</a>")
+        $footerLinks.Add("<a href='$excelLink' title=`"$excelTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open matrix log copy &rarr;</a>")
     }
 
     if ($footerLinks.Count -eq 0 -and $matrixPath) {
