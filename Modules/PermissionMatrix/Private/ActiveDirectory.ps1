@@ -1,38 +1,38 @@
 function Get-ADObjectDetailHC {
     <#
     .SYNOPSIS
-        High-speed, parallel retrieval of Active Directory object details and 
+        High-speed, parallel retrieval of Active Directory object details and
         recursive group memberships.
 
     .DESCRIPTION
-        Retrieves fundamental properties (SID, DistinguishedName, Manager, 
-        etc.) for an array of Active Directory objects. 
-        
-        If the targeted object is a Group, the script performs a recursive 
-        expansion (extracting users from nested child groups) and stores the 
-        results in the 'adGroupMember' property. Note: The 'Domain Users' group 
+        Retrieves fundamental properties (SID, DistinguishedName, Manager,
+        etc.) for an array of Active Directory objects.
+
+        If the targeted object is a Group, the script performs a recursive
+        expansion (extracting users from nested child groups) and stores the
+        results in the 'adGroupMember' property. Note: The 'Domain Users' group
         is explicitly bypassed for performance and safety reasons.
 
         Performance Features:
-        1. Multi-Threading: 
-            Processes the input array concurrently using PowerShell 7's 
+        1. Multi-Threading:
+            Processes the input array concurrently using PowerShell 7's
             Parallel runspaces.
-        2. Tiered Lookups: 
-            Searches the local domain first for maximum speed. It only falls 
-            back to the Forest Global Catalog (GC) when an object isn't found 
-            locally, ensuring cross-domain trust lookups succeed without 
+        2. Tiered Lookups:
+            Searches the local domain first for maximum speed. It only falls
+            back to the Forest Global Catalog (GC) when an object isn't found
+            locally, ensuring cross-domain trust lookups succeed without
             penalizing the speed of the common case.
 
     .PARAMETER ADObjectName
         An array of Active Directory object names (users or groups) to resolve.
 
     .PARAMETER Type
-        The format of the strings provided in the ADObjectName parameter. 
-        Valid values: 
+        The format of the strings provided in the ADObjectName parameter.
+        Valid values:
         'SamAccountName' (e.g., 'jdoe' or 'DOMAIN\jdoe') or 'DistinguishedName'.
 
     .PARAMETER MaxThreads
-        The maximum number of concurrent Active Directory LDAP queries to 
+        The maximum number of concurrent Active Directory LDAP queries to
         execute. (Default: 7)
 
     .EXAMPLE
@@ -43,7 +43,7 @@ function Get-ADObjectDetailHC {
             -MaxThreads 10
 
         # View the recursive members of the HR_Managers group
-        $adDetails | Where-Object SamAccountName -eq 'HR_Managers' | 
+        $adDetails | Where-Object SamAccountName -eq 'HR_Managers' |
         Select-Object -ExpandProperty adGroupMember
     #>
 
@@ -92,7 +92,8 @@ function Get-ADObjectDetailHC {
 
         $propertiesToLoad = @(
             'distinguishedname', 'samaccountname', 'manager',
-            'managedby', 'name', 'objectclass', 'objectsid'
+            'managedby', 'name', 'objectclass', 'objectsid',
+            'useraccountcontrol'
         )
 
         $searcher = $null
@@ -143,6 +144,15 @@ function Get-ADObjectDetailHC {
                     else { $null }
                     Name              = if ($props['name'].Count) { $props['name'][0] } else { $null }
                     ObjectClass       = if ($isGroup) { 'group' } else { 'user' }
+                    Enabled           = if ($isGroup) {
+                        # Groups have no enabled/disabled state
+                        $null
+                    }
+                    elseif ($props['useraccountcontrol'].Count) {
+                        # Bit 0x2 = ACCOUNTDISABLE
+                        -not ([int]$props['useraccountcontrol'][0] -band 2)
+                    }
+                    else { $null }
                 }
 
                 if ($isGroup) {
@@ -152,6 +162,7 @@ function Get-ADObjectDetailHC {
                                 Name              = 'All users'
                                 SamAccountName    = 'All users'
                                 DistinguishedName = $null
+                                Enabled           = $null
                             })
                     }
                     else {
@@ -180,6 +191,12 @@ function Get-ADObjectDetailHC {
                                             Name              = $m.Name
                                             SamAccountName    = $m.SamAccountName
                                             DistinguishedName = $m.DistinguishedName
+                                            Enabled           = (
+                                                # Users/computers derive from
+                                                # AuthenticablePrincipal and expose
+                                                # Enabled; groups return $null
+                                                $m -as [System.DirectoryServices.AccountManagement.AuthenticablePrincipal]
+                                            ).Enabled
                                         }
                                     }
                                 }
@@ -219,16 +236,16 @@ function Get-ADObjectDetailHC {
 function Get-AdUserPrincipalNameHC {
     <#
     .SYNOPSIS
-        Converts a list of e-mail addresses or SamAccountNames into a unique 
+        Converts a list of e-mail addresses or SamAccountNames into a unique
         array of Active Directory UserPrincipalNames.
 
     .DESCRIPTION
-        Resolves a mixed array of user and group identifiers against Active 
-        Directory. 
-        
-        If a group is detected, the script recursively expands its membership 
-        to find all nested users. The final output is strictly filtered: only 
-        AD users that are currently Enabled, have a populated 'Mail' attribute, 
+        Resolves a mixed array of user and group identifiers against Active
+        Directory.
+
+        If a group is detected, the script recursively expands its membership
+        to find all nested users. The final output is strictly filtered: only
+        AD users that are currently Enabled, have a populated 'Mail' attribute,
         and are not explicitly excluded will be returned.
 
         Returns a hashtable containing two arrays:
@@ -244,9 +261,9 @@ function Get-AdUserPrincipalNameHC {
     .EXAMPLE
         $targets = @('HR_Team@domain.com', 'jdoe')
         $exclusions = @('svc_hr_scanner', 'admin_jdoe')
-        
+
         $result = Get-AdUserPrincipalNameHC -Name $targets -ExcludeSamAccountName $exclusions
-        
+
         Write-Host "Found UPNs: $($result.userPrincipalName -join ', ')"
         Write-Host "Unresolved: $($result.notFound -join ', ')"
     #>
@@ -255,7 +272,7 @@ function Get-AdUserPrincipalNameHC {
     param(
         [Parameter(Mandatory)]
         [String[]]$Name,
-        
+
         [String[]]$ExcludeSamAccountName = @()
     )
 
@@ -273,7 +290,7 @@ function Get-AdUserPrincipalNameHC {
 
                 if ($AdObject.Count -ge 2) {
                     throw "Multiple results found for name '$N': $($AdObject.Name -join ', '). Skipping."
-                    
+
                 }
 
                 if (-not $AdObject) {
@@ -291,7 +308,7 @@ function Get-AdUserPrincipalNameHC {
                 }
 
                 if ($AdUsers) {
-                    $AdUsers | Get-ADUser -Properties Enabled, Mail -ErrorAction SilentlyContinue | 
+                    $AdUsers | Get-ADUser -Properties Enabled, Mail -ErrorAction SilentlyContinue |
                     ForEach-Object {
                         if ($_.Mail -and $_.Enabled -and $_.SamAccountName -notin $ExcludeSamAccountName) {
                             if (-not [string]::IsNullOrWhiteSpace($_.UserPrincipalName)) {

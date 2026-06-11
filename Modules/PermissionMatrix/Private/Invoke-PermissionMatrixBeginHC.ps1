@@ -85,16 +85,17 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         $Context = [pscustomobject]@{
-            JsonFileName  = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationJsonFile)
-            Config        = $json
-            ScriptPath    = $ScriptPath
-            StartTime     = Get-Date
-            Counter       = New-CounterObjectHC
-            ExportedFiles = @{}
-            FoundMatrices = $false
-            FileResults   = @()
-            AllMatrices   = @()
-            Defaults      = $null
+            JsonFileName    = [System.IO.Path]::GetFileNameWithoutExtension($ConfigurationJsonFile)
+            Config          = $json
+            ScriptPath      = $ScriptPath
+            StartTime       = Get-Date
+            Counter         = New-CounterObjectHC
+            ExportedFiles   = @{}
+            FoundMatrices   = $false
+            FileResults     = @()
+            AllMatrices     = @()
+            AdObjectDetails = @()
+            Defaults        = $null
         }
 
         #region Validate Configuration Structure
@@ -420,6 +421,12 @@ function Invoke-PermissionMatrixBeginHC {
                 return $Context
             }
             #endregion
+
+            # Keep the resolved AD details on the context. The END stage
+            # uses them to build the 'AccessList', 'GroupManagers' and
+            # 'AdObjects' sheets in the matrix file copy saved to the log
+            # folder, without having to query AD a second time.
+            $Context.AdObjectDetails = $adObjectDetails
 
             #region Build Name → SID map for quick lookup during ACL rewrite
             $nameToSid = @{}

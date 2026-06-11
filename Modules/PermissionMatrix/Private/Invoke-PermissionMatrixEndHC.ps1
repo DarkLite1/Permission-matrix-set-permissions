@@ -1,44 +1,44 @@
 function Invoke-PermissionMatrixEndHC {
     <#
     .SYNOPSIS
-        The 'END' stage of the Permission Matrix pipeline, responsible for all 
+        The 'END' stage of the Permission Matrix pipeline, responsible for all
         reporting, logging, and data synchronization.
 
     .DESCRIPTION
-        This function gracefully finalizes the pipeline execution by executing 
+        This function gracefully finalizes the pipeline execution by executing
         a series of 'Best Effort' reporting tasks:
-        
-        1. Tallying & Exports: 
-            Aggregates all errors/warnings. If no fatal system errors occurred, 
-            it exports the final permissions data to Excel and synchronizes the 
+
+        1. Tallying & Exports:
+            Aggregates all errors/warnings. If no fatal system errors occurred,
+            it exports the final permissions data to Excel and synchronizes the
             form data with ServiceNow.
-        2. Local Logging: 
-            Generates a dated log directory, writes detailed JSON files for 
-            every execution check, and compiles a comprehensive standalone HTML 
+        2. Local Logging:
+            Generates a dated log directory, writes detailed JSON files for
+            every execution check, and compiles a comprehensive standalone HTML
             report for each matrix.
-        3. Notifications: 
-            Constructs a stylized HTML summary body (including system errors 
-            and statistic counters) and dispatches it via SMTP using MailKit. 
+        3. Notifications:
+            Constructs a stylized HTML summary body (including system errors
+            and statistic counters) and dispatches it via SMTP using MailKit.
             It also safely dumps the raw HTML email artifact to disk.
-        4. Auditing & Cleanup: 
-            Writes final execution statistics to the Windows Event Log (if 
-            configured) and purges old log folders based on the specified 
+        4. Auditing & Cleanup:
+            Writes final execution statistics to the Windows Event Log (if
+            configured) and purges old log folders based on the specified
             retention policy.
 
-        Architectural Note: This function relies on a 'Best Effort' execution 
-        model. Each major reporting phase is wrapped in its own try/catch 
-        block. If a non-critical phase fails (e.g., saving to the Event Log), 
-        it will not crash the script, ensuring that critical phases (like 
+        Architectural Note: This function relies on a 'Best Effort' execution
+        model. Each major reporting phase is wrapped in its own try/catch
+        block. If a non-critical phase fails (e.g., saving to the Event Log),
+        it will not crash the script, ensuring that critical phases (like
         sending the failure email) still execute.
 
     .PARAMETER Context
-        The global pipeline context object built during the 'BEGIN' stage and 
-        populated with execution results during the 'PROCESS' stage. Contains 
+        The global pipeline context object built during the 'BEGIN' stage and
+        populated with execution results during the 'PROCESS' stage. Contains
         the configuration, file results, matrix objects, and runtime counters.
 
     .PARAMETER SystemErrors
-        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
-        report accumulated pipeline errors in the final email/logs, and to 
+        A reference variable ([ref]) containing a List[pscustomobject]. Used to
+        report accumulated pipeline errors in the final email/logs, and to
         capture any new reporting failures that occur during this 'END' stage.
 
     .EXAMPLE
@@ -71,16 +71,16 @@ function Invoke-PermissionMatrixEndHC {
             $Context.ExportedFiles = Export-FilesHC `
                 -ImportedMatrix $Context.AllMatrices `
                 -ExportSettings $Context.Config.Export
-            
+
             if (
                 $Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath
             ) {
-                $snowParams = @{ 
+                $snowParams = @{
                     CredentialsFilePath    = $Context.Config.ServiceNow.CredentialsFilePath
-                    Environment            = $Context.Config.ServiceNow.Environment 
-                    TableName              = $Context.Config.ServiceNow.TableName 
-                    FormDataExcelFilePath  = $Context.Config.Export.ServiceNowFormDataExcelFile 
-                    ExcelFileWorksheetName = 'SnowFormData' 
+                    Environment            = $Context.Config.ServiceNow.Environment
+                    TableName              = $Context.Config.ServiceNow.TableName
+                    FormDataExcelFilePath  = $Context.Config.Export.ServiceNowFormDataExcelFile
+                    ExcelFileWorksheetName = 'SnowFormData'
                 }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
             }
@@ -98,7 +98,7 @@ function Invoke-PermissionMatrixEndHC {
     #region Create log folder
     $logFolder = $Context.Config.Settings.SaveLogFiles.Where.Folder
     $tempLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
-    
+
     # Use temp folder if no log folder is specified
     if ([string]::IsNullOrWhiteSpace($logFolder)) {
         $logFolder = $tempLogFolder
@@ -128,7 +128,7 @@ function Invoke-PermissionMatrixEndHC {
                 }
             }
             catch { $logFolder = $null }
-        } 
+        }
         else { $logFolder = $null }
     }
     #endregion
@@ -137,12 +137,12 @@ function Invoke-PermissionMatrixEndHC {
 
     #region Create log files
     if ($logFolder) {
-        <# 
+        <#
         Lazily create the dated subfolder on first request.
         Get-DatedLogFolderPathHC uses New-Item -Force, which is a no-op
         when the folder already exists, so calling this scriptblock
         multiple times is safe and cheap. Runs that don't write anything
-        (no matrices found, no email sent) leave no empty folders behind. 
+        (no matrices found, no email sent) leave no empty folders behind.
         #>
         $ensureDatedLogFolder = {
             Get-DatedLogFolderPathHC `
@@ -150,7 +150,7 @@ function Invoke-PermissionMatrixEndHC {
                 -ScriptStartTime $Context.StartTime `
                 -JsonFileName $Context.JsonFileName
         }
-        
+
         try {
             if ($Context.FoundMatrices) {
                 foreach ($fileResult in $Context.FileResults) {
@@ -171,30 +171,30 @@ function Invoke-PermissionMatrixEndHC {
                     foreach ($fc in $fileResult.Check) {
                         $checkIndex++
                         $checkFileName = "File - Detail $checkIndex.json"
-                        
+
                         $fc | Add-Member -NotePropertyMembers @{
                             JsonFileName = $checkFileName
-                            JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName  
+                            JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName
                         } -Force
-                        
+
                         if ($fc.Value) {
                             try {
                                 $cForJson = $fc | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
-        
+
                                 if (
                                     $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
                                     $cForJson.Value -is [Exception]
                                 ) {
                                     $cForJson.Value = ($cForJson.Value | Out-String).Trim()
                                 }
-        
+
                                 $cForJson | ConvertTo-Json -Depth 10 |
                                 Out-File -FilePath $fc.JsonFilePath -Encoding UTF8 -Force
                             }
                             catch {
                                 $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
                                 $fc.JsonFileName = $null
-                                $fc.JsonFilePath = $null   
+                                $fc.JsonFilePath = $null
                             }
                         }
                         else {
@@ -211,23 +211,23 @@ function Invoke-PermissionMatrixEndHC {
                         foreach ($c in $m.Check) {
                             $checkIndex++
                             $checkFileName = "ID $($m.ID) - Detail $checkIndex.json"
-                            
+
                             $c | Add-Member -NotePropertyMembers @{
                                 JsonFileName = $checkFileName
-                                JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName  
+                                JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName
                             } -Force
 
                             if ($c.Value) {
                                 try {
                                     $cForJson = $c | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
-        
+
                                     if (
                                         $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
                                         $cForJson.Value -is [Exception]
                                     ) {
                                         $cForJson.Value = ($cForJson.Value | Out-String).Trim()
                                     }
-        
+
                                     $cForJson | ConvertTo-Json -Depth 10 |
                                     Out-File -FilePath $c.JsonFilePath -Encoding UTF8 -Force
                                 }
@@ -236,7 +236,7 @@ function Invoke-PermissionMatrixEndHC {
                                     $c.JsonFileName = $null
                                     $c.JsonFilePath = $null
                                 }
-                            } 
+                            }
                             else {
                                 $c.JsonFileName = $null
                                 $c.JsonFilePath = $null
@@ -245,7 +245,7 @@ function Invoke-PermissionMatrixEndHC {
                     }
                     #endregion
 
-                    <# 
+                    <#
                     start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file | select -First 1).FullName
 
                     (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | ForEach-Object {start $_}
@@ -258,12 +258,54 @@ function Invoke-PermissionMatrixEndHC {
                         -ScriptEndTime $scriptExecutionEndTime `
                         -LogFolder $fileLogFolder.FullName `
                         -DefaultsFilePath $Context.Config.Matrix.DefaultsFile
+
+                    #region Copy matrix file with AD detail sheets
+                    try {
+                        $sourceFilePath = if (
+                            $fileResult.PSObject.Properties['ArchivedPath'] -and
+                            $fileResult.ArchivedPath
+                        ) {
+                            # The BEGIN stage moved the original matrix
+                            # file to the archive folder
+                            $fileResult.ArchivedPath
+                        }
+                        else {
+                            $fileResult.Item.FullName
+                        }
+
+                        if ([string]::IsNullOrWhiteSpace($sourceFilePath)) {
+                            # No source path known (e.g. mocked context):
+                            # nothing to copy
+                            Write-Verbose "No source path known for matrix file '$($fileResult.Item.Name)', skipping copy to log folder"
+                        }
+                        else {
+                            $logSheets = Build-MatrixLogSheetRowsHC `
+                                -FileResult $fileResult `
+                                -AdObjectDetails $Context.AdObjectDetails
+
+                            $null = Copy-MatrixFileToLogFolderHC `
+                                -SourceFilePath $sourceFilePath `
+                                -LogFolder $fileLogFolder.FullName `
+                                -AccessListRows $logSheets.AccessList `
+                                -GroupManagerRows $logSheets.GroupManagers `
+                                -AdObjectRows $logSheets.AdObjects
+                        }
+                    }
+                    catch {
+                        Add-ErrorHC `
+                            -Type 'Warning' `
+                            -Name 'Matrix file copy' `
+                            -Message "Failed to copy matrix file '$($fileResult.Item.Name)' with AD sheets to log folder: $_" `
+                            -Category 'Logging' `
+                            -SystemErrors $SystemErrors
+                    }
+                    #endregion
                 }
             }
-            
+
             if ($SystemErrors.Value.Count -gt 0) {
-                <# 
-                ls TestDrive:\Logs\  
+                <#
+                ls TestDrive:\Logs\
                 #>
 
                 Write-SystemErrorLogHC `
@@ -308,13 +350,13 @@ function Invoke-PermissionMatrixEndHC {
         $Context.Counter = Update-MatrixCounterHC `
             -Context $Context `
             -SystemErrors $SystemErrors
-            
+
         $matrixHtml = if (
             $Context.FileResults -and $Context.FileResults.Count -gt 0
-        ) { 
+        ) {
             Build-MatrixEmailHtmlHC `
                 -FileResults $Context.FileResults `
-                -Html $htmlTemplates 
+                -Html $htmlTemplates
         }
         else { '' }
 
@@ -322,9 +364,9 @@ function Invoke-PermissionMatrixEndHC {
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -ScriptEndTime $scriptExecutionEndTime `
-            -Html @{ 
-            Style             = $htmlTemplates.Style 
-            MatrixTables      = $matrixHtml 
+            -Html @{
+            Style             = $htmlTemplates.Style
+            MatrixTables      = $matrixHtml
             SystemErrors      = $SystemErrors.Value
             ErrorWarningTable = (
                 Build-ErrorWarningTableHC -CounterData $Context.Counter
@@ -341,7 +383,7 @@ function Invoke-PermissionMatrixEndHC {
         $Context.Counter.TotalWarnings -gt 0)
 
     if (
-        $Context.Config.Settings.SendMail -and 
+        $Context.Config.Settings.SendMail -and
         ($Context.FoundMatrices -or $hasErrors)
     ) {
         try {
@@ -412,10 +454,10 @@ function Invoke-PermissionMatrixEndHC {
                 }
             }
 
-            <# 
+            <#
             start (ls $emailLogFolder)[1].FullName
             #>
-            
+
             # Drop blank entries so splatting falls back to the function's
             # parameter defaults (e.g. SmtpConnectionType -> 'None') instead of
             # passing '' and tripping its ValidateSet.
