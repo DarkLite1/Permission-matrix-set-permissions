@@ -187,7 +187,7 @@ function Copy-MatrixFileToLogFolderHC {
         - AccessList   : SamAccountName, Name, Type, MemberName,
                          MemberSamAccountName, MemberEnabled
         - GroupManagers: GroupName, ManagerName, ManagerType,
-                         ManagerMemberName
+                         ManagerMemberName, MemberEnabled
         - AdObjects    : MatrixFileName, SamAccountName, GroupName,
                          SiteCode, Name, Enabled
 
@@ -251,8 +251,8 @@ function Copy-MatrixFileToLogFolderHC {
                 Name    = 'GroupManagers'
                 Rows    = $GroupManagerRows
                 Headers = @(
-                    'GroupName', 'ManagerName',
-                    'ManagerType', 'ManagerMemberName'
+                    'GroupName', 'ManagerName', 'ManagerType',
+                    'ManagerMemberName', 'MemberEnabled'
                 )
             }
             @{
@@ -320,7 +320,11 @@ function Build-MatrixLogSheetRowsHC {
         - GroupManagers: one row per group. When the group has a manager
                          ('managedBy'), the manager is resolved against AD.
                          If the manager is itself a group, one row per
-                         manager group member is written.
+                         manager group member is written with that member's
+                         AD account status in 'MemberEnabled'. When the
+                         manager is a single user, 'MemberEnabled' holds
+                         the manager's own account status, so a disabled
+                         managing account is visible.
         - AdObjects    : one row per unique AD object used in the matrix
                          file, including the new 'Enabled' column. The
                          'GroupName', 'SiteCode' and 'Name' columns are
@@ -573,6 +577,7 @@ function Build-MatrixLogSheetRowsHC {
                                 ManagerName       = $manager.adObject.Name
                                 ManagerType       = 'group'
                                 ManagerMemberName = $mgrMember.Name
+                                MemberEnabled     = $mgrMember.Enabled
                             }
                         )
                     }
@@ -584,6 +589,9 @@ function Build-MatrixLogSheetRowsHC {
                             ManagerName       = $manager.adObject.Name
                             ManagerType       = $manager.adObject.ObjectClass
                             ManagerMemberName = $null
+                            # The manager's own AD account status, so a
+                            # disabled managing account is visible
+                            MemberEnabled     = $manager.adObject.Enabled
                         }
                     )
                 }
@@ -596,6 +604,7 @@ function Build-MatrixLogSheetRowsHC {
                         ManagerName       = $null
                         ManagerType       = $null
                         ManagerMemberName = $null
+                        MemberEnabled     = $null
                     }
                 )
             }

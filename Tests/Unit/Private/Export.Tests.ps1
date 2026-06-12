@@ -572,7 +572,8 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             'MemberName', 'MemberSamAccountName', 'MemberEnabled'
         )
         $script:GroupManagerHeaders = @(
-            'GroupName', 'ManagerName', 'ManagerType', 'ManagerMemberName'
+            'GroupName', 'ManagerName', 'ManagerType',
+            'ManagerMemberName', 'MemberEnabled'
         )
         $script:AdObjectHeaders = @(
             'MatrixFileName', 'SamAccountName',
@@ -653,6 +654,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 ManagerName       = 'Boss, Big'
                 ManagerType       = 'user'
                 ManagerMemberName = $null
+                MemberEnabled     = $false
             }
         )
 
@@ -813,6 +815,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             $rows[0].GroupName | Should -Be 'GRP Plant manager'
             $rows[0].ManagerName | Should -Be 'Boss, Big'
             $rows[0].ManagerType | Should -Be 'user'
+            "$($rows[0].MemberEnabled)" | Should -Be 'False'
         }
 
         It 'writes the AdObjects rows with the Enabled column' {
