@@ -22,6 +22,12 @@
 
     The ServiceNow and ImportExcel modules must be installed (the script #Requires
     them, and Pester can only mock commands that exist).
+
+    Note on -Exactly:
+        Every Should -Invoke below uses -Exactly. In Pester 5, `-Times N` without
+        `-Exactly` means "at least N", so `-Times 0` ("at least 0") never fails and
+        `-Times 2` would still pass if the command were called 3 times. -Exactly
+        turns these into the strict counts the tests actually intend.
 #>
 
 BeforeAll {
@@ -100,7 +106,11 @@ Describe 'UpdateServiceNow.ps1' {
         }
 
         # Default: a populated table (two existing records) so the happy path
-        # exercises removal. Tests override where needed.
+        # exercises removal. Tests override where needed. The script clears the
+        # table in chunks of -ChunkSize (default 200): it fetches the top chunk,
+        # deletes it, and refetches until a short/empty chunk signals the table
+        # is drained. Two records is a short chunk (< 200), so this default mock
+        # is returned once and the loop ends after a single Get call.
         Mock New-ServiceNowSession {}
         Mock Get-ServiceNowRecord {
             @(
@@ -119,6 +129,16 @@ Describe 'UpdateServiceNow.ps1' {
         Remove-Item Env:\SNOW_MISSING_VAR -ErrorAction Ignore
     }
 
+    Context 'parameter validation' {
+        It 'rejects a MaxRetries below 1' {
+            $params.MaxRetries = 0
+
+            { & $ScriptPath @params } | Should -Throw
+
+            Should -Invoke New-ServiceNowSession -Exactly -Times 0
+        }
+    }
+
     Context 'credentials & environment validation' {
         It 'throws when the credentials file does not exist' {
             $params.CredentialsFilePath = Join-Path $TestDrive 'missing.json'
@@ -126,7 +146,7 @@ Describe 'UpdateServiceNow.ps1' {
             { & $ScriptPath @params } |
                 Should -Throw -ExpectedMessage '*ServiceNow credentials file*'
 
-            Should -Invoke New-ServiceNowSession -Times 0
+            Should -Invoke New-ServiceNowSession -Exactly -Times 0
         }
 
         It 'throws when the requested environment is not in the file' {
@@ -169,10 +189,10 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke New-ServiceNowSession -Times 0
-            Should -Invoke Get-ServiceNowRecord -Times 0
-            Should -Invoke Remove-ServiceNowRecord -Times 0
-            Should -Invoke New-ServiceNowRecord -Times 0
+            Should -Invoke New-ServiceNowSession -Exactly -Times 0
+            Should -Invoke Get-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -180,8 +200,8 @@ Describe 'UpdateServiceNow.ps1' {
         It 'creates a session using the configured Uri' {
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Times 1
-            Should -Invoke New-ServiceNowSession -Times 1 -ParameterFilter {
+            Should -Invoke New-ServiceNowSession -Exactly -Times 1
+            Should -Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
                 $Url -eq 'https://prod.example.service-now.com'
             }
         }
@@ -195,7 +215,7 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Times 1 -ParameterFilter {
+            Should -Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
                 $Url -eq 'https://env.example.service-now.com'
             }
         }
@@ -215,7 +235,7 @@ Describe 'UpdateServiceNow.ps1' {
             { & $ScriptPath @params } |
                 Should -Throw -ExpectedMessage '*Failed to create a ServiceNow session*'
 
-            Should -Invoke New-ServiceNowRecord -Times 0
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -223,10 +243,10 @@ Describe 'UpdateServiceNow.ps1' {
         It 'removes every existing record before uploading' {
             & $ScriptPath @params
 
-            Should -Invoke Get-ServiceNowRecord -Times 1 -ParameterFilter {
+            Should -Invoke Get-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
-            Should -Invoke Remove-ServiceNowRecord -Times 2
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
         }
 
         It 'skips removal when the table is already empty' {
@@ -234,9 +254,59 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Remove-ServiceNowRecord -Times 0
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 0
             # Upload still happens.
-            Should -Invoke New-ServiceNowRecord -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+        }
+
+        It 'fetches and deletes in chunks of -ChunkSize until the table is drained' {
+            # The script reads the top chunk, deletes it, and refetches until a
+            # short chunk signals the table is drained. We drive that loop from a
+            # counter the mock increments on each call (full chunks of 2 for the
+            # first two fetches, then a short chunk of 1). The counter lives in
+            # mock-maintained state on purpose: a Mock body does NOT see
+            # $script: variables assigned in the It block, so the fake table must
+            # be self-contained here rather than read from an outer list.
+            $params.ChunkSize = 2
+
+            $script:drainGetCalls = 0
+            Mock Get-ServiceNowRecord {
+                $script:drainGetCalls = ([int]$script:drainGetCalls) + 1
+                if ($script:drainGetCalls -le 2) {
+                    [PSCustomObject]@{ sys_id = "rec-$($script:drainGetCalls)a" }
+                    [PSCustomObject]@{ sys_id = "rec-$($script:drainGetCalls)b" }
+                }
+                else {
+                    [PSCustomObject]@{ sys_id = 'rec-final' }
+                }
+            }
+
+            & $ScriptPath @params
+
+            # Three fetches (2 + 2 + 1) for five records proves the table is read
+            # a chunk at a time, not in one shot; the short third chunk ends it.
+            Should -Invoke Get-ServiceNowRecord -Exactly -Times 3
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 5
+        }
+
+        It 'does not loop forever when a record can never be removed' {
+            # ChunkSize 1 with a single record that always fails to delete: the
+            # full chunk (1 == ChunkSize) would normally trigger another fetch,
+            # but the failed-sys_id guard recognises the record is cycling back
+            # and stops instead of spinning. Upload still proceeds.
+            $params.ChunkSize = 1
+            $params.MaxRetries = 2
+            Mock Get-ServiceNowRecord { @([PSCustomObject]@{ sys_id = 'stuck-1' }) }
+            Mock Remove-ServiceNowRecord { throw 'permanent remove error' }
+
+            { & $ScriptPath @params } | Should -Not -Throw
+
+            # Pass 1 attempts the record (2 tries, 1 sleep) then records it as
+            # failed; pass 2 sees only the failed record and breaks.
+            Should -Invoke Get-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke Start-Sleep -Exactly -Times 1
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
         }
 
         It 'retries a failed removal up to MaxRetries and then continues' {
@@ -246,11 +316,12 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            # One record, two attempts, sleep between each failed attempt.
-            Should -Invoke Remove-ServiceNowRecord -Times 2
-            Should -Invoke Start-Sleep -Times 2
+            # One record, two attempts. The loop sleeps only *between* attempts,
+            # so a single sleep separates attempt 1 and attempt 2.
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke Start-Sleep -Exactly -Times 1
             # A removal that never succeeds is non-fatal: upload still proceeds.
-            Should -Invoke New-ServiceNowRecord -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
         }
     }
 
@@ -258,9 +329,16 @@ Describe 'UpdateServiceNow.ps1' {
         It 'creates a record for every row in the worksheet' {
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Times 2 -ParameterFilter {
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
+
+            # TODO: assert the record *payload* too. These tests only check the
+            # call count and -Table, so a mistake in how the per-record hashtable
+            # binds to New-ServiceNowRecord (e.g. landing on the wrong parameter,
+            # or not binding by pipeline at all) would go unnoticed. Add a
+            # -ParameterFilter on the field-data parameter once its name is
+            # confirmed for the installed ServiceNow module version.
         }
 
         It 'retries a transient creation failure and then succeeds' {
@@ -278,8 +356,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke New-ServiceNowRecord -Times 2   # one failure + one success
-            Should -Invoke Start-Sleep -Times 1
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2   # one failure + one success
+            Should -Invoke Start-Sleep -Exactly -Times 1
         }
 
         It 'throws CRITICAL FAILURE after exhausting MaxRetries on creation' {
@@ -293,8 +371,8 @@ Describe 'UpdateServiceNow.ps1' {
             { & $ScriptPath @params } |
                 Should -Throw -ExpectedMessage '*CRITICAL FAILURE*'
 
-            Should -Invoke New-ServiceNowRecord -Times 2
-            Should -Invoke Start-Sleep -Times 1   # only between attempts, not after the final throw
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke Start-Sleep -Exactly -Times 1   # only between attempts, not after the final throw
         }
     }
 
@@ -302,10 +380,10 @@ Describe 'UpdateServiceNow.ps1' {
         It 'creates a session, clears the table, and uploads all records' {
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Times 1
-            Should -Invoke Get-ServiceNowRecord -Times 1
-            Should -Invoke Remove-ServiceNowRecord -Times 2
-            Should -Invoke New-ServiceNowRecord -Times 2
+            Should -Invoke New-ServiceNowSession -Exactly -Times 1
+            Should -Invoke Get-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
         }
     }
 }

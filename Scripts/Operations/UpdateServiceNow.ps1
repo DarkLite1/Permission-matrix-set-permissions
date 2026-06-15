@@ -42,7 +42,13 @@
 
     .PARAMETER MaxRetries
         The maximum number of retry attempts for network/API timeouts when 
-        deleting or creating records. (Default: 3)
+        deleting or creating records. (Default: 3, minimum 1)
+
+    .PARAMETER ChunkSize
+        The number of existing records to fetch and delete per batch when 
+        clearing the target table. The table is drained in batches of this size 
+        rather than pulled in full, which keeps memory flat and limits the 
+        impact of a transient network failure to a single batch. (Default: 200)
 
     .EXAMPLE
         .\Update-ServiceNow.ps1 `
@@ -65,7 +71,10 @@ param (
     [String]$ExcelFileWorksheetName,
     [Parameter(Mandatory)]
     [String]$TableName,
-    [int]$MaxRetries = 3
+    [ValidateRange(1, [int]::MaxValue)]
+    [int]$MaxRetries = 3,
+    [ValidateRange(1, 10000)]
+    [int]$ChunkSize = 200
 )
 
 begin {
@@ -208,7 +217,9 @@ process {
         $recordsToUpload = Import-Excel @params
     }
     catch {
-        throw "Failed to import records to upload from file '$FormDataExcelFilePath  with worksheet name '$ExcelFileWorksheetName': $_"
+        # FIX: corrected the malformed/garbled message (missing closing quote
+        # and a stray double space) so the path and worksheet read cleanly.
+        throw "Failed to import records to upload from file '$FormDataExcelFilePath' with worksheet name '$ExcelFileWorksheetName': $_"
     }
     #endregion
 
@@ -224,51 +235,103 @@ process {
         New-ServiceNowSessionHC @params
         #endregion
 
-        #region Get all table records
-        try {
-            Write-Verbose "Get all records in ServiceNow table '$TableName'"
+        #region Remove all records in the ServiceNow table (chunked)
+        # The table is cleared in small chunks rather than pulled in full: this
+        # keeps memory flat and limits the blast radius of a network blip to a
+        # single chunk (each chunk is a fresh request with its own retries).
+        #
+        # We fetch and delete in a drain pattern: always request the current
+        # *top* $ChunkSize records and delete them. Because the delete shrinks
+        # the table, we deliberately do NOT use an increasing -Skip offset -
+        # offsetting after a delete would step over rows that have shifted up.
+        #
+        # $failedSysIds guards against an infinite loop: a record that can never
+        # be removed keeps reappearing at the top of the table, so we track such
+        # records and stop once a whole chunk consists only of them (no progress
+        # possible). Removal stays non-fatal - the upload proceeds regardless.
+        Write-Verbose "Remove all records in ServiceNow table '$TableName' in chunks of $ChunkSize"
 
-            $allTableRecords = Get-ServiceNowRecord -Table $TableName -IncludeTotalCount -First 300
+        $removeParams = @{
+            Confirm = $false
+            Verbose = $false
         }
-        catch {
-            throw "Failed to retrieve all table records in ServiceNow table '$TableName': $_"
-        }
-        #endregion
 
-        #region Remove all records in the ServiceNow table
-        if ($allTableRecords) {
-            Write-Verbose "Remove all records in ServiceNow table '$TableName'"
+        $removedCount = 0
+        $chunkNumber = 0
+        $failedSysIds = [System.Collections.Generic.HashSet[string]]::new()
 
-            $currentRecordCount = 0
-            $totalRecordCount = $allTableRecords.Count
+        while ($true) {
+            $chunkNumber++
 
-            $removeParams = @{
-                Confirm = $false
-                Verbose = $false
+            try {
+                $chunk = @(Get-ServiceNowRecord -Table $TableName -First $ChunkSize)
+            }
+            catch {
+                throw "Failed to retrieve records (chunk $chunkNumber) from ServiceNow table '$TableName': $_"
             }
 
-            foreach ($tableRecord in $allTableRecords) {
+            if ($chunk.Count -eq 0) {
+                break
+            }
+
+            # Drop records we've already given up on; if that empties the chunk,
+            # the same un-removable records are cycling back and we must stop.
+            $pending = @(
+                $chunk | Where-Object {
+                    -not $failedSysIds.Contains([string]$_.sys_id)
+                }
+            )
+
+            if ($pending.Count -eq 0) {
+                Write-Warning "Stopping removal of '$TableName': a chunk of $($chunk.Count) record(s) could not be removed on earlier attempts. $($failedSysIds.Count) record(s) remain and may surface as duplicates after upload."
+                break
+            }
+
+            Write-Verbose "Chunk $chunkNumber : removing $($pending.Count) record(s) ($removedCount removed so far)"
+
+            foreach ($tableRecord in $pending) {
                 $attempt = 0
-                $currentRecordCount++
+                $removed = $false
 
                 while ($attempt -lt $MaxRetries) {
                     $attempt++
 
                     try {
-                        Write-Verbose "($currentRecordCount/$totalRecordCount) Remove record '$($tableRecord.sys_id)' $(if($attempt -gt 1) {' - Retry'})"
+                        Write-Verbose "Remove record '$($tableRecord.sys_id)'$(if($attempt -gt 1) {' - Retry'})"
 
                         $tableRecord | Remove-ServiceNowRecord @removeParams
 
+                        $removed = $true
                         break
                     }
                     catch {
-                        Write-Warning "Failed to remove record '$($tableRecord.sys_id)': $_"
+                        # Sleep only *between* attempts, never after the last one.
+                        if ($attempt -ge $MaxRetries) {
+                            [void]$failedSysIds.Add([string]$tableRecord.sys_id)
 
-                        Start-Sleep -Seconds 3
+                            Write-Warning "Failed to remove record '$($tableRecord.sys_id)' after $MaxRetries attempts; continuing. Last error: $_"
+                        }
+                        else {
+                            Write-Warning "Attempt $attempt of $MaxRetries failed to remove record '$($tableRecord.sys_id)'. Retrying in 3 seconds... Error: $_"
+
+                            Start-Sleep -Seconds 3
+                        }
                     }
                 }
+
+                if ($removed) {
+                    $removedCount++
+                }
+            }
+
+            # A short chunk means fewer than a full page were left, so the table
+            # is now drained. A full chunk may have more behind it - loop again.
+            if ($chunk.Count -lt $ChunkSize) {
+                break
             }
         }
+
+        Write-Verbose "Removed $removedCount record(s) from '$TableName'"
         #endregion
 
         #region Create new records in the ServiceNow table
