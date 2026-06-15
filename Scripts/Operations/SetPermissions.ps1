@@ -244,15 +244,22 @@ begin {
             )
 
             try {
-                if ($ReferenceSet.Count -ne $DifferenceAce.Count) { return $false }
-
+                # Build a deduplicated fingerprint set from the on-disk ACEs and
+                # compare it to the reference set. SetEquals is robust to
+                # duplicate ACEs on either side, so it avoids the false "not
+                # equal" the old '$ReferenceSet.Count -ne $DifferenceAce.Count'
+                # guard produced whenever the reference HashSet had collapsed
+                # two fingerprint-identical ACEs into one. The fingerprint stays
+                # propagation-blind on purpose: inherited ACEs land with
+                # PropagationFlags=None while the matrix reference models them as
+                # InheritOnly, and that difference must compare as equal.
+                $diffSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
                 foreach ($D in $DifferenceAce) {
-                    # Generate the fingerprint using [int] to bypass slow string evaluations
-                    $id = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
-
-                    if (-not $ReferenceSet.Contains($id)) { return $false }
+                    # [int] casts bypass slow string evaluations
+                    [void]$diffSet.Add("$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)")
                 }
-                return $true
+
+                return $ReferenceSet.SetEquals($diffSet)
             }
             catch {
                 throw "Failed testing the ACL for equality: $_"
