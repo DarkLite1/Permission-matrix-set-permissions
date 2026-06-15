@@ -343,6 +343,248 @@ Describe 'Permission Matrix - End to End' {
         Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT under parallel execution"
     }
 
+    It 'fixes incorrect permissions on files and folders, then Check confirms all correct' -Skip:(-not $E2EPrereqsMet) {
+        # -------------------------------------------------------------------
+        # This test proves Action=Fix corrects wrong ACLs on matrix-defined
+        # folders AND inherited files, and that a subsequent Action=Check run
+        # reports success (no warnings about incorrect permissions).
+        #
+        # Phase 1 - Setup: create folders + a file with WRONG permissions:
+        #   Finance       -> Mike gets FullControl instead of R (extra rights)
+        #   Finance\Docs  -> only Admin FullControl, Bob & Mike missing entirely
+        #   report.txt    -> explicit FullControl for Bob (should be inherited)
+        #
+        # Phase 2 - Fix run: Invoke-PermissionMatrix with Action=Fix corrects
+        #   all three corruption types.
+        #
+        # Phase 3 - Check run: Invoke-PermissionMatrix with Action=Check
+        #   confirms no non-inherited or inherited permission warnings.
+        # -------------------------------------------------------------------
+
+        # ===================================================================
+        # PHASE 1: Build folder structure with deliberately wrong permissions
+        # ===================================================================
+        $rootFolder = (New-Item 'TestDrive:\FixTarget' -ItemType Directory -Force).FullName
+        $financeFolder = (New-Item (Join-Path $rootFolder 'Finance') -ItemType Directory -Force).FullName
+        $docsFolder = (New-Item (Join-Path $rootFolder 'Finance\Docs') -ItemType Directory -Force).FullName
+        $reportFile = Join-Path $docsFolder 'report.txt'
+        'test content' | Set-Content -LiteralPath $reportFile -Force
+
+        $matrixDir = (New-Item 'TestDrive:\Matrix-fix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\Logs-fix' -ItemType Directory -Force).FullName
+
+        $bobNT = New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")
+        $mikeNT = New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupMike")
+        $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
+
+        # --- Corrupt Finance: Mike gets FullControl instead of R -----------
+        $financeAclCorrupt = New-Object System.Security.AccessControl.DirectorySecurity
+        $financeAclCorrupt.SetAccessRuleProtection($true, $false)
+        $financeAclCorrupt.SetOwner($builtinAdmin)
+        $financeAclCorrupt.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $builtinAdmin, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        )
+        $financeAclCorrupt.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $mikeNT, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        )
+        [System.IO.FileSystemAclExtensions]::SetAccessControl(
+            [System.IO.DirectoryInfo]::new($financeFolder), $financeAclCorrupt)
+
+        # --- Corrupt Finance\Docs: only Admin, Bob & Mike missing entirely -
+        $docsAclCorrupt = New-Object System.Security.AccessControl.DirectorySecurity
+        $docsAclCorrupt.SetAccessRuleProtection($true, $false)
+        $docsAclCorrupt.SetOwner($builtinAdmin)
+        $docsAclCorrupt.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $builtinAdmin, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+        )
+        [System.IO.FileSystemAclExtensions]::SetAccessControl(
+            [System.IO.DirectoryInfo]::new($docsFolder), $docsAclCorrupt)
+
+        # --- Corrupt report.txt: explicit FullControl for Bob (should be inherited)
+        $fileAclCorrupt = New-Object System.Security.AccessControl.FileSecurity
+        $fileAclCorrupt.SetAccessRuleProtection($true, $false)
+        $fileAclCorrupt.SetOwner($builtinAdmin)
+        $fileAclCorrupt.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $builtinAdmin, 'FullControl', 'None', 'None', 'Allow'))
+        )
+        $fileAclCorrupt.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $bobNT, 'FullControl', 'None', 'None', 'Allow'))
+        )
+        [System.IO.FileSystemAclExtensions]::SetAccessControl(
+            [System.IO.FileInfo]::new($reportFile), $fileAclCorrupt)
+
+        # --- Verify corruption landed (sanity check) ----------------------
+        $preFixFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
+        $preFixFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value -and $_.FileSystemRights -match 'FullControl' }).Count |
+        Should -BeGreaterThan 0 -Because 'sanity: Mike should have FullControl on Finance before Fix'
+
+        $preFixDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
+        $preFixDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
+        Should -Be 0 -Because 'sanity: Bob should have no ACE on Finance\Docs before Fix'
+
+        $preFixFileAcl = Get-Acl -LiteralPath $reportFile
+        $preFixFileAcl.AreAccessRulesProtected |
+        Should -BeTrue -Because 'sanity: report.txt should have explicit (protected) ACL before Fix'
+
+        # --- Build Excel fixtures and JSON config -------------------------
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E-Fix'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Fix-Group'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $TestGroupBobSid } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $TestGroupMikeSid } }
+            )
+        }
+
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
+
+        # ===================================================================
+        # PHASE 2: Run with Action=Fix — should correct all corrupt ACLs
+        # ===================================================================
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
+        $fatals.Count | Should -Be 0 -Because (
+            "Fix run should have no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+            'Fix run should send exactly one mail'
+        )
+
+        # --- Verify Fix corrected the non-inherited folder ACLs -----------
+        $fixedFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
+        $fixedDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
+
+        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance'
+        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance'
+
+        # Mike must no longer have FullControl — the matrix says R
+        $fixedFinanceAcl.Where({
+                $_.IdentityReference.Value -eq $mikeNT.Value -and
+                $_.FileSystemRights -match 'FullControl'
+            }).Count |
+        Should -Be 0 -Because 'Fix should have corrected Mike from FullControl to R on Finance'
+
+        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance\Docs'
+        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance\Docs'
+
+        # --- Verify Fix restored inheritance on the file ------------------
+        $fixedFileAcl = Get-Acl -LiteralPath $reportFile
+        $fixedFileAcl.AreAccessRulesProtected |
+        Should -BeFalse -Because 'Fix should have removed explicit ACL protection on report.txt (restored inheritance)'
+
+        # ===================================================================
+        # PHASE 3: Run with Action=Check — should report all correct
+        # ===================================================================
+
+        # Overwrite the matrix Excel with Action=Check (same path, same
+        # permissions fixture — only the Action column changes).
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E-Fix'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Fix-Group'
+                Action                  = 'Check'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        # Re-serialise the JSON so the config timestamp is fresh — the
+        # content is identical, only the Excel changed.
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $systemErrorsCheck = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrorsCheck)
+
+        $fatalsCheck = $systemErrorsCheck.Where({ $_.Type -eq 'FatalError' })
+        $fatalsCheck.Count | Should -Be 0 -Because (
+            "Check run should have no fatal errors but got: $($fatalsCheck | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 2 -Exactly -Because (
+            'Check run should send a second mail (two total: Fix + Check)'
+        )
+
+        # --- Verify Check found no permission issues on disk --------------
+        $checkFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
+        $checkDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
+
+        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
+        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
+
+        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
+        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
+        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
+
+        $checkFileAcl = Get-Acl -LiteralPath $reportFile
+        $checkFileAcl.AreAccessRulesProtected |
+        Should -BeFalse -Because 'report.txt should still have inherited ACL after Check'
+    }
+
     It 'reports clear prerequisites when the environment is not set up' -Skip:$E2EPrereqsMet {
         # This test only runs when prerequisites are NOT met. It surfaces
         # the missing prerequisite as an actionable failure message so the
