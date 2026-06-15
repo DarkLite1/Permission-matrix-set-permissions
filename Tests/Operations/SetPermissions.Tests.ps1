@@ -81,7 +81,7 @@ BeforeAll {
                         "$env:USERDOMAIN\$Name",
                         [System.Security.AccessControl.FileSystemRights]'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize',
                         [System.Security.AccessControl.InheritanceFlags]::None,
-                        [System.Security.AccessControl.PropagationFlags]::InheritOnly,
+                        [System.Security.AccessControl.PropagationFlags]::None,
                         [System.Security.AccessControl.AccessControlType]::Allow
                     )
                     # Subfolders and files only
@@ -3083,6 +3083,179 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $entry.New | Should -BeOfType [string]
             # The Excel-side label is in MatrixAdObjects, not in New/Old
             $entry.New | Should -Not -Match 'Some label'
+        }
+    }
+}
+Describe 'Write (W) permission inheritance' {
+    BeforeAll {
+        # Returns the access rule(s) for the test user on a given path.
+        function Get-UserAceHC {
+            param ([Parameter(Mandatory)][String]$Path)
+            (Get-Acl -LiteralPath $Path).Access | Where-Object {
+                $_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser"
+            }
+        }
+
+        # Canonical rights the script assigns for W, taken from the script's own
+        # model (via New-TestAceHC) so the assertions track the script rather
+        # than a hard-coded access mask.
+        $script:expectedFolderRights = (New-TestAceHC -Type 'InheritedFolder' -Access 'W' -Name $testUser).FileSystemRights
+        $script:expectedFileRights = (New-TestAceHC -Type 'InheritedFile' -Access 'W' -Name $testUser).FileSystemRights
+
+        # The W matrix folder itself gets two explicit ACEs: a "this folder only"
+        # rule (no inheritance flags) and an inheritable rule for descendants.
+        $folderAces = @(New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser)
+        $script:expectedThisFolderRights = (
+            $folderAces | Where-Object {
+                $_.InheritanceFlags -eq [System.Security.AccessControl.InheritanceFlags]::None
+            }
+        ).FileSystemRights
+
+        $script:ciOi = [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
+        $script:noInherit = [System.Security.AccessControl.InheritanceFlags]::None
+    }
+
+    BeforeEach {
+        # A fresh, non-existent root so Action = New is allowed to create it.
+        $script:wRoot = Join-Path (Get-PSDrive TestDrive).Root "wRoot_$([guid]::NewGuid().ToString('N'))"
+
+        # Apply W to the parent folder via the script under test.
+        $null = .$testScript -Path $wRoot -Action 'New' -JobThrottleLimit 2 -Matrix @(
+            [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUser = 'W' }; Parent = $true }
+        )
+
+        # Build a tree underneath the W folder. None of these are in the matrix,
+        # so every permission they hold must come from inheritance alone.
+        $script:childFolder = (New-Item -Path (Join-Path $wRoot 'ChildFolder') -ItemType Directory -Force).FullName
+        $script:grandChildFolder = (New-Item -Path (Join-Path $childFolder 'GrandChildFolder') -ItemType Directory -Force).FullName
+        $script:fileInParent = (New-Item -Path (Join-Path $wRoot 'parentFile.txt') -ItemType File -Force).FullName
+        $script:fileInChild = (New-Item -Path (Join-Path $childFolder 'childFile.txt') -ItemType File -Force).FullName
+        $script:fileInGrandChild = (New-Item -Path (Join-Path $grandChildFolder 'grandChildFile.txt') -ItemType File -Force).FullName
+    }
+
+    Context 'the W folder itself' {
+        It 'has its explicit ACL protected (inheritance from above disabled)' {
+            (Get-Acl -LiteralPath $wRoot).AreAccessRulesProtected | Should -BeTrue
+        }
+        It 'grants the user create rights on the folder object (this-folder-only, not inherited)' {
+            $ace = Get-UserAceHC -Path $wRoot | Where-Object {
+                (-not $_.IsInherited) -and ($_.InheritanceFlags -eq $noInherit)
+            }
+            $ace | Should -Not -BeNullOrEmpty `
+                -Because 'the this-folder-only Write rule must actually apply to the folder, not InheritOnly into the void'
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedThisFolderRights
+            $ace.PropagationFlags | Should -Be ([System.Security.AccessControl.PropagationFlags]::None)
+        }
+        It 'carries a separate inheritable rule for descendants' {
+            $ace = Get-UserAceHC -Path $wRoot | Where-Object {
+                (-not $_.IsInherited) -and ($_.InheritanceFlags -eq $ciOi)
+            }
+            $ace | Should -Not -BeNullOrEmpty
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedFolderRights
+        }
+    }
+
+    Context 'a file directly in the W folder' {
+        It 'inherits the Write permission' {
+            $ace = Get-UserAceHC -Path $fileInParent
+            @($ace).Count | Should -Be 1
+            $ace.IsInherited | Should -BeTrue
+            $ace.FileSystemRights | Should -Be $expectedFileRights
+            $ace.InheritanceFlags | Should -Be $noInherit `
+                -Because 'a file is a leaf and cannot pass inheritance on'
+        }
+    }
+
+    Context 'a child folder (not in the matrix)' {
+        It 'is not protected, so it keeps inheriting from the W parent' {
+            (Get-Acl -LiteralPath $childFolder).AreAccessRulesProtected | Should -BeFalse
+        }
+        It 'inherits the Write rule with container and object inheritance' {
+            $ace = Get-UserAceHC -Path $childFolder | Where-Object IsInherited
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedFolderRights
+            $ace.InheritanceFlags | Should -Be $ciOi `
+                -Because 'the rule must keep flowing to deeper levels'
+        }
+    }
+
+    Context 'a file inside the child folder' {
+        It 'inherits the Write permission' {
+            $ace = Get-UserAceHC -Path $fileInChild | Where-Object IsInherited
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedFileRights
+            $ace.InheritanceFlags | Should -Be $noInherit
+        }
+    }
+
+    Context 'a grand-child folder (deep inheritance)' {
+        It 'is not protected' {
+            (Get-Acl -LiteralPath $grandChildFolder).AreAccessRulesProtected | Should -BeFalse
+        }
+        It 'inherits the Write rule two levels down' {
+            $ace = Get-UserAceHC -Path $grandChildFolder | Where-Object IsInherited
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedFolderRights
+            $ace.InheritanceFlags | Should -Be $ciOi
+        }
+    }
+
+    Context 'a file inside the grand-child folder (deep inheritance)' {
+        It 'inherits the Write permission' {
+            $ace = Get-UserAceHC -Path $fileInGrandChild | Where-Object IsInherited
+            @($ace).Count | Should -Be 1
+            $ace.FileSystemRights | Should -Be $expectedFileRights
+        }
+    }
+
+    Context 'the Write permission is never an over-grant' {
+        It 'does not include ChangePermissions or TakeOwnership on the <Name>' -ForEach @(
+            @{ Name = 'child folder' }
+            @{ Name = 'file in the child folder' }
+            @{ Name = 'grand-child folder' }
+            @{ Name = 'file in the grand-child folder' }
+        ) {
+            $path = switch ($Name) {
+                'child folder' { $childFolder }
+                'file in the child folder' { $fileInChild }
+                'grand-child folder' { $grandChildFolder }
+                'file in the grand-child folder' { $fileInGrandChild }
+            }
+            $rights = (Get-UserAceHC -Path $path | Where-Object IsInherited).FileSystemRights
+            ($rights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions) |
+            Should -Be 0 -Because 'permissions are owned by the matrix; users must not re-permission items'
+            ($rights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership) |
+            Should -Be 0
+        }
+    }
+
+    Context 'BUILTIN\Administrators' {
+        It 'keeps FullControl through inheritance on the <Name>' -ForEach @(
+            @{ Name = 'child folder' }
+            @{ Name = 'grand-child folder' }
+        ) {
+            $path = if ($Name -eq 'child folder') { $childFolder } else { $grandChildFolder }
+            $adminAce = (Get-Acl -LiteralPath $path).Access | Where-Object {
+                $_.IdentityReference.Value -eq 'BUILTIN\Administrators'
+            }
+            $adminAce | Should -Not -BeNullOrEmpty
+            ($adminAce.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl) |
+            Should -Be ([System.Security.AccessControl.FileSystemRights]::FullControl)
+        }
+    }
+
+    Context 'the script considers the freshly applied tree correct' {
+        It 'reports no permission problems on a follow-up Check' {
+            $actual = .$testScript -Path $wRoot -Action 'Check' -JobThrottleLimit 2 -Matrix @(
+                [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUser = 'W' }; Parent = $true }
+            ) | Where-Object {
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
+            }
+            $actual | Should -BeNullOrEmpty `
+                -Because 'a tree that purely inherits W from its parent must validate cleanly, including propagation handling'
         }
     }
 }

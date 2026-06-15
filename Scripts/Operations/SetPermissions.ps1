@@ -109,7 +109,7 @@ begin {
             }
             'W' {
                 if ($Type -eq 'Folder') {
-                    &$createRule 'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize' 'None' 'InheritOnly'
+                    &$createRule 'CreateFiles, AppendData, DeleteSubdirectoriesAndFiles, ReadAndExecute, Synchronize' 'None' 'None'
                     &$createRule 'DeleteSubdirectoriesAndFiles, Modify, Synchronize' 'ContainerInherit, ObjectInherit' 'InheritOnly'
                 }
                 elseif ($Type -eq 'InheritedFolder') {
@@ -536,49 +536,46 @@ public class TokenManipulator
 
     internal const uint OWNER_SECURITY_INFORMATION = 0x00000001;
     internal const int SE_FILE_OBJECT = 1;
+    internal const int ERROR_NOT_ALL_ASSIGNED = 1300;
 
     public static bool AddPrivilege(string privilege)
     {
-        try
-        {
-            bool retVal;
-            TokPriv1Luid tp;
-            IntPtr hproc = GetCurrentProcess();
-            IntPtr htok = IntPtr.Zero;
-            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-            tp.Count = 1;
-            tp.Luid = 0;
-            tp.Attr = SE_PRIVILEGE_ENABLED;
-            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-            return retVal;
-        }
-        catch (Exception ex)
-        {
-            throw ex;
-        }
+        TokPriv1Luid tp;
+        IntPtr hproc = GetCurrentProcess();
+        IntPtr htok = IntPtr.Zero;
+        if (!OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        tp.Count = 1;
+        tp.Luid = 0;
+        tp.Attr = SE_PRIVILEGE_ENABLED;
+        if (!LookupPrivilegeValue(null, privilege, ref tp.Luid))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        bool retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+        int lastError = Marshal.GetLastWin32Error();
+        // AdjustTokenPrivileges can return true even when the privilege was not
+        // held by the token; ERROR_NOT_ALL_ASSIGNED signals that partial failure.
+        if (!retVal || lastError == ERROR_NOT_ALL_ASSIGNED)
+            throw new System.ComponentModel.Win32Exception(lastError == 0 ? ERROR_NOT_ALL_ASSIGNED : lastError);
+        return retVal;
     }
 
     public static bool RemovePrivilege(string privilege)
     {
-        try
-        {
-            bool retVal;
-            TokPriv1Luid tp;
-            IntPtr hproc = GetCurrentProcess();
-            IntPtr htok = IntPtr.Zero;
-            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
-            tp.Count = 1;
-            tp.Luid = 0;
-            tp.Attr = SE_PRIVILEGE_DISABLED;
-            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
-            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
-            return retVal;
-        }
-        catch (Exception ex)
-        {
-            throw ex;
-        }
+        TokPriv1Luid tp;
+        IntPtr hproc = GetCurrentProcess();
+        IntPtr htok = IntPtr.Zero;
+        if (!OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        tp.Count = 1;
+        tp.Luid = 0;
+        tp.Attr = SE_PRIVILEGE_DISABLED;
+        if (!LookupPrivilegeValue(null, privilege, ref tp.Luid))
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        bool retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+        int lastError = Marshal.GetLastWin32Error();
+        if (!retVal || lastError == ERROR_NOT_ALL_ASSIGNED)
+            throw new System.ComponentModel.Win32Exception(lastError == 0 ? ERROR_NOT_ALL_ASSIGNED : lastError);
+        return retVal;
     }
 
     public static void SetOwner(string path, string accountName)
@@ -734,11 +731,6 @@ process {
                 Value       = $IgnoredFolders.Path
             }
         }
-        #endregion
-
-        #region Inaccessible files Regex
-        $FoldersListOnlyAclRegex = $Matrix.Where({ (-not ($_.Acl.Values.Where( { $_ -ne 'L' }))) -and ($_.ACL.Count -ne 0) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
-        $FoldersWithPermissionsRegex = $Matrix.Where( { ($_.Acl.Values.Where( { $_ -ne 'L' })) }).ForEach( { [Regex]::Escape("$_") }) -join '|'
         #endregion
 
         #region Create file and folder ACL for each path in the matrix
