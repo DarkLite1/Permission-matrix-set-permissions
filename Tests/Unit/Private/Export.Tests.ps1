@@ -35,6 +35,15 @@ Describe 'Export-FilesHC' {
 
     BeforeEach {
         Mock Build-ExportDataHC { return $FakeExportData }
+        Mock Build-ConsolidatedExportDataHC {
+            return [pscustomobject]@{
+                AccessList    = @([pscustomobject]@{ SamAccountName = 'grp' })
+                GroupManagers = @([pscustomobject]@{ MatrixFileName = 'X.xlsx' })
+                AdObjects     = @([pscustomobject]@{ MatrixFileName = 'X.xlsx' })
+                FormData      = @([pscustomobject]@{ MatrixFileName = 'X.xlsx' })
+            }
+        }
+        Mock Export-ConsolidatedPermissionsFileHC { return 'TestDrive:\Permissions.xlsx' }
         Mock Export-PermissionsFileHC { return 'TestDrive:\Permissions.xlsx' }
         Mock Export-ServiceNowFormDataHC { return 'TestDrive:\ServiceNow.xlsx' }
         Mock New-OverviewHtmlHC { return '<html>overview</html>' }
@@ -42,7 +51,7 @@ Describe 'Export-FilesHC' {
     }
 
     Context 'Permissions export' {
-        It 'writes the permissions file when PermissionsExcelFile is set' {
+        It 'writes the consolidated permissions file when PermissionsExcelFile is set' {
             $settings = [pscustomobject]@{
                 PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
                 ServiceNowFormDataExcelFile = $null
@@ -51,10 +60,22 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke Export-PermissionsFileHC -Times 1 -ParameterFilter {
+            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
                 $Path -eq 'TestDrive:\Permissions.xlsx'
             }
             $result.Permissions | Should -Be 'TestDrive:\Permissions.xlsx'
+        }
+
+        It 'does not use the flat single-sheet Permissions writer' {
+            $settings = [pscustomobject]@{
+                PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
+                ServiceNowFormDataExcelFile = $null
+                OverviewHtmlFile            = $null
+            }
+
+            Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
+
+            Should -Invoke Export-PermissionsFileHC -Times 0
         }
 
         It 'skips the permissions file when PermissionsExcelFile is null' {
@@ -66,11 +87,11 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke Export-PermissionsFileHC -Times 0
+            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 0
             $result.Permissions | Should -BeNullOrEmpty
         }
 
-        It 'passes Permissions rows from Build-ExportDataHC to the writer' {
+        It 'passes the consolidated sheets from Build-ConsolidatedExportDataHC to the writer' {
             $settings = [pscustomobject]@{
                 PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
                 ServiceNowFormDataExcelFile = $null
@@ -79,10 +100,29 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Export-PermissionsFileHC -Times 1 -ParameterFilter {
-                # Array -eq is element-wise filter in PowerShell, not equality.
-                # Assert on a property of the rows we expect to have been passed.
-                $Rows.Count -eq 1 -and $Rows[0].Path -eq 'C:\A'
+            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
+                $GroupManagers.Count -eq 1 -and
+                $GroupManagers[0].MatrixFileName -eq 'X.xlsx' -and
+                $AccessList.Count -eq 1 -and
+                $AdObjects.Count -eq 1 -and
+                $FormData.Count -eq 1
+            }
+        }
+
+        It 'forwards FileResults and AdObjectDetails to the consolidated builder' {
+            $settings = [pscustomobject]@{
+                PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
+                ServiceNowFormDataExcelFile = $null
+                OverviewHtmlFile            = $null
+            }
+            $fileResults = @([pscustomobject]@{ Item = [pscustomobject]@{ Name = 'F.xlsx' } })
+            $adDetails = @([pscustomobject]@{ SamAccountName = 'grp' })
+
+            Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings `
+                -FileResults $fileResults -AdObjectDetails $adDetails | Out-Null
+
+            Should -Invoke Build-ConsolidatedExportDataHC -Times 1 -ParameterFilter {
+                $FileResults.Count -eq 1 -and $AdObjectDetails.Count -eq 1
             }
         }
     }
@@ -450,6 +490,249 @@ Describe 'Build-ExportDataHC' {
 
             $res.PSObject.Properties.Name | Should -Contain 'Permissions'
             $res.PSObject.Properties.Name | Should -Contain 'FormData'
+        }
+    }
+}
+
+Describe 'Build-ConsolidatedExportDataHC' {
+    BeforeAll {
+        # A file result carrying just what the consolidator needs:
+        #   .Item.Name                      -> MatrixFileName
+        #   .Sheets.FormData.Formatted      -> one FormData row per file
+        function New-FileResult {
+            param(
+                [string]$FileName = 'A.xlsx',
+                [object]$FormDataFormatted
+            )
+            return [pscustomobject]@{
+                Item   = [pscustomobject]@{ Name = $FileName }
+                Sheets = @{ FormData = @{ Formatted = $FormDataFormatted } }
+            }
+        }
+    }
+
+    BeforeEach {
+        # Each file yields one row per sheet, tagged with its file name so we
+        # can assert on aggregation and ordering
+        Mock Build-MatrixLogSheetRowsHC {
+            [pscustomobject]@{
+                AccessList    = @(
+                    [pscustomobject]@{ SamAccountName = "acc-$($FileResult.Item.Name)" }
+                )
+                GroupManagers = @(
+                    [pscustomobject]@{
+                        GroupName         = "grp-$($FileResult.Item.Name)"
+                        ManagerName       = 'Boss'
+                        ManagerType       = 'user'
+                        ManagerMemberName = $null
+                        MemberEnabled     = $false
+                    }
+                )
+                AdObjects     = @(
+                    [pscustomobject]@{
+                        MatrixFileName = $FileResult.Item.Name
+                        SamAccountName = "ad-$($FileResult.Item.Name)"
+                    }
+                )
+            }
+        }
+    }
+
+    It 'adds a MatrixFileName column to GroupManagers and keeps MemberEnabled' {
+        $fr = New-FileResult -FileName 'Team.xlsx'
+
+        $res = Build-ConsolidatedExportDataHC -FileResults @($fr) -AdObjectDetails @()
+
+        $res.GroupManagers.Count | Should -Be 1
+        $res.GroupManagers[0].MatrixFileName | Should -Be 'Team.xlsx'
+        $res.GroupManagers[0].GroupName | Should -Be 'grp-Team.xlsx'
+        $res.GroupManagers[0].PSObject.Properties.Name | Should -Contain 'MemberEnabled'
+        $res.GroupManagers[0].MemberEnabled | Should -Be $false
+    }
+
+    It 'aggregates AccessList and AdObjects rows across files' {
+        $res = Build-ConsolidatedExportDataHC -FileResults @(
+            (New-FileResult -FileName 'One.xlsx')
+            (New-FileResult -FileName 'Two.xlsx')
+        ) -AdObjectDetails @()
+
+        $res.AccessList.Count | Should -Be 2
+        $res.AdObjects.Count | Should -Be 2
+        $res.AccessList.SamAccountName | Should -Contain 'acc-One.xlsx'
+        $res.AccessList.SamAccountName | Should -Contain 'acc-Two.xlsx'
+    }
+
+    It 'adds a MatrixFileName column to AccessList and keeps MemberEnabled' {
+        $res = Build-ConsolidatedExportDataHC -FileResults @(
+            (New-FileResult -FileName 'Team.xlsx')
+        ) -AdObjectDetails @()
+
+        $res.AccessList[0].MatrixFileName | Should -Be 'Team.xlsx'
+        $res.AccessList[0].SamAccountName | Should -Be 'acc-Team.xlsx'
+        $res.AccessList[0].PSObject.Properties.Name | Should -Contain 'MemberEnabled'
+    }
+
+    It 'emits one FormData row per file that has formatted FormData' {
+        $res = Build-ConsolidatedExportDataHC -FileResults @(
+            (New-FileResult -FileName 'One.xlsx' `
+                    -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'One.xlsx' }))
+            (New-FileResult -FileName 'Two.xlsx' `
+                    -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'Two.xlsx' }))
+        ) -AdObjectDetails @()
+
+        $res.FormData.Count | Should -Be 2
+    }
+
+    It 'skips FormData for files without formatted FormData' {
+        $res = Build-ConsolidatedExportDataHC -FileResults @(
+            (New-FileResult -FileName 'One.xlsx' -FormDataFormatted $null)
+        ) -AdObjectDetails @()
+
+        $res.FormData.Count | Should -Be 0
+    }
+
+    It 'caches the per-file rows and reuses them on a second pass' {
+        $fr = New-FileResult -FileName 'Cache.xlsx'
+
+        Build-ConsolidatedExportDataHC -FileResults @($fr) -AdObjectDetails @() | Out-Null
+        Build-ConsolidatedExportDataHC -FileResults @($fr) -AdObjectDetails @() | Out-Null
+
+        # Built once on the first pass, reused from the cache on the second
+        Should -Invoke Build-MatrixLogSheetRowsHC -Times 1 -Exactly
+        $fr.PSObject.Properties.Name | Should -Contain 'LogSheets'
+    }
+
+    It 'always returns AccessList, GroupManagers, AdObjects and FormData properties' {
+        $res = Build-ConsolidatedExportDataHC -FileResults @() -AdObjectDetails @()
+
+        foreach ($p in 'AccessList', 'GroupManagers', 'AdObjects', 'FormData') {
+            $res.PSObject.Properties.Name | Should -Contain $p
+        }
+    }
+}
+
+Describe 'Export-ConsolidatedPermissionsFileHC' {
+    BeforeAll {
+        function Get-WorksheetNames {
+            param([string]$Path)
+            $package = Open-ExcelPackage -Path $Path
+            try {
+                return @($package.Workbook.Worksheets | ForEach-Object { $_.Name })
+            }
+            finally {
+                Close-ExcelPackage -ExcelPackage $package -NoSave
+            }
+        }
+
+        function Get-Header {
+            param([string]$Path, [string]$WorksheetName)
+            $package = Open-ExcelPackage -Path $Path
+            try {
+                $sheet = $package.Workbook.Worksheets[$WorksheetName]
+                if (-not $sheet -or -not $sheet.Dimension) { return $null }
+                return @(
+                    for ($c = 1; $c -le $sheet.Dimension.End.Column; $c++) {
+                        $sheet.Cells[1, $c].Text
+                    }
+                )
+            }
+            finally {
+                Close-ExcelPackage -ExcelPackage $package -NoSave
+            }
+        }
+    }
+
+    Context 'worksheet structure' {
+        It 'always creates AccessList, GroupManagers, AdObjects and FormData worksheets' {
+            $path = Join-Path $TestDrive 'Perm-empty.xlsx'
+
+            Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
+
+            $names = Get-WorksheetNames -Path $path
+            foreach ($n in 'AccessList', 'GroupManagers', 'AdObjects', 'FormData') {
+                $names | Should -Contain $n
+            }
+        }
+
+        It 'writes the GroupManagers header with MatrixFileName and MemberEnabled' {
+            $path = Join-Path $TestDrive 'Perm-headers.xlsx'
+
+            Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
+
+            Get-Header -Path $path -WorksheetName 'GroupManagers' |
+            Should -Be @(
+                'MatrixFileName', 'GroupName', 'ManagerName',
+                'ManagerType', 'ManagerMemberName', 'MemberEnabled'
+            )
+        }
+
+        It 'writes the AccessList header with MatrixFileName first' {
+            $path = Join-Path $TestDrive 'Perm-acl-headers.xlsx'
+
+            Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
+
+            Get-Header -Path $path -WorksheetName 'AccessList' |
+            Should -Be @(
+                'MatrixFileName', 'SamAccountName', 'Name', 'Type',
+                'MemberName', 'MemberSamAccountName', 'MemberEnabled'
+            )
+        }
+    }
+
+    Context 'writing rows' {
+        It 'writes the supplied rows to each sheet' {
+            $path = Join-Path $TestDrive 'Perm-rows.xlsx'
+
+            Export-ConsolidatedPermissionsFileHC -Path $path `
+                -AccessList @(
+                [pscustomobject]@{
+                    SamAccountName = 'grp'; Name = 'grp'; Type = 'group'
+                    MemberName = 'John'; MemberSamAccountName = 'jdoe'
+                    MemberEnabled = $true
+                }
+            ) `
+                -GroupManagers @(
+                [pscustomobject]@{
+                    MatrixFileName = 'A.xlsx'; GroupName = 'grp'; ManagerName = 'Boss'
+                    ManagerType = 'user'; ManagerMemberName = $null; MemberEnabled = $false
+                }
+            ) `
+                -AdObjects @(
+                [pscustomobject]@{
+                    MatrixFileName = 'A.xlsx'; SamAccountName = 'grp'
+                    GroupName = 'grp'; SiteCode = 'BEL'; Name = 'x'; Enabled = $true
+                }
+            ) `
+                -FormData @(
+                [pscustomobject]@{ MatrixFileName = 'A.xlsx'; MatrixResponsible = 'a@b.com' }
+            ) | Out-Null
+
+            @(Import-Excel -Path $path -WorksheetName 'AccessList').Count | Should -Be 1
+
+            $gm = @(Import-Excel -Path $path -WorksheetName 'GroupManagers')
+            $gm.Count | Should -Be 1
+            $gm[0].MatrixFileName | Should -Be 'A.xlsx'
+
+            @(Import-Excel -Path $path -WorksheetName 'AdObjects').Count | Should -Be 1
+
+            $fd = @(Import-Excel -Path $path -WorksheetName 'FormData')
+            $fd.Count | Should -Be 1
+            $fd[0].MatrixResponsible | Should -Be 'a@b.com'
+        }
+    }
+
+    Context 'replacing an existing file' {
+        It 'replaces a pre-existing file rather than appending stale sheets' {
+            $path = Join-Path $TestDrive 'Perm-stale.xlsx'
+
+            @([pscustomobject]@{ A = 1 }) |
+            Export-Excel -Path $path -WorksheetName 'StaleSheet'
+
+            Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
+
+            $names = Get-WorksheetNames -Path $path
+            $names | Should -Not -Contain 'StaleSheet'
+            $names | Should -Contain 'AccessList'
         }
     }
 }

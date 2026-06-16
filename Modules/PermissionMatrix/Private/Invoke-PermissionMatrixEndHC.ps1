@@ -70,7 +70,9 @@ function Invoke-PermissionMatrixEndHC {
         try {
             $Context.ExportedFiles = Export-FilesHC `
                 -ImportedMatrix $Context.AllMatrices `
-                -ExportSettings $Context.Config.Export
+                -ExportSettings $Context.Config.Export `
+                -FileResults $Context.FileResults `
+                -AdObjectDetails $Context.AdObjectDetails
 
             if (
                 $Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath
@@ -274,9 +276,19 @@ function Invoke-PermissionMatrixEndHC {
                             Write-Verbose "No source path known for matrix file '$($fileResult.Item.Name)', skipping copy to log folder"
                         }
                         else {
-                            $logSheets = Build-MatrixLogSheetRowsHC `
-                                -FileResult $fileResult `
-                                -AdObjectDetails $Context.AdObjectDetails
+                            $logSheets = if (
+                                $fileResult.PSObject.Properties['LogSheets'] -and
+                                $fileResult.LogSheets
+                            ) {
+                                # Reuse the rows already built for the
+                                # consolidated Permissions workbook
+                                $fileResult.LogSheets
+                            }
+                            else {
+                                Build-MatrixLogSheetRowsHC `
+                                    -FileResult $fileResult `
+                                    -AdObjectDetails $Context.AdObjectDetails
+                            }
 
                             $copiedMatrixPath = Copy-MatrixFileToLogFolderHC `
                                 -SourceFilePath $sourceFilePath `

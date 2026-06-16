@@ -97,18 +97,36 @@ function Export-FilesHC {
         Executes all export operations based on settings.
 
     .DESCRIPTION
-        Builds export data from imported matrices, then writes the configured
-        export artifacts to disk: Permissions Excel, ServiceNow FormData Excel,
-        and the standalone overview HTML page.
+        Writes the configured export artifacts to disk:
 
-        The overview HTML is generated internally — callers no longer pass it
-        in. The email summary body is a separate artifact built by EndHC and
-        is not used here.
+        - Permissions Excel: a single consolidated workbook holding the
+          'AccessList', 'GroupManagers', 'AdObjects' and 'FormData'
+          worksheets aggregated across every matrix file. The same per-file
+          rows are still written into the per-matrix copies in the log folder
+          by EndHC; to avoid resolving group managers in AD twice, the rows
+          built here are cached on each file result (.LogSheets) so EndHC can
+          reuse them.
+        - ServiceNow FormData Excel
+        - the standalone overview HTML page (generated internally)
+
+        The email summary body is a separate artifact built by EndHC and is
+        not used here.
+
+    .PARAMETER FileResults
+        The per-file result objects ($Context.FileResults). Required to build
+        the consolidated Permissions workbook and the log-folder sheet rows.
+
+    .PARAMETER AdObjectDetails
+        The resolved AD objects of the run ($Context.AdObjectDetails), used to
+        expand group members and managers for the AccessList / GroupManagers /
+        AdObjects sheets.
     #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$ImportedMatrix,
-        [Parameter(Mandatory)]      $ExportSettings
+        [Parameter(Mandatory)]      $ExportSettings,
+        [array]$FileResults = @(),
+        [array]$AdObjectDetails = @()
     )
 
     $exportData = Build-ExportDataHC -ImportedMatrix $ImportedMatrix
@@ -119,10 +137,18 @@ function Export-FilesHC {
         OverviewHtml = $null
     }
 
-    # 1. Permissions Excel
+    # 1. Consolidated Permissions workbook
+    #    (AccessList / GroupManagers / AdObjects / FormData)
     if ($ExportSettings.PermissionsExcelFile) {
-        $results.Permissions = Export-PermissionsFileHC `
-            -Rows $exportData.Permissions `
+        $consolidated = Build-ConsolidatedExportDataHC `
+            -FileResults $FileResults `
+            -AdObjectDetails $AdObjectDetails
+
+        $results.Permissions = Export-ConsolidatedPermissionsFileHC `
+            -AccessList $consolidated.AccessList `
+            -GroupManagers $consolidated.GroupManagers `
+            -AdObjects $consolidated.AdObjects `
+            -FormData $consolidated.FormData `
             -Path $ExportSettings.PermissionsExcelFile
     }
 
@@ -198,6 +224,235 @@ function Export-OverviewHtmlHC {
     }
     catch {
         throw "Failed exporting Overview HTML file: $_"
+    }
+}
+
+function Build-ConsolidatedExportDataHC {
+    <#
+    .SYNOPSIS
+        Aggregates the log-sheet rows of every matrix file into one set of
+        rows for the consolidated Permissions workbook.
+
+    .DESCRIPTION
+        For each file result, builds the per-file 'AccessList',
+        'GroupManagers' and 'AdObjects' rows with Build-MatrixLogSheetRowsHC
+        and combines them across all files:
+
+        - AccessList   : each row is prefixed with a 'MatrixFileName' column
+                         so rows from different files can be told apart in the
+                         combined sheet
+        - GroupManagers: each row is prefixed with a 'MatrixFileName' column
+                         so rows from different files can be told apart in the
+                         combined sheet; 'MemberEnabled' is preserved
+        - AdObjects    : taken as-is (already carries 'MatrixFileName')
+        - FormData     : one row per file, from the file's formatted FormData
+
+        The unmodified per-file row sets are cached on each file result as a
+        'LogSheets' property, so EndHC can reuse them when writing the
+        per-matrix copy to the log folder instead of resolving group managers
+        in AD a second time.
+
+    .PARAMETER FileResults
+        The per-file result objects ($Context.FileResults).
+
+    .PARAMETER AdObjectDetails
+        The resolved AD objects of the run ($Context.AdObjectDetails).
+
+    .OUTPUTS
+        PSCustomObject with the properties 'AccessList', 'GroupManagers',
+        'AdObjects' and 'FormData'.
+    #>
+    [CmdletBinding()]
+    param(
+        [array]$FileResults = @(),
+        [array]$AdObjectDetails = @()
+    )
+
+    $accessListRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $groupManagerRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $adObjectRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $formDataRows = [System.Collections.Generic.List[pscustomobject]]::new()
+
+    foreach ($fileResult in $FileResults) {
+
+        # Reuse the cached per-file rows when present, otherwise build them
+        # once and cache them so EndHC's log-folder copy can reuse them
+        $logSheets = if (
+            $fileResult.PSObject.Properties['LogSheets'] -and
+            $fileResult.LogSheets
+        ) {
+            $fileResult.LogSheets
+        }
+        else {
+            $sheets = Build-MatrixLogSheetRowsHC `
+                -FileResult $fileResult `
+                -AdObjectDetails $AdObjectDetails
+
+            $fileResult | Add-Member `
+                -NotePropertyName 'LogSheets' `
+                -NotePropertyValue $sheets -Force
+
+            $sheets
+        }
+
+        $matrixFileName = $fileResult.Item.Name
+
+        foreach ($row in $logSheets.AccessList) {
+            # Prefix the file name so rows from different files are
+            # distinguishable in the combined sheet
+            $accessListRows.Add(
+                [pscustomobject]@{
+                    MatrixFileName       = $matrixFileName
+                    SamAccountName       = $row.SamAccountName
+                    Name                 = $row.Name
+                    Type                 = $row.Type
+                    MemberName           = $row.MemberName
+                    MemberSamAccountName = $row.MemberSamAccountName
+                    MemberEnabled        = $row.MemberEnabled
+                }
+            )
+        }
+
+        foreach ($row in $logSheets.GroupManagers) {
+            # Prefix the file name; keep MemberEnabled
+            $groupManagerRows.Add(
+                [pscustomobject]@{
+                    MatrixFileName    = $matrixFileName
+                    GroupName         = $row.GroupName
+                    ManagerName       = $row.ManagerName
+                    ManagerType       = $row.ManagerType
+                    ManagerMemberName = $row.ManagerMemberName
+                    MemberEnabled     = $row.MemberEnabled
+                }
+            )
+        }
+
+        foreach ($row in $logSheets.AdObjects) {
+            $adObjectRows.Add($row)
+        }
+
+        $formData = $fileResult.Sheets.FormData.Formatted
+        if ($formData) {
+            $formDataRows.Add([pscustomobject]$formData)
+        }
+    }
+
+    return [pscustomobject]@{
+        AccessList    = $accessListRows.ToArray()
+        GroupManagers = $groupManagerRows.ToArray()
+        AdObjects     = $adObjectRows.ToArray()
+        FormData      = $formDataRows.ToArray()
+    }
+}
+
+function Export-ConsolidatedPermissionsFileHC {
+    <#
+    .SYNOPSIS
+        Writes the consolidated Permissions workbook with the 'AccessList',
+        'GroupManagers', 'AdObjects' and 'FormData' worksheets.
+
+    .DESCRIPTION
+        Always creates all four worksheets, even when a row set is empty
+        (header-only for the sheets with a fixed column layout), so the
+        workbook always has the same structure. Any pre-existing file at the
+        target path is replaced, so re-runs don't stack stale worksheets.
+
+    .PARAMETER AccessList
+        Aggregated AccessList rows.
+
+    .PARAMETER GroupManagers
+        Aggregated GroupManagers rows (including the 'MatrixFileName' column).
+
+    .PARAMETER AdObjects
+        Aggregated AdObjects rows.
+
+    .PARAMETER FormData
+        Aggregated FormData rows (one per file). Columns depend on the matrix
+        template, so no fixed headers are written when this set is empty.
+
+    .PARAMETER Path
+        The target .xlsx path ($Context.Config.Export.PermissionsExcelFile).
+
+    .OUTPUTS
+        System.String - the path that was written.
+    #>
+    [CmdletBinding()]
+    param(
+        [array]$AccessList = @(),
+        [array]$GroupManagers = @(),
+        [array]$AdObjects = @(),
+        [array]$FormData = @(),
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    try {
+        # Start from a clean file so re-runs don't stack stale worksheets
+        if (Test-Path -LiteralPath $Path) {
+            Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+        }
+
+        $worksheets = @(
+            @{
+                Name    = 'AccessList'
+                Rows    = $AccessList
+                Headers = @(
+                    'MatrixFileName', 'SamAccountName', 'Name', 'Type',
+                    'MemberName', 'MemberSamAccountName', 'MemberEnabled'
+                )
+            }
+            @{
+                Name    = 'GroupManagers'
+                Rows    = $GroupManagers
+                Headers = @(
+                    'MatrixFileName', 'GroupName', 'ManagerName',
+                    'ManagerType', 'ManagerMemberName', 'MemberEnabled'
+                )
+            }
+            @{
+                Name    = 'AdObjects'
+                Rows    = $AdObjects
+                Headers = @(
+                    'MatrixFileName', 'SamAccountName',
+                    'GroupName', 'SiteCode', 'Name', 'Enabled'
+                )
+            }
+            @{
+                Name    = 'FormData'
+                Rows    = $FormData
+                Headers = @()
+            }
+        )
+
+        foreach ($ws in $worksheets) {
+            if ($ws.Rows -and @($ws.Rows).Count -gt 0) {
+                $ws.Rows | Export-Excel -Path $Path `
+                    -WorksheetName $ws.Name -TableName $ws.Name `
+                    -AutoSize -FreezeTopRow
+            }
+            else {
+                # Always create the worksheet, even without data, so the
+                # workbook structure stays stable across runs
+                $excelPackage = Open-ExcelPackage -Path $Path -Create
+                try {
+                    $sheet = Add-Worksheet `
+                        -ExcelPackage $excelPackage `
+                        -WorksheetName $ws.Name
+
+                    for ($i = 0; $i -lt $ws.Headers.Count; $i++) {
+                        $sheet.Cells[1, ($i + 1)].Value = $ws.Headers[$i]
+                        $sheet.Cells[1, ($i + 1)].Style.Font.Bold = $true
+                    }
+                }
+                finally {
+                    Close-ExcelPackage -ExcelPackage $excelPackage
+                }
+            }
+        }
+
+        return $Path
+    }
+    catch {
+        throw "Failed exporting consolidated Permissions Excel file '$Path': $_"
     }
 }
 
