@@ -225,57 +225,81 @@ Describe 'Export-FilesHC' {
 
 Describe 'Build-ExportDataHC' {
     BeforeAll {
-        # Builder mirroring the imported-matrix shape Build-ExportDataHC consumes:
-        #   $I.File.Item.Name
-        #   $I.Settings[].Import.{ComputerName,Path,Action}
-        #   $I.Settings[].Check[].Type
-        #   $I.FormData.Import[]
-        function New-ImportedMatrix {
+        # Builders mirroring the real matrix-object shape that
+        # Build-ExportDataHC consumes from $Context.AllMatrices:
+        #   $matrixObj.Setting.Formatted.{ComputerName, Path, Action}
+        #   $matrixObj.Check[].Type
+        #   $matrixObj.FileContext.Item.{Name, FullName}
+        #   $matrixObj.FileContext.Sheets.FormData.Formatted  (one per file)
+        #
+        # A FileContext is shared by every matrix object that came from the
+        # same source file, exactly like the real flattened $Context.AllMatrices.
+        function New-FileContext {
             param(
                 [string]$FileName = 'A.xlsx',
-                [object[]]$Settings = @(),
-                [object[]]$FormDataImport = $null,
+                [string]$FullName,
+                [object]$FormDataFormatted,
                 [switch]$NoFormDataProperty
             )
 
-            $obj = [pscustomobject]@{
-                File     = [pscustomobject]@{ Item = [pscustomobject]@{ Name = $FileName } }
-                Settings = $Settings
+            if (-not $FullName) { $FullName = "C:\Matrix\$FileName" }
+
+            $sheets = if ($NoFormDataProperty) {
+                @{}
+            }
+            else {
+                @{ FormData = @{ Raw = $null; Formatted = $FormDataFormatted } }
             }
 
-            if (-not $NoFormDataProperty) {
-                $obj | Add-Member -NotePropertyName FormData -NotePropertyValue (
-                    [pscustomobject]@{ Import = $FormDataImport }
+            return [pscustomobject]@{
+                Item   = [pscustomobject]@{
+                    Name     = $FileName
+                    FullName = $FullName
+                }
+                Sheets = $sheets
+            }
+        }
+
+        function New-MatrixObject {
+            param(
+                [string]$ComputerName = 'PC1',
+                [string]$Path = 'C:\',
+                [string]$Action = 'Set',
+                [object[]]$Check = @(),
+                [object]$FileContext,
+                [switch]$NoSetting
+            )
+
+            if (-not $FileContext) { $FileContext = New-FileContext }
+
+            $obj = [pscustomobject]@{
+                ID          = [guid]::NewGuid().ToString()
+                Check       = $Check
+                FileContext = $FileContext
+            }
+
+            if (-not $NoSetting) {
+                $obj | Add-Member -NotePropertyName Setting -NotePropertyValue (
+                    @{
+                        Formatted = [pscustomobject]@{
+                            ComputerName = $ComputerName
+                            Path         = $Path
+                            Action       = $Action
+                        }
+                    }
                 )
             }
 
             return $obj
         }
-
-        function New-Setting {
-            param(
-                [string]$ComputerName = 'PC1',
-                [string]$Path = 'C:\',
-                [string]$Action = 'Set',
-                [object[]]$Check = @()
-            )
-            return [pscustomobject]@{
-                Import = [pscustomobject]@{
-                    ComputerName = $ComputerName
-                    Path         = $Path
-                    Action       = $Action
-                }
-                Check  = $Check
-            }
-        }
     }
 
     Context 'permissions row mapping' {
-        It 'maps the matrix file name and import fields onto each permissions row' {
+        It 'maps the matrix file name and setting fields onto each permissions row' {
+            $fc = New-FileContext -FileName 'Team.xlsx'
             $imported = @(
-                New-ImportedMatrix -FileName 'Team.xlsx' -Settings @(
-                    New-Setting -ComputerName 'SRV9' -Path 'D:\data' -Action 'Fix'
-                )
+                New-MatrixObject -FileContext $fc `
+                    -ComputerName 'SRV9' -Path 'D:\data' -Action 'Fix'
             )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
@@ -289,13 +313,11 @@ Describe 'Build-ExportDataHC' {
 
         It 'counts FatalError checks into Errors and Warning checks into Warnings' {
             $imported = @(
-                New-ImportedMatrix -Settings @(
-                    New-Setting -Check @(
-                        [pscustomobject]@{ Type = 'FatalError' }
-                        [pscustomobject]@{ Type = 'FatalError' }
-                        [pscustomobject]@{ Type = 'Warning' }
-                        [pscustomobject]@{ Type = 'Information' }
-                    )
+                New-MatrixObject -Check @(
+                    [pscustomobject]@{ Type = 'FatalError' }
+                    [pscustomobject]@{ Type = 'FatalError' }
+                    [pscustomobject]@{ Type = 'Warning' }
+                    [pscustomobject]@{ Type = 'Information' }
                 )
             )
 
@@ -305,8 +327,8 @@ Describe 'Build-ExportDataHC' {
             $res.Permissions[0].Warnings | Should -Be 1
         }
 
-        It 'reports zero Errors and Warnings when a setting has no checks' {
-            $imported = @( New-ImportedMatrix -Settings @( New-Setting -Check @() ) )
+        It 'reports zero Errors and Warnings when a matrix has no checks' {
+            $imported = @( New-MatrixObject -Check @() )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
@@ -314,13 +336,12 @@ Describe 'Build-ExportDataHC' {
             $res.Permissions[0].Warnings | Should -Be 0
         }
 
-        It 'produces one permissions row per setting across a single matrix' {
+        It 'produces one permissions row per matrix object sharing a file' {
+            $fc = New-FileContext -FileName 'Multi.xlsx'
             $imported = @(
-                New-ImportedMatrix -Settings @(
-                    New-Setting -ComputerName 'PC1'
-                    New-Setting -ComputerName 'PC2'
-                    New-Setting -ComputerName 'PC3'
-                )
+                New-MatrixObject -FileContext $fc -ComputerName 'PC1'
+                New-MatrixObject -FileContext $fc -ComputerName 'PC2'
+                New-MatrixObject -FileContext $fc -ComputerName 'PC3'
             )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
@@ -332,12 +353,12 @@ Describe 'Build-ExportDataHC' {
 
     Context 'multiple matrices' {
         It 'aggregates permissions rows from every imported matrix' {
+            $one = New-FileContext -FileName 'One.xlsx'
+            $two = New-FileContext -FileName 'Two.xlsx'
             $imported = @(
-                New-ImportedMatrix -FileName 'One.xlsx' -Settings @( New-Setting -ComputerName 'A' )
-                New-ImportedMatrix -FileName 'Two.xlsx' -Settings @(
-                    New-Setting -ComputerName 'B'
-                    New-Setting -ComputerName 'C'
-                )
+                New-MatrixObject -FileContext $one -ComputerName 'A'
+                New-MatrixObject -FileContext $two -ComputerName 'B'
+                New-MatrixObject -FileContext $two -ComputerName 'C'
             )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
@@ -347,27 +368,45 @@ Describe 'Build-ExportDataHC' {
             ($res.Permissions | Where-Object MatrixFile -EQ 'Two.xlsx').Count | Should -Be 2
         }
 
-        It 'aggregates FormData rows from every imported matrix' {
+        It 'emits one FormData row per file' {
+            $one = New-FileContext -FileName 'One.xlsx' `
+                -FormDataFormatted ([pscustomobject]@{ Field = 'A'; Value = '1' })
+            $two = New-FileContext -FileName 'Two.xlsx' `
+                -FormDataFormatted ([pscustomobject]@{ Field = 'B'; Value = '2' })
             $imported = @(
-                New-ImportedMatrix -FileName 'One.xlsx' -FormDataImport @(
-                    [pscustomobject]@{ Field = 'A'; Value = '1' }
-                )
-                New-ImportedMatrix -FileName 'Two.xlsx' -FormDataImport @(
-                    [pscustomobject]@{ Field = 'B'; Value = '2' }
-                    [pscustomobject]@{ Field = 'C'; Value = '3' }
-                )
+                New-MatrixObject -FileContext $one
+                New-MatrixObject -FileContext $two
             )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.FormData.Count | Should -Be 3
+            $res.FormData.Count | Should -Be 2
+        }
+    }
+
+    Context 'FormData per-file deduplication' {
+        It 'emits only one FormData row when a file has multiple settings rows' {
+            $fc = New-FileContext -FileName 'Multi.xlsx' `
+                -FormDataFormatted ([pscustomobject]@{ Field = 'Owner'; Value = 'alice' })
+            $imported = @(
+                New-MatrixObject -FileContext $fc -ComputerName 'PC1'
+                New-MatrixObject -FileContext $fc -ComputerName 'PC2'
+            )
+
+            $res = Build-ExportDataHC -ImportedMatrix $imported
+
+            # Two permissions rows (one per settings row) but a single FormData row
+            $res.Permissions.Count | Should -Be 2
+            $res.FormData.Count | Should -Be 1
+            $res.FormData[0].Value | Should -Be 'alice'
         }
     }
 
     Context 'FormData edge cases' {
-        It 'preserves each FormData import row object' {
-            $row = [pscustomobject]@{ Field = 'Owner'; Value = 'alice' }
-            $imported = @( New-ImportedMatrix -FormDataImport @($row) )
+        It 'preserves the formatted FormData object for the file' {
+            $fc = New-FileContext `
+                -FormDataFormatted ([pscustomobject]@{ Field = 'Owner'; Value = 'alice' })
+            $imported = @( New-MatrixObject -FileContext $fc )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
@@ -376,16 +415,18 @@ Describe 'Build-ExportDataHC' {
             $res.FormData[0].Value | Should -Be 'alice'
         }
 
-        It 'adds no FormData rows when FormData.Import is empty' {
-            $imported = @( New-ImportedMatrix -FormDataImport @() )
+        It 'adds no FormData rows when the file has no formatted FormData' {
+            $fc = New-FileContext -FormDataFormatted $null
+            $imported = @( New-MatrixObject -FileContext $fc )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
             $res.FormData.Count | Should -Be 0
         }
 
-        It 'adds no FormData rows when the matrix has no FormData property at all' {
-            $imported = @( New-ImportedMatrix -Settings @( New-Setting ) -NoFormDataProperty )
+        It 'adds no FormData rows when the file has no FormData sheet entry' {
+            $fc = New-FileContext -NoFormDataProperty
+            $imported = @( New-MatrixObject -FileContext $fc )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
@@ -394,8 +435,9 @@ Describe 'Build-ExportDataHC' {
     }
 
     Context 'empty and sparse inputs' {
-        It 'returns empty collections when a matrix has neither settings nor form data' {
-            $imported = @( New-ImportedMatrix -Settings @() -FormDataImport @() )
+        It 'skips the permissions row for a matrix object without a Setting' {
+            $fc = New-FileContext -NoFormDataProperty
+            $imported = @( New-MatrixObject -FileContext $fc -NoSetting )
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
@@ -404,7 +446,7 @@ Describe 'Build-ExportDataHC' {
         }
 
         It 'always returns an object exposing Permissions and FormData properties' {
-            $res = Build-ExportDataHC -ImportedMatrix @( New-ImportedMatrix )
+            $res = Build-ExportDataHC -ImportedMatrix @( New-MatrixObject )
 
             $res.PSObject.Properties.Name | Should -Contain 'Permissions'
             $res.PSObject.Properties.Name | Should -Contain 'FormData'

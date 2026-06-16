@@ -4,16 +4,31 @@ function Build-ExportDataHC {
         Builds aggregated export data for permissions and ServiceNow form data.
 
     .DESCRIPTION
-        Iterates through the processed matrices and extracts the execution
-        results (Errors, Warnings, Paths, Actions) and form data into flat,
-        structured lists.
+        Iterates the flattened matrix objects (one per enabled Settings row,
+        as found in $Context.AllMatrices) and extracts:
+
+        - one Permissions row per matrix object, built from the formatted
+          Settings values and the matrix object's own check list
+        - one FormData row per matrix file, taken from the file's formatted
+          FormData
+
+        Because $Context.AllMatrices is flattened per Settings row, several
+        matrix objects can share the same source file. The FormData row is
+        therefore emitted only once per file (deduplicated on the shared
+        FileContext), while permissions rows are emitted for every matrix
+        object.
+
         This output is specifically formatted to be fed directly into the HTML
         and Excel reporting functions.
 
     .PARAMETER ImportedMatrix
-        An array of processed matrix file objects (typically from $Context.
-        FileResults) containing the settings, execution checks, and associated
-        form data.
+        An array of matrix objects (typically $Context.AllMatrices). Each
+        object exposes:
+        - Setting.Formatted.{ComputerName, Path, Action}
+        - Check (list of objects with a 'Type' of 'FatalError' / 'Warning')
+        - FileContext.Item.{Name, FullName}
+        - FileContext.Sheets.FormData.Formatted (a single formatted row, or
+          $null when no ServiceNow / overview export is configured)
     #>
     [CmdletBinding()]
     param(
@@ -24,30 +39,50 @@ function Build-ExportDataHC {
     $permissionsRows = [System.Collections.Generic.List[pscustomobject]]::new()
     $formDataRows = [System.Collections.Generic.List[pscustomobject]]::new()
 
-    foreach ($I in $ImportedMatrix) {
+    # Tracks the files whose FormData row has already been emitted, so a file
+    # with several enabled Settings rows still yields a single FormData row
+    $seenFiles = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
 
-        # Permissions export rows
-        if ($I.Settings) {
-            foreach ($S in $I.Settings) {
-                $permissionsRows.Add([pscustomobject]@{
-                        MatrixFile = $I.File.Item.Name
-                        Computer   = $S.Import.ComputerName
-                        Path       = $S.Import.Path
-                        Action     = $S.Import.Action
-                        Errors     = @(
-                            $S.Check |
-                            Where-Object { $_.Type -eq 'FatalError' }).Count
-                        Warnings   = @(
-                            $S.Check |
-                            Where-Object { $_.Type -eq 'Warning' }).Count
-                    })
+    foreach ($matrixObj in $ImportedMatrix) {
+
+        $fileContext = $matrixObj.FileContext
+
+        #region Permissions row (one per matrix object / enabled Settings row)
+        if ($matrixObj.Setting) {
+            $setting = $matrixObj.Setting.Formatted
+
+            $permissionsRows.Add(
+                [pscustomobject]@{
+                    MatrixFile = $fileContext.Item.Name
+                    Computer   = $setting.ComputerName
+                    Path       = $setting.Path
+                    Action     = $setting.Action
+                    Errors     = @(
+                        $matrixObj.Check |
+                        Where-Object { $_.Type -eq 'FatalError' }).Count
+                    Warnings   = @(
+                        $matrixObj.Check |
+                        Where-Object { $_.Type -eq 'Warning' }).Count
+                }
+            )
+        }
+        #endregion
+
+        #region FormData row (one per file, deduplicated on the FileContext)
+        if ($fileContext) {
+            $fileKey = $fileContext.Item.FullName
+            if (-not $fileKey) { $fileKey = $fileContext.Item.Name }
+
+            if ($fileKey -and $seenFiles.Add($fileKey)) {
+                $formData = $fileContext.Sheets.FormData.Formatted
+                if ($formData) {
+                    $formDataRows.Add([pscustomobject]$formData)
+                }
             }
         }
-
-        # FormData sheet export rows
-        if ($I.FormData.Import) {
-            $formDataRows.AddRange([pscustomobject[]]@($I.FormData.Import))
-        }
+        #endregion
     }
 
     return [pscustomobject]@{
