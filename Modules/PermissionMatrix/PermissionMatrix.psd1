@@ -24,7 +24,8 @@ the complex task of ensuring folder security across multiple remote computers.
     )
 
     FunctionsToExport    = @(
-        'Invoke-PermissionMatrix'
+        'Invoke-PermissionMatrix',
+        'Invoke-PermissionMatrixAuditReport'
     )
 
     CmdletsToExport      = @()

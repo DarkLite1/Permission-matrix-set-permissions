@@ -1,0 +1,86 @@
+{
+  "MaxConcurrent": {
+    "Computers": 10,
+    "FoldersPerMatrix": 3,
+    "JobsPerRemoteComputer": 3
+  },
+  "Matrix": {
+    "FolderPath": "C:\\Permission matrix files",
+    "DefaultsFile": "C:\\Permission matrix files\\Defaults.xlsx",
+    "Archive": false,
+    "AdGroupPlaceHolders": [
+      "cnorris"
+    ]
+  },
+  "Export": {
+    "ServiceNowFormDataExcelFile": null,
+    "OverviewHtmlFile": null,
+    "PermissionsExcelFile": null
+  },
+  "ServiceNow": {
+    "CredentialsFilePath": null,
+    "Environment": null,
+    "TableName": null
+  },
+  "PSSessionConfiguration": "PowerShell.7",
+  "AuditReport": {
+    "RequestTicketURL": "https://heidelbergmaterialsprod.service-now.com/esc?id=sc_cat_item&sys_id=edeeb8cd3bbfa2903146604a85e45af2",
+    "ScriptAdmin": [
+      "it-access-admin@example.com"
+    ]
+  },
+  "Settings": {
+    "ScriptName": "Permission matrix audit report",
+    "SendMail": {
+      "From": "no-reply-bnl-audit@example.com",
+      "FromDisplayName": "Permission matrix audit report",
+      "To": [],
+      "Bcc": [
+        "it-access-admin@example.com"
+      ],
+      "Subject": "Access review - {{MatrixFileName}} ({{UniqueUserCount}} users, {{UniqueGroupCount}} groups)",
+      "Body": "<style> a{color:black;text-decoration:underline;} a:hover{color:blue;} #matrixTable{border:1px solid Black;border-collapse:separate;border-spacing:0px 0.6em;} #matrixTitle{border:none;background-color:lightgrey;text-align:center;padding:6px;}</style><p>Dear matrix responsible</p><p>You received this message because you were designated as manager of an access role matrix.</p><p>Managing folder access is not always easy. People are joining and leaving the company, moving departments, changing jobs. To facilitate this task we created the 'Permission matrix' script, an automated way to set permissions on files and folders that are shared with colleagues.</p><p>From experience we know that from time to time a short review of these permissions might be required. Please have a look at the details below and the file in attachment to see if they are still valid.</p><p>In case something needs to be updated or changed, feel free to report this to us by submitting the form <b>\"BNL Folder Roles Access Request\"</b> on the <a href=\"{{RequestTicketURL}}\" target=\"_blank\"><b>IT Self-service Portal</b></a>.</p><p>More information can be found in the following documents:</p><ul><li><a href=\"https://confluence.heidelbergcement.com/display/BNL/BNL+Help%3A+Access+Matrix+and+Roles%2C+an+introduction\" target=\"_blank\">Access matrix and roles: an introduction</a></li><li><a href=\"https://confluence.heidelbergcement.com/display/BNL/BNL+Help%3A+Matrix+Managers%3A+audit+reports+management\" target=\"_blank\">Matrix managers: audit reports management</a></li></ul><table id=\"matrixTable\"><tr><th id=\"matrixTitle\" colspan=\"2\"><a href=\"{{MatrixFilePath}}\">{{MatrixFileName}}.xlsx</a></th></tr><tr><th>Category</th><td>{{MatrixCategoryName}}</td></tr><tr><th>Sub category</th><td>{{MatrixSubCategoryName}}</td></tr><tr><th>Folder</th><td><a href=\"{{MatrixFolderPath}}\">{{MatrixFolderDisplayName}}</a></td></tr><tr><th>Responsible</th><td>{{MatrixResponsible}}</td></tr></table><p>Folder access summary:</p><table id=\"matrixTable\"><tr><th>Unique users</th><td>{{UniqueUserCount}}</td></tr><tr><th>Unique groups</th><td>{{UniqueGroupCount}}</td></tr></table><p><i>* Check the attachment for details</i></p>",
+      "Smtp": {
+        "ServerName": "SERVER1.EXAMPLE.COM",
+        "Port": 25,
+        "ConnectionType": "None",
+        "UserName": "",
+        "Password": ""
+      },
+      "AssemblyPath": {
+        "MailKit": "C:\\Program Files\\PackageManagement\\NuGet\\Packages\\MailKit.4.13.0\\lib\\net8.0\\MailKit.dll",
+        "MimeKit": "C:\\Program Files\\PackageManagement\\NuGet\\Packages\\MimeKit.4.13.0\\lib\\net8.0\\MimeKit.dll"
+      }
+    },
+    "SaveLogFiles": {
+      "Detailed": false,
+      "Where": {
+        "Folder": "C:\\Log\\File or folder\\Permission matrix audit report"
+      },
+      "DeleteLogsAfterDays": 30
+    },
+    "SaveInEventLog": {
+      "Save": true,
+      "LogName": "Scripts"
+    }
+  },
+  "?": {
+    "AuditReport": {
+      "RequestTicketURL": "(Mandatory) URL of the IT self-service request form, used for the {{RequestTicketURL}} token in 'Settings.SendMail.Body'. The presence of this 'AuditReport' section is also what tells the import stage to read the 'FormData' worksheet (which holds 'MatrixResponsible').",
+      "ScriptAdmin": "(Mandatory) Array of e-mail addresses that are BCC'd on every audit mail and that receive the summary of matrices skipped for fatal errors, as well as initialization-failure notifications."
+    },
+    "Matrix": {
+      "Archive": "(Mandatory) Keep 'false' for the audit report: the audit only reads the matrices and must not move them to the Archive folder.",
+      "AdGroupPlaceHolders": "(Optional) SamAccountNames excluded from group membership checks (placeholder accounts). Same meaning as 'ExcludedSamAccountName' in the old standalone audit script."
+    },
+    "Settings": {
+      "SendMail": {
+        "To": "(Optional) Leave empty: the audit resolves recipients per matrix from the 'MatrixResponsible' field. A value here can be used as a test override.",
+        "Bcc": "(Optional) Addresses that receive a blind copy of every audit mail (e.g. the access administrators).",
+        "Subject": "(Optional) Subject template. Supports the {{Token}} placeholders listed under 'Body'.",
+        "Body": "(Mandatory) HTML body template. Supported tokens: {{MatrixFileName}}, {{MatrixFilePath}}, {{MatrixCategoryName}}, {{MatrixSubCategoryName}}, {{MatrixFolderPath}}, {{MatrixFolderDisplayName}}, {{MatrixResponsible}}, {{UniqueUserCount}}, {{UniqueGroupCount}}, {{RequestTicketURL}}."
+      }
+    },
+    "Export": "(Unused) The audit report does not write export files; these are kept null. The 'ServiceNow' section is unused as well."
+  }
+}

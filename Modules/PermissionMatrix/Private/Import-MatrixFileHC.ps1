@@ -135,7 +135,8 @@ function Import-MatrixFileHC {
         $formData = $null
         if ($Context.Config.Export.ServiceNowFormDataExcelFile -or
             $Context.Config.Export.OverviewHtmlFile -or
-            $Context.Config.Export.PermissionsExcelFile) {
+            $Context.Config.Export.PermissionsExcelFile -or
+            $Context.Config.AuditReport) {
 
             try {
                 $formDataImport = Import-Excel `
