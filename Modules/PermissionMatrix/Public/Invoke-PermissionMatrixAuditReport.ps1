@@ -90,11 +90,12 @@ function Invoke-PermissionMatrixAuditReport {
     }
 
     #region Stop early on initialization failure (report it to the admin)
-    if ($SystemErrors.Value.Count -gt 0) {
+    $fatalInit = @($SystemErrors.Value | Where-Object { $_.Type -eq 'FatalError' })
+    if ($fatalInit.Count -gt 0) {
         if ($scriptAdmin) {
             try {
                 $errHtml = @(
-                    $SystemErrors.Value | ForEach-Object {
+                    $fatalInit | ForEach-Object {
                         '<li>{0}: {1}</li>' -f $_.Name, $_.Message
                     }
                 ) -join ''
