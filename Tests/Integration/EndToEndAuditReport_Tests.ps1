@@ -61,13 +61,14 @@ Describe 'Permission Matrix Audit Report - End to End' {
         }
 
         # ------------------------------------------------------------------
-        # Helper: build an audit config from the project JSON fixture, adding
-        # the audit-specific mail templates and the AuditReport section.
-        #
-        # NOTE: this assumes New-JsonFixture returns a hashtable (key add via
-        # '$cfg.AuditReport = ...'). If it returns a [pscustomobject], swap the
-        # AuditReport line for:
-        #   $cfg | Add-Member -NotePropertyName AuditReport -NotePropertyValue $ar -Force
+        # Helper: build a SLIM audit config - only the fields the audit itself
+        # uses. It deliberately OMITS the schema-only blocks the shared
+        # validator expects (Export, ServiceNow, PSSessionConfiguration,
+        # MaxConcurrent, Matrix.Archive, Settings.SaveLogFiles.Detailed). The
+        # audit fills those with defaults in memory before Begin validates, so
+        # this test exercises that skeleton-injection path end to end: if it
+        # broke, Begin would raise "Missing/Incorrect" fatal errors and no owner
+        # mail would be sent.
         # ------------------------------------------------------------------
         function New-AuditConfig {
             param(
@@ -76,23 +77,44 @@ Describe 'Permission Matrix Audit Report - End to End' {
                 [string]$LogsDir,
                 [string[]]$ScriptAdmin
             )
-            $cfg = New-JsonFixture
-            $cfg.Matrix.FolderPath = $MatrixDir
-            $cfg.Matrix.DefaultsFile = $DefaultsPath
-            $cfg.Settings.SaveLogFiles.Where.Folder = $LogsDir
-            $cfg.MaxConcurrent.FoldersPerMatrix = 1
-
-            # Audit mail templates (tokens are filled per matrix).
-            $cfg.Settings.SendMail.Subject =
-            'Audit {{MatrixFileName}}: {{UniqueUserCount}} users, {{UniqueGroupCount}} groups'
-            $cfg.Settings.SendMail.Body =
-            '<p>Please review {{MatrixFileName}} at {{RequestTicketURL}}</p>'
-
-            $cfg.AuditReport = [ordered]@{
-                RequestTicketURL = 'https://portal/req'
-                ScriptAdmin      = $ScriptAdmin
+            return [ordered]@{
+                Matrix      = [ordered]@{
+                    FolderPath          = $MatrixDir
+                    DefaultsFile        = $DefaultsPath
+                    AdGroupPlaceHolders = @()
+                }
+                AuditReport = [ordered]@{
+                    RequestTicketURL = 'https://portal/req'
+                    ScriptAdmin      = $ScriptAdmin
+                }
+                Settings    = [ordered]@{
+                    ScriptName     = 'Permission matrix audit report (test)'
+                    SendMail       = [ordered]@{
+                        From            = 'no-reply@example.com'
+                        FromDisplayName = 'Audit'
+                        To              = @()
+                        Bcc             = @()
+                        Subject         = 'Audit {{MatrixFileName}}: {{UniqueUserCount}} users, {{UniqueGroupCount}} groups'
+                        Body            = '<p>Please review {{MatrixFileName}} at {{RequestTicketURL}}</p>'
+                        Smtp            = [ordered]@{
+                            ServerName     = 'smtp.example.com'
+                            Port           = 25
+                            ConnectionType = 'None'
+                            UserName       = ''
+                            Password       = ''
+                        }
+                        AssemblyPath    = [ordered]@{
+                            MailKit = 'C:\MailKit.dll'
+                            MimeKit = 'C:\MimeKit.dll'
+                        }
+                    }
+                    SaveLogFiles   = [ordered]@{
+                        Where               = [ordered]@{ Folder = $LogsDir }
+                        DeleteLogsAfterDays = 30
+                    }
+                    SaveInEventLog = [ordered]@{ Save = $false; LogName = 'Scripts' }
+                }
             }
-            return $cfg
         }
     }
 

@@ -22,7 +22,13 @@ function Invoke-PermissionMatrixAuditReport {
         scope and can call the private *HC helpers directly.
 
     .PARAMETER ConfigurationJsonFile
-        Path to the audit JSON configuration file.
+        Path to the audit JSON configuration file. The file only needs the
+        fields the audit uses (Matrix.FolderPath/DefaultsFile, the AuditReport
+        section, and Settings.SendMail/SaveLogFiles/SaveInEventLog/ScriptName).
+        The schema-only fields the shared validator expects (Export, ServiceNow,
+        PSSessionConfiguration, MaxConcurrent, Matrix.Archive,
+        Settings.SaveLogFiles.Detailed) are filled with defaults in memory
+        before validation, so they may be omitted from the file.
 
     .PARAMETER ScriptPath
         Same hashtable contract as Invoke-PermissionMatrix. For the audit only
@@ -46,10 +52,83 @@ function Invoke-PermissionMatrixAuditReport {
         [Parameter(Mandatory)][ref]$SystemErrors
     )
 
-    $context = Invoke-PermissionMatrixBeginHC `
-        -ConfigurationJsonFile $ConfigurationJsonFile `
-        -ScriptPath $ScriptPath `
-        -SystemErrors $SystemErrors
+    #region Fill the schema-only fields the shared validator still expects
+    # The audit input file only carries what the audit actually uses. The Begin
+    # stage runs Test-ConfigurationStructureHC, which also expects a handful of
+    # fields the audit never touches: the 'Export', 'ServiceNow',
+    # 'PSSessionConfiguration' and 'MaxConcurrent' top-level blocks (Process/End
+    # concerns), 'Matrix.Archive' and 'Settings.SaveLogFiles.Detailed'. Rather
+    # than repeat that boilerplate in every audit config, fill sensible defaults
+    # here, in memory, before validation. Anything already present in the file
+    # is left untouched. If the file cannot be read/parsed we fall back to the
+    # original path so Begin reports the problem exactly as it normally would.
+    $auditConfig = $null
+    try {
+        $auditConfig = Get-Content -LiteralPath $ConfigurationJsonFile -Raw -ErrorAction Stop |
+            ConvertFrom-Json -ErrorAction Stop
+    }
+    catch { $auditConfig = $null }
+
+    $configFileForBegin = $ConfigurationJsonFile
+    $mergedConfigFile = $null
+
+    if ($auditConfig) {
+        $topLevelDefaults = [ordered]@{
+            Export                 = [ordered]@{
+                PermissionsExcelFile        = $null
+                OverviewHtmlFile            = $null
+                ServiceNowFormDataExcelFile = $null
+            }
+            ServiceNow             = [ordered]@{
+                CredentialsFilePath = $null
+                Environment         = $null
+                TableName           = $null
+            }
+            PSSessionConfiguration = 'PowerShell.7'
+            MaxConcurrent          = [ordered]@{
+                Computers             = 1
+                FoldersPerMatrix      = 3
+                JobsPerRemoteComputer = 1
+            }
+        }
+        foreach ($key in $topLevelDefaults.Keys) {
+            if ($null -eq $auditConfig.$key) {
+                $auditConfig | Add-Member -NotePropertyName $key `
+                    -NotePropertyValue $topLevelDefaults[$key] -Force
+            }
+        }
+        # The audit only reads matrices: it must never archive them.
+        if ($auditConfig.Matrix -and $null -eq $auditConfig.Matrix.Archive) {
+            $auditConfig.Matrix | Add-Member -NotePropertyName 'Archive' `
+                -NotePropertyValue $false -Force
+        }
+        # 'Detailed' log sheets are a Process-stage concern, unused by the audit.
+        if ($auditConfig.Settings -and $auditConfig.Settings.SaveLogFiles -and
+            $null -eq $auditConfig.Settings.SaveLogFiles.Detailed) {
+            $auditConfig.Settings.SaveLogFiles | Add-Member -NotePropertyName 'Detailed' `
+                -NotePropertyValue $false -Force
+        }
+
+        $mergedConfigFile = Join-Path ([System.IO.Path]::GetTempPath()) (
+            'PermissionMatrixAudit_{0}.json' -f [guid]::NewGuid()
+        )
+        $auditConfig | ConvertTo-Json -Depth 25 |
+            Set-Content -LiteralPath $mergedConfigFile -Encoding utf8
+        $configFileForBegin = $mergedConfigFile
+    }
+    #endregion
+
+    try {
+        $context = Invoke-PermissionMatrixBeginHC `
+            -ConfigurationJsonFile $configFileForBegin `
+            -ScriptPath $ScriptPath `
+            -SystemErrors $SystemErrors
+    }
+    finally {
+        if ($mergedConfigFile) {
+            Remove-Item -LiteralPath $mergedConfigFile -ErrorAction SilentlyContinue
+        }
+    }
 
     $config = if ($context) { $context.Config } else { $null }
     $sendMail = $config.Settings.SendMail
