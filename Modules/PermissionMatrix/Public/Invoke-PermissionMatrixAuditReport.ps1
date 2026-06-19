@@ -205,6 +205,10 @@ function Invoke-PermissionMatrixAuditReport {
 
     # Matrices skipped because of fatal errors; reported to the admin at the end
     $skipped = [System.Collections.Generic.List[pscustomobject]]::new()
+    # Responsibles / members that could not be resolved to an e-mail address
+    $recipientIssues = [System.Collections.Generic.List[pscustomobject]]::new()
+    # Matrices whose responsible resolved to nobody (no audit mail sent)
+    $noRecipient = [System.Collections.Generic.List[pscustomobject]]::new()
 
     foreach ($fileResult in $context.FileResults) {
 
@@ -243,6 +247,31 @@ function Invoke-PermissionMatrixAuditReport {
         }
         #endregion
 
+        #region Resolve the responsible (e-mail / user / group) to addresses
+        $resolved = Resolve-ResponsibleEmailHC -Responsible $formData.MatrixResponsible
+
+        if ($resolved.Unresolved) {
+            $recipientIssues.Add(
+                [pscustomobject]@{
+                    MatrixFile = $matrixName
+                    Entries    = @($resolved.Unresolved) -join '; '
+                }
+            )
+            Write-Verbose "Matrix '$matrixName': unresolved recipient(s): $(@($resolved.Unresolved) -join '; ')"
+        }
+
+        if (-not $resolved.Emails) {
+            $noRecipient.Add(
+                [pscustomobject]@{
+                    MatrixFile  = $matrixName
+                    Responsible = @($formData.MatrixResponsible) -join ', '
+                }
+            )
+            Write-Verbose "Matrix '$matrixName': responsible resolved to no e-mail address, no mail sent"
+            continue
+        }
+        #endregion
+
         #region Build the log sheet rows and write the per-matrix Excel log file
         $logSheets = Build-MatrixLogSheetRowsHC `
             -FileResult $fileResult `
@@ -274,6 +303,7 @@ function Invoke-PermissionMatrixAuditReport {
             -AttachmentPath $attachmentPath `
             -MailSettings $sendMail `
             -RequestTicketURL $requestTicketURL `
+            -RecipientEmail $resolved.Emails `
             -Bcc $scriptAdmin
 
         $mailKit = & $newMailKitParams `
@@ -311,6 +341,47 @@ $($rows -join "`n")
 
         try { Send-MailKitMessageHC @adminKit }
         catch { Write-Warning "Failed sending admin skip-report: $_" }
+    }
+    #endregion
+
+    #region Report recipients that could not be resolved to an e-mail address
+    if (($recipientIssues.Count -gt 0 -or $noRecipient.Count -gt 0) -and $scriptAdmin) {
+        $noRecipientRows = foreach ($n in $noRecipient) {
+            '<tr><td>{0}</td><td>{1}</td></tr>' -f $n.MatrixFile, $n.Responsible
+        }
+        $issueRows = foreach ($i in $recipientIssues) {
+            '<tr><td>{0}</td><td>{1}</td></tr>' -f $i.MatrixFile, $i.Entries
+        }
+
+        $adminBody = ''
+        if ($noRecipient.Count -gt 0) {
+            $adminBody += @"
+<p>The following $($noRecipient.Count) matrix file(s) had a responsible that
+could not be resolved to any e-mail address. No audit e-mail was sent.</p>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Matrix file</th><th>Responsible</th></tr>
+$($noRecipientRows -join "`n")
+</table>
+"@
+        }
+        if ($recipientIssues.Count -gt 0) {
+            $adminBody += @"
+<p>The following responsible(s) or group member(s) had no e-mail address and
+were skipped (the audit mail was still sent to the remaining recipients).</p>
+<table border="1" cellpadding="4" cellspacing="0">
+<tr><th>Matrix file</th><th>Skipped recipient(s)</th></tr>
+$($issueRows -join "`n")
+</table>
+"@
+        }
+
+        $issueKit = & $newMailKitParams `
+            -To $scriptAdmin `
+            -Subject 'Permission matrix audit report - recipients without an e-mail address' `
+            -Body $adminBody -Attachments $null -Bcc $null -Priority 'High'
+
+        try { Send-MailKitMessageHC @issueKit }
+        catch { Write-Warning "Failed sending admin recipient-report: $_" }
     }
     #endregion
 }

@@ -49,6 +49,12 @@ function Build-AuditReportMailHC {
         Extra Bcc addresses (e.g. the script admins) merged with the Bcc
         configured in MailSettings.
 
+    .PARAMETER RecipientEmail
+        Resolved recipient e-mail addresses (from Resolve-ResponsibleEmailHC).
+        When supplied these become the 'To'; the {{MatrixResponsible}} token in
+        the body still shows the original responsible text. When omitted, 'To'
+        falls back to the raw 'MatrixResponsible' value.
+
     .OUTPUTS
         Hashtable with the keys From, FromDisplayName, To, Bcc, Subject, Body
         and Attachments.
@@ -60,7 +66,8 @@ function Build-AuditReportMailHC {
         [Parameter(Mandatory)][string]$AttachmentPath,
         [Parameter(Mandatory)]$MailSettings,
         [string]$RequestTicketURL,
-        [string[]]$Bcc = @()
+        [string[]]$Bcc = @(),
+        [string[]]$RecipientEmail = @()
     )
 
     #region Unique user / group counts
@@ -126,7 +133,7 @@ function Build-AuditReportMailHC {
     return @{
         From            = $MailSettings.From
         FromDisplayName = $MailSettings.FromDisplayName
-        To              = $responsible
+        To              = if ($RecipientEmail) { @($RecipientEmail) } else { $responsible }
         Bcc             = $bccAll
         Subject         = $subject
         Body            = $body
