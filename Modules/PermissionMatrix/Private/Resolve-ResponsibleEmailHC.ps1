@@ -24,6 +24,12 @@ function Resolve-ResponsibleEmailHC {
     .PARAMETER Responsible
         The raw 'MatrixResponsible' string from the matrix FormData worksheet.
 
+    .PARAMETER ExcludeSamAccountName
+        SamAccountNames of placeholder accounts (Matrix.AdGroupPlaceHolders).
+        These are never returned as recipients: they are dropped whether they
+        appear as a group member or as a directly listed responsible, and they
+        are not reported as unresolved.
+
     .OUTPUTS
         [pscustomobject] with:
           .Emails     - sorted, unique list of resolved e-mail addresses
@@ -31,9 +37,11 @@ function Resolve-ResponsibleEmailHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][AllowEmptyString()][string]$Responsible
+        [Parameter(Mandatory)][AllowEmptyString()][string]$Responsible,
+        [string[]]$ExcludeSamAccountName = @()
     )
 
+    $exclude = @($ExcludeSamAccountName | Where-Object { $_ })
     $emails = [System.Collections.Generic.List[string]]::new()
     $unresolved = [System.Collections.Generic.List[string]]::new()
 
@@ -49,6 +57,10 @@ function Resolve-ResponsibleEmailHC {
         }
         #endregion
 
+        #region Skip a placeholder account listed directly by SamAccountName
+        if ($token -in $exclude) { continue }
+        #endregion
+
         #region Look the token up in AD
         # Escape LDAP filter metacharacters in the user-supplied value.
         $safe = [regex]::Replace($token, '[\\\(\)\*\x00]', { '\{0:x2}' -f [int][char]$args[0].Value })
@@ -57,7 +69,7 @@ function Resolve-ResponsibleEmailHC {
         try {
             $adObject = Get-ADObject `
                 -LDAPFilter "(|(sAMAccountName=$safe)(name=$safe)(displayName=$safe)(mail=$safe))" `
-                -Properties objectClass, mail -ErrorAction Stop |
+                -Properties objectClass, mail, sAMAccountName -ErrorAction Stop |
                 Select-Object -First 1
         }
         catch { $adObject = $null }
@@ -74,7 +86,9 @@ function Resolve-ResponsibleEmailHC {
             try {
                 $members = @(
                     Get-ADGroupMember -Identity $adObject.DistinguishedName -Recursive -ErrorAction Stop |
-                    Where-Object { $_.objectClass -eq 'user' }
+                    Where-Object {
+                        $_.objectClass -eq 'user' -and ($_.SamAccountName -notin $exclude)
+                    }
                 )
             }
             catch { $members = @() }
@@ -104,6 +118,9 @@ function Resolve-ResponsibleEmailHC {
         #endregion
 
         #region User / contact - take its mail attribute
+        if ($adObject.sAMAccountName -and ($adObject.sAMAccountName -in $exclude)) {
+            continue
+        }
         if ($adObject.mail) {
             $emails.Add($adObject.mail)
         }

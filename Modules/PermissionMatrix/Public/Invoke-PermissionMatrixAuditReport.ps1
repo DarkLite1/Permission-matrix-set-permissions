@@ -40,6 +40,12 @@ function Invoke-PermissionMatrixAuditReport {
     .PARAMETER SystemErrors
         [ref] collection the Begin stage appends initialization errors to.
 
+    .PARAMETER ScriptStartTime
+        The script start time, used as the single timestamp in the per-matrix
+        log file names ('yyyy-MM-dd HHmm (dddd) - ScriptName - Matrix.xlsx').
+        Defaults to the current time; the entry-point passes the time captured
+        at the start of the run so every log file from one run shares it.
+
     .NOTES
         The admin notification recipients (BCC'd on every audit mail and
         notified about skipped matrices and initialization failures) are read
@@ -49,7 +55,8 @@ function Invoke-PermissionMatrixAuditReport {
     param(
         [Parameter(Mandatory)][string]$ConfigurationJsonFile,
         [Parameter(Mandatory)][hashtable]$ScriptPath,
-        [Parameter(Mandatory)][ref]$SystemErrors
+        [Parameter(Mandatory)][ref]$SystemErrors,
+        [datetime]$ScriptStartTime = (Get-Date)
     )
 
     #region Fill the schema-only fields the shared validator still expects
@@ -203,6 +210,15 @@ function Invoke-PermissionMatrixAuditReport {
     $requestTicketURL = $context.Config.AuditReport.RequestTicketURL
     $auditLogFolder = $context.Config.Settings.SaveLogFiles.Where.Folder
 
+    # One timestamp for the whole run (the script start time), e.g.
+    # '2026_04_13_110000'.
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
+    $runStamp = '{0}' -f $ScriptStartTime.ToString('yyyy_MM_dd_HHmmss', $inv)
+    $scriptName = $config.Settings.ScriptName
+
+    # Placeholder accounts (Matrix.AdGroupPlaceHolders) never receive audit mail.
+    $placeHolders = @($config.Matrix.AdGroupPlaceHolders | Where-Object { $_ })
+
     # Matrices skipped because of fatal errors; reported to the admin at the end
     $skipped = [System.Collections.Generic.List[pscustomobject]]::new()
     # Responsibles / members that could not be resolved to an e-mail address
@@ -248,7 +264,9 @@ function Invoke-PermissionMatrixAuditReport {
         #endregion
 
         #region Resolve the responsible (e-mail / user / group) to addresses
-        $resolved = Resolve-ResponsibleEmailHC -Responsible $formData.MatrixResponsible
+        $resolved = Resolve-ResponsibleEmailHC `
+            -Responsible $formData.MatrixResponsible `
+            -ExcludeSamAccountName $placeHolders
 
         if ($resolved.Unresolved) {
             $recipientIssues.Add(
@@ -288,9 +306,15 @@ function Invoke-PermissionMatrixAuditReport {
 
         $null = New-Item -Path $matrixLogFolder -ItemType Directory -Force -ErrorAction Stop
 
+        # Date-stamped base name, e.g.
+        # '2026-04-13 1100 (Monday) - Permission matrix audit report (BNL) - BEL-MTX-...'
+        # so every run of the same matrix file accumulates in its folder.
+        $logBaseName = '{0} - {1} - {2}' -f $runStamp, $scriptName, $fileResult.Item.BaseName
+
         $attachmentPath = Copy-MatrixFileToLogFolderHC `
             -SourceFilePath $fileResult.Item.FullName `
             -LogFolder $matrixLogFolder `
+            -DestinationFileName "$logBaseName.xlsx" `
             -AccessListRows $logSheets.AccessList `
             -GroupManagerRows $logSheets.GroupManagers `
             -AdObjectRows $logSheets.AdObjects
@@ -309,6 +333,14 @@ function Invoke-PermissionMatrixAuditReport {
         $mailKit = & $newMailKitParams `
             -To $msg.To -Subject $msg.Subject -Body $msg.Body `
             -Attachments $msg.Attachments -Bcc $msg.Bcc -Priority 'Normal'
+
+        # Save the rendered mail body next to the Excel log, e.g.
+        # '... - BEL-MTX-... - Mail.html'
+        $mailHtmlPath = Join-Path $matrixLogFolder "$logBaseName - Mail.html"
+        try {
+            $msg.Body | Set-Content -LiteralPath $mailHtmlPath -Encoding utf8 -ErrorAction Stop
+        }
+        catch { Write-Warning "Failed saving mail body for '$matrixName': $_" }
 
         Write-Verbose "Matrix '$($formData.MatrixFileName)': mailing $($msg.To -join ', ')"
 

@@ -498,6 +498,11 @@ function Copy-MatrixFileToLogFolderHC {
     .PARAMETER AdObjectRows
         Rows for the 'AdObjects' worksheet.
 
+    .PARAMETER DestinationFileName
+        Optional file name (with extension) for the copy inside LogFolder. When
+        omitted, the source file's own name is used. Lets callers add a
+        date-stamped name (e.g. the audit report's per-run history files).
+
     .OUTPUTS
         System.String
         The absolute path of the created copy.
@@ -508,7 +513,8 @@ function Copy-MatrixFileToLogFolderHC {
         [Parameter(Mandatory)][string]$LogFolder,
         [array]$AccessListRows,
         [array]$GroupManagerRows,
-        [array]$AdObjectRows
+        [array]$AdObjectRows,
+        [string]$DestinationFileName
     )
 
     try {
@@ -516,9 +522,10 @@ function Copy-MatrixFileToLogFolderHC {
             throw "Source matrix file '$SourceFilePath' not found"
         }
 
-        $destinationPath = Join-Path `
-            -Path $LogFolder `
-            -ChildPath (Split-Path -Path $SourceFilePath -Leaf)
+        $leaf = if ($DestinationFileName) { $DestinationFileName }
+        else { Split-Path -Path $SourceFilePath -Leaf }
+
+        $destinationPath = Join-Path -Path $LogFolder -ChildPath $leaf
 
         Copy-Item -LiteralPath $SourceFilePath `
             -Destination $destinationPath -Force -ErrorAction Stop

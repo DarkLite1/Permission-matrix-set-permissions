@@ -160,10 +160,14 @@ Describe 'Permission Matrix Audit Report - End to End' {
 
         $systemErrors = [System.Collections.Generic.List[object]]::new()
 
+        # Fixed start time so the date-stamped log file names are deterministic.
+        $startTime = [datetime]'2026-04-13 11:00'
+
         Invoke-PermissionMatrixAuditReport `
             -ConfigurationJsonFile $configPath `
             -ScriptPath $scriptPath `
-            -SystemErrors ([ref]$systemErrors)
+            -SystemErrors ([ref]$systemErrors) `
+            -ScriptStartTime $startTime
 
         # No fatal errors during initialization.
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
@@ -194,6 +198,20 @@ Describe 'Permission Matrix Audit Report - End to End' {
         Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             (@($Bcc) -join ';') -match 'audit-admin@example\.com'
         } -Because 'the admin should be BCC''d on the audit mail'
+
+        # The date-stamped log files land in the matrix's own folder.
+        $inv = [System.Globalization.CultureInfo]::InvariantCulture
+        $base = '{0} - {1} - {2}' -f
+        $startTime.ToString('yyyy_MM_dd_HHmmss', $inv),
+        'Permission matrix audit report (test)',
+        'TeamA'
+        $matrixFolder = Join-Path $logsDir 'TeamA'
+
+        Test-Path -LiteralPath (Join-Path $matrixFolder "$base.xlsx") |
+        Should -BeTrue -Because 'the date-stamped Excel log should be written'
+
+        Test-Path -LiteralPath (Join-Path $matrixFolder "$base - Mail.html") |
+        Should -BeTrue -Because 'the rendered mail body should be saved next to the Excel log'
     }
 
     It 'skips matrices with fatal errors and reports them to the admin' {

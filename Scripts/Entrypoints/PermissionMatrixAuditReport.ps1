@@ -24,6 +24,9 @@ param(
     [string]$ConfigurationJsonFile
 )
 
+# Captured once, at the start of the run, and used for every log file name.
+$scriptStartTime = Get-Date
+
 #region Load the module
 # INTEGRATION: this mirrors the local Import-PermissionMatrixModuleHC used by
 # PermissionMatrix.ps1. Use the exact same definition as the main entry point
@@ -54,7 +57,8 @@ $systemErrors = [System.Collections.Generic.List[object]]::new()
 Invoke-PermissionMatrixAuditReport `
     -ConfigurationJsonFile $ConfigurationJsonFile `
     -ScriptPath $scriptPath `
-    -SystemErrors ([ref]$systemErrors)
+    -SystemErrors ([ref]$systemErrors) `
+    -ScriptStartTime $scriptStartTime
 #endregion
 
 if ($systemErrors.Count -gt 0) {

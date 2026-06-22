@@ -83,4 +83,34 @@ Describe 'Resolve-ResponsibleEmailHC' {
         $r.Emails                    | Should -BeNullOrEmpty
         (@($r.Unresolved) -join ';') | Should -Match 'ghost'
     }
+
+    It 'excludes a placeholder listed directly as the responsible' {
+        # No AD call: the placeholder is dropped before any lookup.
+        $r = InModuleScope PermissionMatrix {
+            Resolve-ResponsibleEmailHC -Responsible 'cnorris' -ExcludeSamAccountName @('cnorris')
+        }
+        $r.Emails     | Should -BeNullOrEmpty
+        $r.Unresolved | Should -BeNullOrEmpty
+    }
+
+    It 'excludes placeholder group members (Matrix.AdGroupPlaceHolders)' -Skip:(-not $AdAvailable) {
+        Mock Get-ADObject -ModuleName PermissionMatrix {
+            [pscustomobject]@{ objectClass = 'group'; mail = $null; DistinguishedName = 'CN=G' }
+        }
+        Mock Get-ADGroupMember -ModuleName PermissionMatrix {
+            @(
+                [pscustomobject]@{ objectClass = 'user'; name = 'Alice'; SamAccountName = 'alice'; distinguishedName = 'CN=Alice' }
+                [pscustomobject]@{ objectClass = 'user'; name = 'cnorris'; SamAccountName = 'cnorris'; distinguishedName = 'CN=cnorris' }
+            )
+        }
+        Mock Get-ADUser -ModuleName PermissionMatrix {
+            if ("$Identity" -like '*Alice*') { [pscustomobject]@{ EmailAddress = 'alice@x.com' } }
+            else { [pscustomobject]@{ EmailAddress = 'cnorris@x.com' } }
+        }
+        $r = InModuleScope PermissionMatrix {
+            Resolve-ResponsibleEmailHC -Responsible 'Some Group' -ExcludeSamAccountName @('cnorris')
+        }
+        $r.Emails     | Should -Be @('alice@x.com')
+        $r.Unresolved | Should -BeNullOrEmpty
+    }
 }
