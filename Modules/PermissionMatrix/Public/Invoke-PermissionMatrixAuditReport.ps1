@@ -219,6 +219,15 @@ function Invoke-PermissionMatrixAuditReport {
     # Placeholder accounts (Matrix.AdGroupPlaceHolders) never receive audit mail.
     $placeHolders = @($config.Matrix.AdGroupPlaceHolders | Where-Object { $_ })
 
+    # Test override: when 'Settings.SendMail.To' is set, every audit mail is
+    # redirected to these address(es) and the per-matrix responsible resolved
+    # from the matrix 'FormData' worksheet is ignored entirely. No Bcc is added
+    # in this mode (To only). Leave 'To' empty for normal, per-matrix routing.
+    $overrideTo = @($sendMail.To | Where-Object { $_ })
+    if ($overrideTo) {
+        Write-Verbose "Settings.SendMail.To is set: all audit mail redirected to $($overrideTo -join ', ') (responsible ignored, no Bcc)"
+    }
+
     # Matrices skipped because of fatal errors; reported to the admin at the end
     $skipped = [System.Collections.Generic.List[pscustomobject]]::new()
     # Responsibles / members that could not be resolved to an e-mail address
@@ -256,39 +265,58 @@ function Invoke-PermissionMatrixAuditReport {
         }
         #endregion
 
-        #region Skip matrices without a responsible (no one to send to)
-        if (-not $formData -or -not $formData.MatrixResponsible) {
-            Write-Verbose "Matrix '$matrixName' has no MatrixResponsible, skipped"
-            continue
+        if ($overrideTo) {
+            #region Test override: send to Settings.SendMail.To, ignore responsible
+            # Every matrix that produced a FormData row is mailed to the override
+            # address(es). The responsible resolved from Excel is not used, the
+            # 'no responsible' / 'no e-mail' skips below do not apply, and no Bcc
+            # is added (handled after the mail is built).
+            if (-not $formData) {
+                Write-Verbose "Matrix '$matrixName' has no FormData, skipped (override)"
+                continue
+            }
+            $recipientEmail = $overrideTo
+            $mailBcc        = @()
+            #endregion
         }
-        #endregion
+        else {
+            #region Skip matrices without a responsible (no one to send to)
+            if (-not $formData -or -not $formData.MatrixResponsible) {
+                Write-Verbose "Matrix '$matrixName' has no MatrixResponsible, skipped"
+                continue
+            }
+            #endregion
 
-        #region Resolve the responsible (e-mail / user / group) to addresses
-        $resolved = Resolve-ResponsibleEmailHC `
-            -Responsible $formData.MatrixResponsible `
-            -ExcludeSamAccountName $placeHolders
+            #region Resolve the responsible (e-mail / user / group) to addresses
+            $resolved = Resolve-ResponsibleEmailHC `
+                -Responsible $formData.MatrixResponsible `
+                -ExcludeSamAccountName $placeHolders
 
-        if ($resolved.Unresolved) {
-            $recipientIssues.Add(
-                [pscustomobject]@{
-                    MatrixFile = $matrixName
-                    Entries    = @($resolved.Unresolved) -join '; '
-                }
-            )
-            Write-Verbose "Matrix '$matrixName': unresolved recipient(s): $(@($resolved.Unresolved) -join '; ')"
+            if ($resolved.Unresolved) {
+                $recipientIssues.Add(
+                    [pscustomobject]@{
+                        MatrixFile = $matrixName
+                        Entries    = @($resolved.Unresolved) -join '; '
+                    }
+                )
+                Write-Verbose "Matrix '$matrixName': unresolved recipient(s): $(@($resolved.Unresolved) -join '; ')"
+            }
+
+            if (-not $resolved.Emails) {
+                $noRecipient.Add(
+                    [pscustomobject]@{
+                        MatrixFile  = $matrixName
+                        Responsible = @($formData.MatrixResponsible) -join ', '
+                    }
+                )
+                Write-Verbose "Matrix '$matrixName': responsible resolved to no e-mail address, no mail sent"
+                continue
+            }
+            #endregion
+
+            $recipientEmail = $resolved.Emails
+            $mailBcc        = $scriptAdmin
         }
-
-        if (-not $resolved.Emails) {
-            $noRecipient.Add(
-                [pscustomobject]@{
-                    MatrixFile  = $matrixName
-                    Responsible = @($formData.MatrixResponsible) -join ', '
-                }
-            )
-            Write-Verbose "Matrix '$matrixName': responsible resolved to no e-mail address, no mail sent"
-            continue
-        }
-        #endregion
 
         #region Build the log sheet rows and write the per-matrix Excel log file
         $logSheets = Build-MatrixLogSheetRowsHC `
@@ -327,8 +355,13 @@ function Invoke-PermissionMatrixAuditReport {
             -AttachmentPath $attachmentPath `
             -MailSettings $sendMail `
             -RequestTicketURL $requestTicketURL `
-            -RecipientEmail $resolved.Emails `
-            -Bcc $scriptAdmin
+            -RecipientEmail $recipientEmail `
+            -Bcc $mailBcc
+
+        # 'To only' override: Build-AuditReportMailHC always folds in
+        # 'Settings.SendMail.Bcc'; drop it so a test run reaches no one but the
+        # override address(es).
+        if ($overrideTo) { $msg.Bcc = @() }
 
         $mailKit = & $newMailKitParams `
             -To $msg.To -Subject $msg.Subject -Body $msg.Body `
