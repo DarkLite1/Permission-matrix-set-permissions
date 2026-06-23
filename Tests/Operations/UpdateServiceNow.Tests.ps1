@@ -7,12 +7,21 @@
     Approach:
         UpdateServiceNow.ps1 is a *script* (param + begin/process/end), invoked
         with the call operator. Its helpers (Get-StringValueHC,
-        New-ServiceNowSessionHC) live inside begin{} so they can't be dot-sourced
-        and unit-tested in isolation; instead the script is run end to end and its
+        New-ServiceNowSessionHC, Get-RecordComparisonKeyHC, Test-RecordActiveHC,
+        Invoke-WithRetryHC) live inside begin{} so they can't be dot-sourced and
+        unit-tested in isolation; instead the script is run end to end and its
         dependencies are mocked.
 
+        The script now performs a *differential sync* rather than a destructive
+        drop-and-reload:
+            - source row absent from the table   -> New-ServiceNowRecord (u_active TRUE)
+            - source row matching an inactive row -> Update-ServiceNowRecord (u_active TRUE)
+            - table row absent from the source    -> Update-ServiceNowRecord (u_active FALSE)
+            - table row already inactive & absent -> left untouched
+        Matching is on every source column except u_active and sys_* fields.
+
         - ServiceNow cmdlets are mocked: New-ServiceNowSession, Get-ServiceNowRecord,
-          Remove-ServiceNowRecord, New-ServiceNowRecord. Because the calls happen in
+          New-ServiceNowRecord, Update-ServiceNowRecord. Because the calls happen in
           the script (not inside an imported module), test-scope mocks intercept
           them without -ModuleName.
         - ImportExcel is used for real: fixtures are written with Export-Excel and
@@ -22,6 +31,11 @@
 
     The ServiceNow and ImportExcel modules must be installed (the script #Requires
     them, and Pester can only mock commands that exist).
+
+    Assumptions about the ServiceNow module surface (adjust if your installed
+    version differs):
+        - Get-ServiceNowRecord supports -First and -Skip paging.
+        - Update-ServiceNowRecord accepts -Table, -ID and -Values <hashtable>.
 
     Note on -Exactly:
         Every Should -Invoke below uses -Exactly. In Pester 5, `-Times N` without
@@ -76,6 +90,38 @@ BeforeAll {
         }
     }
 
+    # Build a table row equivalent to source record N (so its comparison key
+    # matches), with a controllable sys_id and u_active state.
+    function New-MatchingTableRecord {
+        param(
+            [Parameter(Mandatory)][int]$Index,
+            [Parameter(Mandatory)][string]$SysId,
+            [object]$Active = $true
+        )
+        [PSCustomObject]@{
+            sys_id           = $SysId
+            u_matrixfilename = "matrix$Index.xlsx"
+            u_adobjectname   = "GRP-$Index"
+            u_adobjectid     = "S-1-5-$Index"
+            u_active         = $Active
+        }
+    }
+
+    # Build a table row that does NOT correspond to any source record.
+    function New-StaleTableRecord {
+        param(
+            [Parameter(Mandatory)][string]$SysId,
+            [object]$Active = $true
+        )
+        [PSCustomObject]@{
+            sys_id           = $SysId
+            u_matrixfilename = 'matrix-stale.xlsx'
+            u_adobjectname   = 'GRP-STALE'
+            u_adobjectid     = 'S-1-5-999'
+            u_active         = $Active
+        }
+    }
+
     function New-RecordsXlsx {
         param(
             [Parameter(Mandatory)][string]$Path,
@@ -105,21 +151,16 @@ Describe 'UpdateServiceNow.ps1' {
             MaxRetries             = 3
         }
 
-        # Default: a populated table (two existing records) so the happy path
-        # exercises removal. Tests override where needed. The script clears the
-        # table in chunks of -ChunkSize (default 200): it fetches the top chunk,
-        # deletes it, and refetches until a short/empty chunk signals the table
-        # is drained. Two records is a short chunk (< 200), so this default mock
-        # is returned once and the loop ends after a single Get call.
+        # Default: an empty table. With the two default source rows, the happy
+        # path therefore creates two new (active) records and updates nothing.
+        # Tests that need existing rows override Get-ServiceNowRecord. Note the
+        # script reads the table up front in chunks of -ChunkSize (default 200)
+        # using -First/-Skip. A short/empty chunk ends the loop, so a single
+        # returned batch of fewer than 200 rows is fetched in one Get call.
         Mock New-ServiceNowSession {}
-        Mock Get-ServiceNowRecord {
-            @(
-                [PSCustomObject]@{ sys_id = 'rec-1' }
-                [PSCustomObject]@{ sys_id = 'rec-2' }
-            )
-        }
-        Mock Remove-ServiceNowRecord {}
+        Mock Get-ServiceNowRecord {}
         Mock New-ServiceNowRecord {}
+        Mock Update-ServiceNowRecord {}
         Mock Start-Sleep {}
         Mock Write-Warning {}
     }
@@ -191,8 +232,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             Should -Invoke New-ServiceNowSession -Exactly -Times 0
             Should -Invoke Get-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 0
             Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -236,117 +277,251 @@ Describe 'UpdateServiceNow.ps1' {
                 Should -Throw -ExpectedMessage '*Failed to create a ServiceNow session*'
 
             Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
-    Context 'removing existing records' {
-        It 'removes every existing record before uploading' {
+    Context 'reading the existing table' {
+        It 'reads the target table for comparison' {
             & $ScriptPath @params
 
             Should -Invoke Get-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
         }
 
-        It 'skips removal when the table is already empty' {
-            Mock Get-ServiceNowRecord {}
-
-            & $ScriptPath @params
-
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 0
-            # Upload still happens.
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
-        }
-
-        It 'fetches and deletes in chunks of -ChunkSize until the table is drained' {
-            # The script reads the top chunk, deletes it, and refetches until a
-            # short chunk signals the table is drained. We drive that loop from a
-            # counter the mock increments on each call (full chunks of 2 for the
-            # first two fetches, then a short chunk of 1). The counter lives in
-            # mock-maintained state on purpose: a Mock body does NOT see
-            # $script: variables assigned in the It block, so the fake table must
-            # be self-contained here rather than read from an outer list.
+        It 'reads the existing table in chunks of -ChunkSize until drained' {
+            # Chunks of 2: two full chunks then a short chunk of 1 ends the loop.
+            # The reader pages with -First/-Skip; the mock ignores -Skip and just
+            # serves the next batch by call count. Rows carry no business fields,
+            # so they never match a source row (and are inactive, so they trigger
+            # no deactivation) - this test is purely about how many fetches happen.
             $params.ChunkSize = 2
 
-            $script:drainGetCalls = 0
+            $script:getCalls = 0
             Mock Get-ServiceNowRecord {
-                $script:drainGetCalls = ([int]$script:drainGetCalls) + 1
-                if ($script:drainGetCalls -le 2) {
-                    [PSCustomObject]@{ sys_id = "rec-$($script:drainGetCalls)a" }
-                    [PSCustomObject]@{ sys_id = "rec-$($script:drainGetCalls)b" }
+                $script:getCalls = ([int]$script:getCalls) + 1
+                if ($script:getCalls -le 2) {
+                    [PSCustomObject]@{ sys_id = "p$($script:getCalls)-a"; u_active = $false }
+                    [PSCustomObject]@{ sys_id = "p$($script:getCalls)-b"; u_active = $false }
                 }
                 else {
-                    [PSCustomObject]@{ sys_id = 'rec-final' }
+                    [PSCustomObject]@{ sys_id = 'p-final'; u_active = $false }
                 }
             }
 
             & $ScriptPath @params
 
-            # Three fetches (2 + 2 + 1) for five records proves the table is read
-            # a chunk at a time, not in one shot; the short third chunk ends it.
+            # Three fetches (2 + 2 + 1) proves the table is read a chunk at a time.
             Should -Invoke Get-ServiceNowRecord -Exactly -Times 3
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 5
         }
 
-        It 'does not loop forever when a record can never be removed' {
-            # ChunkSize 1 with a single record that always fails to delete: the
-            # full chunk (1 == ChunkSize) would normally trigger another fetch,
-            # but the failed-sys_id guard recognises the record is cycling back
-            # and stops instead of spinning. Upload still proceeds.
-            $params.ChunkSize = 1
+        It 'retries a failed chunk read and then aborts (a partial read is fatal)' {
+            # An unreadable table must NOT be treated as "all rows are gone", so a
+            # chunk that fails all retries throws rather than continuing. With
+            # MaxRetries 2 the single chunk is attempted twice (one sleep between)
+            # before the script gives up.
             $params.MaxRetries = 2
-            Mock Get-ServiceNowRecord { @([PSCustomObject]@{ sys_id = 'stuck-1' }) }
-            Mock Remove-ServiceNowRecord { throw 'permanent remove error' }
+            Mock Get-ServiceNowRecord { throw 'network down' }
 
-            { & $ScriptPath @params } | Should -Not -Throw
+            { & $ScriptPath @params } |
+                Should -Throw -ExpectedMessage '*Failed to retrieve records*'
 
-            # Pass 1 attempts the record (2 tries, 1 sleep) then records it as
-            # failed; pass 2 sees only the failed record and breaks.
             Should -Invoke Get-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
             Should -Invoke Start-Sleep -Exactly -Times 1
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
-        }
-
-        It 'retries a failed removal up to MaxRetries and then continues' {
-            $params.MaxRetries = 2
-            Mock Get-ServiceNowRecord { @([PSCustomObject]@{ sys_id = 'rec-1' }) }
-            Mock Remove-ServiceNowRecord { throw 'transient remove error' }
-
-            { & $ScriptPath @params } | Should -Not -Throw
-
-            # One record, two attempts. The loop sleeps only *between* attempts,
-            # so a single sleep separates attempt 1 and attempt 2.
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke Start-Sleep -Exactly -Times 1
-            # A removal that never succeeds is non-fatal: upload still proceeds.
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+            # Nothing is written when the table can't be read.
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
-    Context 'creating new records' {
-        It 'creates a record for every row in the worksheet' {
+    Context 'adding rows that are not yet in the table' {
+        It 'creates every source row that is absent from the table' {
+            # Default Get returns nothing -> the table is empty.
             & $ScriptPath @params
 
             Should -Invoke New-ServiceNowRecord -Exactly -Times 2 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
 
-            # TODO: assert the record *payload* too. These tests only check the
-            # call count and -Table, so a mistake in how the per-record hashtable
-            # binds to New-ServiceNowRecord (e.g. landing on the wrong parameter,
-            # or not binding by pipeline at all) would go unnoticed. Add a
-            # -ParameterFilter on the field-data parameter once its name is
-            # confirmed for the installed ServiceNow module version.
+            # TODO: assert the created payload carries u_active = TRUE. New rows
+            # are piped into New-ServiceNowRecord, so the assertion depends on the
+            # pipeline-bound parameter name for the installed ServiceNow module
+            # version. Add a -ParameterFilter once that name is confirmed.
+        }
+    }
+
+    Context 'rows already present and active' {
+        It 'leaves a matching, active row untouched' {
+            Mock Get-ServiceNowRecord {
+                @(
+                    New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $true
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $true
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+        }
+    }
+
+    Context 'reactivating a matched-but-inactive row' {
+        It 'sets u_active TRUE for a matching row that was deactivated' {
+            Mock Get-ServiceNowRecord {
+                @(
+                    New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $false
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $true
+                )
+            }
+
+            & $ScriptPath @params
+
+            # Only the inactive match (rec-1) is reactivated; nothing is created
+            # and nothing is deactivated.
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-1' -and $Values.u_active -eq $true
+            }
+        }
+    }
+
+    Context 'deactivating rows no longer in the collection' {
+        It 'sets u_active FALSE for an active table row absent from the source' {
+            Mock Get-ServiceNowRecord {
+                @(
+                    New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $true
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $true
+                    New-StaleTableRecord -SysId 'rec-stale' -Active $true
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-stale' -and $Values.u_active -eq $false
+            }
         }
 
+        It 'leaves an already-inactive straggler untouched' {
+            Mock Get-ServiceNowRecord {
+                @(
+                    New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $true
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $true
+                    New-StaleTableRecord -SysId 'rec-stale' -Active $false
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+        }
+    }
+
+    Context 'a record that changed in one or more fields' {
+        It 'deactivates the old row and adds the changed row as new' {
+            # Source row 1 is matrix1/GRP-1/S-1-5-1. The table holds a row with the
+            # same matrix and group but a different u_adobjectid, so it no longer
+            # matches: the old row is deactivated and the source row is created.
+            Mock Get-ServiceNowRecord {
+                @(
+                    [PSCustomObject]@{
+                        sys_id           = 'rec-old'
+                        u_matrixfilename = 'matrix1.xlsx'
+                        u_adobjectname   = 'GRP-1'
+                        u_adobjectid     = 'S-1-5-OLD'
+                        u_active         = $true
+                    }
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $true
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-old' -and $Values.u_active -eq $false
+            }
+        }
+    }
+
+    Context 'numeric source values (round-trip safety)' {
+        It 'matches a numeric source value against its plain-string stored value' {
+            # Excel stores the AD name 158774 as a number; ServiceNow stored it as
+            # the string '158774'. These must compare equal - the row must NOT be
+            # recreated on every run.
+            $numericFile = Join-Path $TestDrive 'numeric.xlsx'
+            [PSCustomObject]@{
+                u_matrixfilename = 'matrix-n.xlsx'
+                u_adobjectname   = 158774          # numeric -> read back as a number
+                u_adobjectid     = 'S-1-5-7'
+            } | Export-Excel -Path $numericFile -WorksheetName 'SnowFormData'
+            $params.FormDataExcelFilePath = $numericFile
+
+            Mock Get-ServiceNowRecord {
+                @(
+                    [PSCustomObject]@{
+                        sys_id           = 'rec-n'
+                        u_matrixfilename = 'matrix-n.xlsx'
+                        u_adobjectname   = '158774'   # stored as a plain string
+                        u_adobjectid     = 'S-1-5-7'
+                        u_active         = $true
+                    }
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+        }
+
+        It 'cleans up a stored value corrupted with a trailing .0' {
+            # A value stored as '158774.0' by an earlier (buggy) upload no longer
+            # matches the source '158774', so it is deactivated and a clean copy is
+            # created - a one-time correction, after which the row is stable.
+            $numericFile = Join-Path $TestDrive 'numeric.xlsx'
+            [PSCustomObject]@{
+                u_matrixfilename = 'matrix-n.xlsx'
+                u_adobjectname   = 158774
+                u_adobjectid     = 'S-1-5-7'
+            } | Export-Excel -Path $numericFile -WorksheetName 'SnowFormData'
+            $params.FormDataExcelFilePath = $numericFile
+
+            Mock Get-ServiceNowRecord {
+                @(
+                    [PSCustomObject]@{
+                        sys_id           = 'rec-dirty'
+                        u_matrixfilename = 'matrix-n.xlsx'
+                        u_adobjectname   = '158774.0'   # corrupted by an earlier run
+                        u_adobjectid     = 'S-1-5-7'
+                        u_active         = $true
+                    }
+                )
+            }
+
+            & $ScriptPath @params
+
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-dirty' -and $Values.u_active -eq $false
+            }
+        }
+    }
+
+    Context 'retry behaviour' {
         It 'retries a transient creation failure and then succeeds' {
             $singleRecordFile = Join-Path $TestDrive 'one-record.xlsx'
             New-RecordsXlsx -Path $singleRecordFile -Records (New-SampleRecords -Count 1)
             $params.FormDataExcelFilePath = $singleRecordFile
             $params.MaxRetries = 3
-            Mock Get-ServiceNowRecord {}   # isolate creation from removal
+            # Empty table (default) -> the single source row is created.
 
             $script:createCalls = 0
             Mock New-ServiceNowRecord {
@@ -365,7 +540,6 @@ Describe 'UpdateServiceNow.ps1' {
             New-RecordsXlsx -Path $singleRecordFile -Records (New-SampleRecords -Count 1)
             $params.FormDataExcelFilePath = $singleRecordFile
             $params.MaxRetries = 2
-            Mock Get-ServiceNowRecord {}
             Mock New-ServiceNowRecord { throw 'persistent create error' }
 
             { & $ScriptPath @params } |
@@ -374,16 +548,72 @@ Describe 'UpdateServiceNow.ps1' {
             Should -Invoke New-ServiceNowRecord -Exactly -Times 2
             Should -Invoke Start-Sleep -Exactly -Times 1   # only between attempts, not after the final throw
         }
+
+        It 'treats a failed deactivation as non-fatal and continues' {
+            $params.MaxRetries = 3
+            # One active straggler to deactivate; the two source rows are new.
+            Mock Get-ServiceNowRecord {
+                @( New-StaleTableRecord -SysId 'rec-stale' -Active $true )
+            }
+            Mock Update-ServiceNowRecord { throw 'permanent update error' }
+
+            { & $ScriptPath @params } | Should -Not -Throw
+
+            # Deactivation is retried up to MaxRetries (3 attempts, 2 sleeps) then
+            # abandoned with a warning - the creates still happen.
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 3
+            Should -Invoke Start-Sleep -Exactly -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+        }
+
+        It 'treats a failed reactivation as non-fatal and continues' {
+            $params.MaxRetries = 3
+            # Source row 1 matches an inactive row (reactivation target); source
+            # row 2 has no match and must be created.
+            Mock Get-ServiceNowRecord {
+                @( New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $false )
+            }
+            Mock Update-ServiceNowRecord { throw 'permanent update error' }
+
+            { & $ScriptPath @params } | Should -Not -Throw
+
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 3
+            Should -Invoke Start-Sleep -Exactly -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
+        }
     }
 
     Context 'happy path' {
-        It 'creates a session, clears the table, and uploads all records' {
+        It 'creates a session, then adds, reactivates and deactivates as needed' {
+            $threeRecordFile = Join-Path $TestDrive 'three-records.xlsx'
+            New-RecordsXlsx -Path $threeRecordFile -Records (New-SampleRecords -Count 3)
+            $params.FormDataExcelFilePath = $threeRecordFile
+
+            # Table state:
+            #   rec-1   matches source 1, active   -> no change
+            #   rec-2   matches source 2, inactive -> reactivate
+            #   rec-st  not in source, active      -> deactivate
+            # Source 3 has no matching row         -> create
+            Mock Get-ServiceNowRecord {
+                @(
+                    New-MatchingTableRecord -Index 1 -SysId 'rec-1' -Active $true
+                    New-MatchingTableRecord -Index 2 -SysId 'rec-2' -Active $false
+                    New-StaleTableRecord -SysId 'rec-st' -Active $true
+                )
+            }
+
             & $ScriptPath @params
 
             Should -Invoke New-ServiceNowSession -Exactly -Times 1
             Should -Invoke Get-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Remove-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 2
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-2' -and $Values.u_active -eq $true
+            }
+            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+                $ID -eq 'rec-st' -and $Values.u_active -eq $false
+            }
         }
     }
 }
