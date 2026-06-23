@@ -10,6 +10,7 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 - **Automated Notifications**: Integrated SMTP support (via MailKit/MimeKit) to send status updates by mail.
 - **Granular Logging**: Detailed logging to XLSX/JSON and the Windows Event Log.
 - **ServiceNow Integration**: Syncs with ServiceNow tables to manage roles and form data.
+- **Access Reviews**: A separate, read-only audit entrypoint e-mails folder owners their current access for periodic sign-off — without changing any permissions.
 
 ## 🚀 Getting Started
 
@@ -89,6 +90,22 @@ For automated, recurring executions (e.g., via Windows Task Scheduler), use the 
 ```
 -Command "& 'C:\Tools\Permission-matrix-set-permissions\Scripts\Entrypoints\PermissionMatrix.ps1' -ConfigurationJsonFile 'C:\MyConfig.json'; exit $LASTEXITCODE"
 ```
+
+## 🔍 Access Review (Audit Report)
+
+Alongside the main run that *applies* permissions, the tool ships a second entrypoint that **reviews** them without changing anything. `PermissionMatrixAuditReport.ps1` reuses the read-and-resolve stage of the pipeline — importing the matrices and resolving Active Directory — but never runs the steps that modify ACLs, so it is safe to run at any time.
+
+For each matrix it e-mails the responsible person (resolved from the matrix's `MatrixResponsible` field) a copy of that folder's current access as an Excel attachment, asking them to confirm it is still correct. This closes the loop on access governance: permissions are not only set automatically, they are also periodically signed off by the people who own them.
+
+The audit is driven by its own JSON configuration, based on **[`ExampleAuditReport.json`](Examples/ExampleAuditReport.json)**, with its own `Settings.SendMail` block and subject/body templates. Administrators listed in `AuditReport.ScriptAdmin` are blind-copied on every review mail and receive summaries of any matrices that were skipped due to fatal errors or responsibles that could not be reached.
+
+Run it the same way as the main script, typically on a slower schedule (e.g., monthly) via Task Scheduler:
+
+```powershell
+pwsh.exe -Command "& '.\Scripts\Entrypoints\PermissionMatrixAuditReport.ps1' -ConfigurationJsonFile 'C:\MyAuditConfig.json'; exit `$LASTEXITCODE"
+```
+
+💡 **TIP**: To preview the review mails before sending them to real owners, set `Settings.SendMail.To` in the audit configuration. When populated it acts as a test override — every mail goes to those address(es) only, the per-matrix responsible is ignored, and no blind copies are sent.
 
 ## 📊 Logging & Monitoring
 
