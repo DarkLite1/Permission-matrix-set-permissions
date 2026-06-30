@@ -154,19 +154,31 @@ begin {
         )
 
         try {
-            if ($ReferenceAce.Count -ne $DifferenceAce.Count) { return $false }
-
-            # OPTIMIZATION: Use O(1) HashSet for fast matching instead of nested loops
+            # Build deduplicated fingerprint sets for both sides and compare
+            # with SetEquals. This mirrors the parallel-thread implementation and
+            # is robust to duplicate ACEs (which Windows can merge on-disk). It
+            # avoids two defects of a raw '.Count' guard + one-directional
+            # Contains() check:
+            #   - the false "not equal" when the reference collapses two
+            #     fingerprint-identical ACEs into one but the on-disk ACL has
+            #     both (or vice-versa), and
+            #   - the false "equal" when both sides have matching counts yet the
+            #     difference side is missing a reference ACE but repeats another.
+            # The fingerprint stays propagation-blind on purpose: inherited ACEs
+            # land with PropagationFlags=None while the matrix models them as
+            # InheritOnly, and that difference must compare as equal.
             $refSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             foreach ($R in $ReferenceAce) {
+                # [int] casts bypass slow string evaluations
                 [void]$refSet.Add("$([int]$R.FileSystemRights)|$([int]$R.AccessControlType)|$($R.IdentityReference.ToString())|$([int]$R.InheritanceFlags)")
             }
 
+            $diffSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             foreach ($D in $DifferenceAce) {
-                $id = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
-                if (-not $refSet.Contains($id)) { return $false }
+                [void]$diffSet.Add("$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)")
             }
-            return $true
+
+            return $refSet.SetEquals($diffSet)
         }
         catch {
             throw "Failed testing the ACL for equality: $_"
