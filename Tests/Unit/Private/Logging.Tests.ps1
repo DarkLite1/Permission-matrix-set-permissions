@@ -253,6 +253,18 @@ Describe 'Out-LogFileHC' {
         $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
         $obj.Error | Should -Be 'boom'
     }
+
+    It 'does not mutate the caller''s input objects when converting ErrorRecords' {
+        $partial = Join-Path $TestDrive 'out-nomutate'
+        $rec = try { throw 'boom' } catch { $_ }
+        $row = [PSCustomObject]@{ Name = 'X'; Error = $rec }
+
+        Out-LogFileHC -DataToExport @($row) `
+            -PartialPath $partial -FileExtensions '.json' | Out-Null
+
+        # The original object must still hold the ErrorRecord, not a string.
+        $row.Error | Should -BeOfType [System.Management.Automation.ErrorRecord]
+    }
 }
 
 Describe 'Write-EventsToEventLogHC' {

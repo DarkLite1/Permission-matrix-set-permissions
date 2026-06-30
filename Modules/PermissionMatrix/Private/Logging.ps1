@@ -191,13 +191,20 @@ function Out-LogFileHC {
                 }
 
                 '.json' {
+                    # Build a new object per item so the caller's $DataToExport
+                    # is never mutated. ErrorRecord values are rendered to their
+                    # message text; all other values are copied as-is.
                     $converted = foreach ($item in $DataToExport) {
+                        $clone = [ordered]@{}
                         foreach ($p in $item.PSObject.Properties) {
-                            if ($p.Value -is [System.Management.Automation.ErrorRecord]) {
-                                $item.$($p.Name) = $p.Value.Exception.Message
+                            $clone[$p.Name] = if ($p.Value -is [System.Management.Automation.ErrorRecord]) {
+                                $p.Value.Exception.Message
+                            }
+                            else {
+                                $p.Value
                             }
                         }
-                        $item
+                        [PSCustomObject]$clone
                     }
 
                     if ($Append -and (Test-Path $logFilePath)) {
