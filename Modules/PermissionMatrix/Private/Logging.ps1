@@ -202,7 +202,7 @@ function Out-LogFileHC {
 
                     if ($Append -and (Test-Path $logFilePath)) {
                         $existing = Get-Content -LiteralPath $logFilePath -Raw | ConvertFrom-Json
-                        $converted = @($converted) + @($existing)
+                        $converted = @($existing) + @($converted)
                     }
 
                     $converted |

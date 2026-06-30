@@ -236,6 +236,10 @@ Describe 'Out-LogFileHC' {
         $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
         $obj.Count | Should -Be 3
         ($obj.Name) | Should -Contain 'Carol'
+        # Newly appended rows must come after the existing ones (chronological order)
+        $obj[0].Name | Should -Be 'Alice'
+        $obj[1].Name | Should -Be 'Bob'
+        $obj[2].Name | Should -Be 'Carol'
     }
 
     It 'converts ErrorRecord properties to their message text in JSON' {
