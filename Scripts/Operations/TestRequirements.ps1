@@ -140,6 +140,11 @@ $uniquePaths = $Path | Sort-Object -Unique
 $abeCorrected = [ordered]@{}
 $permissionsCorrected = [ordered]@{}
 
+# Target enumeration mode depends only on $Flag, so resolve it once. This also
+# guarantees the value is available in the catch block below, even when a
+# failure occurs before the share is processed.
+$abeMode = if ($Flag) { 'AccessBased' } else { 'Unrestricted' }
+
 foreach ($p in $uniquePaths) {
     # Fast intrinsic filtering based on exact match or subfolder match
     $matchingShares = $smbShares.Where({ $_.Path -eq $p -or $_.Path.StartsWith("$p\") })
@@ -153,8 +158,6 @@ foreach ($p in $uniquePaths) {
             $isAbeEnabled = ($share.FolderEnumerationMode -eq 'AccessBased') -or ($share.FolderEnumerationMode -eq 0)
             
             if ($isAbeEnabled -ne $Flag) {
-                $abeMode = if ($Flag) { 'AccessBased' } else { 'Unrestricted' }
-                
                 Write-Verbose "Set FolderEnumerationMode to '$abeMode'"
 
                 Set-SmbShare -Name $share.Name -FolderEnumerationMode $abeMode -ErrorAction Stop -Force
