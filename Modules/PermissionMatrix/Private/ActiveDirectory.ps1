@@ -289,8 +289,7 @@ function Get-AdUserPrincipalNameHC {
                 $AdObject = Get-ADObject -Filter "ProxyAddresses -eq 'smtp:$N' -or SamAccountName -eq '$N'" -Property 'Mail'
 
                 if ($AdObject.Count -ge 2) {
-                    throw "Multiple results found for name '$N': $($AdObject.Name -join ', '). Skipping."
-
+                    throw "The name '$N' is ambiguous and matches $($AdObject.Count) Active Directory objects: $($AdObject.Name -join ', '). This usually happens when duplicate objects exist in the domain or forest. Please specify the exact object in the input file (for example by using the unique 'DOMAIN\SamAccountName' or e-mail address) so it can be resolved unambiguously."
                 }
 
                 if (-not $AdObject) {
