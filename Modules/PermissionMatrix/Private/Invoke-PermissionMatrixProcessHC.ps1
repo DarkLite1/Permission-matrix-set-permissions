@@ -68,7 +68,14 @@ function Invoke-PermissionMatrixProcessHC {
         $validMatrices = [System.Collections.Generic.List[pscustomobject]]::new()
 
         foreach ($file in $Context.FileResults) {
-            if (Test-ItemHasFatalErrorHC -CheckList $file.Check) {
+            # A fatal file-level error or a fatal Permissions sheet error blocks
+            # permission application. FormData sheet errors do NOT, because they
+            # only affect the ServiceNow export, not the NTFS permissions.
+            if (
+                Test-ItemHasFatalErrorHC -CheckList (
+                    @($file.Check) + @($file.Sheets.Permissions.Check)
+                )
+            ) {
                 continue
             }
             

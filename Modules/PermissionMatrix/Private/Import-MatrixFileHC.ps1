@@ -67,6 +67,7 @@ function Import-MatrixFileHC {
             Permissions = @{
                 Raw       = $null
                 Formatted = $null
+                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
             }
             Settings    = @{
                 Raw       = $null
@@ -75,6 +76,7 @@ function Import-MatrixFileHC {
             FormData    = @{
                 Raw       = $null
                 Formatted = $null
+                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
             }
         }
         Matrices       = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -150,14 +152,14 @@ function Import-MatrixFileHC {
                 $formDataCheck = Test-MatrixFormDataHC -FormData $formDataImport
 
                 if ($formDataCheck) {
-                    $fileResult.Check.Add($formDataCheck)
+                    $fileResult.Sheets.FormData.Check.Add($formDataCheck)
                 }
                 else {
                     $fileResult.Sheets.FormData.Formatted = $formDataImport[0] | Format-FormDataStringsHC
                 }
             }
             catch {
-                $fileResult.Check.Add(
+                $fileResult.Sheets.FormData.Check.Add(
                     [pscustomobject]@{
                         Type        = 'FatalError'
                         Name        = "Worksheet 'FormData' not found"

@@ -150,7 +150,7 @@ Describe 'Import-MatrixFileHC' {
 
             $result.Sheets.FormData.Raw | Should -Not -BeNullOrEmpty
             # No "missing sheet" FatalError, because the sheet exists.
-            ($result.Check | Where-Object Name -EQ "Worksheet 'FormData' not found") |
+            ($result.Sheets.FormData.Check | Where-Object Name -EQ "Worksheet 'FormData' not found") |
                 Should -BeNullOrEmpty
             # Assumes the fixture's default FormData passes the real Test-FormDataHC.
             $result.Sheets.FormData.Formatted | Should -Not -BeNullOrEmpty
@@ -170,7 +170,7 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext -ServiceNowFormDataExcelFile 'C:\snow\FormData.xlsx')
 
-            $formDataCheck = $result.Check | Where-Object Name -EQ "Worksheet 'FormData' not found"
+            $formDataCheck = $result.Sheets.FormData.Check | Where-Object Name -EQ "Worksheet 'FormData' not found"
             $formDataCheck | Should -Not -BeNullOrEmpty
             $formDataCheck.Type | Should -Be 'FatalError'
 

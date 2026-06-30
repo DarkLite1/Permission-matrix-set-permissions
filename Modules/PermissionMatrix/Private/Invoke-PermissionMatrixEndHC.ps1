@@ -74,8 +74,22 @@ function Invoke-PermissionMatrixEndHC {
                 -FileResults $Context.FileResults `
                 -AdObjectDetails $Context.AdObjectDetails
 
+            # FormData sheet errors do not block permission application, but the
+            # ServiceNow table is built from the FormData, so a fatal FormData
+            # error means we cannot reliably sync. Skip UpdateServiceNow in that
+            # case while still producing the other exports above.
+            $hasFormDataErrors = $false
+            foreach ($file in $Context.FileResults) {
+                if (Test-ItemHasFatalErrorHC -CheckList $file.Sheets.FormData.Check) {
+                    $hasFormDataErrors = $true
+                    break
+                }
+            }
+
             if (
-                $Context.Config.Export.ServiceNowFormDataExcelFile -and $Context.Config.ServiceNow.CredentialsFilePath
+                $Context.Config.Export.ServiceNowFormDataExcelFile -and
+                $Context.Config.ServiceNow.CredentialsFilePath -and
+                -not $hasFormDataErrors
             ) {
                 $snowParams = @{
                     CredentialsFilePath    = $Context.Config.ServiceNow.CredentialsFilePath
@@ -85,6 +99,18 @@ function Invoke-PermissionMatrixEndHC {
                     ExcelFileWorksheetName = 'SnowFormData'
                 }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
+            }
+            elseif (
+                $Context.Config.Export.ServiceNowFormDataExcelFile -and
+                $Context.Config.ServiceNow.CredentialsFilePath -and
+                $hasFormDataErrors
+            ) {
+                Add-ErrorHC `
+                    -Type 'Warning' `
+                    -Name 'ServiceNow skipped' `
+                    -Message 'ServiceNow update was skipped because one or more matrix files have FormData errors.' `
+                    -Category 'Reporting' `
+                    -SystemErrors $SystemErrors
             }
         }
         catch {

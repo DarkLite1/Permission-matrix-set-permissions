@@ -223,7 +223,7 @@ function Invoke-PermissionMatrixBeginHC {
                             -Permissions $fileResult.Sheets.Permissions.Formatted
 
                         if ($permErrors) {
-                            $fileResult.Check.AddRange(
+                            $fileResult.Sheets.Permissions.Check.AddRange(
                                 [pscustomobject[]]@($permErrors)
                             )
                         }
@@ -247,7 +247,10 @@ function Invoke-PermissionMatrixBeginHC {
                         }
 
                         $isFileBroken = Test-ItemHasFatalErrorHC `
-                            -CheckList $fileResult.Check
+                            -CheckList (
+                                @($fileResult.Check) +
+                                @($fileResult.Sheets.Permissions.Check)
+                            )
                         $isRowBroken = Test-ItemHasFatalErrorHC `
                             -CheckList $m.Check
 
@@ -440,7 +443,10 @@ function Invoke-PermissionMatrixBeginHC {
             #region Rewrite ACLs in all matrices to use SIDs instead of names
             foreach ($matrixObj in $Context.AllMatrices) {
                 $isFileBroken = Test-ItemHasFatalErrorHC `
-                    -CheckList $matrixObj.FileContext.Check
+                    -CheckList (
+                        @($matrixObj.FileContext.Check) +
+                        @($matrixObj.FileContext.Sheets.Permissions.Check)
+                    )
                 $isRowBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.Check
 
@@ -491,7 +497,10 @@ function Invoke-PermissionMatrixBeginHC {
         }
 
         $validMatrices = $validMatrices | Where-Object {
-            -not (Test-ItemHasFatalErrorHC -CheckList $_.FileContext.Check)
+            -not (Test-ItemHasFatalErrorHC -CheckList (
+                    @($_.FileContext.Check) +
+                    @($_.FileContext.Sheets.Permissions.Check)
+                ))
         }
 
         if ($validMatrices) {
