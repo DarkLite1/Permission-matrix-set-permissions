@@ -62,12 +62,12 @@ Describe 'Format-FormDataStringsHC' {
 }
 
 Describe 'Format-PermissionsStringsHC' {
-    It 'trims and uppercases all string properties' {
-        $row = [pscustomobject]@{ P1 = ' path '; P2 = ' r '; P3 = ' f ' }
+    It 'trims all strings and uppercases every column except the P1 path' {
+        $row = [pscustomobject]@{ P1 = ' Path\To\Folder '; P2 = ' r '; P3 = ' f ' }
 
         $res = Format-PermissionsStringsHC -Row $row
 
-        $res.P1 | Should -Be 'PATH'
+        $res.P1 | Should -Be 'Path\To\Folder'
         $res.P2 | Should -Be 'R'
         $res.P3 | Should -Be 'F'
     }
@@ -88,9 +88,9 @@ Describe 'Format-PermissionsStringsHC' {
         $res.PSObject.Properties.Name | Should -Be @('P3', 'P1', 'P2')
     }
 
-    It 'accepts input from the pipeline' {
-        $res = [pscustomobject]@{ P1 = ' abc ' } | Format-PermissionsStringsHC
-        $res.P1 | Should -Be 'ABC'
+    It 'accepts input from the pipeline and preserves P1 casing' {
+        $res = [pscustomobject]@{ P1 = ' Abc ' } | Format-PermissionsStringsHC
+        $res.P1 | Should -Be 'Abc'
     }
 }
 

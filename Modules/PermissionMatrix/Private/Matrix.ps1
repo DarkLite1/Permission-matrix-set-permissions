@@ -83,15 +83,17 @@ function Format-FormDataStringsHC {
 function Format-PermissionsStringsHC {
     <#
     .SYNOPSIS
-        Return a copy of a Permissions row with all string values trimmed and
-        uppercased.
+        Return a copy of a Permissions row with all string values trimmed, and
+        every column except the P1 path column upper-cased.
 
     .DESCRIPTION
         Produces a new object from a row returned by Import-Excel for the
         Permissions sheet, in which every string-valued property is trimmed of
-        leading and trailing whitespace and converted to upper case. Values
-        that are not strings (numbers, dates, booleans, $null, arrays, nested
-        objects, and so on) are copied across unchanged.
+        leading and trailing whitespace. All columns except P1 are also
+        converted to upper case; P1 holds the folder path (Column A) and keeps
+        its original capitalization because it is used verbatim to create
+        folders on disk. Values that are not strings (numbers, dates, booleans,
+        $null, arrays, nested objects, and so on) are copied across unchanged.
 
         The original property order is preserved by building the result through
         an ordered dictionary, so the Excel column layout is kept intact. The
@@ -133,13 +135,14 @@ function Format-PermissionsStringsHC {
     .OUTPUTS
         System.Management.Automation.PSCustomObject
         One object per input row, exposing the same properties in the same
-        order, with string values trimmed and uppercased.
+        order, with string values trimmed and (except P1) uppercased.
 
     .NOTES
-        - Only scalar [string] values are trimmed and uppercased. Everything
-          else is copied unchanged, including $null, numbers, dates, booleans
-          and arrays. A string element inside an array property is therefore
-          left as-is.
+        - Only scalar [string] values are trimmed. Every string column except
+          P1 is also uppercased; P1 (the folder path) is only trimmed so its
+          on-disk capitalization is preserved. Everything non-string is copied
+          unchanged, including $null, numbers, dates, booleans and arrays. A
+          string element inside an array property is therefore left as-is.
         - Trimming removes leading and trailing whitespace only; whitespace
           inside the value (for example between words) is preserved.
         - The input object is not mutated; a new object is returned.
@@ -160,7 +163,17 @@ function Format-PermissionsStringsHC {
         foreach ($prop in $Row.PSObject.Properties) {
             $val = $prop.Value
             if ($val -is [string]) {
-                $val = $val.Trim().ToUpper()
+                # P1 is the folder path (Column A). It is used verbatim to
+                # create missing folders on disk, so its original capitalization
+                # MUST be preserved - only trim it. Every other column holds a
+                # permission character (R/W/L/F/I) that is matched
+                # case-insensitively, so those are trimmed AND upper-cased.
+                if ($prop.Name -eq 'P1') {
+                    $val = $val.Trim()
+                }
+                else {
+                    $val = $val.Trim().ToUpper()
+                }
             }
             $new[$prop.Name] = $val
         }

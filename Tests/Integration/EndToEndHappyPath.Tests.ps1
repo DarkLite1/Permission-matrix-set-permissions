@@ -213,6 +213,20 @@ Describe 'Permission Matrix - End to End' {
         Test-Path -LiteralPath $docsFolder -PathType Container |
         Should -BeTrue -Because 'Action=New should have created Finance\Docs'
 
+        # -------------------------------------------------------------------
+        # Regression: newly created folders must keep the exact casing from
+        # the matrix (Column A), not be upper-cased. The filesystem is
+        # case-insensitive, so Test-Path/Get-Item on the requested path would
+        # not reveal a casing mismatch - enumerate the parent to read the
+        # real on-disk name instead.
+        # -------------------------------------------------------------------
+        $onDiskFinance = (Get-ChildItem -LiteralPath $rootFolder -Directory).Where({ $_.Name -eq 'Finance' }).Name
+        $onDiskFinance |
+        Should -BeExactly 'Finance' -Because 'the folder casing from the matrix must be preserved'
+        $onDiskDocs = (Get-ChildItem -LiteralPath $financeFolder -Directory).Where({ $_.Name -eq 'Docs' }).Name
+        $onDiskDocs |
+        Should -BeExactly 'Docs' -Because 'the folder casing from the matrix must be preserved'
+
         $financeAcl = (Get-Acl -LiteralPath $financeFolder).Access
         $docsAcl = (Get-Acl -LiteralPath $docsFolder).Access
 
