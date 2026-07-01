@@ -160,7 +160,6 @@ function Import-MatrixFileHC {
         #endregion
 
         #region Import optional FormData
-        $formData = $null
         if ($Context.Config.Export.ServiceNowFormDataExcelFile -or
             $Context.Config.Export.OverviewHtmlFile -or
             $Context.Config.Export.PermissionsExcelFile -or
