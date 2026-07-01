@@ -286,17 +286,31 @@ Describe 'ConvertTo-MatrixAclHC' {
         $res[0].Path | Should -Be 'Folder1'
         $res[0].ACL['Obj1'] | Should -Be 'R'
         $res[0].ACL['Obj2'] | Should -Be 'W'
+        $res[0].Ignore | Should -BeFalse
     }
 
-    It "ignores cells with permission 'I' (inherit)" {
+    It "flags a row containing 'I' (Ignore) and discards its permissions" {
         $rows = @(
             [pscustomobject]@{ P1 = 'Folder2'; P2 = 'I'; P3 = 'F' }
         )
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        $res[0].ACL.ContainsKey('Obj1') | Should -BeFalse
-        $res[0].ACL['Obj2'] | Should -Be 'F'
+        # A single 'I' marks the whole folder as ignored: no ACL is produced
+        # and any other permission on the row (here 'F') is discarded.
+        $res[0].Ignore | Should -BeTrue
+        $res[0].ACL.Count | Should -Be 0
+    }
+
+    It "flags a row where the only permission is 'I'" {
+        $rows = @(
+            [pscustomobject]@{ P1 = 'Folder3'; P2 = 'I'; P3 = '' }
+        )
+
+        $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
+
+        $res[0].Ignore | Should -BeTrue
+        $res[0].ACL.Count | Should -Be 0
     }
 
     It 'skips rows with no path (P1 empty)' {
@@ -320,6 +334,7 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res[0].ACL.ContainsKey('Obj2') | Should -BeFalse
         $res[0].ACL.Count | Should -Be 1
+        $res[0].Ignore | Should -BeFalse
     }
 
     It 'returns an empty result when all rows lack a path' {

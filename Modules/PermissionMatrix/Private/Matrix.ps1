@@ -703,10 +703,14 @@ function ConvertTo-MatrixAclHC {
         - For every column in AdObjectsMap (P2, P3, ...), the row's value in
           that column is the permission for the corresponding AD object. The
           permission is added to the row's ACL only when it is non-empty and
-          not 'I' (inherit); the ACL key is the resolved AD name taken from
+          not 'I' (Ignore); the ACL key is the resolved AD name taken from
           AdObjectsMap, and the value is the permission character.
+        - A single 'I' (Ignore) in any permission column flags the whole row as
+          ignored: the resulting entry gets an empty ACL and Ignore = $true, so
+          downstream defaults merging and SetPermissions.ps1 leave the folder
+          (and its subtree) completely untouched.
 
-        Each surviving row becomes a PSCustomObject with Path and ACL
+        Each surviving row becomes a PSCustomObject with Path, ACL and Ignore
         properties. The collected objects are returned as an array.
 
     .PARAMETER DataRows
@@ -731,9 +735,10 @@ function ConvertTo-MatrixAclHC {
         ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
 
         Returns two objects. '\\srv\Finance' gets ACL
-        @{ 'Mgrs BRU GRP' = 'F'; 'Users GRP' = 'R' }. '\\srv\HR' gets ACL
-        @{ 'Users GRP' = 'W' } — its P2 value 'I' is an inherit marker and is
-        excluded.
+        @{ 'Mgrs BRU GRP' = 'F'; 'Users GRP' = 'R' } and Ignore = $false.
+        '\\srv\HR' has an 'I' in a permission column, so it is flagged as
+        ignored: an empty ACL and Ignore = $true. Its other value ('W') is
+        discarded because an ignored folder is left untouched.
 
     .EXAMPLE
         $map = @{ P2 = 'Mgrs BRU GRP' }
@@ -743,29 +748,30 @@ function ConvertTo-MatrixAclHC {
         )
         ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
 
-        Returns one object: Path '\\srv\Logs' with an empty ACL hashtable. The
-        first row has no P1 and is skipped; the second has a path but its only
-        permission is 'I', so nothing is added to its ACL.
+        Returns one object: Path '\\srv\Logs' with an empty ACL hashtable and
+        Ignore = $true. The first row has no P1 and is skipped; the second is
+        an ignore row.
 
     .OUTPUTS
         System.Management.Automation.PSCustomObject[]
         An array of objects, one per data row with a non-empty P1, each having:
-        - Path: the value of the row's P1.
-        - ACL:  a hashtable mapping resolved AD object names to permission
-                characters. May be empty if the row has no granted permissions.
+        - Path:   the value of the row's P1.
+        - ACL:    a hashtable mapping resolved AD object names to permission
+                  characters. Empty when the row grants nothing or is ignored.
+        - Ignore: $true when any permission column held 'I', otherwise $false.
         Returns an empty array when no rows qualify.
 
     .NOTES
         - Rows with an empty P1 are dropped; a path is required to produce an
           entry.
-        - Permission values are taken from the row as-is: they are not trimmed,
-          upper-cased or validated against a permitted set, unlike
-          Get-DefaultAclHC. Only two values are special-cased — empty (skipped)
-          and 'I' (skipped). The 'I' comparison is case-insensitive, so 'i' is
-          also excluded, but a value with surrounding whitespace such as ' I '
-          does not match and would be kept.
-        - A path whose every permission is empty or 'I' still produces an entry,
-          with an empty ACL hashtable.
+        - Permission values are taken from the row as-is for the ACL: they are
+          not validated against a permitted set, unlike Get-DefaultAclHC. Two
+          values are special-cased — empty (skipped) and 'I' (flags the row as
+          ignored). The 'I' comparison is trimmed and case-insensitive.
+        - An ignored row (any 'I') always produces an entry with an empty ACL
+          and Ignore = $true; any other permissions on that row are discarded.
+        - A path whose every permission is empty still produces an entry with an
+          empty ACL and Ignore = $false.
         - The ACL is a default @{} hashtable, so its AD-name keys are matched
           case-insensitively. If two columns in AdObjectsMap resolve to the same
           AD name, the later column's permission overwrites the earlier one's
@@ -783,18 +789,37 @@ function ConvertTo-MatrixAclHC {
         if (-not $row.P1) { continue }
 
         $acl = @{}
+        $isIgnored = $false
+
         foreach ($colName in $AdObjectsMap.Keys) {
             $perm = $row.$colName
-            if ($perm -and $perm -ne 'I') {
-                # Map the permission to the resolved AD Object name
-                $acl[$AdObjectsMap[$colName]] = $perm
+
+            if (-not $perm) { continue }
+
+            # 'I' (Ignore) marks the whole folder entry to be skipped: the
+            # script must not touch it or apply any permissions, whether from
+            # the matrix or the defaults. A single 'I' in any permission column
+            # flags the row, matching the ignore detection in the validation
+            # stage and the documented behaviour in the README. Values reaching
+            # here are already trimmed and upper-cased by
+            # Format-PermissionsStringsHC.
+            if ("$perm".Trim().ToUpper() -eq 'I') {
+                $isIgnored = $true
+                continue
             }
+
+            # Map the permission to the resolved AD Object name
+            $acl[$AdObjectsMap[$colName]] = $perm
         }
 
+        # An ignored entry carries no ACL. Downstream defaults merging and
+        # SetPermissions.ps1 both key off the Ignore flag to leave the folder
+        # (and its subtree) completely untouched.
         $matrix.Add(
             [pscustomobject]@{
-                Path = $row.P1
-                ACL  = $acl
+                Path   = $row.P1
+                ACL    = if ($isIgnored) { @{} } else { $acl }
+                Ignore = $isIgnored
             }
         )
     }

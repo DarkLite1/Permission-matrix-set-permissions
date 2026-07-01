@@ -275,6 +275,11 @@ function Invoke-PermissionMatrixBeginHC {
                                     $applyDefaultPerms = $m.Setting.Formatted.ApplyDefaultPermissions
 
                                     foreach ($folder in $m.Matrix) {
+                                        # Ignored folders ('I' in the matrix)
+                                        # must never receive default (or any)
+                                        # permissions; leave them untouched.
+                                        if ($folder.Ignore) { continue }
+
                                         $folder.ACL = Merge-DefaultPermissionsHC `
                                             -Defaults $context.Defaults.DefaultAcl `
                                             -MatrixAcl $folder.ACL `
