@@ -63,21 +63,23 @@ Describe 'Permission Matrix - End to End' {
         # ---------------------------------------------------------------------
         $script:TestGroupBob = 'PermMatrixE2E_Bob'
         $script:TestGroupMike = 'PermMatrixE2E_Mike'
+        $script:TestGroupDefault = 'PermMatrixE2E_Default'
 
         if ($E2EPrereqsMet) {
-            foreach ($name in $TestGroupBob, $TestGroupMike) {
+            foreach ($name in $TestGroupBob, $TestGroupMike, $TestGroupDefault) {
                 if (-not (Get-LocalGroup -Name $name -ErrorAction SilentlyContinue)) {
                     $null = New-LocalGroup -Name $name -Description 'PermissionMatrix E2E test fixture'
                 }
             }
             $script:TestGroupBobSid = (Get-LocalGroup -Name $TestGroupBob).SID.Value
             $script:TestGroupMikeSid = (Get-LocalGroup -Name $TestGroupMike).SID.Value
+            $script:TestGroupDefaultSid = (Get-LocalGroup -Name $TestGroupDefault).SID.Value
         }
     }
 
     AfterAll {
         # Clean up local groups regardless of test outcome.
-        foreach ($name in $TestGroupBob, $TestGroupMike) {
+        foreach ($name in $TestGroupBob, $TestGroupMike, $TestGroupDefault) {
             if (Get-LocalGroup -Name $name -ErrorAction SilentlyContinue) {
                 Remove-LocalGroup -Name $name -ErrorAction SilentlyContinue
             }
@@ -227,6 +229,110 @@ Describe 'Permission Matrix - End to End' {
         Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT"
         $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
         Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT"
+    }
+
+    It 'creates a no-permission folder as inherit-only under Action=New (no defaults, no cut)' -Skip:(-not $E2EPrereqsMet) {
+        # -------------------------------------------------------------------
+        # A folder listed in the matrix WITHOUT any permissions is an
+        # inherit-only folder. Under Action=New the whole tree is created from
+        # scratch, and these folders must be created too, purely inheriting
+        # from their parent: no default permissions, no cut inheritance.
+        # A folder WITH permissions ('Finance') still gets the default merged
+        # and its inheritance protected, proving the guard is scoped correctly.
+        # -------------------------------------------------------------------
+        $rootFolder = Join-Path $TestDrive 'DefTarget'
+        $matrixDir = (New-Item 'TestDrive:\DefMatrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\DefLogs' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'WithEmptyPermissionFolder') `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Test-Group'
+                Action                  = 'New'
+                ApplyDefaultPermissions = $true
+            }
+        )
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        # 'DefaultGroup' is the AD object in New-ValidDefaultsExcelFixture; it
+        # must resolve so the default can be applied to folders that have
+        # permissions.
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $TestGroupBobSid } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $TestGroupMikeSid } }
+                @{ SamAccountName = 'DefaultGroup'; adObject = @{ ObjectSid = $TestGroupDefaultSid } }
+            )
+        }
+
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
+        $fatals.Count | Should -Be 0 -Because (
+            "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        $financeFolder = Join-Path $rootFolder 'Finance'
+        $inheritOnlyFolder = Join-Path $rootFolder 'InheritOnly'
+
+        # The no-permission folder must be created ...
+        Test-Path -LiteralPath $inheritOnlyFolder -PathType Container |
+        Should -BeTrue -Because 'Action=New must create inherit-only folders too'
+
+        $defaultNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupDefault")).Value
+
+        # ... and must keep inheritance (not protected) ...
+        $inheritOnlySecurity = Get-Acl -LiteralPath $inheritOnlyFolder
+        $inheritOnlySecurity.AreAccessRulesProtected |
+        Should -BeFalse -Because 'a folder without permissions must keep inheriting (inheritance not cut)'
+
+        # ... and must NOT have the default group applied explicitly.
+        $inheritOnlyExplicit = $inheritOnlySecurity.Access.Where({ -not $_.IsInherited })
+        $inheritOnlyExplicit.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count |
+        Should -Be 0 -Because 'defaults must not be applied to a no-permission folder'
+
+        # The folder WITH permissions still gets the default merged and its
+        # inheritance protected, so the guard is scoped to empty folders only.
+        $financeSecurity = Get-Acl -LiteralPath $financeFolder
+        $financeSecurity.AreAccessRulesProtected |
+        Should -BeTrue -Because 'a folder with explicit permissions has protected (non-inherited) ACLs'
+        $financeSecurity.Access.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count |
+        Should -BeGreaterThan 0 -Because 'defaults are still applied to folders that have permissions'
     }
 
     It 'works the same way under parallel execution' -Skip:(-not $E2EPrereqsMet) {

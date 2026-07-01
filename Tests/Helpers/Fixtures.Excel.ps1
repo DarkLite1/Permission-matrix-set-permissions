@@ -343,6 +343,23 @@ function New-MatrixPermissionsFixtureRows {
             }
         }
 
+        'WithEmptyPermissionFolder' {
+            # 'Finance' has explicit permissions; 'InheritOnly' is listed but has
+            # no permission cells. The empty-permission folder must stay a pure
+            # inherit-only folder: inheritance kept (not protected) and no
+            # default permissions merged into it.
+            return @{
+                Row1 = @('', '', '')
+                Row2 = @('', '', '')
+                Row3 = @('', 'Bob', 'Mike')
+                Row4 = @('Path', 'L', 'L')
+                Data = @(
+                    @{ Path = 'Finance'     ; Col2 = 'R' ; Col3 = 'R' }
+                    @{ Path = 'InheritOnly' ; Col2 = ''  ; Col3 = '' }
+                )
+            }
+        }
+
         'MissingADObjectName' {
             return @{
                 Row1 = @('', '', '')

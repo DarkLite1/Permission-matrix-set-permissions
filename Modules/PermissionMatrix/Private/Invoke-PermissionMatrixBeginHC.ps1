@@ -298,6 +298,16 @@ function Invoke-PermissionMatrixBeginHC {
                                         # permissions; leave them untouched.
                                         if ($folder.Ignore) { continue }
 
+                                        # A folder listed without any permissions
+                                        # is an inherit-only folder: it must keep
+                                        # inheriting from its parent. Merging
+                                        # defaults into it would turn its empty ACL
+                                        # into an explicit, protected ACL and cut
+                                        # inheritance, which is not desired. Leave
+                                        # the empty ACL as-is so SetPermissions
+                                        # keeps the folder purely inheriting.
+                                        if ($folder.ACL.Count -eq 0) { continue }
+
                                         $folder.ACL = Merge-DefaultPermissionsHC `
                                             -Defaults $context.Defaults.DefaultAcl `
                                             -MatrixAcl $folder.ACL `
