@@ -199,17 +199,35 @@ function Invoke-PermissionMatrixBeginHC {
 
                 if ($fileResult.Sheets.Permissions.Raw) {
                     #region Check if GroupName and SiteCode columns are required
+                    # Only the AD Object Name header columns (P2, P3, ...) can
+                    # use 'GroupName'/'SiteCode' as placeholders that are resolved
+                    # from the Settings row (see Get-MatrixADObjectsMapHC, which
+                    # scans from P2 upward). Column A (P1) is the informational
+                    # folder column, so a literal 'SiteCode'/'GroupName' there
+                    # must NOT make the Settings value mandatory. The cell is
+                    # matched exactly (trimmed), mirroring the resolver's per-cell
+                    # switch, so a label that merely contains the word (e.g.
+                    # 'Regional SiteCode') does not trigger the requirement.
                     $headerRows = $fileResult.Sheets.Permissions.Raw |
                     Select-Object -First 3
 
                     foreach ($row in $headerRows) {
                         foreach ($p in $row.PSObject.Properties) {
+                            # Skip Column A (P1) and any non permission column
+                            if (
+                                ($p.Name -notmatch '^P(\d+)$') -or
+                                ([int]$Matches[1] -lt 2)
+                            ) {
+                                continue
+                            }
+
                             Write-Verbose "Checking Permissions header: $($p.Name) = '$($p.Value)'"
+
                             if ($p.Value -is [string]) {
-                                if ($p.Value -match 'GroupName') {
+                                if ($p.Value.Trim() -eq 'GroupName') {
                                     $reqGroupName = $true
                                 }
-                                if ($p.Value -match 'SiteCode') {
+                                if ($p.Value.Trim() -eq 'SiteCode') {
                                     $reqSiteCode = $true
                                 }
                             }

@@ -326,6 +326,23 @@ function New-MatrixPermissionsFixtureRows {
             }
         }
 
+        'PlaceholderWordsInColumnAOnly' {
+            # 'SiteCode' and 'GroupName' appear only in Column A (P1), which is
+            # informational. The AD Object Name column (P2) uses a real name, so
+            # neither placeholder is actually used and SiteCode/GroupName must
+            # NOT become mandatory in the Settings sheet.
+            return @{
+                Row1 = @('SiteCode', '')
+                Row2 = @('GroupName', 'Director')
+                Row3 = @('', 'Bob')
+                Row4 = @('Path', 'L')
+                Data = @(
+                    @{ Path = 'Finance'      ; Col2 = 'R' }
+                    @{ Path = 'Finance\Docs' ; Col2 = 'W' }
+                )
+            }
+        }
+
         'MissingADObjectName' {
             return @{
                 Row1 = @('', '', '')

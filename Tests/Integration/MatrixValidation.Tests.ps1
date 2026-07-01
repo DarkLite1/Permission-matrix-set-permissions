@@ -101,6 +101,28 @@ Describe 'Matrix validation (integration)' {
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
                 -Pattern "*$ExpectedMessage*"
         }
+
+        It "does not require SiteCode/GroupName when the words only appear in Column A" {
+            # Reproduces the false positive: 'SiteCode'/'GroupName' used as
+            # informational labels in Column A (P1) must not make the Settings
+            # values mandatory. Only AD Object Name columns (P2+) count as
+            # placeholders. Settings has both values blank ('MissingSiteCode').
+            New-MatrixExcelFixture `
+                -Path 'TestDrive:\Matrix\MutatedSettings.xlsx' `
+                -SettingsRows (New-MatrixSettingsFixtureRows -Scenario 'MissingSiteCode') `
+                -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'PlaceholderWordsInColumnAOnly') |
+            Out-Null
+
+            $updated = Copy-ObjectHC $TestInput
+            Save-TestJson $updated $TestJsonFile
+
+            & $TestScript @TestParams
+
+            Assert-HtmlLogContainsPatternHC `
+                -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
+                -Pattern '*cannot be empty because it is used as a placeholder*' `
+                -Not
+        }
     }
 
     Describe 'Matrix: Permissions sheet validation' {
