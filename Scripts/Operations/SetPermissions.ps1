@@ -289,6 +289,24 @@ begin {
             try {
                 Write-Verbose "Get content of folder '$Path'"
                 $dirInfo = [System.IO.DirectoryInfo]::new($Path)
+
+                # Skip anything that is not a real, enumerable directory. The
+                # matrix can list a name that exists on disk as a file, or as a
+                # DFS link / reparse point / junction. DirectoryInfo.Exists is
+                # $false for a file (or a missing path), and enumerating a DFS
+                # link or reparse point throws 'The parameter is incorrect'.
+                # Both cases have no inheritable children to process here, so
+                # return gracefully instead of aborting the entire run with a
+                # FatalError. This mirrors the child-level skip below.
+                if (-not $dirInfo.Exists) {
+                    Write-Verbose "Skip '$Path': not a directory (file or missing)"
+                    return
+                }
+                if ($dirInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    Write-Verbose "Skip '$Path': reparse point or DFS link"
+                    return
+                }
+
                 $enumerator = $dirInfo.EnumerateFileSystemInfos()
             }
             catch {

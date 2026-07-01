@@ -3362,3 +3362,71 @@ Describe 'Test-AclEqualHC parallel runspace edge cases' {
             Should -BeTrue
     }
 }
+
+Describe 'Get-FolderContentHC guards non-directory paths' {
+    BeforeAll {
+        # Extract the real inherited-permissions 'Get-FolderContentHC' from the
+        # script under test via the AST, then dot-source only that function so we
+        # exercise the shipping code. The function lives inside the parallel
+        # scriptblock and enumerates a folder's children; when the path handed to
+        # it exists on disk as a file, or as a DFS link / reparse point, the lazy
+        # EnumerateFileSystemInfos() call throws 'The parameter is incorrect'
+        # during iteration, which used to abort the whole run as a FatalError.
+        $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $testScript, [ref]$null, [ref]$null
+        )
+
+        $fn = $scriptAst.FindAll({
+                param ($node)
+                ($node -is [System.Management.Automation.Language.FunctionDefinitionAst]) -and
+                ($node.Name -eq 'Get-FolderContentHC')
+            }, $true) | Select-Object -First 1
+
+        if (-not $fn) {
+            throw "Could not locate 'Get-FolderContentHC' in '$testScript'."
+        }
+
+        . ([scriptblock]::Create($fn.Extent.Text))
+
+        # Closure variables the function references once it starts enumerating
+        # real children. The guarded paths return before any of these are used,
+        # but they are set so a real, empty directory also runs cleanly.
+        $script:IgnoredFolderPaths = @{}
+        $script:testedInheritedFilesAndFolders = @{}
+        $script:incorrectInheritedAcl = [System.Collections.Generic.List[String]]::new()
+        $script:folderRulesSet = [System.Collections.Generic.HashSet[string]]::new()
+        $script:fileRulesSet = [System.Collections.Generic.HashSet[string]]::new()
+        $script:Action = 'Check'
+        $script:DetailedLog = $false
+        $script:AdNames = @{}
+        $script:incorrectAclInheritedOnly = { }
+    }
+
+    It 'does not throw when the path is a file (matrix name that is a file on disk)' {
+        $filePath = Join-Path (Get-PSDrive TestDrive).Root 'DATO_DK.CMD'
+        Set-Content -LiteralPath $filePath -Value 'echo hi'
+
+        { Get-FolderContentHC -Path $filePath } | Should -Not -Throw
+    }
+
+    It 'reports nothing for a file path (a file has no inheritable children)' {
+        $filePath = Join-Path (Get-PSDrive TestDrive).Root 'DATO_DK2.CMD'
+        Set-Content -LiteralPath $filePath -Value 'echo hi'
+
+        Get-FolderContentHC -Path $filePath | Should -BeNullOrEmpty
+        $testedInheritedFilesAndFolders.ContainsKey($filePath) | Should -BeFalse
+    }
+
+    It 'does not throw when the path does not exist' {
+        $missingPath = Join-Path (Get-PSDrive TestDrive).Root 'DoesNotExist'
+
+        { Get-FolderContentHC -Path $missingPath } | Should -Not -Throw
+    }
+
+    It 'still enumerates a real, empty directory without throwing' {
+        $realDir = Join-Path (Get-PSDrive TestDrive).Root 'realEmptyDir'
+        New-Item -Path $realDir -ItemType Directory -Force | Out-Null
+
+        { Get-FolderContentHC -Path $realDir } | Should -Not -Throw
+    }
+}
