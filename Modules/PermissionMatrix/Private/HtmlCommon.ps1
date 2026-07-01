@@ -112,17 +112,15 @@ function Initialize-HtmlStructureHC {
         margin: 16px 0 20px 0;
     }
     table { border-collapse: collapse; }
-    /* Settings rows are fluid flex cards. On narrow reading panes the
-       identifier and metadata wrap below the status line instead of the
-       status pill clipping off the right edge. New Outlook / Outlook web
-       use a Chromium engine, so this media query applies as in a browser. */
+    /* Settings rows, system-error cards and file-check rows are table-based
+       (not flexbox) so Outlook Classic's Word engine renders them as aligned
+       columns. On very narrow reading panes the meta/status columns are
+       allowed to wrap so nothing clips off the right edge; the path and
+       message cells already wrap via word-break. */
     @media (max-width: 520px) {
-        .rr-srow { flex-wrap: wrap; }
-        .rr-srow .rr-srow-ident { flex-basis: 100%; order: 3; }
-        .rr-srow .rr-srow-meta { flex-basis: 100%; order: 4; }
-        .rr-syscard { flex-wrap: wrap; }
-        .rr-syscard .rr-syscard-body { flex-basis: 100%; order: 3; }
-        .rr-check-row { flex-wrap: wrap; }
+        .rr-srow .rr-srow-meta,
+        .rr-srow .rr-srow-status,
+        .rr-syscard .rr-syscard-status { white-space: normal !important; }
     }
     /* Legacy classes preserved for any external consumer; the new
        email layout uses inline styles exclusively. */
@@ -398,19 +396,21 @@ function Build-FileLevelCheckRowHC {
         $nameHtml = "<a href='$jsonHref' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
     }
 
-    # Fluid flex card mirroring the settings rows: accent dot, the text block
-    # which flexes and wraps on narrow panes, then the status pill on the right
-    # (flex:0 0 auto so it never clips — the text block absorbs overflow).
+    # Table-based card mirroring the settings rows so Outlook Classic (Word
+    # engine, no flexbox) renders the accent dot, the text block and the status
+    # pill as aligned columns. Browsers render the same table identically.
     $cardHtml = @"
-<div class="rr-check-row" style="display:flex; align-items:center; gap:16px; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px; padding:12px 14px;">
-    <span style='flex:0 0 auto; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>
-    <span style='flex:1 1 auto; min-width:0;'>
-        <span style='display:block; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</span>
-        <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$nameHtml</span>
-        <span style='display:block; font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</span>
-    </span>
-    <span style='flex:0 0 auto;'>$pillHtml</span>
-</div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-check-row" style="border-collapse:separate; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
+    <tr>
+        <td valign="top" width="22" style='padding:12px 0 12px 14px; color:$accent; font-size:13px; line-height:1;'>&#9679;</td>
+        <td valign="middle" style='padding:12px 10px;'>
+            <span style='display:block; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</span>
+            <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$nameHtml</span>
+            <span style='display:block; font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</span>
+        </td>
+        <td valign="middle" align="right" style='padding:12px 14px 12px 6px; white-space:nowrap;'>$pillHtml</td>
+    </tr>
+</table>
 "@
 
     if ($IncludeWrapper) {

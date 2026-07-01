@@ -60,14 +60,16 @@ function Build-SystemErrorsBlockHC {
         $rows += @"
 <tr>
     <td style='padding:0 0 8px 0;'>
-        <div class="rr-syscard" style="display:flex; align-items:center; gap:16px; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px; padding:10px 14px;">
-            <span style='flex:0 0 auto; color:$accentColor; font-size:16px; padding-right:6px; font-weight:bold; line-height:1;'>$glyph</span>
-            <span class="rr-syscard-body" style='flex:1 1 auto; min-width:0;'>
-                <span style='display:block; margin-bottom:4px;'>$catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span></span>
-                <span style='display:block; color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.5; font-family:$($Script:Theme.MonoStack); overflow-wrap:anywhere;'>$msg</span>
-            </span>
-            <span class="rr-syscard-status" style='flex:0 0 auto;'>$pill</span>
-        </div>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-syscard" style="border-collapse:separate; width:100%; max-width:100%; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
+            <tr>
+                <td valign="top" width="26" style='padding:12px 0 12px 14px; color:$accentColor; font-size:16px; font-weight:bold; line-height:1;'>$glyph</td>
+                <td valign="middle" class="rr-syscard-body" style='padding:10px 12px;'>
+                    <span style='display:block; margin-bottom:4px;'>$catHtml<span style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$name</span></span>
+                    <span style='display:block; color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.5; font-family:$($Script:Theme.MonoStack); overflow-wrap:anywhere; word-break:break-word;'>$msg</span>
+                </td>
+                <td valign="middle" align="right" class="rr-syscard-status" style='padding:10px 14px 10px 6px; white-space:nowrap;'>$pill</td>
+            </tr>
+        </table>
     </td>
 </tr>
 "@
@@ -144,34 +146,42 @@ function Build-SettingsRowHC {
     }
     else { '&nbsp;' }
 
-    # Fluid flex card. The status pill sits on the RIGHT, but unlike the old
-    # fixed-column table it can no longer clip: it is flex:0 0 auto (never
-    # shrinks) and the PATH is the flexible element that absorbs horizontal
-    # overflow via ellipsis. On very narrow panes the whole row wraps (see the
-    # .rr-srow @media rule in the stylesheet). New Outlook / Outlook-on-the-web
-    # render this with a modern Chromium engine, so flexbox and max-width
-    # behave as in a browser.
+    # Table-based card so Outlook Classic (Word rendering engine, which has no
+    # flexbox support) shows the identifier, metadata and status pill as proper
+    # aligned columns instead of collapsing them onto a single line. Browsers
+    # render the same table identically. The colored status dot uses a bullet
+    # glyph (renders in Word, unlike a sized inline-block), and the accent
+    # left-border conveys status even where border-radius is ignored.
     #
-    # $pillCell is empty (no pill) for clean rows; we omit the element entirely
-    # rather than reserving width, since flex handles alignment without it.
-    $pillCell = if ($pillHtml -and $pillHtml -ne '&nbsp;') {
-        "<span class='rr-srow-status' style='flex:0 0 auto; margin-left:6px;'>$pillHtml</span>"
+    # The status pill always gets its own fixed-width cell on the far right, even
+    # for clean rows (renders '&nbsp;'), so the pill column lines up vertically
+    # across every row and no metadata ever sits between/after the pills. The
+    # 'rr-srow-status' class is only added when a pill is actually present (a test
+    # asserts clean rows don't carry it), but the empty cell still reserves the
+    # column width.
+    $pillClass = if ($pillHtml -and $pillHtml -ne '&nbsp;') {
+        " class='rr-srow-status'"
     }
     else { '' }
+    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:10px 14px 10px 4px; white-space:nowrap;'>$pillHtml</td>"
 
     return @"
-<a href='$link' target='_blank' rel='noopener noreferrer' class='rr-srow' style='display:flex; align-items:center; gap:16px; text-decoration:none; color:inherit; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px; padding:10px 14px; margin:0 0 8px 0;'>
-    <span style='flex:0 0 auto; width:8px; height:8px;  margin-right:6px;background-color:$accent; border-radius:50%;'></span>
-    <span class='rr-srow-ident' style='flex:1 1 auto; min-width:0;'>
-        <span style='display:block; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</span>
-        <span class='rr-srow-path' style='display:block; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</span>
-    </span>
-    <span class='rr-srow-meta' style='flex:0 0 auto; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
-        <span style='margin-right:14px;'>$action</span>
-        <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
-    </span>
-    $pillCell
-</a>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 8px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
+    <tr>
+        <td valign='middle' width='20' style='padding:10px 0 10px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
+        <td valign='middle' class='rr-srow-ident' style='padding:10px 8px;'>
+            <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
+                <span style='display:block; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</span>
+                <span class='rr-srow-path' style='display:block; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</span>
+            </a>
+        </td>
+        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:10px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+            <span style='margin-right:14px;'>$action</span>
+            <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
+        </td>
+        $pillTd
+    </tr>
+</table>
 "@
 }
 
