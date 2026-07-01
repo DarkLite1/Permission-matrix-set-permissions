@@ -18,6 +18,11 @@ function Import-MatrixFileHC {
         Check property, allowing the main orchestrator to gracefully skip it 
         while continuing to process other valid files.
 
+        Locking Note: The workbook is first copied to a temporary file and all
+        worksheets are read from that copy. This keeps the user's original
+        matrix file unlocked so it can still be edited while the script runs.
+        The temporary copy is always removed afterwards.
+
     .PARAMETER MatrixFile
         A [System.IO.FileInfo] object pointing to the specific Excel (.xlsx) 
         file to be processed.
@@ -85,17 +90,38 @@ function Import-MatrixFileHC {
         ReportFilePath = $null
     }
 
+    $tempMatrixFile = $null
+
     try {
+        #region Work on a temporary copy so the original file stays unlocked
+        # Get-ExcelWorkbookInfo and Import-Excel keep the workbook open while
+        # reading it. Reading the user's original file directly can leave it
+        # locked long enough that someone editing it at the same moment gets a
+        # 'file in use' error. Copying to a temporary file first (a fast,
+        # read-shared copy) means every read below targets the throwaway copy,
+        # so the original matrix file is never held open and users can keep
+        # editing it. The copy is removed in the finally block.
+        $tempMatrixFile = Join-Path `
+            -Path ([System.IO.Path]::GetTempPath()) `
+            -ChildPath "PermissionMatrix_$([guid]::NewGuid().ToString('N'))_$($MatrixFile.Name)"
+
+        Copy-Item `
+            -LiteralPath $MatrixFile.FullName `
+            -Destination $tempMatrixFile `
+            -Force `
+            -ErrorAction Stop
+        #endregion
+
         #region Get Excel workbook info
         $fileResult.ExcelInfo = Get-ExcelWorkbookInfo `
-            -Path $matrixFile.FullName `
+            -Path $tempMatrixFile `
             -ErrorAction Stop
         #endregion
 
         #region Import Settings sheet
         $settingsSheet = @(
             Import-Excel `
-                -Path $MatrixFile.FullName `
+                -Path $tempMatrixFile `
                 -Sheet 'Settings' `
                 -DataOnly `
                 -ErrorAction Stop
@@ -122,7 +148,7 @@ function Import-MatrixFileHC {
 
         #region Import Permissions sheet
         $permissionsSheet = Import-Excel `
-            -Path $MatrixFile.FullName `
+            -Path $tempMatrixFile `
             -Sheet 'Permissions' `
             -NoHeader `
             -DataOnly `
@@ -142,7 +168,7 @@ function Import-MatrixFileHC {
 
             try {
                 $formDataImport = Import-Excel `
-                    -Path $MatrixFile.FullName `
+                    -Path $tempMatrixFile `
                     -Sheet 'FormData' `
                     -DataOnly `
                     -ErrorAction Stop
@@ -202,6 +228,15 @@ function Import-MatrixFileHC {
         )
     }
     finally {
+        #region Remove the temporary copy of the matrix file
+        if ($tempMatrixFile -and (Test-Path -LiteralPath $tempMatrixFile)) {
+            Remove-Item `
+                -LiteralPath $tempMatrixFile `
+                -Force `
+                -ErrorAction SilentlyContinue
+        }
+        #endregion
+
         $fileResult
     }
 }
