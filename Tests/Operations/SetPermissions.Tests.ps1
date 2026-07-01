@@ -3068,7 +3068,7 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser2"] | Should -Be 'Alpha Group'
         }
 
-        It 'keeps Old and New as raw AccessToString output for backward compatibility' {
+        It 'splits Old and New AccessToString into one array element per ACE' {
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
                 [PSCustomObject]@{
                     Path    = 'Path'
@@ -3079,8 +3079,13 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.Old | Should -BeOfType [string]
-            $entry.New | Should -BeOfType [string]
+            # Old/New are string arrays (one ACE per element) so the detail JSON
+            # is readable instead of one string full of embedded '\n' escapes.
+            @($entry.New).Count | Should -BeGreaterThan 0
+            foreach ($line in $entry.New) { $line | Should -BeOfType [string] }
+            foreach ($line in $entry.Old) { $line | Should -BeOfType [string] }
+            # No element still contains an embedded newline
+            foreach ($line in $entry.New) { $line | Should -Not -Match "`n" }
             # The Excel-side label is in MatrixAdObjects, not in New/Old
             $entry.New | Should -Not -Match 'Some label'
         }

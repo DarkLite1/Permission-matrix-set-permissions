@@ -362,7 +362,11 @@ begin {
                             Write-Warning $errorMessage
 
                             if ($DetailedLog) {
-                                $aclText = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+                                # Split the multi-line AccessToString into one
+                                # array element per ACE so the detail JSON stays
+                                # human-readable instead of a single string full
+                                # of embedded '\n' escapes.
+                                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
 
                                 $entry = @{
                                     'Acl' = $aclText
@@ -423,7 +427,9 @@ begin {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
 
             if ($DetailedLog) {
-                $aclText = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
+                # One array element per ACE keeps the detail JSON readable
+                # instead of a single string with embedded '\n' escapes.
+                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
 
                 if ($AdNames -and $AdNames.Count -gt 0) {
                     $entry = @{
@@ -925,9 +931,12 @@ process {
                     #region Log Incorrect ACL
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
+                            # Split the multi-line AccessToString into one array
+                            # element per ACE so the detail JSON stays readable
+                            # instead of a single string with embedded '\n'.
                             $entry = @{
-                                'Old' = if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString }
-                                'New' = ($folder.FolderAcl).AccessToString
+                                'Old' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
+                                'New' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ })
                             }
 
                             # Surface the matrix-author labels so users can map
