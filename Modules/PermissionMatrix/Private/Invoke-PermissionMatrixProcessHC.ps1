@@ -135,12 +135,23 @@ function Invoke-PermissionMatrixProcessHC {
                 -ArgumentList $Context.ScriptPath, $psSessionConfig `
                 -ScriptBlock {
                 param($dto, $scriptPaths, $sessionConfig)
+
+                # Raise the client-side deserialization cap. By default a
+                # remote result larger than 200MB (MaximumReceivedObjectSize =
+                # 209715200) makes Invoke-Command fail with 'The current
+                # deserialized object size ... exceeded the allowed maximum
+                # object size'. Large shares can return that much reporting
+                # data, so lift the limit to the Int32 maximum (~2GB).
+                $sessionOption = New-PSSessionOption `
+                    -MaximumReceivedObjectSize ([Int32]::MaxValue)
+
                 try {
                     $result = Invoke-Command `
                         -FilePath $scriptPaths.TestRequirements `
                         -ArgumentList $dto.PathsToCheck, $true `
                         -ConfigurationName $sessionConfig `
                         -ComputerName $dto.ComputerName `
+                        -SessionOption $sessionOption `
                         -ErrorAction Stop
                 
                     return [PSCustomObject]@{ 
@@ -224,6 +235,16 @@ function Invoke-PermissionMatrixProcessHC {
                     $sessionConfig, $maxConc, $detailedLog
                 )
 
+                # Raise the client-side deserialization cap. By default a
+                # remote result larger than 200MB (MaximumReceivedObjectSize =
+                # 209715200) makes Invoke-Command fail with 'The current
+                # deserialized object size ... exceeded the allowed maximum
+                # object size'. SetPermissions.ps1 can return very large
+                # reporting lists (e.g. every incorrectly-permissioned path) on
+                # big shares, so lift the limit to the Int32 maximum (~2GB).
+                $sessionOption = New-PSSessionOption `
+                    -MaximumReceivedObjectSize ([Int32]::MaxValue)
+
                 $innerResults = @()
             
                 foreach ($job in $compDto.Matrices) {
@@ -241,6 +262,7 @@ function Invoke-PermissionMatrixProcessHC {
                             -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
                             -ConfigurationName $sessionConfig `
                             -ComputerName $job.ComputerName `
+                            -SessionOption $sessionOption `
                             -ErrorAction Stop
                     
                         $innerResults += [PSCustomObject]@{ 
