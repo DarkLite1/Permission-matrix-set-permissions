@@ -289,9 +289,40 @@ function Invoke-PermissionMatrixBeginHC {
                                 -SettingRow $m.Setting.Formatted
 
                             # B. Build the Matrix ACLs
-                            $m.Matrix = ConvertTo-MatrixAclHC `
-                                -DataRows $dataRows `
-                                -AdObjectsMap $adMap
+                            $childMatrix = @(
+                                ConvertTo-MatrixAclHC `
+                                    -DataRows $dataRows `
+                                    -AdObjectsMap $adMap
+                            )
+
+                            # B2. Build the parent (root) folder entry from the
+                            # 'Path' row (row index 3, the row directly under the
+                            # three header rows). SetPermissions.ps1 needs a
+                            # Parent=$true entry: it applies the root folder's own
+                            # ACL AND, crucially, seeds the recursive inheritance
+                            # walk from the root. That walk is what resets every
+                            # TOP-LEVEL folder without permissions (an inherit-only
+                            # folder) back to pure inheritance. Without this entry
+                            # the root is never a walk seed, so top-level
+                            # inherit-only folders keep any stale explicit ACL and
+                            # are never corrected.
+                            $parentRow = @($permSheet | Select-Object -Skip 3 -First 1)
+                            $parentEntry = @(
+                                ConvertTo-MatrixAclHC `
+                                    -DataRows $parentRow `
+                                    -AdObjectsMap $adMap
+                            )
+
+                            if ($parentEntry.Count -gt 0) {
+                                $parentEntry[0] | Add-Member `
+                                    -NotePropertyName 'Parent' `
+                                    -NotePropertyValue $true -Force
+
+                                $m.Matrix = @($parentEntry[0]) + $childMatrix
+                            }
+                            else {
+                                $m.Matrix = $childMatrix
+                            }
 
                             # C. Merge Defaults per Folder
                             if ($context.Defaults.DefaultAcl.Count -gt 0) {

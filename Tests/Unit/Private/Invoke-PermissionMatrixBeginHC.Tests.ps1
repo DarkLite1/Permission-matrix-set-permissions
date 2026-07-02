@@ -668,4 +668,92 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
         Should -Be 'DefaultGroup' -Because 'the merged default is tracked in the AdNames map'
         #endregion
     }
+
+    It 'builds a Parent (root) matrix entry from the Path row so top-level folders are checked' {
+        # Regression: the orchestrator must turn the Permissions 'Path' row
+        # (row index 3, the root folder's own permissions) into a matrix entry
+        # flagged Parent=$true. SetPermissions.ps1 seeds its inheritance walk
+        # from folders that HAVE an ACL, so without this root entry no walk
+        # starts at the share root and every TOP-LEVEL inherit-only folder
+        # (e.g. 'Common') is never visited or corrected. This test would fail
+        # before the fix because no Parent entry was ever produced.
+        $matrixDir = (New-Item 'TestDrive:\ParentMatrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\ParentLogs' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'WithEmptyPermissionFolder') `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'HQ'
+                SiteCode                = 'HQ'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = 'TestDrive:\Target'
+                GroupName               = 'Team-A'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $true
+            }
+        ) | Out-Null
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        Save-TestJson -InputObject $configFixture -JsonFile $configPath
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        Mock Get-ADObjectDetailHC {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $sidBob } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $sidMike } }
+                @{ SamAccountName = 'DefaultGroup'; adObject = @{ ObjectSid = $sidDefault } }
+            )
+        }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        $context = Invoke-PermissionMatrixBeginHC `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
+        $matrix = $context.AllMatrices[0].Matrix
+
+        #region A Parent=$true root entry exists, carrying the Path-row ACL
+        $parent = $matrix | Where-Object {
+            $_.PSObject.Properties.Match('Parent').Count -and $_.Parent
+        }
+
+        $parent | Should -Not -BeNullOrEmpty `
+            -Because 'the Path row must become a Parent=$true entry that seeds the root inheritance walk'
+        @($parent).Count | Should -Be 1 -Because 'there is exactly one root folder'
+        @($parent.AdNames.Values) | Should -Contain 'Bob' `
+            -Because 'the Path row grants List to the first header group'
+        @($parent.AdNames.Values) | Should -Contain 'Mike' `
+            -Because 'the Path row grants List to the second header group'
+        @($parent.AdNames.Values) | Should -Contain 'DefaultGroup' `
+            -Because 'the root has permissions, so ApplyDefaultPermissions merges the default into it too'
+        #endregion
+
+        #region The top-level inherit-only folder is still empty (unchanged)
+        $inheritOnly = $matrix | Where-Object { $_.Path -eq 'InheritOnly' }
+        $inheritOnly.ACL.Count | Should -Be 0 `
+            -Because 'the root entry seeds the walk but must not add an ACL to the empty folder'
+        #endregion
+    }
 }
