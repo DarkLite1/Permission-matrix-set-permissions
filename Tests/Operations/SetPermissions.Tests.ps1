@@ -2780,6 +2780,53 @@ Describe 'when Action is' {
                             $_.Value | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
                         })
                 }
+                It 'DetailedLog is True MatrixAdObjects lists the display name and requested permission' {
+                    $testUser2Sid = ([System.Security.Principal.NTAccount]"$env:USERDOMAIN\$testUser2").
+                    Translate([System.Security.Principal.SecurityIdentifier]).Value
+
+                    $testParams = @{
+                        Path             = $testParentFolder
+                        Action           = 'Check'
+                        JobThrottleLimit = 2
+                        Matrix           = @(
+                            [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
+                            [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+                            [PSCustomObject]@{
+                                Path    = 'FolderB'
+                                ACL     = @{ $testUser2Sid = 'R' }
+                                AdNames = @{ $testUser2Sid = 'Finance Team Brussels' }
+                            }
+                        )
+                        DetailedLog      = $true
+                    }
+
+                    $testFile = New-Item -Path ($testParams.Path + '\FolderB\File.txt') -ItemTyp File -Force
+                    $testFileItem = Get-Item $testFile
+
+                    #region Add explicit access
+                    $testAcl = Get-Acl -Path $testFileItem
+                    $testAcl.SetAccessRuleProtection($True, $False)
+                    $testAcl.Access.ForEach( { $null = $testAcl.RemoveAccessRule($_) })
+
+                    $testAce = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        "$env:USERDOMAIN\$testUser",
+                        [System.Security.AccessControl.FileSystemRights]'DeleteSubdirectoriesAndFiles, Modify, Synchronize',
+                        [System.Security.AccessControl.InheritanceFlags]::None,
+                        [System.Security.AccessControl.PropagationFlags]::None,
+                        [System.Security.AccessControl.AccessControlType]::Allow
+                    )
+                    $testAcl.AddAccessRule($testAce)
+
+                    Set-Acl -Path $testFileItem -AclObject $testAcl
+                    #endregion
+
+                    $Actual = .$testScript @testParams | Where-Object Name -EQ $Expected.Name
+
+                    $entry = $Actual.Value[$testFile.FullName]
+                    $entry.MatrixAdObjects | Should -BeOfType [string]
+                    $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read" `
+                        -Because 'the SID resolves to a DOMAIN\name and R means Read'
+                }
             }
         }
         Context 'when the script is run again after Action Fix/New' {
@@ -2974,7 +3021,7 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             New-Item -Path $fixPath -ItemType Directory -Force | Out-Null
         }
 
-        It 'links each SID to its matrix label, keyed by the display name' {
+        It 'lists each display name with its requested permission' {
             New-Item -Path (Join-Path $fixPath 'FolderA') -ItemType Directory -Force | Out-Null
 
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
@@ -2994,17 +3041,12 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $actual | Should -Not -BeNullOrEmpty
 
             $parentEntry = $actual.Value[$fixPath]
-            $parentEntry.MatrixAdObjects | Should -BeOfType [hashtable]
-            $parentEntry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser" `
-                -Because 'the SID translates to a DOMAIN\name display key'
-            $parentEntry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] |
-            Should -Be 'BEL TEAM SOUTH BXL Administrative employee'
+            $parentEntry.MatrixAdObjects | Should -BeOfType [string]
+            $parentEntry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List" `
+                -Because 'the SID translates to a DOMAIN\name display key and L means List'
 
             $childEntry = $actual.Value["$fixPath\FolderA"]
-            $childEntry.MatrixAdObjects | Should -BeOfType [hashtable]
-            $childEntry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser2"
-            $childEntry.MatrixAdObjects["$env:USERDOMAIN\$testUser2"] |
-            Should -Be 'Finance Team Brussels'
+            $childEntry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
         }
 
         It 'omits MatrixAdObjects when AdNames is missing' {
@@ -3040,13 +3082,11 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.MatrixAdObjects.Keys | Should -Contain $fakeSid `
-                -Because 'a SID that cannot be translated must remain as its raw SID string'
-            $entry.MatrixAdObjects[$fakeSid] | Should -Be 'Untranslatable Group'
+            $entry.MatrixAdObjects | Should -Contain $fakeSid `
+                -Because 'a SID that cannot be translated must remain as its raw SID string; it has no requested permission so no type is appended'
 
             # Real SID side still works
-            $entry.MatrixAdObjects.Keys | Should -Contain "$env:USERDOMAIN\$testUser"
-            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] | Should -Be 'Real Group'
+            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
         }
 
         It 'maps multiple matrix entries on the same folder' {
@@ -3064,8 +3104,8 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
 
             $entry = $actual.Value[$fixPath]
             $entry.MatrixAdObjects.Count | Should -Be 2
-            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser"] | Should -Be 'Zeta Group'
-            $entry.MatrixAdObjects["$env:USERDOMAIN\$testUser2"] | Should -Be 'Alpha Group'
+            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
         }
 
         It 'splits Old and New AccessToString into one array element per ACE' {
@@ -3086,8 +3126,8 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             foreach ($line in $entry.Old) { $line | Should -BeOfType [string] }
             # No element still contains an embedded newline
             foreach ($line in $entry.New) { $line | Should -Not -Match "`n" }
-            # The Excel-side label is in MatrixAdObjects, not in New/Old
-            $entry.New | Should -Not -Match 'Some label'
+            # The requested permission is surfaced in MatrixAdObjects, not New/Old
+            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
         }
     }
 }

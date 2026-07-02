@@ -138,6 +138,61 @@ begin {
     }
     #endregion
 
+    #region Function ConvertTo-MatrixAdObjectHC (Main Thread)
+    function ConvertTo-MatrixAdObjectHC {
+        <#
+        .SYNOPSIS
+            Build the human-readable 'MatrixAdObjects' array for the detail JSON.
+
+        .DESCRIPTION
+            Combines the matrix AD objects with their requested permission so the
+            detail report shows both who was granted access and what was
+            requested, e.g. 'GROUPHC\Group 1  List'. The identity is the display
+            form of the SID (DOMAIN\name when it translates, the raw SID when it
+            does not) so it lines up with the 'Acl' entries. The permission
+            character (L/R/W/F/M) is mapped to its friendly word. Entries are
+            sorted for stable output.
+
+        .PARAMETER Names
+            Hashtable keyed by SID (or SamAccountName) whose values are the matrix
+            author labels. Its keys drive which objects are reported.
+
+        .PARAMETER Permissions
+            Hashtable keyed by the same SIDs whose values are the requested
+            permission characters (L/R/W/F/M). Optional; when absent only the
+            identity is emitted.
+        #>
+        param(
+            [Parameter(Mandatory)]
+            $Names,
+            $Permissions
+        )
+
+        $permWord = @{
+            'L' = 'List'
+            'R' = 'Read'
+            'W' = 'Write'
+            'F' = 'FullControl'
+            'M' = 'Modify'
+        }
+
+        $items = foreach ($sid in $Names.Keys) {
+            $displayKey = try {
+                ([System.Security.Principal.SecurityIdentifier]::new($sid)).
+                Translate([System.Security.Principal.NTAccount]).Value
+            }
+            catch { $sid }
+
+            $char = if ($Permissions) { "$($Permissions[$sid])".Trim().ToUpper() } else { '' }
+            $type = if ($permWord.ContainsKey($char)) { $permWord[$char] } else { $char }
+
+            if ($type) { "$displayKey  $type" } else { $displayKey }
+        }
+
+        , @($items | Sort-Object)
+    }
+    #endregion
+
     #region Function Test-AclEqualHC (Main Thread)
     function Test-AclEqualHC {
         [OutputType([Boolean])]
@@ -215,12 +270,15 @@ begin {
             [Parameter()]
             [PSObject]$AdNames,
 
+            [Parameter()]
+            [PSObject]$AdPermissions,
+
             [Boolean]$DetailedLog
         )
 
         $ErrorActionPreference = 'Stop'
 
-        #region Normalize AdNames to a real hashtable
+        #region Normalize AdNames/AdPermissions to real hashtables
         # Defensive: when this scriptblock is invoked with data that crossed a
         # remoting/serialization boundary, a nested hashtable arrives as a
         # Deserialized.PSCustomObject. Rebuild it so .Keys/.Count work below.
@@ -230,6 +288,48 @@ begin {
                 if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
             }
             $AdNames = $realHash
+        }
+        if (($null -ne $AdPermissions) -and ($AdPermissions -isnot [System.Collections.IDictionary])) {
+            $realHash = @{}
+            foreach ($prop in $AdPermissions.PSObject.Properties) {
+                if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
+            }
+            $AdPermissions = $realHash
+        }
+        #endregion
+
+        #region Function ConvertTo-MatrixAdObjectHC (Parallel Thread)
+        # Duplicated from the main-thread definition because this scriptblock is
+        # rehydrated in a fresh runspace that cannot see the parent's functions.
+        function ConvertTo-MatrixAdObjectHC {
+            param(
+                [Parameter(Mandatory)]
+                $Names,
+                $Permissions
+            )
+
+            $permWord = @{
+                'L' = 'List'
+                'R' = 'Read'
+                'W' = 'Write'
+                'F' = 'FullControl'
+                'M' = 'Modify'
+            }
+
+            $items = foreach ($sid in $Names.Keys) {
+                $displayKey = try {
+                    ([System.Security.Principal.SecurityIdentifier]::new($sid)).
+                    Translate([System.Security.Principal.NTAccount]).Value
+                }
+                catch { $sid }
+
+                $char = if ($Permissions) { "$($Permissions[$sid])".Trim().ToUpper() } else { '' }
+                $type = if ($permWord.ContainsKey($char)) { $permWord[$char] } else { $char }
+
+                if ($type) { "$displayKey  $type" } else { $displayKey }
+            }
+
+            , @($items | Sort-Object)
         }
         #endregion
 
@@ -377,17 +477,7 @@ begin {
                                 # Inherited folders inherit from a parent that did define ACL;
                                 # AdNames here comes from that parent's matrix entry.
                                 if ($AdNames -and $AdNames.Count -gt 0) {
-                                    $matrixObjects = @{}
-                                    foreach ($sid in $AdNames.Keys) {
-                                        $displayKey = try {
-                                            ([System.Security.Principal.SecurityIdentifier]::new($sid)).
-                                            Translate([System.Security.Principal.NTAccount]).Value
-                                        }
-                                        catch { $sid }
-
-                                        $matrixObjects[$displayKey] = $AdNames[$sid]
-                                    }
-                                    $entry['MatrixAdObjects'] = $matrixObjects
+                                    $entry['MatrixAdObjects'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
                                 }
 
                                 $incorrectInheritedAcl[$child.FullName] = $entry
@@ -434,7 +524,7 @@ begin {
                 if ($AdNames -and $AdNames.Count -gt 0) {
                     $entry = @{
                         'Acl'             = $aclText
-                        'MatrixAdObjects' = ($AdNames.Values | Sort-Object) -join ', '
+                        'MatrixAdObjects' = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
                     }
                     $incorrectInheritedAcl[$child.FullName] = $entry
                 }
@@ -941,9 +1031,10 @@ process {
 
                             # Surface the matrix-author labels so users can map
                             # ACL entries back to their Excel column headers.
-                            # Each entry is keyed by the display form (DOMAIN\name
-                            # when the SID translates, raw SID when it doesn't),
-                            # which matches what AccessToString puts in Old/New.
+                            # Each entry is the display form (DOMAIN\name when the
+                            # SID translates, raw SID when it doesn't) followed by
+                            # the requested permission, which matches what
+                            # AccessToString puts in Old/New.
                             # Defensive: rebuild AdNames if it crossed a
                             # serialization boundary and arrived as a
                             # Deserialized.PSCustomObject (no .Keys/.Count).
@@ -957,17 +1048,7 @@ process {
                             }
 
                             if ($folderAdNames -and $folderAdNames.Count -gt 0) {
-                                $matrixObjects = @{}
-                                foreach ($sid in $folderAdNames.Keys) {
-                                    $displayKey = try {
-                                        ([System.Security.Principal.SecurityIdentifier]::new($sid)).
-                                        Translate([System.Security.Principal.NTAccount]).Value
-                                    }
-                                    catch { $sid }
-
-                                    $matrixObjects[$displayKey] = $folderAdNames[$sid]
-                                }
-                                $entry['MatrixAdObjects'] = $matrixObjects
+                                $entry['MatrixAdObjects'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
                             }
 
                             $incorrectAclNonInheritedFolders[$folder.Path] = $entry
@@ -1044,6 +1125,7 @@ process {
                         TokenPrivileges    = $tokenPrivileges
                         DetailedLog        = $DetailedLog
                         AdNames            = $folder.AdNames
+                        AdPermissions      = $folder.ACL
                         ScriptString       = $scriptBlockString
                     }
                 }
@@ -1059,6 +1141,7 @@ process {
                         IgnoredFolderPaths  = $folderDto.IgnoredFolderPaths
                         TokenPrivileges     = $folderDto.TokenPrivileges
                         AdNames             = $folderDto.AdNames
+                        AdPermissions       = $folderDto.AdPermissions
                         DetailedLog         = $folderDto.DetailedLog
                     }
 
