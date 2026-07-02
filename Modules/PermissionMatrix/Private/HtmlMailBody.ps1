@@ -177,19 +177,19 @@ function Build-SettingsRowHC {
         " class='rr-srow-status'"
     }
     else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:10px 14px 10px 4px; white-space:nowrap;'>$pillHtml</td>"
+    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:5px 14px 5px 4px; white-space:nowrap;'>$pillHtml</td>"
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 8px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 6px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:10px 0 10px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
-        <td valign='middle' class='rr-srow-ident' style='padding:10px 8px;'>
+        <td valign='middle' width='20' style='padding:5px 0 5px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
+        <td valign='middle' class='rr-srow-ident' style='padding:5px 8px;'>
             <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
                 <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</div>
                 <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
             </a>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:10px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:5px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
