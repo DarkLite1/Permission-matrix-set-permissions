@@ -252,7 +252,13 @@ function Invoke-PermissionMatrixBeginHC {
 
                 if ($fileResult.Matrices) {
                     $permSheet = $fileResult.Sheets.Permissions.Formatted
-                    $dataRows = if ($permSheet) { $permSheet | Select-Object -Skip 4 } else { @() }
+                    # Always coerce to an array. When the Permissions sheet holds
+                    # only the 4 header rows (no data rows), Select-Object -Skip 4
+                    # returns $null, and passing $null to the mandatory [array]
+                    # DataRows parameter of ConvertTo-MatrixAclHC throws
+                    # 'Cannot bind argument ... because it is null', which surfaced
+                    # as a 'Runspace processing failed' FatalError.
+                    $dataRows = if ($permSheet) { @($permSheet | Select-Object -Skip 4) } else { @() }
 
                     foreach ($m in $fileResult.Matrices) {
                         $rowErrors = Test-MatrixSettingRowHC `

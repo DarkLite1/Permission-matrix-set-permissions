@@ -792,7 +792,9 @@ function ConvertTo-MatrixAclHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][array]$DataRows,
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$DataRows,
         [Parameter(Mandatory)][hashtable]$AdObjectsMap
     )
 

@@ -346,6 +346,16 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         @($res).Count | Should -Be 0
     }
+
+    It 'accepts an empty DataRows collection without throwing' {
+        # Regression: a Permissions sheet with only the 4 header rows yields no
+        # data rows (Select-Object -Skip 4 -> $null/@()). The caller now coerces
+        # to @(), which must bind to the mandatory DataRows parameter and return
+        # an empty result instead of a 'Cannot bind argument ... null' error.
+        $res = ConvertTo-MatrixAclHC -DataRows @() -AdObjectsMap $script:adMap
+
+        @($res).Count | Should -Be 0
+    }
 }
 
 Describe 'Get-DefaultAclHC' {
