@@ -781,8 +781,8 @@ Describe 'Permissions' {
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
-                ($_Name -eq 'Non inherited folder incorrect permissions') -or
-                ($_Name -eq 'Inherited permissions incorrect')
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
             }
 
             $Actual | Should -BeNullOrEmpty
@@ -879,8 +879,8 @@ Describe 'Permissions' {
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
-                ($_Name -eq 'Non inherited folder incorrect permissions') -or
-                ($_Name -eq 'Inherited permissions incorrect')
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
             }
 
             $Actual | Should -BeNullOrEmpty
@@ -940,8 +940,8 @@ Describe 'Permissions' {
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
-                ($_Name -eq 'Non inherited folder incorrect permissions') -or
-                ($_Name -eq 'Inherited permissions incorrect')
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
             }
 
             $Actual | Should -BeNullOrEmpty
@@ -1032,8 +1032,8 @@ Describe 'Permissions' {
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
-                ($_Name -eq 'Non inherited folder incorrect permissions') -or
-                ($_Name -eq 'Inherited permissions incorrect')
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
             }
 
             $Actual | Should -BeNullOrEmpty
@@ -1132,8 +1132,8 @@ Describe 'Permissions' {
             #endregion
 
             $Actual = .$testScript @testParams | Where-Object {
-                ($_Name -eq 'Non inherited folder incorrect permissions') -or
-                ($_Name -eq 'Inherited permissions incorrect')
+                ($_.Name -eq 'Non inherited folder incorrect permissions') -or
+                ($_.Name -eq 'Inherited permissions incorrect')
             }
 
             $Actual | Should -BeNullOrEmpty
