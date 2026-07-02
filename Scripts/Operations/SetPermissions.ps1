@@ -200,12 +200,12 @@ begin {
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
-            [System.Object[]]$ReferenceAce = @(),
+            [System.Object[]]$ReferenceAce,
 
             [Parameter(Mandatory)]
             [AllowNull()]
             [AllowEmptyCollection()]
-            [System.Object[]]$DifferenceAce = @()
+            [System.Object[]]$DifferenceAce
         )
 
         try {
@@ -352,7 +352,7 @@ begin {
                 [Parameter(Mandatory)]
                 [AllowNull()]
                 [AllowEmptyCollection()]
-                [System.Object[]]$DifferenceAce = @()
+                [System.Object[]]$DifferenceAce
             )
 
             try {
