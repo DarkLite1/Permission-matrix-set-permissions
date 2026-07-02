@@ -3527,3 +3527,201 @@ Describe 'Get-FolderContentHC guards non-directory paths' {
         { Get-FolderContentHC -Path $realDir } | Should -Not -Throw
     }
 }
+Describe 'an inherit-only folder that has a permissioned child' {
+    BeforeEach {
+        Remove-Item 'TestDrive:\*' -Recurse -Force
+    }
+
+    It 'strips explicit permissions from folder A and restores inheritance (Fix)' {
+        # Mirrors the reported matrix layout:
+        #   Path            -> L L L  (parent folder, explicit)
+        #   FolderA         -> <empty> (no permissions, no ignore = inherit-only)
+        #   FolderA\FolderB -> W       (explicit, protected)
+        #
+        # Folder A must never carry explicit permissions: it has to inherit from
+        # its parent while its child FolderB keeps its own protected ACL. The
+        # test seeds folder A with a WRONG protected ACL up front and proves the
+        # script removes it and turns inheritance back on.
+        $testParams = @{
+            Path             = $testParentFolder
+            Action           = 'Fix'
+            JobThrottleLimit = 2
+            Matrix           = @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{
+                        $env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L'
+                    }; Parent = $true
+                }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+                [PSCustomObject]@{Path = 'FolderA\FolderB'; ACL = @{ $testUser = 'W' } }
+            )
+        }
+
+        $folderA = Join-Path $testParams.Path 'FolderA'
+        $folderB = Join-Path $folderA 'FolderB'
+
+        #region Create all folders
+        $testParams.Matrix | Select-Object -Skip 1 | ForEach-Object {
+            New-Item -Path (Join-Path $testParams.Path $_.Path) -ItemType Directory -Force
+        }
+        #endregion
+
+        #region Set correct permissions on the parent folder (L L L)
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetOwner($BuiltinAdmin)
+
+        $aceList = @($AdminFullControlFolderAce)
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $env:USERNAME
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
+        $aceList.foreach({ $acl.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $testParams.Path) -AclObject $acl
+        #endregion
+
+        #region Set WRONG explicit (protected) permissions on folder A
+        $aclA = New-Object System.Security.AccessControl.DirectorySecurity
+        $aclA.SetAccessRuleProtection($true, $false)
+        $aclA.SetOwner($BuiltinAdmin)
+
+        $aceListA = @($AdminFullControlFolderAce)
+        $aceListA += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+        $aceListA.foreach({ $aclA.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $folderA) -AclObject $aclA
+        #endregion
+
+        #region Sanity check: folder A really starts protected (not inheriting)
+        (Get-Acl -LiteralPath $folderA).AreAccessRulesProtected |
+        Should -BeTrue -Because 'the test must start from a folder A that does not inherit'
+        #endregion
+
+        $Actual = .$testScript @testParams
+
+        #region The script flags folder A as an inherited-permissions problem
+        $inheritedWarning = $Actual |
+        Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+
+        $inheritedWarning | Should -Not -BeNullOrEmpty `
+            -Because 'folder A had explicit permissions where it should inherit'
+        $inheritedWarning.Value | Should -Contain $folderA
+        #endregion
+
+        #region Folder A now inherits again and carries no explicit ACE
+        $aclAfter = Get-Acl -LiteralPath $folderA
+
+        $aclAfter.AreAccessRulesProtected |
+        Should -BeFalse -Because 'Fix must restore inheritance on folder A'
+
+        $aclAfter.Access.Where({ -not $_.IsInherited }) |
+        Should -BeNullOrEmpty -Because 'folder A cannot have explicit permissions'
+        #endregion
+
+        #region The permissioned child folder B keeps its own explicit ACL
+        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected |
+        Should -BeTrue -Because 'folder A\B has W in the matrix and must stay protected'
+        #endregion
+    }
+
+    It 'keeps folder A inherit-only when ApplyDefaultPermissions merged defaults into the other folders' {
+        # ApplyDefaultPermissions is an ORCHESTRATOR setting, not a parameter of
+        # SetPermissions.ps1. With it TRUE, Invoke-PermissionMatrixBeginHC merges
+        # the default ACL into every folder that ALREADY has permissions, but the
+        # inherit-only guard SKIPS folders with an empty ACL. This test feeds
+        # SetPermissions the matrix exactly as that merge produces it: the default
+        # group ($testUser2 = 'R') is present on the parent Path and on FolderB,
+        # but FolderA stays empty. FolderA must still end up inherit-only, picking
+        # up the default only through inheritance, never as an explicit ACE.
+        $testParams = @{
+            Path             = $testParentFolder
+            Action           = 'Fix'
+            JobThrottleLimit = 2
+            Matrix           = @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{
+                        $env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'R'
+                    }; Parent = $true
+                }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+                [PSCustomObject]@{Path = 'FolderA\FolderB'; ACL = @{
+                        $testUser = 'W'; $testUser2 = 'R'
+                    }
+                }
+            )
+        }
+
+        $folderA = Join-Path $testParams.Path 'FolderA'
+        $folderB = Join-Path $folderA 'FolderB'
+
+        #region Create all folders
+        $testParams.Matrix | Select-Object -Skip 1 | ForEach-Object {
+            New-Item -Path (Join-Path $testParams.Path $_.Path) -ItemType Directory -Force
+        }
+        #endregion
+
+        #region Set correct permissions on the parent folder (L L R incl. default)
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetOwner($BuiltinAdmin)
+
+        $aceList = @($AdminFullControlFolderAce)
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $env:USERNAME
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
+        $aceList.foreach({ $acl.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $testParams.Path) -AclObject $acl
+        #endregion
+
+        #region Set WRONG explicit (protected) permissions on folder A
+        $aclA = New-Object System.Security.AccessControl.DirectorySecurity
+        $aclA.SetAccessRuleProtection($true, $false)
+        $aclA.SetOwner($BuiltinAdmin)
+
+        $aceListA = @($AdminFullControlFolderAce)
+        $aceListA += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+        $aceListA.foreach({ $aclA.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $folderA) -AclObject $aclA
+        #endregion
+
+        $Actual = .$testScript @testParams
+
+        #region Folder A was flagged and is now inherit-only with no explicit ACE
+        $inheritedWarning = $Actual |
+        Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+
+        $inheritedWarning | Should -Not -BeNullOrEmpty
+        $inheritedWarning.Value | Should -Contain $folderA
+
+        $aclAfter = Get-Acl -LiteralPath $folderA
+
+        $aclAfter.AreAccessRulesProtected |
+        Should -BeFalse -Because 'defaults must never turn folder A into an explicit ACL'
+
+        $aclAfter.Access.Where({ -not $_.IsInherited }) |
+        Should -BeNullOrEmpty -Because 'folder A cannot have explicit permissions, even the default one'
+        #endregion
+
+        #region The default group reaches folder A only through inheritance
+        $inheritedDefault = $aclAfter.Access.Where({
+                $_.IsInherited -and
+                ($_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2")
+            })
+
+        $inheritedDefault |
+        Should -Not -BeNullOrEmpty -Because 'the default group is inherited from the parent, not set explicitly'
+        #endregion
+
+        #region The permissioned child folder B still carries the default explicitly
+        $aclB = Get-Acl -LiteralPath $folderB
+        $aclB.AreAccessRulesProtected |
+        Should -BeTrue -Because 'FolderB has permissions in the matrix and stays protected'
+
+        $aclB.Access.Where({
+                (-not $_.IsInherited) -and
+                ($_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2")
+            }) |
+        Should -Not -BeNullOrEmpty -Because 'ApplyDefaultPermissions merged the default into FolderB explicitly'
+        #endregion
+    }
+}

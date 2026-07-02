@@ -548,3 +548,124 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
     }
 }
+
+Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
+    # The defaults-merge loop runs INSIDE the per-file scriptblock that
+    # Invoke-WithOptionalParallelismHC executes, so the mocked unit tests above
+    # (which stub Invoke-WithOptionalParallelismHC) never reach it. This
+    # Describe drives the real merge with real Excel fixtures (sequential,
+    # FoldersPerMatrix = 1) and inspects the matrix the orchestrator produced,
+    # proving an inherit-only folder (no permission cells) never receives the
+    # default ACL even when ApplyDefaultPermissions = TRUE.
+    BeforeAll {
+        $root = Resolve-Path "$PSScriptRoot\..\..\.."
+        $moduleRoot = "$root\Modules\PermissionMatrix"
+
+        . "$root\Tests\Helpers\Helpers.HC.ps1"
+        . "$root\Tests\Helpers\Fixtures.Json.ps1"
+        . "$root\Tests\Helpers\Fixtures.Excel.ps1"
+
+        Get-ChildItem -Path "$moduleRoot\Private" -Filter '*.ps1' -File |
+        ForEach-Object { . $_.FullName }
+
+        # Fake SIDs so the post-merge SID rewrite succeeds without touching AD.
+        $script:sidBob = 'S-1-5-21-1111111111-2222222222-3333333333-1001'
+        $script:sidMike = 'S-1-5-21-1111111111-2222222222-3333333333-1002'
+        $script:sidDefault = 'S-1-5-21-1111111111-2222222222-3333333333-1003'
+    }
+
+    It 'does not merge the default ACL into a folder without permissions' {
+        $matrixDir = (New-Item 'TestDrive:\MergeMatrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\MergeLogs' -ItemType Directory -Force).FullName
+
+        #region Real defaults + matrix Excel files
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -PermissionsRows (New-MatrixPermissionsFixtureRows -Scenario 'WithEmptyPermissionFolder') `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'HQ'
+                SiteCode                = 'HQ'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = 'TestDrive:\Target'
+                GroupName               = 'Team-A'
+                Action                  = 'Check'
+                ApplyDefaultPermissions = $true
+            }
+        ) | Out-Null
+        #endregion
+
+        #region Config JSON pointing at the real fixtures (sequential)
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        Save-TestJson -InputObject $configFixture -JsonFile $configPath
+        #endregion
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        # Resolve every AD name the fixtures use so the SID rewrite runs; the
+        # merge itself happens before this and is what we are validating.
+        Mock Get-ADObjectDetailHC {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $sidBob } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $sidMike } }
+                @{ SamAccountName = 'DefaultGroup'; adObject = @{ ObjectSid = $sidDefault } }
+            )
+        }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        $context = Invoke-PermissionMatrixBeginHC `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        #region No fatal errors and the matrix was built
+        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count |
+        Should -Be 0 -Because 'the fixture is valid and defaults do not conflict'
+
+        $context.AllMatrices.Count | Should -Be 1
+        $matrix = $context.AllMatrices[0].Matrix
+        #endregion
+
+        #region The inherit-only folder carries no ACL and no default
+        $inheritOnly = $matrix | Where-Object { $_.Path -eq 'InheritOnly' }
+
+        $inheritOnly | Should -Not -BeNullOrEmpty `
+            -Because 'the empty-permission folder must still be present in the matrix'
+        $inheritOnly.Ignore | Should -BeFalse `
+            -Because 'a blank row is inherit-only, not ignored'
+        $inheritOnly.ACL.Count | Should -Be 0 `
+            -Because 'the orchestrator must not merge the default ACL into an inherit-only folder'
+
+        # AdNames is only added when a folder had ACL entries to rewrite.
+        $inheritOnly.PSObject.Properties.Match('AdNames').Count |
+        Should -Be 0 -Because 'no AD objects were resolved for an empty folder'
+        #endregion
+
+        #region The permissioned folder DID receive the default (contrast)
+        $finance = $matrix | Where-Object { $_.Path -eq 'Finance' }
+
+        $finance | Should -Not -BeNullOrEmpty
+        $finance.ACL.Keys | Should -Contain $sidDefault `
+            -Because 'ApplyDefaultPermissions=TRUE merges the default into folders that have permissions'
+        $finance.AdNames[$sidDefault] |
+        Should -Be 'DefaultGroup' -Because 'the merged default is tracked in the AdNames map'
+        #endregion
+    }
+}
