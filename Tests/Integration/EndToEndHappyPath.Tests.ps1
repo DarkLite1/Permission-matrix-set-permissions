@@ -349,6 +349,152 @@ Describe 'Permission Matrix - End to End' {
         Should -BeGreaterThan 0 -Because 'defaults are still applied to folders that have permissions'
     }
 
+    It 'corrects a TOP-LEVEL inherit-only folder under Action=Fix (full flow regression)' -Skip:(-not $E2EPrereqsMet) {
+        # -------------------------------------------------------------------
+        # REGRESSION GUARD for the production 'Common' bug.
+        #
+        # Matrix (mirrors BEL-MTX-CEM-Gent.xlsx):
+        #   Path            -> L L   (root, the parent 'Path' row)
+        #   Common          -> <empty> (TOP-LEVEL inherit-only folder)
+        #   Common\Exchange -> W     (permissioned child)
+        #
+        # The full pipeline must turn the 'Path' row into a Parent=$true matrix
+        # entry so SetPermissions seeds its inheritance walk from the share
+        # ROOT. That walk is the only thing that visits and corrects a
+        # top-level inherit-only folder like 'Common'. Before the fix the root
+        # had no matrix entry, no walk was seeded there, and 'Common' kept its
+        # stale explicit ACL — exactly the reported bug. This test drives the
+        # real Invoke-PermissionMatrix end to end under Action=Fix.
+        # -------------------------------------------------------------------
+        $rootFolder = (New-Item (Join-Path $TestDrive 'FixInheritTarget') -ItemType Directory -Force).FullName
+        $commonFolder = (New-Item (Join-Path $rootFolder 'Common') -ItemType Directory -Force).FullName
+        $exchangeFolder = (New-Item (Join-Path $commonFolder 'Exchange') -ItemType Directory -Force).FullName
+
+        $matrixDir = (New-Item 'TestDrive:\FixMatrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\FixLogs' -ItemType Directory -Force).FullName
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        # Prod-shaped permissions sheet: root grants List to Bob+Mike, Common
+        # has no permissions (inherit-only), Common\Exchange grants Write.
+        $permSpec = @{
+            Row1 = @('', '', '')
+            Row2 = @('', '', '')
+            Row3 = @('', 'Bob', 'Mike')
+            Row4 = @('Path', 'L', 'L')
+            Data = @(
+                @{ Path = 'Common'          ; Col2 = '' ; Col3 = '' }
+                @{ Path = 'Common\Exchange' ; Col2 = 'W'; Col3 = '' }
+            )
+        }
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -PermissionsRows $permSpec `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Test-Group'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        # -------------------------------------------------------------------
+        # Seed 'Common' with a WRONG, protected (non-inheriting) ACL so the
+        # run has something to correct. Giving the Bob group explicit
+        # FullControl and cutting inheritance is exactly the stale state the
+        # script must strip back to pure inheritance.
+        # -------------------------------------------------------------------
+        $wrongAcl = New-Object System.Security.AccessControl.DirectorySecurity
+        $wrongAcl.SetAccessRuleProtection($true, $false)
+        $wrongAcl.AddAccessRule(
+            (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                "$env:COMPUTERNAME\$TestGroupBob",
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                [System.Security.AccessControl.InheritanceFlags]'ContainerInherit,ObjectInherit',
+                [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Allow))
+        )
+        Set-Acl -LiteralPath $commonFolder -AclObject $wrongAcl
+
+        (Get-Acl -LiteralPath $commonFolder).AreAccessRulesProtected |
+        Should -BeTrue -Because 'the test must start from a Common folder that does not inherit'
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $TestGroupBobSid } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $TestGroupMikeSid } }
+            )
+        }
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix { }
+
+        $systemErrors = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrors)
+
+        $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
+        $fatals.Count | Should -Be 0 -Because (
+            "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        $bobNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")).Value
+
+        #region Common is now inherit-only: inheritance restored, no explicit ACE
+        $commonSecurity = Get-Acl -LiteralPath $commonFolder
+
+        $commonSecurity.AreAccessRulesProtected |
+        Should -BeFalse -Because 'Fix must reset a top-level inherit-only folder back to inheriting'
+
+        $commonSecurity.Access.Where({ -not $_.IsInherited }) |
+        Should -BeNullOrEmpty -Because 'Common cannot keep any explicit permissions'
+
+        # It should now inherit the root's List grant for Bob (proof the root
+        # walk actually reached and re-based Common).
+        $commonSecurity.Access.Where({
+                $_.IsInherited -and ($_.IdentityReference.Value -eq $bobNT)
+            }) |
+        Should -Not -BeNullOrEmpty -Because 'Common inherits the root ACL after the fix'
+        #endregion
+
+        #region The permissioned child keeps its own protected ACL
+        $exchangeSecurity = Get-Acl -LiteralPath $exchangeFolder
+        $exchangeSecurity.AreAccessRulesProtected |
+        Should -BeTrue -Because 'Common\Exchange has Write in the matrix and stays protected'
+        $exchangeSecurity.Access.Where({
+                (-not $_.IsInherited) -and ($_.IdentityReference.Value -eq $bobNT)
+            }) |
+        Should -Not -BeNullOrEmpty -Because 'Common\Exchange carries its explicit Write ACE for Bob'
+        #endregion
+    }
+
     It 'works the same way under parallel execution' -Skip:(-not $E2EPrereqsMet) {
         # -------------------------------------------------------------------
         # Same happy-path scenario as the sequential test, but with
