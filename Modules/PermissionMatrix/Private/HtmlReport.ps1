@@ -120,18 +120,29 @@ function Build-ExecutionDetailsBlockHC {
 }
 
 function Build-MatrixDetailCardHC {
-    param([object]$MatrixItem)
+    param(
+        [object]$MatrixItem,
+        # When the parent matrix file hit a file-level FatalError its settings
+        # never executed, so a clean row must not read as green "success" — it
+        # is shown as grey "Skipped" instead.
+        [bool]$FileHasFatalError = $false
+    )
 
     # Determine card status
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
     $hasChecks = ($err + $warn) -gt 0
 
+    $isSkipped = $false
     if ($err -gt 0) {
         $accent = $Script:Theme.AccentError
     }
     elseif ($warn -gt 0) {
         $accent = $Script:Theme.AccentWarning
+    }
+    elseif ($FileHasFatalError) {
+        $accent = $Script:Theme.AccentSkipped
+        $isSkipped = $true
     }
     else {
         $accent = $Script:Theme.AccentSuccess
@@ -163,6 +174,13 @@ function Build-MatrixDetailCardHC {
     $applyDefaultStr = if ($null -ne $applyDefaultVal -and $applyDefaultVal) { 'Yes' } else { 'No' }
 
     $dotHtml = "<span style='display:inline-block; width:10px; height:10px; background-color:$accent; border-radius:50%;'></span>"
+
+    # When the file errored out, a clean row is "Skipped" (grey) rather than
+    # green; surface that with an inline tag next to the ComputerName.
+    $skippedTag = if ($isSkipped) {
+        " &nbsp;<span style='display:inline-block; padding:2px 8px; background-color:$($Script:Theme.AccentSkipped); color:#ffffff; border-radius:10px; font-size:10px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; vertical-align:middle;'>Skipped</span>"
+    }
+    else { '' }
 
     # Two-row compact metadata layout. Column 1 anchors short values (Action,
     # Duration), column 2 holds short labeled values (Apply Defaults, ID),
@@ -243,7 +261,7 @@ function Build-MatrixDetailCardHC {
     <tr>
         <td class="rr-icon-cell" valign='middle' width='40' style='padding:14px 8px 14px 10px;'>$dotHtml</td>
         <td class="rr-content-cell" valign='middle' style='padding:14px 16px 14px 0;'>
-            <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp</div>
+            <div style='font-size:14px; font-weight:700; color:$($Script:Theme.TextMain); line-height:1.25;'>$comp$skippedTag</div>
             <div class="rr-path" style='font-size:12px; color:$($Script:Theme.TextMuted); font-family:$($Script:Theme.MonoStack); line-height:1.4; margin-top:2px; word-break:break-all;'>$path</div>
         </td>
         <td class="rr-meta-cell" valign='middle' width='55%' style='padding:12px 16px;'>
@@ -352,7 +370,7 @@ function New-SettingsCardHtmlHC {
         [Parameter(Mandatory)][object]$MatrixItem,
         [Parameter()][bool]$FileHasFatalError = $false
     )
-    return Build-MatrixDetailCardHC -MatrixItem $MatrixItem
+    return Build-MatrixDetailCardHC -MatrixItem $MatrixItem -FileHasFatalError $FileHasFatalError
 }
 
 function New-SettingsOverviewHtmlHC {
@@ -422,6 +440,16 @@ function Write-MatrixExecutionReportHC {
         if ($g.Checks) { $fileLevelCount += @($g.Checks).Count }
     }
 
+    # A file-level FatalError (e.g. 'Runspace processing failed') means the
+    # settings never executed; their rows render as "Skipped" instead of green.
+    $fileHasFatalError = $false
+    foreach ($g in $fileLevelGroups) {
+        if ($g.Checks -and @($g.Checks | Where-Object Type -EQ 'FatalError').Count -gt 0) {
+            $fileHasFatalError = $true
+            break
+        }
+    }
+
     if ($fileLevelCount -gt 0) {
         $issueRows = ''
         foreach ($g in $fileLevelGroups) {
@@ -457,7 +485,7 @@ $issueRows
 
         $matrixRowsHtml = ''
         foreach ($m in $sortedMatrices) {
-            $matrixRowsHtml += Build-MatrixDetailCardHC -MatrixItem $m
+            $matrixRowsHtml += Build-MatrixDetailCardHC -MatrixItem $m -FileHasFatalError $fileHasFatalError
         }
         $matrixDetailsHtml = @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">

@@ -113,6 +113,20 @@ Describe 'Build-SettingsRowHC' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -ReportFilePath 'C:\logs\r.html')
         $html | Should -Match "href='C:\\logs\\r\.html'"
     }
+
+    It 'marks a clean row as Skipped (grey) when the file has a fatal error' {
+        $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem) -FileHasError $true
+        $html | Should -Match '#6b7280'
+        $html | Should -Match '>Skipped</span>'
+        $html | Should -Not -Match '#16a34a'
+    }
+
+    It 'keeps a row with its own error red even when the file has a fatal error' {
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'FatalError' })
+        $html = Build-SettingsRowHC -MatrixItem $item -FileHasError $true
+        $html | Should -Match '>Error</span>'
+        $html | Should -Not -Match '>Skipped</span>'
+    }
 }
 
 Describe 'Build-MatrixEmailHtmlHC' {
@@ -403,6 +417,21 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out | Should -Match 'File Issues \(1\)'
             $out | Should -Match 'fileCheck'
+        }
+
+        It 'renders settings rows as Skipped when the file has a file-level error' {
+            $files = @(
+                New-FileResult -Check @(
+                    [pscustomobject]@{ Type = 'FatalError'; Name = 'Runspace processing failed'; Description = 'boom' }
+                ) -Matrices @(
+                    New-MatrixRow -ID 1 -ComputerName 'SRV01'
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should -Match '>Skipped</span>'
+            $out | Should -Match '#6b7280'
         }
     }
 }

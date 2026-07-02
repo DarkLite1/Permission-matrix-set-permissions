@@ -94,24 +94,35 @@ function Build-SystemErrorsBlockHC {
 }
 
 function Build-SettingsRowHC {
-    param([object]$MatrixItem)
+    param(
+        [object]$MatrixItem,
+        # When the parent matrix file hit a file-level FatalError its settings
+        # never executed, so such rows must not read as green "success". They
+        # are shown as grey "Skipped" instead — unless the row carries its own
+        # error/warning, which still wins.
+        [bool]$FileHasError = $false
+    )
 
-    # Determine row status — first check type wins (sorted by severity in upstream code).
-    $types = @($MatrixItem.Check.Type)
-    $firstType = if ($types.Count -gt 0) { $types[0] } else { 'Info' }
+    $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
+    $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
 
-    if ($firstType -eq 'FatalError') {
+    # Determine row status — a row's own error/warning wins; otherwise a
+    # file-level error downgrades the row to "Skipped" (grey); only a clean row
+    # in a successfully processed file stays green.
+    $isSkipped = $false
+    if ($err -gt 0) {
         $accent = $Script:Theme.AccentError
     }
-    elseif ($firstType -eq 'Warning') {
+    elseif ($warn -gt 0) {
         $accent = $Script:Theme.AccentWarning
+    }
+    elseif ($FileHasError) {
+        $accent = $Script:Theme.AccentSkipped
+        $isSkipped = $true
     }
     else {
         $accent = $Script:Theme.AccentSuccess
     }
-
-    $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
-    $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
 
     $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
 
@@ -143,6 +154,9 @@ function Build-SettingsRowHC {
     }
     elseif ($warn -gt 0) {
         New-PillHtmlHC -Text 'Warning' -Bg $Script:Theme.AccentWarning
+    }
+    elseif ($isSkipped) {
+        New-PillHtmlHC -Text 'Skipped' -Bg $Script:Theme.AccentSkipped
     }
     else { '&nbsp;' }
 
@@ -307,6 +321,17 @@ function Build-MatrixFileCardHC {
         if ($g.Checks) { $fileLevelCount += @($g.Checks).Count }
     }
 
+    # A file-level FatalError (e.g. 'Runspace processing failed') means the
+    # settings never executed. Flag it so their rows render as "Skipped"
+    # instead of green "success".
+    $fileHasError = $false
+    foreach ($g in $fileLevelGroups) {
+        if ($g.Checks -and @($g.Checks | Where-Object Type -EQ 'FatalError').Count -gt 0) {
+            $fileHasError = $true
+            break
+        }
+    }
+
     if ($fileLevelCount -gt 0) {
         $contentRows += @"
 <tr>
@@ -329,7 +354,7 @@ function Build-MatrixFileCardHC {
 
         $settingsRowsHtml = ''
         foreach ($m in $sortedMatrices) {
-            $settingsRowsHtml += Build-SettingsRowHC -MatrixItem $m
+            $settingsRowsHtml += Build-SettingsRowHC -MatrixItem $m -FileHasError $fileHasError
         }
 
         $matrixCount = @($sortedMatrices).Count

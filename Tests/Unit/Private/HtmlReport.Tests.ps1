@@ -320,6 +320,28 @@ Describe 'Build-MatrixDetailCardHC' {
         $html | Should -Match "href='C:\\j\\check\.json'"
         $html | Should -Match '>JCheck</a>'
     }
+
+    It 'marks a clean row as Skipped (grey) when the file has a fatal error' {
+        $html = Build-MatrixDetailCardHC -MatrixItem (New-DetailMatrix) -FileHasFatalError $true
+        $html | Should -Match '#6b7280'
+        $html | Should -Match '>Skipped</span>'
+        $html | Should -Not -Match '#16a34a'
+    }
+
+    It 'keeps a clean row green when the file has no fatal error' {
+        $html = Build-MatrixDetailCardHC -MatrixItem (New-DetailMatrix)
+        $html | Should -Match '#16a34a'
+        $html | Should -Not -Match '>Skipped</span>'
+    }
+
+    It 'keeps a row with its own warning as a warning even when the file errored' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item -FileHasFatalError $true
+        $html | Should -Match 'WARNING'
+        $html | Should -Not -Match '>Skipped</span>'
+    }
 }
 
 Describe 'New-HtmlSectionHC' {
