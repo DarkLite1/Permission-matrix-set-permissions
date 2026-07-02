@@ -177,19 +177,19 @@ function Build-SettingsRowHC {
         " class='rr-srow-status'"
     }
     else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:5px 14px 5px 4px; white-space:nowrap;'>$pillHtml</td>"
+    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:3px 14px 3px 4px; white-space:nowrap;'>$pillHtml</td>"
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 6px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:5px 0 5px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
-        <td valign='middle' class='rr-srow-ident' style='padding:5px 8px;'>
+        <td valign='middle' width='20' style='padding:3px 0 3px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
+        <td valign='middle' class='rr-srow-ident' style='padding:3px 8px;'>
             <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
-                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</div>
-                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
+                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:16px; margin:0; mso-line-height-rule:exactly;'>$comp</div>
+                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:15px; margin:0; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
             </a>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:5px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:3px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
@@ -383,7 +383,11 @@ function Build-MatrixFileCardHC {
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$($Script:Theme.BgWhite)" style="border-collapse:separate; margin:0 0 24px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
     <tr>
-        <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
+        <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%);'>
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="15%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px; height:68px; v-text-anchor:top;">
+            <v:textbox inset="0,0,0,0">
+            <![endif]-->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
                     <td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
@@ -391,13 +395,14 @@ function Build-MatrixFileCardHC {
                         <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
-                        <div style='font-size:12px; color:rgba(255,255,255,0.85); line-height:1.4; margin-top:2px;font-style:italic;'>
+                        <div style='font-size:12px; color:#f1f2f4; line-height:1.4; margin-top:2px;font-style:italic;'>
                             $lastChangeInfo
                         </div>
                     </td>
                     <td valign='middle' align='right' style='padding:14px 18px 14px 10px; white-space:nowrap;'>$headerLabelHtml</td>
                 </tr>
             </table>
+            <!--[if mso]></v:textbox></v:roundrect><![endif]-->
         </td>
     </tr>
     $contentRows
