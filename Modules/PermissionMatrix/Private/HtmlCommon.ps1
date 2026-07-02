@@ -334,8 +334,13 @@ function New-PillHtmlHC {
     # spacing) so the label never clips inside the fixed-width VML shape.
     $upper = $Text.ToUpper()
     $width = [int][Math]::Ceiling(($upper.Length * 8.5) + 26)
+    # Word gives the VML shape a fixed height; <w:anchorlock/> + v-text-anchor
+    # keeps the single line of text vertically centered so the pill isn't
+    # squashed. Height 26px mirrors the browser span (padding 3px + 11px text
+    # at line-height 1.6 ≈ 24-26px) so both clients look the same.
     $vml = "<!--[if mso]>" +
-    "<v:roundrect xmlns:v=`"urn:schemas-microsoft-com:vml`" arcsize=`"50%`" fillcolor=`"$Bg`" stroked=`"f`" style=`"height:22px; width:${width}px; v-text-anchor:middle; display:inline-block;`">" +
+    "<v:roundrect xmlns:v=`"urn:schemas-microsoft-com:vml`" xmlns:w=`"urn:schemas-microsoft-com:office:word`" arcsize=`"50%`" fillcolor=`"$Bg`" stroked=`"f`" style=`"height:26px; width:${width}px; v-text-anchor:middle; mso-padding-alt:0;`">" +
+    "<w:anchorlock/>" +
     "<center style=`"color:$Color; font-family:sans-serif; font-size:11px; font-weight:700; letter-spacing:0.3px;`">$upper</center>" +
     "</v:roundrect>" +
     "<![endif]-->"

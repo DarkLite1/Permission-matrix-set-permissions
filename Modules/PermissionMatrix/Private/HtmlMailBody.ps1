@@ -385,7 +385,7 @@ function Build-MatrixFileCardHC {
     <tr>
         <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
             <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="18%" fillcolor="$gradTo" stroked="f" style="width:${bodyWidth}px;">
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="18%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px;">
             <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true;">
             <![endif]-->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
@@ -477,24 +477,30 @@ function Get-MailBodyHtmlHC {
         $span = $ScriptEndTime - $ScriptStartTime
         $durStr = '{0:00}:{1:00}:{2:00}' -f $span.Hours, $span.Minutes, $span.Seconds
 
-        # Small helper for footer label/value pairs (kept local — no other
-        # caller needs this exact layout).
-        $renderField = {
-            param([string]$Label, [string]$Value)
-            "<span style='display:inline-block; margin-right:18px;'>" +
-            "<strong style='color:$($Script:Theme.TextLight); font-weight:700; " +
-            "text-transform:uppercase; letter-spacing:0.5px; margin-right:5px; font-size:10px;'>" +
-            "$Label</strong>" +
-            "<span style='font-size:11px; color:$($Script:Theme.TextLight); " +
-            "font-family:$($Script:Theme.MonoStack);'>$Value</span>" +
-            '</span>'
-        }
+        $startEnc = [System.Net.WebUtility]::HtmlEncode($startStr)
+        $endEnc = [System.Net.WebUtility]::HtmlEncode($endStr)
+        $durEnc = [System.Net.WebUtility]::HtmlEncode($durStr)
 
-        $startedHtml = & $renderField 'Started' ([System.Net.WebUtility]::HtmlEncode($startStr))
-        $endedHtml = & $renderField 'Ended' ([System.Net.WebUtility]::HtmlEncode($endStr))
-        $durationHtml = & $renderField 'Duration' ([System.Net.WebUtility]::HtmlEncode($durStr))
+        # Word (Outlook) ignores margin/display:inline-block on inline spans, so
+        # the three label/value pairs ran together as
+        # "STARTED..date..ENDED..date..". Render them as a centered table
+        # instead — cell padding provides the gaps and the label/value spacing
+        # consistently in Outlook and browsers alike.
+        $footLabelStyle = "font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px;"
+        $footValueStyle = "font-size:11px; color:$($Script:Theme.TextLight); font-family:$($Script:Theme.MonoStack);"
 
-        $footer = "<p style='margin:16px 0 0 0; text-align:center;'>$startedHtml$endedHtml$durationHtml</p>"
+        $footer = @"
+<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse; margin:16px auto 0 auto;">
+    <tr>
+        <td style="padding:0 5px 0 0; $footLabelStyle">Started</td>
+        <td style="padding:0 20px 0 0; $footValueStyle">$startEnc</td>
+        <td style="padding:0 5px 0 0; $footLabelStyle">Ended</td>
+        <td style="padding:0 20px 0 0; $footValueStyle">$endEnc</td>
+        <td style="padding:0 5px 0 0; $footLabelStyle">Duration</td>
+        <td style="padding:0; $footValueStyle">$durEnc</td>
+    </tr>
+</table>
+"@
     }
 
     @"
