@@ -539,8 +539,22 @@ begin {
             if ($Action -eq 'Fix') {
                 Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
+                # IMPORTANT: build a FRESH inherited-only ACL object for every
+                # item. A DirectorySecurity/FileSecurity remembers which sections
+                # were changed (owner/DACL) and clears those "modified" flags
+                # after the first successful Persist (SetAccessControl). Reusing
+                # a single template object across the walk therefore only wrote
+                # the very first folder and the very first file; every later
+                # item computed persistRules = None and was silently left
+                # untouched (still reported as fixed). Creating a new object per
+                # item guarantees the DACL protection + owner are re-marked as
+                # modified so each item is genuinely reset to inherited-only.
                 if ($isContainer) {
                     $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
+
+                    $inheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
+                    $inheritedDirAcl.SetOwner($builtinAdmin)
+                    $inheritedDirAcl.SetAccessRuleProtection($false, $false)
 
                     if ($accessDenied) {
                         [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
@@ -556,6 +570,10 @@ begin {
                 }
                 else {
                     $fileInfo = [System.IO.FileInfo]::new($child.FullName)
+
+                    $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
+                    $inheritedFileAcl.SetOwner($builtinAdmin)
+                    $inheritedFileAcl.SetAccessRuleProtection($false, $false)
 
                     if ($accessDenied) {
                         [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
@@ -608,16 +626,13 @@ begin {
             #endregion
 
             #region Create inherited folder and file acl
+            # Only the owner principal is prepared here. The actual inherited-only
+            # ACL objects are (re)created per item inside $incorrectAclInheritedOnly
+            # because a DirectorySecurity/FileSecurity clears its modified-section
+            # flags after its first Persist, so a shared template would only ever
+            # rewrite the first folder and the first file (see comment there).
             Write-Verbose 'Inherited permissions'
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
-
-            $inheritedDirAcl = New-Object System.Security.AccessControl.DirectorySecurity
-            $inheritedDirAcl.SetOwner($builtinAdmin)
-            $inheritedDirAcl.SetAccessRuleProtection($false, $false)
-
-            $inheritedFileAcl = New-Object System.Security.AccessControl.FileSecurity
-            $inheritedFileAcl.SetOwner($builtinAdmin)
-            $inheritedFileAcl.SetAccessRuleProtection($false, $false)
             #endregion
 
             #region Check or fix folder and file permissions

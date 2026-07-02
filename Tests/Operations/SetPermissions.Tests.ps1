@@ -3724,4 +3724,123 @@ Describe 'an inherit-only folder that has a permissioned child' {
         Should -Not -BeNullOrEmpty -Because 'ApplyDefaultPermissions merged the default into FolderB explicitly'
         #endregion
     }
+
+    It 'restores inheritance on EVERY incorrect sibling folder, not just the first (Fix)' {
+        # Regression for the reused inherited-ACL template bug. A single
+        # DirectorySecurity/FileSecurity object clears its modified-section flags
+        # after its first Persist, so reusing one template across the walk only
+        # ever rewrote the FIRST incorrect folder and the FIRST incorrect file;
+        # every later item was reported as fixed but left untouched on disk
+        # (Common was corrected, Dienst Labo was not). This test seeds THREE
+        # sibling inherit-only folders with wrong protected ACLs and proves all
+        # three are reset, plus a wrongly-permissioned FILE in a later folder.
+        $testParams = @{
+            Path             = $testParentFolder
+            Action           = 'Fix'
+            JobThrottleLimit = 2
+            Matrix           = @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{
+                        $env:USERNAME = 'L'; $testUser = 'L'; $testUser2 = 'L'
+                    }; Parent = $true
+                }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+                [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
+                [PSCustomObject]@{Path = 'FolderC'; ACL = @{ } }
+            )
+        }
+
+        $folderA = Join-Path $testParams.Path 'FolderA'
+        $folderB = Join-Path $testParams.Path 'FolderB'
+        $folderC = Join-Path $testParams.Path 'FolderC'
+
+        #region Create all folders
+        $testParams.Matrix | Select-Object -Skip 1 | ForEach-Object {
+            New-Item -Path (Join-Path $testParams.Path $_.Path) -ItemType Directory -Force
+        }
+        #endregion
+
+        #region Set correct permissions on the parent folder (L L L)
+        $acl = New-Object System.Security.AccessControl.DirectorySecurity
+        $acl.SetAccessRuleProtection($true, $false)
+        $acl.SetOwner($BuiltinAdmin)
+
+        $aceList = @($AdminFullControlFolderAce)
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $env:USERNAME
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser
+        $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $testUser2
+        $aceList.foreach({ $acl.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $testParams.Path) -AclObject $acl
+        #endregion
+
+        #region Set WRONG explicit (protected) permissions on every sibling folder
+        foreach ($wrongFolder in @($folderA, $folderB, $folderC)) {
+            $aclWrong = New-Object System.Security.AccessControl.DirectorySecurity
+            $aclWrong.SetAccessRuleProtection($true, $false)
+            $aclWrong.SetOwner($BuiltinAdmin)
+
+            $aceListWrong = @($AdminFullControlFolderAce)
+            $aceListWrong += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+            $aceListWrong.foreach({ $aclWrong.AddAccessRule($_) })
+
+            Set-Acl -Path (Get-Item $wrongFolder) -AclObject $aclWrong
+        }
+        #endregion
+
+        #region Add a WRONG explicit (protected) permission on a FILE in FolderC
+        $wrongFile = Join-Path $folderC 'report.txt'
+        New-Item -Path $wrongFile -ItemType File -Force
+
+        $aclFile = New-Object System.Security.AccessControl.FileSecurity
+        $aclFile.SetAccessRuleProtection($true, $false)
+        $aclFile.SetOwner($BuiltinAdmin)
+
+        $aceListFile = @($AdminFullControlIFileAce)
+        $aceListFile += New-TestAceHC -Type 'InheritedFile' -Access 'F' -Name $testUser2
+        $aceListFile.foreach({ $aclFile.AddAccessRule($_) })
+
+        Set-Acl -Path (Get-Item $wrongFile) -AclObject $aclFile
+        #endregion
+
+        #region Sanity check: all three folders really start protected
+        foreach ($wrongFolder in @($folderA, $folderB, $folderC)) {
+            (Get-Acl -LiteralPath $wrongFolder).AreAccessRulesProtected |
+            Should -BeTrue -Because 'each sibling must start from a non-inheriting state'
+        }
+        #endregion
+
+        $Actual = .$testScript @testParams
+
+        #region All three siblings are flagged as inherited-permissions problems
+        $inheritedWarning = $Actual |
+        Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+
+        $inheritedWarning | Should -Not -BeNullOrEmpty
+        $inheritedWarning.Value | Should -Contain $folderA
+        $inheritedWarning.Value | Should -Contain $folderB
+        $inheritedWarning.Value | Should -Contain $folderC
+        #endregion
+
+        #region EVERY sibling now inherits again and carries no explicit ACE
+        foreach ($wrongFolder in @($folderA, $folderB, $folderC)) {
+            $aclAfter = Get-Acl -LiteralPath $wrongFolder
+
+            $aclAfter.AreAccessRulesProtected |
+            Should -BeFalse -Because "Fix must restore inheritance on '$wrongFolder', not only the first sibling"
+
+            $aclAfter.Access.Where({ -not $_.IsInherited }) |
+            Should -BeNullOrEmpty -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
+        }
+        #endregion
+
+        #region The wrongly-permissioned FILE is reset to inherited-only too
+        $aclFileAfter = Get-Acl -LiteralPath $wrongFile
+
+        $aclFileAfter.AreAccessRulesProtected |
+        Should -BeFalse -Because 'Fix must restore inheritance on the file as well'
+
+        $aclFileAfter.Access.Where({ -not $_.IsInherited }) |
+        Should -BeNullOrEmpty -Because 'the file cannot keep explicit permissions after Fix'
+        #endregion
+    }
 }
