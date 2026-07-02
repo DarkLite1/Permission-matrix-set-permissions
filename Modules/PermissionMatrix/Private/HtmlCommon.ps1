@@ -310,6 +310,14 @@ function New-PillHtmlHC {
     <#
         .DESCRIPTION
             Render a colored pill — used for status labels in banners and rows.
+
+            Modern clients and browsers get a CSS `border-radius` span. Outlook
+            on Windows (Word rendering engine) ignores border-radius, so an
+            MSO-only VML <v:roundrect> with the same fill/text is emitted for
+            those clients. Because VML needs an explicit width, it is estimated
+            from the (upper-cased) text length. The two variants are gated by
+            downlevel-hidden conditional comments so each client renders exactly
+            one pill.
     #>
 
     param(
@@ -318,7 +326,21 @@ function New-PillHtmlHC {
         [string]$Color = '#ffffff'
     )
     if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
-    return "<span style=`"display:inline-block; padding:3px 10px; background-color:$Bg; color:$Color; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; line-height:1.6;`">$Text</span>"
+
+    $span = "<span style=`"display:inline-block; padding:3px 10px; background-color:$Bg; color:$Color; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; line-height:1.6;`">$Text</span>"
+
+    # The CSS pill uppercases via text-transform; mirror that in the VML text
+    # so both variants match. Width is a generous estimate (uppercase + letter
+    # spacing) so the label never clips inside the fixed-width VML shape.
+    $upper = $Text.ToUpper()
+    $width = [int][Math]::Ceiling(($upper.Length * 8.5) + 26)
+    $vml = "<!--[if mso]>" +
+    "<v:roundrect xmlns:v=`"urn:schemas-microsoft-com:vml`" arcsize=`"50%`" fillcolor=`"$Bg`" stroked=`"f`" style=`"height:22px; width:${width}px; v-text-anchor:middle; display:inline-block;`">" +
+    "<center style=`"color:$Color; font-family:sans-serif; font-size:11px; font-weight:700; letter-spacing:0.3px;`">$upper</center>" +
+    "</v:roundrect>" +
+    "<![endif]-->"
+
+    return "$vml<!--[if !mso]><!-->$span<!--<![endif]-->"
 }
 
 function Build-ErrorWarningTableHC {

@@ -60,7 +60,7 @@ function Build-SystemErrorsBlockHC {
         $rows += @"
 <tr>
     <td style='padding:0 0 8px 0;'>
-        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-syscard" style="border-collapse:separate; width:100%; max-width:100%; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-syscard" bgcolor="$bgColor" style="border-collapse:separate; width:100%; max-width:100%; background-color:$bgColor; border-left:3px solid $accentColor; border-radius:6px;">
             <tr>
                 <td valign="top" width="26" style='padding:12px 0 12px 14px; color:$accentColor; font-size:16px; font-weight:bold; line-height:1;'>$glyph</td>
                 <td valign="middle" class="rr-syscard-body" style='padding:10px 12px;'>
@@ -171,8 +171,8 @@ function Build-SettingsRowHC {
         <td valign='middle' width='20' style='padding:10px 0 10px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
         <td valign='middle' class='rr-srow-ident' style='padding:10px 8px;'>
             <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
-                <span style='display:block; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</span>
-                <span class='rr-srow-path' style='display:block; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</span>
+                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</div>
+                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
             </a>
         </td>
         <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:10px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
@@ -291,7 +291,7 @@ function Build-MatrixFileCardHC {
     }
 
     $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns
-    $headerLabelHtml = "<span style=`"font-size:12px; font-weight:700; color:rgba(255,255,255,0.95); text-transform:uppercase; letter-spacing:0.5px;`">$headerLabel</span>"
+    $headerLabelHtml = "<span style=`"font-size:12px; font-weight:700; color:#e5e7eb; text-transform:uppercase; letter-spacing:0.5px;`">$headerLabel</span>"
 
     # ---- Body content: file-level issues + settings table ----
     $contentRows = ''
@@ -356,9 +356,13 @@ function Build-MatrixFileCardHC {
     }
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; margin:0 0 24px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$($Script:Theme.BgWhite)" style="border-collapse:separate; margin:0 0 24px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
     <tr>
-        <td bgcolor="$gradTo" style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
+        <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="18%" fillcolor="$gradTo" stroked="f" style="width:${bodyWidth}px;">
+            <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true;">
+            <![endif]-->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
                     <td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
@@ -373,6 +377,10 @@ function Build-MatrixFileCardHC {
                     <td valign='middle' align='right' style='padding:14px 18px 14px 10px; white-space:nowrap;'>$headerLabelHtml</td>
                 </tr>
             </table>
+            <!--[if mso]>
+            </v:textbox>
+            </v:roundrect>
+            <![endif]-->
         </td>
     </tr>
     $contentRows
@@ -382,6 +390,9 @@ function Build-MatrixFileCardHC {
         </td>
     </tr>
 </table>
+<!--[if mso]>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="16" style="font-size:0; line-height:0;">&#160;</td></tr></table>
+<![endif]-->
 "@
 }
 
@@ -414,6 +425,7 @@ function Get-MailBodyHtmlHC {
     )
     $userBody = Get-StringOrDefaultHC $Settings.SendMail.Body ''
     $bodyWidth = $Script:Theme.BodyWidth
+    $bgPage = $Script:Theme.BgPage
 
     # Resolve system errors from $Html.SystemErrors if supplied. Accepts a
     # [ref] (e.g. $SystemErrors from Invoke-PermissionMatrixEndHC), a plain
@@ -462,17 +474,27 @@ function Get-MailBodyHtmlHC {
 
     @"
 <!DOCTYPE html>
-<html>
+<html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--[if mso]>
+<style type="text/css">
+    v\:* { behavior: url(#default#VML); display:inline-block; }
+    table { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+    td { mso-line-height-rule:exactly; }
+</style>
+<![endif]-->
 $($Html.Style)
 </head>
-<body>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; background-color:$($Script:Theme.BgPage);">
+<body style="margin:0; padding:0;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$bgPage" style="border-collapse:collapse; background-color:$bgPage;">
     <tr>
-        <td align="left" valign="top" style="padding:0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:${bodyWidth}px;">
+        <td align="center" valign="top" bgcolor="$bgPage" style="padding:20px; background-color:$bgPage;">
+            <!--[if mso]>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" align="center"><tr><td>
+            <![endif]-->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:${bodyWidth}px; margin:0 auto;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
                 <tr><td style="padding:0;">$($Html.ErrorWarningTable)</td></tr>
@@ -480,6 +502,9 @@ $($Html.Style)
                 <tr><td style="padding:0;">$($Html.MatrixTables)</td></tr>
                 <tr><td style="padding:0;">$footer</td></tr>
             </table>
+            <!--[if mso]>
+            </td></tr></table>
+            <![endif]-->
         </td>
     </tr>
 </table>
