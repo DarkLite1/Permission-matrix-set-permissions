@@ -787,6 +787,58 @@ Describe 'Permissions' {
 
             $Actual | Should -BeNullOrEmpty
         }
+        It 'a file inheriting BUILTIN\Administrators FullControl plus the correct group permissions' {
+            # Regression guard: BUILTIN\Administrators FullControl is part of the
+            # EXPECTED inherited ACL (added as $adminFullControlAce.File in
+            # SetPermissions.ps1), so its presence on a correctly inheriting file
+            # must never trigger an 'Inherited permissions incorrect' warning.
+            $testParams = @{
+                Path             = $testParentFolder
+                Action           = 'Check'
+                JobThrottleLimit = 2
+                Matrix           = @(
+                    [PSCustomObject]@{Path = 'Path'; ACL = @{
+                            $env:USERNAME = 'L' ; $testUser = 'W'; $testUser2 = 'R'
+                        }; Parent = $true
+                    }
+                )
+            }
+
+            # A file directly under the parent folder that inherits its ACL.
+            $testFile = New-Item -Path (Join-Path $testParams.Path 'file.txt') -ItemType File -Force
+
+            #region Set correct permissions on the parent (admin FullControl + L/W/R)
+            $acl = New-Object System.Security.AccessControl.DirectorySecurity
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.SetOwner($BuiltinAdmin)
+
+            $aceList = @($AdminFullControlFolderAce)
+            $aceList += New-TestAceHC -Type 'Folder' -Access 'L' -Name $env:USERNAME
+            $aceList += New-TestAceHC -Type 'Folder' -Access 'W' -Name $testUser
+            $aceList += New-TestAceHC -Type 'Folder' -Access 'R' -Name $testUser2
+            $aceList.foreach( { $acl.AddAccessRule($_) })
+
+            Set-Acl -Path (Get-Item $testParams.Path) -AclObject $acl
+            #endregion
+
+            #region Sanity check: the file really inherited admin FullControl
+            (Get-Acl -LiteralPath $testFile.FullName).Access.Where({
+                    ($_.IdentityReference.Value -eq 'BUILTIN\Administrators') -and
+                    ($_.FileSystemRights -eq 'FullControl')
+                }) | Should -Not -BeNullOrEmpty `
+                -Because 'the file must carry the admin FullControl ACE for this test to be meaningful'
+            #endregion
+
+            $Actual = .$testScript @testParams
+
+            $inheritedWarning = $Actual | Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+            $nonInheritedWarning = $Actual | Where-Object { $_.Name -eq 'Non inherited folder incorrect permissions' }
+
+            $inheritedWarning | Should -BeNullOrEmpty `
+                -Because 'the file inherits admin FullControl plus the correct group ACEs, so it matches the expected inherited ACL'
+            $nonInheritedWarning | Should -BeNullOrEmpty `
+                -Because 'the parent folder itself carries admin FullControl plus the correct group ACEs'
+        }
         It 'List only on the parent folder' {
             $testParams = @{
                 Path             = $testParentFolder
