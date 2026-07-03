@@ -392,7 +392,11 @@ begin {
             )
 
             try {
-                Write-Verbose "Get content of folder '$Path'"
+                # Perf: commented out — this fires once per folder in the
+                # recursive walk (millions of calls on large trees) and the
+                # string interpolation + call overhead adds up even when
+                # $VerbosePreference is SilentlyContinue.
+                # Write-Verbose "Get content of folder '$Path'"
                 $dirInfo = [System.IO.DirectoryInfo]::new($Path)
 
                 # Skip anything that is not a real, enumerable directory. The
