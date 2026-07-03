@@ -561,44 +561,58 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
-        #region Verify if default permissions are required
-        $validMatrices = $Context.AllMatrices | Where-Object {
-            -not (Test-ItemHasFatalErrorHC -CheckList $_.Check)
-        }
+        #region Verify if default permissions are required (per matrix file)
+        # Whether a matrix file consumes the shared defaults is driven by its
+        # own 'ApplyDefaultPermissions' rows, so this guard is evaluated per
+        # file rather than globally: the outcome can differ from one matrix
+        # file to the next. The resulting check is stored on the file's own
+        # Check list so it surfaces in that file's execution report and a
+        # 'Empty default ACL' fatal only skips the affected file instead of
+        # aborting the whole run.
+        foreach ($fileResult in $Context.FileResults) {
+            # A structurally broken file can't be evaluated reliably and is
+            # already reported through its existing fatal checks.
+            if (
+                Test-ItemHasFatalErrorHC -CheckList (
+                    @($fileResult.Check) +
+                    @($fileResult.Sheets.Permissions.Check)
+                )
+            ) {
+                continue
+            }
 
-        $validMatrices = $validMatrices | Where-Object {
-            -not (Test-ItemHasFatalErrorHC -CheckList (
-                    @($_.FileContext.Check) +
-                    @($_.FileContext.Sheets.Permissions.Check)
-                ))
-        }
+            $validRows = @($fileResult.Matrices | Where-Object {
+                    -not (Test-ItemHasFatalErrorHC -CheckList $_.Check)
+                })
 
-        if ($validMatrices) {
-            $anyUsesDefaults = $validMatrices | Where-Object {
+            if (-not $validRows) { continue }
+
+            $fileUsesDefaults = $validRows | Where-Object {
                 $_.Setting.Formatted.ApplyDefaultPermissions
             } | Select-Object -First 1
 
             if (
-                $anyUsesDefaults -and $Context.Defaults.DefaultAcl.Count -eq 0
+                $fileUsesDefaults -and $Context.Defaults.DefaultAcl.Count -eq 0
             ) {
-                Add-ErrorHC `
-                    -Type 'FatalError' `
-                    -Name 'Empty default ACL' `
-                    -Message 'A matrix has ApplyDefaultPermissions=TRUE but the defaults file contains no valid ACL entries.' `
-                    -Category 'Matrix' `
-                    -SystemErrors $SystemErrors
-                return $Context
+                $fileResult.Check.Add(
+                    [pscustomobject]@{
+                        Type        = 'FatalError'
+                        Name        = 'Empty default ACL'
+                        Description = 'This matrix file has one or more rows with ApplyDefaultPermissions=TRUE but the defaults file contains no valid ACL entries.'
+                    }
+                )
             }
             elseif (
-                -not $anyUsesDefaults -and
+                -not $fileUsesDefaults -and
                 $Context.Defaults.DefaultAcl.Count -gt 0
             ) {
-                Add-ErrorHC `
-                    -Type 'Information' `
-                    -Name 'Unused defaults' `
-                    -Message 'Defaults file contains ACL entries but no matrix has ApplyDefaultPermissions=TRUE; defaults will be ignored.' `
-                    -Category 'Matrix' `
-                    -SystemErrors $SystemErrors
+                $fileResult.Check.Add(
+                    [pscustomobject]@{
+                        Type        = 'Information'
+                        Name        = 'Unused defaults'
+                        Description = 'The defaults file contains ACL entries but this matrix file has no rows with ApplyDefaultPermissions=TRUE; defaults will be ignored for this file.'
+                    }
+                )
             }
         }
         #endregion

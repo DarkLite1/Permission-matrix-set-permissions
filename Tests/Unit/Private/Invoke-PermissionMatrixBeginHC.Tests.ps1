@@ -106,15 +106,28 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         function New-FakeFileResult {
             param(
                 [string]$FileName = 'M1.xlsx',
-                [object[]]$Matrices = @()
+                [object[]]$Matrices = @(),
+                [object[]]$Check = @(),
+                [object[]]$PermissionsCheck = @()
             )
 
             if ($Matrices.Count -eq 0) {
                 $Matrices = @( New-FakeMatrixEntry -FileName $FileName )
             }
 
+            $checkList = [System.Collections.Generic.List[object]]::new()
+            foreach ($c in $Check) { $checkList.Add($c) }
+
+            $permissionsCheckList = [System.Collections.Generic.List[object]]::new()
+            foreach ($c in $PermissionsCheck) { $permissionsCheckList.Add($c) }
+
             return [pscustomobject]@{
                 File     = [pscustomobject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" }
+                Item     = [pscustomobject]@{ Name = $FileName; FullName = "TestDrive:\Matrix\$FileName" }
+                Check    = $checkList
+                Sheets   = @{
+                    Permissions = @{ Check = $permissionsCheckList }
+                }
                 Matrices = $Matrices
             }
         }
@@ -473,13 +486,15 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
     Context 'Default permissions guard' {
         # Per session 1 decision 7: ApplyDefaultPermissions=true requires defaults;
-        # defaults without any consumer logs an information record.
+        # defaults without any consumer logs an information record. The guard is
+        # evaluated per matrix file (ApplyDefaultPermissions can differ per file),
+        # so the resulting check lands on that file's own Check list.
         BeforeEach {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Test-AdObjectInMatrixHC { return @() }
         }
 
-        It 'records FatalError when any matrix uses ApplyDefaultPermissions=true but defaults are empty' {
+        It 'records FatalError on the file when any of its rows use ApplyDefaultPermissions=true but defaults are empty' {
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $true
@@ -488,14 +503,14 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Mock Import-MatrixDefaultsFileHC { New-FakeDefaults -DefaultAcl @{} }
             $args = New-BeginArgs
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({
-                    $_.Type -eq 'FatalError' -and $_.Message -like '*default*'
+            @($context.FileResults.Check).Where({
+                    $_.Type -eq 'FatalError' -and $_.Name -eq 'Empty default ACL'
                 }).Count | Should -BeGreaterThan 0
         }
 
-        It 'records Information when defaults present but no matrix uses ApplyDefaultPermissions' {
+        It 'records Information on the file when defaults present but none of its rows use ApplyDefaultPermissions' {
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $false
@@ -506,31 +521,26 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             }
             $args = New-BeginArgs
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({
-                    $_.Type -eq 'Information' -and $_.Message -like '*default*'
+            @($context.FileResults.Check).Where({
+                    $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
                 }).Count | Should -BeGreaterThan 0
         }
 
-        It 'skips broken matrices (FatalError on the matrix) when evaluating the guard' {
-            # If the guard ignored .Check, the broken matrix's ApplyDefaultPermissions=true
-            # would make $anyUsesDefaults truthy and suppress the Information record.
-            # With the filter applied, only the clean matrix counts, $anyUsesDefaults is null,
-            # defaults are present -> Information fires.
-            $brokenMatrix = New-FakeMatrixEntry -FileName 'Broken.xlsx' `
-                -ComputerName 'SRV01' -Path 'C:\Broken' `
-                -ApplyDefaultPermissions $true `
-                -Check @( [pscustomobject]@{ Type = 'FatalError'; Name = 'Pre-existing'; Message = 'broken' } )
-
-            $cleanMatrix = New-FakeMatrixEntry -FileName 'Clean.xlsx' `
-                -ComputerName 'SRV02' -Path 'C:\Clean' `
-                -ApplyDefaultPermissions $false
-
+        It 'evaluates each matrix file independently (one uses defaults, the other does not)' {
+            # File A has a row with ApplyDefaultPermissions=TRUE -> consumes the
+            # defaults, no 'Unused defaults'. File B has no such row -> defaults
+            # are unused for File B, so it gets the Information record. Proves the
+            # guard is per file, not global.
             Mock Invoke-WithOptionalParallelismHC {
                 return @(
-                    (New-FakeFileResult -FileName 'Broken.xlsx' -Matrices @($brokenMatrix))
-                    (New-FakeFileResult -FileName 'Clean.xlsx' -Matrices @($cleanMatrix))
+                    (New-FakeFileResult -FileName 'A.xlsx' -Matrices @(
+                            New-FakeMatrixEntry -FileName 'A.xlsx' -ComputerName 'SRV01' -Path 'C:\A' -ApplyDefaultPermissions $true
+                        ))
+                    (New-FakeFileResult -FileName 'B.xlsx' -Matrices @(
+                            New-FakeMatrixEntry -FileName 'B.xlsx' -ComputerName 'SRV02' -Path 'C:\B' -ApplyDefaultPermissions $false
+                        ))
                 )
             }
             Mock Import-MatrixDefaultsFileHC {
@@ -538,9 +548,44 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             }
             $args = New-BeginArgs
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where(
+            $fileA = $context.FileResults | Where-Object { $_.Item.Name -eq 'A.xlsx' }
+            $fileB = $context.FileResults | Where-Object { $_.Item.Name -eq 'B.xlsx' }
+
+            @($fileA.Check).Where({ $_.Name -eq 'Unused defaults' }).Count | Should -Be 0
+            @($fileB.Check).Where({
+                    $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
+                }).Count | Should -BeGreaterThan 0
+        }
+
+        It 'skips broken rows (FatalError on the row) when evaluating the guard' {
+            # A row flagged with a FatalError is excluded from the guard, so its
+            # ApplyDefaultPermissions=true does not count. With only the clean
+            # row left ($fileUsesDefaults is null) and defaults present, the
+            # Information record fires on the file.
+            $brokenRow = New-FakeMatrixEntry -FileName 'M1.xlsx' `
+                -ComputerName 'SRV01' -Path 'C:\Broken' `
+                -ApplyDefaultPermissions $true `
+                -Check @( [pscustomobject]@{ Type = 'FatalError'; Name = 'Pre-existing'; Message = 'broken' } )
+
+            $cleanRow = New-FakeMatrixEntry -FileName 'M1.xlsx' `
+                -ComputerName 'SRV02' -Path 'C:\Clean' `
+                -ApplyDefaultPermissions $false
+
+            Mock Invoke-WithOptionalParallelismHC {
+                return @(
+                    (New-FakeFileResult -FileName 'M1.xlsx' -Matrices @($brokenRow, $cleanRow))
+                )
+            }
+            Mock Import-MatrixDefaultsFileHC {
+                New-FakeDefaults -DefaultAcl @{ 'groupA' = @{ Permission = 'R' } }
+            }
+            $args = New-BeginArgs
+
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            @($context.FileResults.Check).Where(
                 {
                     $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
                 }
