@@ -473,7 +473,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
     Context 'Default permissions guard' {
         # Per session 1 decision 7: ApplyDefaultPermissions=true requires defaults;
-        # defaults without any consumer logs a warning.
+        # defaults without any consumer logs an information record.
         BeforeEach {
             New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
             Mock Test-AdObjectInMatrixHC { return @() }
@@ -495,7 +495,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                 }).Count | Should -BeGreaterThan 0
         }
 
-        It 'records Warning when defaults present but no matrix uses ApplyDefaultPermissions' {
+        It 'records Information when defaults present but no matrix uses ApplyDefaultPermissions' {
             Mock Invoke-WithOptionalParallelismHC {
                 return @( New-FakeFileResult -FileName 'M1.xlsx' -Matrices @(
                         New-FakeMatrixEntry -FileName 'M1.xlsx' -ApplyDefaultPermissions $false
@@ -509,15 +509,15 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({
-                    $_.Type -eq 'Warning' -and $_.Message -like '*default*'
+                    $_.Type -eq 'Information' -and $_.Message -like '*default*'
                 }).Count | Should -BeGreaterThan 0
         }
 
         It 'skips broken matrices (FatalError on the matrix) when evaluating the guard' {
             # If the guard ignored .Check, the broken matrix's ApplyDefaultPermissions=true
-            # would make $anyUsesDefaults truthy and suppress the Warning.
+            # would make $anyUsesDefaults truthy and suppress the Information record.
             # With the filter applied, only the clean matrix counts, $anyUsesDefaults is null,
-            # defaults are present → Warning fires.
+            # defaults are present -> Information fires.
             $brokenMatrix = New-FakeMatrixEntry -FileName 'Broken.xlsx' `
                 -ComputerName 'SRV01' -Path 'C:\Broken' `
                 -ApplyDefaultPermissions $true `
@@ -542,7 +542,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $systemErrors.Where(
                 {
-                    $_.Type -eq 'Warning' -and $_.Name -eq 'Unused defaults'
+                    $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
                 }
             ).Count | Should -BeGreaterThan 0
         }

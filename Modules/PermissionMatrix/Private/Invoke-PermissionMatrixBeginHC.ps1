@@ -594,7 +594,7 @@ function Invoke-PermissionMatrixBeginHC {
                 $Context.Defaults.DefaultAcl.Count -gt 0
             ) {
                 Add-ErrorHC `
-                    -Type 'Warning' `
+                    -Type 'Information' `
                     -Name 'Unused defaults' `
                     -Message 'Defaults file contains ACL entries but no matrix has ApplyDefaultPermissions=TRUE; defaults will be ignored.' `
                     -Category 'Matrix' `
