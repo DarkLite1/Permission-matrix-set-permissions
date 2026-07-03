@@ -1039,9 +1039,11 @@ process {
                             # Split the multi-line AccessToString into one array
                             # element per ACE so the detail JSON stays readable
                             # instead of a single string with embedded '\n'.
+                            # Sort the ACE lines so 'Old' and 'New' have a stable,
+                            # comparable order (mirrors the sorted 'MatrixAdObjects').
                             $entry = @{
-                                'Old' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
-                                'New' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ })
+                                'Old' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
+                                'New' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object)
                             }
 
                             # Surface the matrix-author labels so users can map
