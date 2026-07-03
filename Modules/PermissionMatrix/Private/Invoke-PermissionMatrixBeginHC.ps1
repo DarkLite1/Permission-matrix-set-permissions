@@ -258,7 +258,7 @@ function Invoke-PermissionMatrixBeginHC {
                     # DataRows parameter of ConvertTo-MatrixAclHC throws
                     # 'Cannot bind argument ... because it is null', which surfaced
                     # as a 'Runspace processing failed' FatalError.
-                    $dataRows = if ($permSheet) { @($permSheet | Select-Object -Skip 4) } else { @() }
+                    $dataRows = @($permSheet | Select-Object -Skip 4) 
 
                     foreach ($m in $fileResult.Matrices) {
                         $rowErrors = Test-MatrixSettingRowHC `
@@ -272,9 +272,9 @@ function Invoke-PermissionMatrixBeginHC {
 
                         $isFileBroken = Test-ItemHasFatalErrorHC `
                             -CheckList (
-                                @($fileResult.Check) +
-                                @($fileResult.Sheets.Permissions.Check)
-                            )
+                            @($fileResult.Check) +
+                            @($fileResult.Sheets.Permissions.Check)
+                        )
                         $isRowBroken = Test-ItemHasFatalErrorHC `
                             -CheckList $m.Check
 
@@ -514,9 +514,9 @@ function Invoke-PermissionMatrixBeginHC {
             foreach ($matrixObj in $Context.AllMatrices) {
                 $isFileBroken = Test-ItemHasFatalErrorHC `
                     -CheckList (
-                        @($matrixObj.FileContext.Check) +
-                        @($matrixObj.FileContext.Sheets.Permissions.Check)
-                    )
+                    @($matrixObj.FileContext.Check) +
+                    @($matrixObj.FileContext.Sheets.Permissions.Check)
+                )
                 $isRowBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.Check
 
