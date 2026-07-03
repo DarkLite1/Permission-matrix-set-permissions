@@ -176,6 +176,13 @@ Describe 'Build-SettingsRowHC' {
         $html | Should -Match '>Error</span>'
         $html | Should -Not -Match '>Skipped</span>'
     }
+
+    It 'uses compact exact line heights for Outlook rows' {
+        $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
+        $html | Should -Match "line-height:15px; margin:0; mso-line-height-rule:exactly;'>SRV01</div>"
+        $html | Should -Match 'line-height:13px; margin:0; mso-line-height-rule:exactly; white-space:normal;'
+        $html | Should -Match "rr-srow-meta' width='120' style='padding:6px 12px 4px 12px;[^']*line-height:16px; mso-line-height-rule:exactly;"
+    }
 }
 
 Describe 'Build-MatrixEmailHtmlHC' {
@@ -428,6 +435,14 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
             $out | Should -Match '✖'
             $out | Should -Match '1 Error'
+        }
+
+        It 'uses a fixed-height Outlook header without VML text auto-fit' {
+            $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
+
+            $out | Should -Match 'style="width:620px; height:68px; v-text-anchor:top;"'
+            $out | Should -Match '<v:textbox inset="0,0,0,0">'
+            $out | Should -Not -Match 'mso-fit-shape-to-text:true'
         }
     }
 

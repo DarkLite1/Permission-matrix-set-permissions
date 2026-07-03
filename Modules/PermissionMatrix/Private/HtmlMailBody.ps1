@@ -243,21 +243,21 @@ function Build-SettingsRowHC {
         " class='rr-srow-status'"
     }
     else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:3px 14px 3px 4px; white-space:nowrap;'>$pillHtml</td>"
+    $pillTd = "<td valign='top' align='right'$pillClass width='84' style='padding:6px 14px 4px 4px; white-space:nowrap; line-height:16px; mso-line-height-rule:exactly;'>$pillHtml</td>"
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 6px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:3px 0 3px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
-        <td valign='middle' class='rr-srow-ident' style='padding:3px 8px;'>
+        <td valign='top' width='20' style='padding:8px 0 4px 14px; color:$accent; font-size:12px; line-height:12px; mso-line-height-rule:exactly;'>&#9679;</td>
+        <td valign='top' class='rr-srow-ident' style='padding:5px 8px 4px 8px;'>
             <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
-                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:16px; margin:0; mso-line-height-rule:exactly;'>$comp</div>
-                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:15px; margin:0; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
+                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; margin:0; mso-line-height-rule:exactly;'>$comp</div>
+                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:13px; margin:0; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
             </a>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:3px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+        <td valign='top' align='right' class='rr-srow-meta' width='120' style='padding:6px 12px 4px 12px; color:$($Script:Theme.TextLight); font-size:11px; line-height:16px; mso-line-height-rule:exactly; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
-            <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
+            <span style='font-family:$($Script:Theme.MonoStack); line-height:16px; mso-line-height-rule:exactly;'>$dur</span>
         </td>
         $pillTd
     </tr>
@@ -451,8 +451,8 @@ function Build-MatrixFileCardHC {
     <tr>
         <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%);'>
             <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="18%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px;">
-            <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true;">
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="15%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px; height:68px; v-text-anchor:top;">
+            <v:textbox inset="0,0,0,0">
             <![endif]-->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
