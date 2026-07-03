@@ -142,14 +142,14 @@ begin {
     function ConvertTo-MatrixAdObjectHC {
         <#
         .SYNOPSIS
-            Build the human-readable 'MatrixAdObjects' array for the detail JSON.
+            Build the human-readable 'MatrixFileAcl' array for the detail JSON.
 
         .DESCRIPTION
             Combines the matrix AD objects with their requested permission so the
             detail report shows both who was granted access and what was
             requested, e.g. 'GROUPHC\Group 1  List'. The identity is the display
             form of the SID (DOMAIN\name when it translates, the raw SID when it
-            does not) so it lines up with the 'Acl' entries. The permission
+            does not) so it lines up with the 'OldAcl'/'NewAcl' entries. The permission
             character (L/R/W/F/M) is mapped to its friendly word. Entries are
             sorted for stable output.
 
@@ -465,11 +465,17 @@ begin {
                                 # Split the multi-line AccessToString into one
                                 # array element per ACE so the detail JSON stays
                                 # human-readable instead of a single string full
-                                # of embedded '\n' escapes.
-                                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
+                                # of embedded '\n' escapes. Sort the ACE lines so
+                                # 'OldAcl' has a stable order (aligns with the
+                                # non-inherited 'OldAcl'/'NewAcl' warning).
+                                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
 
+                                # Key name matches the non-inherited warning: 'OldAcl'
+                                # is the current ACL found on disk. Inherited-only
+                                # items have no target ACL (goal is pure
+                                # inheritance) so there is no 'NewAcl'.
                                 $entry = @{
-                                    'Acl' = $aclText
+                                    'OldAcl' = $aclText
                                 }
 
                                 # Mirror the non-inherited reporting shape: surface matrix labels
@@ -477,7 +483,7 @@ begin {
                                 # Inherited folders inherit from a parent that did define ACL;
                                 # AdNames here comes from that parent's matrix entry.
                                 if ($AdNames -and $AdNames.Count -gt 0) {
-                                    $entry['MatrixAdObjects'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
                                 }
 
                                 $incorrectInheritedAcl[$child.FullName] = $entry
@@ -518,13 +524,18 @@ begin {
 
             if ($DetailedLog) {
                 # One array element per ACE keeps the detail JSON readable
-                # instead of a single string with embedded '\n' escapes.
-                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ }) }
+                # instead of a single string with embedded '\n' escapes. Sort the
+                # ACE lines so 'OldAcl' has a stable order (aligns with the
+                # non-inherited 'OldAcl'/'NewAcl' warning).
+                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
 
                 if ($AdNames -and $AdNames.Count -gt 0) {
+                    # Key name matches the non-inherited warning: 'OldAcl' is the
+                    # current ACL found on disk. Inherited-only items have no
+                    # target ACL (goal is pure inheritance) so there is no 'NewAcl'.
                     $entry = @{
-                        'Acl'             = $aclText
-                        'MatrixAdObjects' = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+                        'OldAcl'        = $aclText
+                        'MatrixFileAcl' = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
                     }
                     $incorrectInheritedAcl[$child.FullName] = $entry
                 }
@@ -1039,11 +1050,11 @@ process {
                             # Split the multi-line AccessToString into one array
                             # element per ACE so the detail JSON stays readable
                             # instead of a single string with embedded '\n'.
-                            # Sort the ACE lines so 'Old' and 'New' have a stable,
-                            # comparable order (mirrors the sorted 'MatrixAdObjects').
+                            # Sort the ACE lines so 'OldAcl' and 'NewAcl' have a
+                            # stable, comparable order (mirrors 'MatrixFileAcl').
                             $entry = @{
-                                'Old' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
-                                'New' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object)
+                                'OldAcl' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
+                                'NewAcl' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object)
                             }
 
                             # Surface the matrix-author labels so users can map
@@ -1051,7 +1062,7 @@ process {
                             # Each entry is the display form (DOMAIN\name when the
                             # SID translates, raw SID when it doesn't) followed by
                             # the requested permission, which matches what
-                            # AccessToString puts in Old/New.
+                            # AccessToString puts in OldAcl/NewAcl.
                             # Defensive: rebuild AdNames if it crossed a
                             # serialization boundary and arrived as a
                             # Deserialized.PSCustomObject (no .Keys/.Count).
@@ -1065,7 +1076,7 @@ process {
                             }
 
                             if ($folderAdNames -and $folderAdNames.Count -gt 0) {
-                                $entry['MatrixAdObjects'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
+                                $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
                             }
 
                             $incorrectAclNonInheritedFolders[$folder.Path] = $entry

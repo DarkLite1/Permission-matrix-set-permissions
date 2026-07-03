@@ -2039,7 +2039,7 @@ Describe 'when Action is' {
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
-                                foreach ($v in @('old', 'new')) {
+                                foreach ($v in @('OldAcl', 'NewAcl')) {
                                     $_.Value.$v | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
                                 }
                             })
@@ -2533,7 +2533,7 @@ Describe 'when Action is' {
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
-                                foreach ($v in @('old', 'new')) {
+                                foreach ($v in @('OldAcl', 'NewAcl')) {
                                     $_.Value.$v | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
                                 }
                             })
@@ -2875,8 +2875,8 @@ Describe 'when Action is' {
                     $Actual = .$testScript @testParams | Where-Object Name -EQ $Expected.Name
 
                     $entry = $Actual.Value[$testFile.FullName]
-                    $entry.MatrixAdObjects | Should -BeOfType [string]
-                    $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read" `
+                    $entry.MatrixFileAcl | Should -BeOfType [string]
+                    $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read" `
                         -Because 'the SID resolves to a DOMAIN\name and R means Read'
                 }
             }
@@ -3093,25 +3093,25 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $actual | Should -Not -BeNullOrEmpty
 
             $parentEntry = $actual.Value[$fixPath]
-            $parentEntry.MatrixAdObjects | Should -BeOfType [string]
-            $parentEntry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List" `
+            $parentEntry.MatrixFileAcl | Should -BeOfType [string]
+            $parentEntry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List" `
                 -Because 'the SID translates to a DOMAIN\name display key and L means List'
 
             $childEntry = $actual.Value["$fixPath\FolderA"]
-            $childEntry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
+            $childEntry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
         }
 
-        It 'omits MatrixAdObjects when AdNames is missing' {
+        It 'omits MatrixFileAcl when AdNames is missing' {
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
                 [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUserSid = 'L' }; Parent = $true }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual.Value[$fixPath].ContainsKey('MatrixAdObjects') | Should -BeFalse `
+            $actual.Value[$fixPath].ContainsKey('MatrixFileAcl') | Should -BeFalse `
                 -Because 'no AdNames was supplied so the field should not appear'
 
-            # Old/New still populated as before
-            $actual.Value[$fixPath].New | Should -Not -BeNullOrEmpty
-            $actual.Value[$fixPath].Old | Should -Not -BeNullOrEmpty
+            # OldAcl/NewAcl still populated as before
+            $actual.Value[$fixPath].NewAcl | Should -Not -BeNullOrEmpty
+            $actual.Value[$fixPath].OldAcl | Should -Not -BeNullOrEmpty
         }
 
         It 'preserves the SID as the key when translation fails' {
@@ -3134,11 +3134,11 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.MatrixAdObjects | Should -Contain $fakeSid `
+            $entry.MatrixFileAcl | Should -Contain $fakeSid `
                 -Because 'a SID that cannot be translated must remain as its raw SID string; it has no requested permission so no type is appended'
 
             # Real SID side still works
-            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
         }
 
         It 'maps multiple matrix entries on the same folder' {
@@ -3155,12 +3155,12 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.MatrixAdObjects.Count | Should -Be 2
-            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
-            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
+            $entry.MatrixFileAcl.Count | Should -Be 2
+            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
         }
 
-        It 'splits Old and New AccessToString into one array element per ACE' {
+        It 'splits OldAcl and NewAcl AccessToString into one array element per ACE' {
             $actual = .$testScript -Path $fixPath -Action 'Fix' -JobThrottleLimit 2 -DetailedLog $true -Matrix @(
                 [PSCustomObject]@{
                     Path    = 'Path'
@@ -3171,15 +3171,15 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            # Old/New are string arrays (one ACE per element) so the detail JSON
-            # is readable instead of one string full of embedded '\n' escapes.
-            @($entry.New).Count | Should -BeGreaterThan 0
-            foreach ($line in $entry.New) { $line | Should -BeOfType [string] }
-            foreach ($line in $entry.Old) { $line | Should -BeOfType [string] }
+            # OldAcl/NewAcl are string arrays (one ACE per element) so the detail
+            # JSON is readable instead of one string full of embedded '\n' escapes.
+            @($entry.NewAcl).Count | Should -BeGreaterThan 0
+            foreach ($line in $entry.NewAcl) { $line | Should -BeOfType [string] }
+            foreach ($line in $entry.OldAcl) { $line | Should -BeOfType [string] }
             # No element still contains an embedded newline
-            foreach ($line in $entry.New) { $line | Should -Not -Match "`n" }
-            # The requested permission is surfaced in MatrixAdObjects, not New/Old
-            $entry.MatrixAdObjects | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            foreach ($line in $entry.NewAcl) { $line | Should -Not -Match "`n" }
+            # The requested permission is surfaced in MatrixFileAcl, not NewAcl/OldAcl
+            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
         }
     }
 }
