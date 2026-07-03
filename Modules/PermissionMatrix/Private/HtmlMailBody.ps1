@@ -93,6 +93,72 @@ function Build-SystemErrorsBlockHC {
 "@
 }
 
+function Build-MailTopLinksBlockHC {
+    param(
+        [string]$BrowserViewFilePath,
+        $ExportedFiles
+    )
+
+    $linkStyle = "color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;"
+    $mutedStyle = "color:$($Script:Theme.TextMuted); font-size:12px; line-height:1.45;"
+    $rows = ''
+
+    if (-not [string]::IsNullOrWhiteSpace($BrowserViewFilePath)) {
+        $browserUrl = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $BrowserViewFilePath))
+        $browserTitle = [System.Net.WebUtility]::HtmlEncode($BrowserViewFilePath)
+
+        $rows += @"
+<tr>
+    <td style='padding:0 0 8px 0; $mutedStyle'>If this mail is not visible, please <a href='$browserUrl' title="$browserTitle" target='_blank' rel='noopener noreferrer' style='$linkStyle'>click here to view it in the browser</a>.</td>
+</tr>
+"@
+    }
+
+    $exportLinks = [System.Collections.Generic.List[string]]::new()
+    $exportMap = @(
+        @{ Property = 'Permissions'; Label = 'Permissions Excel' }
+        @{ Property = 'FormData'; Label = 'ServiceNow FormData Excel' }
+        @{ Property = 'OverviewHtml'; Label = 'Overview HTML' }
+    )
+
+    foreach ($item in $exportMap) {
+        $path = $null
+        if ($ExportedFiles -is [System.Collections.IDictionary] -and $ExportedFiles.Contains($item.Property)) {
+            $path = Get-StringOrDefaultHC $ExportedFiles[$item.Property] ''
+        }
+        elseif ($ExportedFiles) {
+            $prop = $ExportedFiles.PSObject.Properties[$item.Property]
+            if ($prop) {
+                $path = Get-StringOrDefaultHC $prop.Value ''
+            }
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($path)) {
+            $url = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $path))
+            $title = [System.Net.WebUtility]::HtmlEncode($path)
+            $label = [System.Net.WebUtility]::HtmlEncode($item.Label)
+            $exportLinks.Add("<a href='$url' title=`"$title`" target='_blank' rel='noopener noreferrer' style='$linkStyle'>$label</a>")
+        }
+    }
+
+    if ($exportLinks.Count -gt 0) {
+        $linksHtml = $exportLinks -join "<span style='color:$($Script:Theme.TextLight); padding:0 8px;'>&middot;</span>"
+        $rows += @"
+<tr>
+    <td style='padding:0; $mutedStyle'>Export files: $linksHtml</td>
+</tr>
+"@
+    }
+
+    if (-not $rows) { return '' }
+
+    return @"
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 14px 0; table-layout:fixed; width:100%; max-width:100%;">
+    $rows
+</table>
+"@
+}
+
 function Build-SettingsRowHC {
     param(
         [object]$MatrixItem,
@@ -437,6 +503,7 @@ function Get-MailBodyHtmlHC {
         $Html,
         $ExportedFiles,
         $AttNote,
+        [string]$BrowserViewFilePath,
         [datetime]$ScriptStartTime,
         [datetime]$ScriptEndTime = (Get-Date),
         $LogFolder
@@ -462,6 +529,9 @@ function Get-MailBodyHtmlHC {
         }
     }
     $systemErrorsBlock = Build-SystemErrorsBlockHC -SystemErrors $sysErrArr
+    $topLinksBlock = Build-MailTopLinksBlockHC `
+        -BrowserViewFilePath $BrowserViewFilePath `
+        -ExportedFiles $ExportedFiles
 
     # ---- Footer with run timing: Started · Ended · Duration ----
     # Compute duration here so callers don't have to format a TimeSpan themselves.
@@ -525,6 +595,7 @@ $($Html.Style)
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:${bodyWidth}px; margin:0 auto;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
+                <tr><td style="padding:0;">$topLinksBlock</td></tr>
                 <tr><td style="padding:0;">$($Html.ErrorWarningTable)</td></tr>
                 <tr><td style="padding:0;">$systemErrorsBlock</td></tr>
                 <tr><td style="padding:0;">$($Html.MatrixTables)</td></tr>

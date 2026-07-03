@@ -441,6 +441,30 @@ function Send-MailKitMessageHC {
     }
 }
 
+function Get-MailBodyLogPathHC {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $MailParams,
+
+        [Parameter(Mandatory)]
+        $LogFolder
+    )
+
+    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
+
+    # Replace any character that is invalid in a file name with a space.
+    # Splitting on the invalid-char set avoids the $OFS-dependent string cast.
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars()
+    $safeSubject = ([string]$MailParams.Subject).Split($invalid) -join ' '
+
+    if ([string]::IsNullOrWhiteSpace($safeSubject)) {
+        $safeSubject = Get-Date -Format 'yyyy-MM-dd HHmmss'
+    }
+
+    return Join-Path $LogFolder ('Mail - {0}.html' -f $safeSubject)
+}
+
 function Save-MailBodyToLogHC {
     <#
     .SYNOPSIS
@@ -525,18 +549,8 @@ function Save-MailBodyToLogHC {
         $LogFolder
     )
 
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return }
-
-    # Replace any character that is invalid in a file name with a space.
-    # Splitting on the invalid-char set avoids the $OFS-dependent string cast.
-    $invalid = [System.IO.Path]::GetInvalidFileNameChars()
-    $safeSubject = ([string]$MailParams.Subject).Split($invalid) -join ' '
-
-    if ([string]::IsNullOrWhiteSpace($safeSubject)) {
-        $safeSubject = Get-Date -Format 'yyyy-MM-dd HHmmss'
-    }
-
-    $path = Join-Path $LogFolder ('Mail - {0}.html' -f $safeSubject)
+    $path = Get-MailBodyLogPathHC -MailParams $MailParams -LogFolder $LogFolder
+    if (-not $path) { return }
 
     $MailParams.Body | Out-File -LiteralPath $path -Encoding utf8 -Force
 

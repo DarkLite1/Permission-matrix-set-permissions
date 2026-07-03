@@ -52,6 +52,55 @@ Describe 'Build-SystemErrorsBlockHC' {
     }
 }
 
+Describe 'Build-MailTopLinksBlockHC' {
+    BeforeEach {
+        $script:html = Initialize-HtmlStructureHC
+    }
+
+    It 'returns empty string when no browser or export links are available' {
+        Build-MailTopLinksBlockHC | Should -Be ''
+    }
+
+    It 'renders a browser-view link when the mail body log path is known' {
+        $out = Build-MailTopLinksBlockHC -BrowserViewFilePath 'C:\logs\Mail - Run.html'
+
+        $out | Should -Match 'If this mail is not visible'
+        $out | Should -Match 'click here to view it in the browser'
+        $out | Should -Match "href='file://C:/logs/Mail%20-%20Run\.html'"
+        $out | Should -Match 'title="C:\\logs\\Mail - Run\.html"'
+    }
+
+    It 'renders export file links from the ordered dictionary returned by Export-FilesHC' {
+        $exportedFiles = [ordered]@{
+            Permissions  = 'C:\reports\Permissions.xlsx'
+            FormData     = 'C:\ServiceNow\FormData.xlsx'
+            OverviewHtml = 'C:\reports\Overview.html'
+        }
+
+        $out = Build-MailTopLinksBlockHC -ExportedFiles $exportedFiles
+
+        $out | Should -Match 'Export files:'
+        $out | Should -Match 'Permissions Excel'
+        $out | Should -Match 'ServiceNow FormData Excel'
+        $out | Should -Match 'Overview HTML'
+        $out | Should -Match "href='file://C:/reports/Permissions\.xlsx'"
+        $out | Should -Match "href='file://C:/ServiceNow/FormData\.xlsx'"
+        $out | Should -Match "href='file://C:/reports/Overview\.html'"
+    }
+
+    It 'omits export links whose configured export path was not written' {
+        $out = Build-MailTopLinksBlockHC -ExportedFiles ([pscustomobject]@{
+                Permissions  = 'C:\reports\Permissions.xlsx'
+                FormData     = $null
+                OverviewHtml = ''
+            })
+
+        $out | Should -Match 'Permissions Excel'
+        $out | Should -Not -Match 'ServiceNow FormData Excel'
+        $out | Should -Not -Match 'Overview HTML'
+    }
+}
+
 Describe 'Build-SettingsRowHC' {
     BeforeAll {
         function New-MatrixItem {
@@ -491,6 +540,17 @@ Describe 'Get-MailBodyHtmlHC' {
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
         $out | Should -Match 'SysBoom'
         $out | Should -Match 'System Error'
+    }
+
+    It 'includes browser-view and export links when supplied' {
+        $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
+        $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
+            -BrowserViewFilePath 'C:\logs\Mail - Run.html' `
+            -ExportedFiles ([ordered]@{ Permissions = 'C:\reports\Permissions.xlsx' }) `
+            -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
+
+        $out | Should -Match 'click here to view it in the browser'
+        $out | Should -Match 'Permissions Excel'
     }
 }
 

@@ -62,6 +62,8 @@ function Invoke-PermissionMatrixEndHC {
     $htmlTemplates = Initialize-HtmlStructureHC
     $fullHtmlBody = ''
     $sysErrAttachments = @()
+    $emailLogFolder = $null
+    $mailSubject = $null
 
     # =====================================================================
     # 1. EXPORTS & SERVICENOW (Skip if Fatal Errors)
@@ -402,6 +404,22 @@ function Invoke-PermissionMatrixEndHC {
             -Context $Context `
             -SystemErrors $SystemErrors
 
+        $mailSubject = if ($Context.Config.Settings.SendMail) {
+            Get-MailSubjectHC `
+                -SystemErrors $SystemErrors.Value `
+                -Counter $Context.Counter `
+                -MatrixCount $Context.AllMatrices.Count `
+                -CustomSubject $Context.Config.Settings.SendMail.Subject
+        }
+
+        $browserViewFilePath = $null
+        if ($ensureDatedLogFolder -and $mailSubject) {
+            $emailLogFolder = & $ensureDatedLogFolder
+            $browserViewFilePath = Get-MailBodyLogPathHC `
+                -MailParams @{ Subject = $mailSubject } `
+                -LogFolder $emailLogFolder
+        }
+
         $matrixHtml = if (
             $Context.FileResults -and $Context.FileResults.Count -gt 0
         ) {
@@ -415,6 +433,8 @@ function Invoke-PermissionMatrixEndHC {
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -ScriptEndTime $scriptExecutionEndTime `
+            -ExportedFiles $Context.ExportedFiles `
+            -BrowserViewFilePath $browserViewFilePath `
             -Html @{
             Style             = $htmlTemplates.Style
             MatrixTables      = $matrixHtml
@@ -444,11 +464,13 @@ function Invoke-PermissionMatrixEndHC {
                 -SendMailSettings $sendMail `
                 -DefaultsMailTo $Context.Defaults.MailTo
 
-            $subject = Get-MailSubjectHC `
-                -SystemErrors $SystemErrors.Value `
-                -Counter $Context.Counter `
-                -MatrixCount $Context.AllMatrices.Count `
-                -CustomSubject $sendMail.Subject
+            if (-not $mailSubject) {
+                $mailSubject = Get-MailSubjectHC `
+                    -SystemErrors $SystemErrors.Value `
+                    -Counter $Context.Counter `
+                    -MatrixCount $Context.AllMatrices.Count `
+                    -CustomSubject $sendMail.Subject
+            }
 
             $priority = if ($hasErrors) { 'High' } else { 'Normal' }
 
@@ -465,7 +487,7 @@ function Invoke-PermissionMatrixEndHC {
                 SmtpConnectionType  = Get-StringValueHC $sendMail.Smtp.ConnectionType
                 MailKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MailKit
                 MimeKitAssemblyPath = Get-StringValueHC $sendMail.AssemblyPath.MimeKit
-                Subject             = $subject
+                Subject             = $mailSubject
                 Body                = $fullHtmlBody
                 Priority            = $priority
                 Attachments         = $sysErrAttachments
@@ -490,7 +512,9 @@ function Invoke-PermissionMatrixEndHC {
             # folder with the email artifact inside.
             if ($ensureDatedLogFolder) {
                 try {
-                    $emailLogFolder = & $ensureDatedLogFolder
+                    if (-not $emailLogFolder) {
+                        $emailLogFolder = & $ensureDatedLogFolder
+                    }
                     $null = Save-MailBodyToLogHC `
                         -MailParams $mailParams `
                         -LogFolder $emailLogFolder

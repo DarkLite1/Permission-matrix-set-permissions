@@ -149,6 +149,18 @@ Describe 'Invoke-PermissionMatrixEndHC' {
             Should -Invoke Get-MailBodyHtmlHC -Times 1
         }
 
+        It 'passes exported files and the planned mail log path to Get-MailBodyHtmlHC' {
+            Mock Export-FilesHC { return [ordered]@{ Permissions = 'TestDrive:\Permissions.xlsx' } }
+            $ctx = New-EndContext -AllMatrices @((New-EndMatrix))
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Should -Invoke Get-MailBodyHtmlHC -Times 1 -ParameterFilter {
+                $ExportedFiles.Permissions -eq 'TestDrive:\Permissions.xlsx' -and
+                $BrowserViewFilePath -like '*Mail - Test Subject.html'
+            }
+        }
+
         It 'records a Warning when HTML generation throws (does not abort pipeline)' {
             Mock Get-MailBodyHtmlHC { throw 'html boom' }
             $ctx = New-EndContext

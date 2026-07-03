@@ -253,6 +253,15 @@ Describe 'Get-MailSubjectHC' {
 }
 
 Describe 'Save-MailBodyToLogHC' {
+    It 'uses the same path as Get-MailBodyLogPathHC' {
+        $params = @{ Subject = 'Daily report'; Body = '<p>x</p>' }
+        $expected = Get-MailBodyLogPathHC -MailParams $params -LogFolder $TestDrive
+
+        $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
+
+        $result | Should -Be $expected
+    }
+
     It 'writes the body to a Mail - <subject>.html file and returns its path' {
         $params = @{ Subject = 'Daily report'; Body = '<html><body>Hello</body></html>' }
 
