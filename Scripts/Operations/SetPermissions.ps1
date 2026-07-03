@@ -387,17 +387,24 @@ begin {
         #region Function Get-FolderContentHC
         function Get-FolderContentHC {
             param (
+                # The folder to process, as a DirectoryInfo. The top-level call
+                # builds one from the parent path; recursive calls hand us the
+                # already-enumerated child from the parent's
+                # EnumerateFileSystemInfos, whose cached .Exists/.Attributes skip
+                # a redundant metadata syscall per folder. Recursion only runs
+                # for containers, so this is always a directory (never a file);
+                # a non-directory path is still handled by the .Exists guard.
                 [Parameter(Mandatory)]
-                [String]$Path
+                [System.IO.DirectoryInfo]$DirectoryInfo
             )
 
+            $fullName = $DirectoryInfo.FullName
+
             try {
-                # Perf: commented out — this fires once per folder in the
-                # recursive walk (millions of calls on large trees) and the
-                # string interpolation + call overhead adds up even when
+                # Perf: Write-Verbose "Get content of folder '$fullName'" removed
+                # — it fired once per folder (millions of calls on large trees)
+                # and the string interpolation + call overhead adds up even when
                 # $VerbosePreference is SilentlyContinue.
-                # Write-Verbose "Get content of folder '$Path'"
-                $dirInfo = [System.IO.DirectoryInfo]::new($Path)
 
                 # Skip anything that is not a real, enumerable directory. The
                 # matrix can list a name that exists on disk as a file, or as a
@@ -407,19 +414,19 @@ begin {
                 # Both cases have no inheritable children to process here, so
                 # return gracefully instead of aborting the entire run with a
                 # FatalError. This mirrors the child-level skip below.
-                if (-not $dirInfo.Exists) {
-                    Write-Verbose "Skip '$Path': not a directory (file or missing)"
+                if (-not $DirectoryInfo.Exists) {
+                    Write-Verbose "Skip '$fullName': not a directory (file or missing)"
                     return
                 }
-                if ($dirInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
-                    Write-Verbose "Skip '$Path': reparse point or DFS link"
+                if ($DirectoryInfo.Attributes -band [System.IO.FileAttributes]::ReparsePoint) {
+                    Write-Verbose "Skip '$fullName': reparse point or DFS link"
                     return
                 }
 
-                $enumerator = $dirInfo.EnumerateFileSystemInfos()
+                $enumerator = $DirectoryInfo.EnumerateFileSystemInfos()
             }
             catch {
-                throw "Failed retrieving the folder content of '$Path': $_"
+                throw "Failed retrieving the folder content of '$fullName': $_"
             }
 
             foreach ($child in $enumerator) {
@@ -517,7 +524,10 @@ begin {
                     }
 
                     if ((-not $accessDenied) -or ($Action -eq 'Fix')) {
-                        Get-FolderContentHC -Path $child.FullName
+                        # Pass only the already-enumerated DirectoryInfo; the
+                        # function derives the path from it and reuses its cached
+                        # .Exists/.Attributes instead of re-stating the path.
+                        Get-FolderContentHC -DirectoryInfo $child
                     }
                 }
                 else {
@@ -660,7 +670,7 @@ begin {
             #endregion
 
             #region Check or fix folder and file permissions
-            try { Get-FolderContentHC -Path $Path } catch { throw "Failed checking or setting the inheritance in folder '$Path': $_" }
+            try { Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($Path)) } catch { throw "Failed checking or setting the inheritance in folder '$Path': $_" }
             #endregion
         }
         catch { throw "Failed setting permissions for '$Path': $_" }

@@ -3504,28 +3504,28 @@ Describe 'Get-FolderContentHC guards non-directory paths' {
         $filePath = Join-Path (Get-PSDrive TestDrive).Root 'DATO_DK.CMD'
         Set-Content -LiteralPath $filePath -Value 'echo hi'
 
-        { Get-FolderContentHC -Path $filePath } | Should -Not -Throw
+        { Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($filePath)) } | Should -Not -Throw
     }
 
     It 'reports nothing for a file path (a file has no inheritable children)' {
         $filePath = Join-Path (Get-PSDrive TestDrive).Root 'DATO_DK2.CMD'
         Set-Content -LiteralPath $filePath -Value 'echo hi'
 
-        Get-FolderContentHC -Path $filePath | Should -BeNullOrEmpty
+        Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($filePath)) | Should -BeNullOrEmpty
         $testedInheritedFilesAndFolders.ContainsKey($filePath) | Should -BeFalse
     }
 
     It 'does not throw when the path does not exist' {
         $missingPath = Join-Path (Get-PSDrive TestDrive).Root 'DoesNotExist'
 
-        { Get-FolderContentHC -Path $missingPath } | Should -Not -Throw
+        { Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($missingPath)) } | Should -Not -Throw
     }
 
     It 'still enumerates a real, empty directory without throwing' {
         $realDir = Join-Path (Get-PSDrive TestDrive).Root 'realEmptyDir'
         New-Item -Path $realDir -ItemType Directory -Force | Out-Null
 
-        { Get-FolderContentHC -Path $realDir } | Should -Not -Throw
+        { Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($realDir)) } | Should -Not -Throw
     }
 }
 Describe 'an inherit-only folder that has a permissioned child' {
