@@ -181,7 +181,7 @@ Describe 'Get-CheckThemeHC' {
         $t = Get-CheckThemeHC 'Information'
         $t.Label | Should -Be 'INFO'
         $t.Symbol | Should -Be 'ℹ'
-        $t.Accent | Should -Be '#2563eb'
+        $t.Accent | Should -Be '#6b7280'
     }
 }
 

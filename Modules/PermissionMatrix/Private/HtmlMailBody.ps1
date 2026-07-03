@@ -243,19 +243,19 @@ function Build-SettingsRowHC {
         " class='rr-srow-status'"
     }
     else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:5px 14px 5px 4px; white-space:nowrap;'>$pillHtml</td>"
+    $pillTd = "<td valign='top' align='right'$pillClass width='84' style='padding:6px 14px 6px 4px; white-space:nowrap; line-height:16px; mso-line-height-rule:exactly;'>$pillHtml</td>"
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 6px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:5px 0 5px 14px; color:$accent; font-size:12px; line-height:1;'>&#9679;</td>
-        <td valign='middle' class='rr-srow-ident' style='padding:5px 8px;'>
+        <td valign='top' width='20' style='padding:6px 0 6px 14px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
+        <td valign='top' class='rr-srow-ident' style='padding:6px 8px;'>
             <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
-                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px;'>$comp</div>
-                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
+                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; margin:0; mso-line-height-rule:exactly;'>$comp</div>
+                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; margin:0; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
             </a>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:5px 12px; color:$($Script:Theme.TextLight); font-size:11px; white-space:nowrap;'>
+        <td valign='top' align='right' class='rr-srow-meta' width='120' style='padding:6px 12px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
@@ -407,7 +407,7 @@ function Build-MatrixFileCardHC {
         foreach ($g in $fileLevelGroups) {
             if ($g.Checks) {
                 foreach ($c in $g.Checks) {
-                    $contentRows += Build-FileLevelCheckRowHC -Check $c -SheetLabel $g.Label
+                    $contentRows += Build-FileLevelCheckRowHC -Check $c -SheetLabel $g.Label -ShowLabel $false
                 }
             }
         }

@@ -243,12 +243,15 @@ function Get-CheckThemeHC {
             }
         }
         default {
+            # Info/informational checks use the same neutral grey as a
+            # "Skipped" row (background + accent) so they read as low-key
+            # notices instead of an attention-grabbing blue.
             return @{
-                Bg         = $Script:Theme.BgAlt
-                Accent     = $Script:Theme.AccentInfo
+                Bg         = $Script:Theme.StatusSkipped
+                Accent     = $Script:Theme.AccentSkipped
                 Symbol     = 'ℹ'
                 Label      = 'INFO'
-                BorderLeft = $Script:Theme.AccentInfo
+                BorderLeft = $Script:Theme.AccentSkipped
             }
         }
     }
@@ -401,11 +404,22 @@ function Build-FileLevelCheckRowHC {
         # detail JSON is written to the same folder as the execution report.
         # Keep this $false in the email context, where a relative link is
         # meaningless.
-        [bool]$LinkJsonDetail = $false
+        [bool]$LinkJsonDetail = $false,
+        # When $false the small uppercase sheet label (e.g. "EXCEL FILE") is
+        # not rendered. The email drops it because the "File Issues" section
+        # header already conveys the context; the standalone report keeps it
+        # (there the label is the matrix file title).
+        [bool]$ShowLabel = $true
     )
 
     $themeTokens = Get-CheckThemeHC $Check.Type
     $accent = $themeTokens.Accent
+
+    # Info notices use the neutral grey card background + an "i" glyph; errors
+    # and warnings keep a white card with a bullet dot so they still stand out.
+    $isInfo = ($Check.Type -ne 'FatalError') -and ($Check.Type -ne 'Warning')
+    $cardBg = if ($isInfo) { $themeTokens.Bg } else { $Script:Theme.BgWhite }
+    $icon = if ($isInfo) { '&#8505;' } else { '&#9679;' }
 
     $pillHtml = New-PillHtmlHC -Text $themeTokens.Label -Bg $accent
 
@@ -423,19 +437,29 @@ function Build-FileLevelCheckRowHC {
         $nameHtml = "<a href='$jsonHref' target='_blank' rel='noopener noreferrer' style='color:$($Script:Theme.TextMain); text-decoration:underline;'>$name</a>"
     }
 
+    # Small uppercase sheet label above the check name. Rendered as a block
+    # <div> (not a <span display:block>, which Outlook's Word engine ignores)
+    # and only when requested and non-empty.
+    $labelHtml = ''
+    if ($ShowLabel -and -not [string]::IsNullOrWhiteSpace($SheetLabel)) {
+        $labelHtml = "<div style='font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; line-height:14px; margin:0 0 2px 0; mso-line-height-rule:exactly;'>$label</div>"
+    }
+
     # Table-based card mirroring the settings rows so Outlook Classic (Word
-    # engine, no flexbox) renders the accent dot, the text block and the status
-    # pill as aligned columns. Browsers render the same table identically.
+    # engine, no flexbox) renders the accent icon, the text block and the status
+    # pill as aligned columns. Browsers render the same table identically. The
+    # name/description use <div> blocks (with margin:0 + exact line-height) so
+    # the name stacks ABOVE the description in Outlook too — Word collapses
+    # <span style='display:block'> onto one inline line.
     $cardHtml = @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-check-row" style="border-collapse:separate; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-check-row" style="border-collapse:separate; width:100%; max-width:100%; background-color:$cardBg; border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign="top" width="22" style='padding:12px 0 12px 14px; color:$accent; font-size:13px; line-height:1;'>&#9679;</td>
-        <td valign="middle" style='padding:12px 10px;'>
-            <span style='display:block; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:2px;'>$label</span>
-            <span style='display:block; font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); margin-bottom:2px;'>$nameHtml</span>
-            <span style='display:block; font-size:11px; color:$($Script:Theme.TextMuted); line-height:1.5;'>$desc</span>
+        <td valign="top" width="24" style='padding:12px 0 12px 14px; color:$accent; font-size:15px; line-height:16px; mso-line-height-rule:exactly;'>$icon</td>
+        <td valign="top" style='padding:12px 10px;'>
+            $labelHtml<div style='font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); line-height:16px; margin:0 0 2px 0; mso-line-height-rule:exactly;'>$nameHtml</div>
+            <div style='font-size:11px; color:$($Script:Theme.TextMuted); line-height:15px; margin:0; mso-line-height-rule:exactly;'>$desc</div>
         </td>
-        <td valign="middle" align="right" style='padding:12px 14px 12px 6px; white-space:nowrap;'>$pillHtml</td>
+        <td valign="top" align="right" style='padding:12px 14px 12px 6px; white-space:nowrap;'>$pillHtml</td>
     </tr>
 </table>
 "@

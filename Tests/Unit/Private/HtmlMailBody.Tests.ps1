@@ -177,12 +177,14 @@ Describe 'Build-SettingsRowHC' {
         $html | Should -Not -Match '>Skipped</span>'
     }
 
-    It 'vertically centers the Outlook row cells with symmetric padding' {
+    It 'top-aligns the Outlook row cells with exact line heights to kill excess space above the computer name' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match "valign='middle' width='20' style='padding:5px 0 5px 14px;"
-        $html | Should -Match "rr-srow-ident' style='padding:5px 8px;'"
-        $html | Should -Match "rr-srow-meta' width='120' style='padding:5px 12px;"
-        $html | Should -Not -Match 'mso-line-height-rule:exactly'
+        $html | Should -Match "valign='top' width='20' style='padding:6px 0 6px 14px;"
+        $html | Should -Match "rr-srow-ident' style='padding:6px 8px;'"
+        $html | Should -Match "rr-srow-meta' width='120' style='padding:6px 12px;"
+        # The computer-name/path divs must carry margin:0 + exact line-height so
+        # Word doesn't add paragraph space above the computer name.
+        $html | Should -Match 'margin:0; mso-line-height-rule:exactly;'
     }
 }
 
