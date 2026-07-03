@@ -385,8 +385,8 @@ function Build-MatrixFileCardHC {
     <tr>
         <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%);'>
             <!--[if mso]>
-            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="15%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px; height:68px; v-text-anchor:top;">
-            <v:textbox inset="0,0,0,0">
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" arcsize="18%" fillcolor="$gradTo" stroked="f" style="width:$($Script:Theme.BodyWidth)px;">
+            <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:true;">
             <![endif]-->
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
