@@ -62,7 +62,8 @@ param (
     [PSCustomObject[]]$Matrix,
     [Parameter(Mandatory)]
     [Int]$JobThrottleLimit,
-    [Boolean]$DetailedLog
+    [Boolean]$DetailedLog,
+    [Boolean]$CollectTestedPaths = $false
 )
 
 begin {
@@ -273,7 +274,8 @@ begin {
             [Parameter()]
             [PSObject]$AdPermissions,
 
-            [Boolean]$DetailedLog
+            [Boolean]$DetailedLog,
+            [Boolean]$CollectTestedPaths = $false
         )
 
         $ErrorActionPreference = 'Stop'
@@ -356,22 +358,25 @@ begin {
             )
 
             try {
-                # Build a deduplicated fingerprint set from the on-disk ACEs and
-                # compare it to the reference set. SetEquals is robust to
-                # duplicate ACEs on either side, so it avoids the false "not
-                # equal" the old '$ReferenceSet.Count -ne $DifferenceAce.Count'
-                # guard produced whenever the reference HashSet had collapsed
-                # two fingerprint-identical ACEs into one. The fingerprint stays
-                # propagation-blind on purpose: inherited ACEs land with
-                # PropagationFlags=None while the matrix reference models them as
-                # InheritOnly, and that difference must compare as equal.
-                $diffSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-                foreach ($D in $DifferenceAce) {
-                    # [int] casts bypass slow string evaluations
-                    [void]$diffSet.Add("$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)")
+                if ($ReferenceSet.Count -eq 0) {
+                    return ($DifferenceAce.Count -eq 0)
                 }
 
-                return $ReferenceSet.SetEquals($diffSet)
+                # Compare each on-disk fingerprint against the prebuilt
+                # reference set and keep a deduplicated seen set for the final
+                # SetEquals check. This preserves the propagation-blind duplicate
+                # behavior while avoiding a second full reference set per item.
+                $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($D in $DifferenceAce) {
+                    # [int] casts bypass slow string evaluations
+                    $fingerprint = "$([int]$D.FileSystemRights)|$([int]$D.AccessControlType)|$($D.IdentityReference.ToString())|$([int]$D.InheritanceFlags)"
+                    if (-not $ReferenceSet.Contains($fingerprint)) {
+                        return $false
+                    }
+                    [void]$seen.Add($fingerprint)
+                }
+
+                return $ReferenceSet.SetEquals($seen)
             }
             catch {
                 throw "Failed testing the ACL for equality: $_"
@@ -496,7 +501,9 @@ begin {
                     }
                 }
 
-                $testedInheritedFilesAndFolders[$child.FullName] = $true
+                if ($CollectTestedPaths) {
+                    $testedInheritedFilesAndFolders[$child.FullName] = $true
+                }
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
@@ -604,7 +611,9 @@ begin {
 
         try {
             #region Logging Setup
-            $testedInheritedFilesAndFolders = @{ }
+            if ($CollectTestedPaths) {
+                $testedInheritedFilesAndFolders = @{ }
+            }
 
             if ($DetailedLog) {
                 $incorrectInheritedAcl = @{ }
@@ -652,7 +661,11 @@ begin {
         }
         catch { throw "Failed setting permissions for '$Path': $_" }
         finally {
-            [PSCustomObject]@{ testedInheritedFilesAndFolders = $testedInheritedFilesAndFolders; IncorrectInheritedAcl = $incorrectInheritedAcl }
+            $result = [PSCustomObject]@{ IncorrectInheritedAcl = $incorrectInheritedAcl }
+            if ($CollectTestedPaths) {
+                $result | Add-Member -NotePropertyName 'TestedInheritedFilesAndFolders' -NotePropertyValue $testedInheritedFilesAndFolders
+            }
+            $result
         }
     }
     #endregion
@@ -800,7 +813,9 @@ process {
         #endregion
 
         #region Logging Setup
-        $testedInheritedFilesAndFolders = @{ }
+        if ($CollectTestedPaths) {
+            $testedInheritedFilesAndFolders = @{ }
+        }
 
         if ($DetailedLog) {
             $incorrectAclNonInheritedFolders = @{ }
@@ -1007,7 +1022,9 @@ process {
         #endregion
 
         #region Non-Inherited folder permissions check and apply
-        $testedNonInheritedFolders = @{}
+        if ($CollectTestedPaths) {
+            $testedNonInheritedFolders = @{}
+        }
         Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
         [array]$foldersWithAcl = $Matrix.Where({ ($_.FolderAcl) -and (-not $_.ignore) }) | Sort-Object -Property 'Path'
@@ -1018,7 +1035,9 @@ process {
                 Write-Verbose "Matrix ACL folder '$($folder.Path)'"
 
                 $dirInfo = [System.IO.DirectoryInfo]::new($folder.Path)
-                $testedNonInheritedFolders[$folder.Path] = $folder
+                if ($CollectTestedPaths) {
+                    $testedNonInheritedFolders[$folder.Path] = $folder
+                }
 
                 $accessDenied = $false
                 $acl = $null
@@ -1152,6 +1171,7 @@ process {
                         IgnoredFolderPaths = $ignoredFolderPaths
                         TokenPrivileges    = $tokenPrivileges
                         DetailedLog        = $DetailedLog
+                        CollectTestedPaths = $CollectTestedPaths
                         AdNames            = $folder.AdNames
                         AdPermissions      = $folder.ACL
                         ScriptString       = $scriptBlockString
@@ -1171,6 +1191,7 @@ process {
                         AdNames             = $folderDto.AdNames
                         AdPermissions       = $folderDto.AdPermissions
                         DetailedLog         = $folderDto.DetailedLog
+                        CollectTestedPaths  = $folderDto.CollectTestedPaths
                     }
 
                     $rehydratedBlock = [scriptblock]::Create($folderDto.ScriptString)
@@ -1179,8 +1200,10 @@ process {
                 } -ThrottleLimit $JobThrottleLimit
 
                 foreach ($jobResult in $jobResults) {
-                    foreach ($j in $jobResult.testedInheritedFilesAndFolders) {
-                        foreach ($i in $j.GetEnumerator()) { $testedInheritedFilesAndFolders[$i.Key] = $i.Value }
+                    if ($CollectTestedPaths) {
+                        foreach ($j in $jobResult.TestedInheritedFilesAndFolders) {
+                            foreach ($i in $j.GetEnumerator()) { $testedInheritedFilesAndFolders[$i.Key] = $i.Value }
+                        }
                     }
                     foreach ($j in $jobResult.IncorrectInheritedAcl) {
                         if ($DetailedLog) {

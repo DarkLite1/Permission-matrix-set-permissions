@@ -691,10 +691,11 @@ Describe 'when the script runs for a matrix' {
             }
 
             $testParams = @{
-                Path             = $testParentFolder
-                Action           = 'Fix'
-                Matrix           = Copy-ObjectHC $testMatrix
-                JobThrottleLimit = 2
+                Path               = $testParentFolder
+                Action             = 'Fix'
+                Matrix             = Copy-ObjectHC $testMatrix
+                JobThrottleLimit   = 2
+                CollectTestedPaths = $true
             }
             $testResult = .$testScript @testParams
         }
