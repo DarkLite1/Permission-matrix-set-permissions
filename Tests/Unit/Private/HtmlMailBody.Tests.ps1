@@ -177,11 +177,12 @@ Describe 'Build-SettingsRowHC' {
         $html | Should -Not -Match '>Skipped</span>'
     }
 
-    It 'uses compact exact line heights for Outlook rows' {
+    It 'vertically centers the Outlook row cells with symmetric padding' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match "line-height:15px; margin:0; mso-line-height-rule:exactly;'>SRV01</div>"
-        $html | Should -Match 'line-height:13px; margin:0; mso-line-height-rule:exactly; white-space:normal;'
-        $html | Should -Match "rr-srow-meta' width='120' style='padding:6px 12px 4px 12px;[^']*line-height:16px; mso-line-height-rule:exactly;"
+        $html | Should -Match "valign='middle' width='20' style='padding:5px 0 5px 14px;"
+        $html | Should -Match "rr-srow-ident' style='padding:5px 8px;'"
+        $html | Should -Match "rr-srow-meta' width='120' style='padding:5px 12px;"
+        $html | Should -Not -Match 'mso-line-height-rule:exactly'
     }
 }
 
@@ -437,12 +438,12 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should -Match '1 Error'
         }
 
-        It 'uses a fixed-height Outlook header without VML text auto-fit' {
+        It 'renders the Outlook header without a VML roundrect wrapper' {
             $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
 
-            $out | Should -Match 'style="width:620px; height:68px; v-text-anchor:top;"'
-            $out | Should -Match '<v:textbox inset="0,0,0,0">'
-            $out | Should -Not -Match 'mso-fit-shape-to-text:true'
+            $out | Should -Not -Match 'v:roundrect'
+            $out | Should -Not -Match 'v-text-anchor:top'
+            $out | Should -Match "valign='middle' width='34'"
         }
     }
 
