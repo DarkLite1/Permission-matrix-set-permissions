@@ -851,6 +851,312 @@ Describe 'Permission Matrix - End to End' {
         Should -BeFalse -Because 'report.txt should still have inherited ACL after Check'
     }
 
+    It 'fixes a fully corrupted matrix tree, then a second Fix run is clean' -Skip:(-not $E2EPrereqsMet) {
+        # -------------------------------------------------------------------
+        # Broad full-flow unhappy-path regression:
+        #   - the complete matrix folder tree already exists on disk;
+        #   - every class of item is deliberately wrong:
+        #       * root Path row folder (non-inherited / matrix-defined)
+        #       * permissioned child folders (non-inherited / matrix-defined)
+        #       * matrix paths with trailing slashes
+        #       * inherit-only folders (empty ACL rows)
+        #       * ignored folders/subtrees (I rows) that must stay untouched
+        #       * files below both permissioned and inherit-only folders
+        #   - first Action=Fix must converge the tree;
+        #   - second Action=Fix must be clean, proving no reported correction
+        #     was only a partial/no-op write.
+        # -------------------------------------------------------------------
+        function New-CorruptDirectoryAcl {
+            param(
+                [Parameter(Mandatory)]
+                [System.Security.Principal.IdentityReference]$Identity
+            )
+
+            $acl = New-Object System.Security.AccessControl.DirectorySecurity
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.SetOwner([System.Security.Principal.NTAccount]'BUILTIN\Administrators')
+            $acl.AddAccessRule(
+                (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                        'FullControl',
+                        'ContainerInherit,ObjectInherit',
+                        'None',
+                        'Allow'))
+            )
+            $acl.AddAccessRule(
+                (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        $Identity,
+                        'FullControl',
+                        'ContainerInherit,ObjectInherit',
+                        'None',
+                        'Allow'))
+            )
+            $acl
+        }
+
+        function New-CorruptFileAcl {
+            param(
+                [Parameter(Mandatory)]
+                [System.Security.Principal.IdentityReference]$Identity
+            )
+
+            $acl = New-Object System.Security.AccessControl.FileSecurity
+            $acl.SetAccessRuleProtection($true, $false)
+            $acl.SetOwner([System.Security.Principal.NTAccount]'BUILTIN\Administrators')
+            $acl.AddAccessRule(
+                (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        [System.Security.Principal.NTAccount]'BUILTIN\Administrators',
+                        'FullControl',
+                        'None',
+                        'None',
+                        'Allow'))
+            )
+            $acl.AddAccessRule(
+                (New-Object System.Security.AccessControl.FileSystemAccessRule(
+                        $Identity,
+                        'FullControl',
+                        'None',
+                        'None',
+                        'Allow'))
+            )
+            $acl
+        }
+
+        function Test-HasFullControlAce {
+            param(
+                [Parameter(Mandatory)]
+                [System.Security.AccessControl.AuthorizationRuleCollection]$Access,
+                [Parameter(Mandatory)]
+                [string]$Identity
+            )
+
+            @($Access | Where-Object {
+                    $_.IdentityReference.Value -eq $Identity -and
+                    (($_.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl) -eq [System.Security.AccessControl.FileSystemRights]::FullControl)
+                }).Count -gt 0
+        }
+
+        # ===================================================================
+        # PHASE 1: Build a complete matrix tree with bad ACLs everywhere
+        # ===================================================================
+        $rootFolder = (New-Item 'TestDrive:\FullFixTarget' -ItemType Directory -Force).FullName
+        $financeFolder = (New-Item (Join-Path $rootFolder 'Finance') -ItemType Directory -Force).FullName
+        $docsFolder = (New-Item (Join-Path $financeFolder 'Docs') -ItemType Directory -Force).FullName
+        $trailingSlashFolder = (New-Item (Join-Path $rootFolder 'TrailingSlash') -ItemType Directory -Force).FullName
+        $inheritOnlyFolder = (New-Item (Join-Path $rootFolder 'InheritOnly') -ItemType Directory -Force).FullName
+        $inheritOnlyNestedFolder = (New-Item (Join-Path $inheritOnlyFolder 'Nested') -ItemType Directory -Force).FullName
+        $inheritOnlyDeepFolder = (New-Item (Join-Path $inheritOnlyNestedFolder 'Deep') -ItemType Directory -Force).FullName
+        $inheritOnlySiblingFolder = (New-Item (Join-Path $rootFolder 'InheritOnlySibling') -ItemType Directory -Force).FullName
+        $ignoredFolder = (New-Item (Join-Path $rootFolder 'IgnoredTree') -ItemType Directory -Force).FullName
+        $ignoredChildFolder = (New-Item (Join-Path $ignoredFolder 'Child') -ItemType Directory -Force).FullName
+
+        $rootFile = Join-Path $rootFolder 'root-file.txt'
+        $financeFile = Join-Path $financeFolder 'finance-file.txt'
+        $docsFile = Join-Path $docsFolder 'docs-file.txt'
+        $trailingSlashFile = Join-Path $trailingSlashFolder 'trailing-file.txt'
+        $inheritOnlyFile = Join-Path $inheritOnlyFolder 'inherit-only-file.txt'
+        $nestedFile = Join-Path $inheritOnlyNestedFolder 'nested-file.txt'
+        $deepFile = Join-Path $inheritOnlyDeepFolder 'deep-file.txt'
+        $siblingFile = Join-Path $inheritOnlySiblingFolder 'sibling-file.txt'
+        $ignoredFile = Join-Path $ignoredChildFolder 'ignored-file.txt'
+
+        foreach ($file in @($rootFile, $financeFile, $docsFile, $trailingSlashFile, $inheritOnlyFile, $nestedFile, $deepFile, $siblingFile, $ignoredFile)) {
+            'corrupt me' | Set-Content -LiteralPath $file -Force
+        }
+
+        $matrixDir = (New-Item 'TestDrive:\FullFixMatrix' -ItemType Directory -Force).FullName
+        $logsDir = (New-Item 'TestDrive:\FullFixLogs' -ItemType Directory -Force).FullName
+
+        $bobNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")).Value
+        $mikeNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupMike")).Value
+        $bobAccount = [System.Security.Principal.NTAccount]$bobNT
+        $mikeAccount = [System.Security.Principal.NTAccount]$mikeNT
+
+        foreach ($folder in @($rootFolder, $financeFolder, $docsFolder, $trailingSlashFolder, $inheritOnlyFolder, $inheritOnlyNestedFolder, $inheritOnlyDeepFolder, $inheritOnlySiblingFolder, $ignoredFolder, $ignoredChildFolder)) {
+            [System.IO.FileSystemAclExtensions]::SetAccessControl(
+                [System.IO.DirectoryInfo]::new($folder),
+                (New-CorruptDirectoryAcl -Identity $mikeAccount)
+            )
+        }
+
+        foreach ($file in @($rootFile, $financeFile, $docsFile, $trailingSlashFile, $inheritOnlyFile, $nestedFile, $deepFile, $siblingFile, $ignoredFile)) {
+            [System.IO.FileSystemAclExtensions]::SetAccessControl(
+                [System.IO.FileInfo]::new($file),
+                (New-CorruptFileAcl -Identity $bobAccount)
+            )
+        }
+
+        # Sanity: the tree really starts in a bad state.
+        (Get-Acl -LiteralPath $inheritOnlyFolder).AreAccessRulesProtected |
+        Should -BeTrue -Because 'sanity: inherit-only folder starts protected and wrong'
+        (Get-Acl -LiteralPath $docsFile).AreAccessRulesProtected |
+        Should -BeTrue -Because 'sanity: file starts protected and wrong'
+        Test-HasFullControlAce -Access (Get-Acl -LiteralPath $rootFolder).Access -Identity $mikeNT |
+        Should -BeTrue -Because 'sanity: root starts with wrong Mike FullControl'
+        (Get-Acl -LiteralPath $ignoredFolder).AreAccessRulesProtected |
+        Should -BeTrue -Because 'sanity: ignored folder starts protected and wrong'
+
+        $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
+        New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
+
+        $permSpec = @{
+            Row1 = @('', '', '')
+            Row2 = @('', '', '')
+            Row3 = @('', 'Bob', 'Mike')
+            Row4 = @('Path', 'L', 'L')
+            Data = @(
+                @{ Path = 'Finance'           ; Col2 = 'R'; Col3 = 'R' }
+                @{ Path = 'Finance\Docs'      ; Col2 = 'W'; Col3 = 'W' }
+                @{ Path = 'TrailingSlash\'    ; Col2 = 'R'; Col3 = 'R' }
+                @{ Path = 'InheritOnly'       ; Col2 = '' ; Col3 = ''  }
+                @{ Path = 'InheritOnly\Nested'; Col2 = '' ; Col3 = ''  }
+                @{ Path = 'InheritOnly\Nested\Deep'; Col2 = '' ; Col3 = '' }
+                @{ Path = 'InheritOnlySibling'; Col2 = '' ; Col3 = '' }
+                @{ Path = 'IgnoredTree\'      ; Col2 = 'I'; Col3 = '' }
+            )
+        }
+
+        $matrixPath = Join-Path $matrixDir 'TeamA.xlsx'
+        New-MatrixExcelFixture `
+            -Path $matrixPath `
+            -PermissionsRows $permSpec `
+            -SettingsRows @(
+            [pscustomobject]@{
+                Status                  = 'Enabled'
+                SiteName                = 'E2E-Full-Fix'
+                SiteCode                = 'E2E'
+                ComputerName            = $env:COMPUTERNAME
+                Path                    = $rootFolder
+                GroupName               = 'E2E-Full-Fix-Group'
+                Action                  = 'Fix'
+                ApplyDefaultPermissions = $false
+            }
+        )
+
+        $configFixture = New-JsonFixture
+        $configFixture.Matrix.FolderPath = $matrixDir
+        $configFixture.Matrix.DefaultsFile = $defaultsPath
+        $configFixture.Settings.SaveLogFiles.Where.Folder = $logsDir
+        $configFixture.MaxConcurrent.FoldersPerMatrix = 1
+
+        $configPath = Join-Path $matrixDir 'Input.json'
+        $configFixture |
+        ConvertTo-Json -Depth 20 |
+        Out-File -LiteralPath $configPath -Encoding utf8 -Force
+
+        $scriptPath = @{
+            PermissionMatrixModule = "$moduleRoot\PermissionMatrix.psm1"
+            SetPermissions         = "$root\Scripts\Operations\SetPermissions.ps1"
+            TestRequirements       = "$root\Scripts\Operations\TestRequirements.ps1"
+            UpdateServiceNow       = "$root\Scripts\Operations\UpdateServiceNow.ps1"
+        }
+
+        Mock Get-ADObjectDetailHC -ModuleName PermissionMatrix {
+            return @(
+                @{ SamAccountName = 'Bob'; adObject = @{ ObjectSid = $TestGroupBobSid } }
+                @{ SamAccountName = 'Mike'; adObject = @{ ObjectSid = $TestGroupMikeSid } }
+            )
+        }
+
+        $script:fullFixMailSubjects = [System.Collections.Generic.List[string]]::new()
+        Mock Send-MailKitMessageHC -ModuleName PermissionMatrix {
+            $script:fullFixMailSubjects.Add($Subject)
+        }
+
+        # ===================================================================
+        # PHASE 2: First Fix run should detect and correct the bad tree
+        # ===================================================================
+        $systemErrorsFirst = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrorsFirst)
+
+        $fatalsFirst = $systemErrorsFirst.Where({ $_.Type -eq 'FatalError' })
+        $fatalsFirst.Count | Should -Be 0 -Because (
+            "first Fix run should have no fatal errors but got: $($fatalsFirst | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        $script:fullFixMailSubjects.Count |
+        Should -Be 1 -Because 'first Fix run should send one mail'
+        $script:fullFixMailSubjects[0] |
+        Should -Match 'warning' -Because 'first Fix run should report the deliberately corrupted ACLs'
+
+        foreach ($folder in @($rootFolder, $financeFolder, $docsFolder, $trailingSlashFolder)) {
+            $acl = Get-Acl -LiteralPath $folder
+            $acl.AreAccessRulesProtected |
+            Should -BeTrue -Because "'$folder' is matrix-defined and should have protected explicit ACLs after Fix"
+            Test-HasFullControlAce -Access $acl.Access -Identity $mikeNT |
+            Should -BeFalse -Because "'$folder' should no longer carry wrong Mike FullControl after Fix"
+        }
+
+        foreach ($folder in @($inheritOnlyFolder, $inheritOnlyNestedFolder, $inheritOnlyDeepFolder, $inheritOnlySiblingFolder)) {
+            $acl = Get-Acl -LiteralPath $folder
+            $acl.AreAccessRulesProtected |
+            Should -BeFalse -Because "'$folder' is inherit-only and should inherit after Fix"
+            $acl.Access.Where({ -not $_.IsInherited }) |
+            Should -BeNullOrEmpty -Because "'$folder' should not keep explicit ACEs after Fix"
+        }
+
+        foreach ($file in @($rootFile, $financeFile, $docsFile, $trailingSlashFile, $inheritOnlyFile, $nestedFile, $deepFile, $siblingFile)) {
+            $acl = Get-Acl -LiteralPath $file
+            $acl.AreAccessRulesProtected |
+            Should -BeFalse -Because "'$file' should inherit after Fix"
+            $acl.Access.Where({ -not $_.IsInherited }) |
+            Should -BeNullOrEmpty -Because "'$file' should not keep explicit ACEs after Fix"
+        }
+
+        foreach ($ignoredItem in @($ignoredFolder, $ignoredChildFolder, $ignoredFile)) {
+            $acl = Get-Acl -LiteralPath $ignoredItem
+            $expectedIgnoredIdentity = if (Test-Path -LiteralPath $ignoredItem -PathType Leaf) { $bobNT } else { $mikeNT }
+
+            $acl.AreAccessRulesProtected |
+            Should -BeTrue -Because "'$ignoredItem' is under an ignored matrix row and must remain untouched"
+            Test-HasFullControlAce -Access $acl.Access -Identity $expectedIgnoredIdentity |
+            Should -BeTrue -Because "'$ignoredItem' must keep its deliberately wrong ACL because ignored rows are not managed"
+        }
+
+        $detailFilesBeforeSecondFix = @(
+            Get-ChildItem -LiteralPath $logsDir -Recurse -Filter '*.json' -File |
+            Select-Object -ExpandProperty FullName
+        )
+
+        # ===================================================================
+        # PHASE 3: Second Fix run should be clean for permissions
+        # ===================================================================
+        $systemErrorsSecond = [System.Collections.Generic.List[object]]::new()
+
+        Invoke-PermissionMatrix `
+            -ConfigurationJsonFile $configPath `
+            -ScriptPath $scriptPath `
+            -SystemErrors ([ref]$systemErrorsSecond)
+
+        $fatalsSecond = $systemErrorsSecond.Where({ $_.Type -eq 'FatalError' })
+        $fatalsSecond.Count | Should -Be 0 -Because (
+            "second Fix run should have no fatal errors but got: $($fatalsSecond | ForEach-Object { $_.Message } | Out-String)"
+        )
+
+        $script:fullFixMailSubjects.Count |
+        Should -Be 2 -Because 'second Fix run should send a second mail'
+
+        $newDetailFiles = @(
+            Get-ChildItem -LiteralPath $logsDir -Recurse -Filter '*.json' -File |
+            Where-Object { $_.FullName -notin $detailFilesBeforeSecondFix }
+        )
+
+        $newDetailText = @(
+            foreach ($detailFile in $newDetailFiles) {
+                Get-Content -LiteralPath $detailFile.FullName -Raw
+            }
+        ) -join "`n"
+
+        $newDetailText |
+        Should -Not -Match 'Non inherited folder incorrect permissions|Inherited permissions incorrect' -Because (
+            'a second Fix run after convergence must not report any remaining permission corrections'
+        )
+    }
+
     It 'reports clear prerequisites when the environment is not set up' -Skip:$E2EPrereqsMet {
         # This test only runs when prerequisites are NOT met. It surfaces
         # the missing prerequisite as an actionable failure message so the
