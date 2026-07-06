@@ -360,7 +360,7 @@ $testCases = @(
         }
     }
     @{
-        name       = 'with an ignored folder, its subfolders are checked only when they have permissions defined in the matrix'
+        name       = 'with an ignored folder, its mentioned subfolders are checked when they have permissions or are inherit-only'
         state      = @{
             before = @{
                 folders = @(
@@ -375,7 +375,7 @@ $testCases = @(
             [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
             [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
             [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } }
         )
         expected   = @{
             nonInheritanceTested = @(
@@ -388,12 +388,14 @@ $testCases = @(
                 '{0}\FolderA\file',
                 '{0}\FolderB',
                 '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Accounting',
+                '{0}\FolderB\SubFolder\Accounting\File',
                 '{0}\FolderB\SubFolder\Reports\File'
             )
         }
     }
     @{
-        name       = 'with an ignored folder, all folders below are not checked unless they have permissions set, in that case permission checking resumes for all its subfolders'
+        name       = 'with an ignored folder, mentioned subfolders below it resume checking when they have permissions or are inherit-only'
         state      = @{
             before = @{
                 folders = @(
@@ -411,8 +413,8 @@ $testCases = @(
             [PSCustomObject]@{Path = 'FolderB\SubFolder'; ACL = @{$env:USERNAME = 'R' }; Ignore = $true }
             [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports'; ACL = @{$env:USERNAME = 'R' } }
             [PSCustomObject]@{Path = 'FolderB\SubFolder\Reports\Year\2020'; ACL = @{ } } # tested because it falls under the Reports folder
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } } # ignored because SubFolder is ignored
-            [PSCustomObject]@{Path = 'FolderB\SubFolder\Sales'; ACL = @{ } } # ignored because SubFolder is ignored
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Accounting'; ACL = @{ } }
+            [PSCustomObject]@{Path = 'FolderB\SubFolder\Sales'; ACL = @{ } }
             [PSCustomObject]@{Path = 'FolderC'; ACL = @{$env:USERNAME = 'R' } }
         )
         expected   = @{
@@ -427,11 +429,15 @@ $testCases = @(
                 '{0}\FolderA\file',
                 '{0}\FolderB',
                 '{0}\FolderB\File',
+                '{0}\FolderB\SubFolder\Accounting',
+                '{0}\FolderB\SubFolder\Accounting\File',
                 '{0}\FolderB\SubFolder\Reports\File',
                 '{0}\FolderB\SubFolder\Reports\Year',
                 '{0}\FolderB\SubFolder\Reports\Year\File',
                 '{0}\FolderB\SubFolder\Reports\Year\2020',
                 '{0}\FolderB\SubFolder\Reports\Year\2020\File',
+                '{0}\FolderB\SubFolder\Sales',
+                '{0}\FolderB\SubFolder\Sales\File',
                 '{0}\FolderC\File'
             )
         }
@@ -3570,6 +3576,131 @@ Describe 'Get-FolderContentHC guards non-directory paths' {
 Describe 'an inherit-only folder that has a permissioned child' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force
+    }
+
+    It 'restores inheritance on Path itself and empty child rows when Path has no permissions (Fix)' {
+        $testParams = @{
+            Path             = $testParentFolder
+            Action           = 'Fix'
+            JobThrottleLimit = 2
+            Matrix           = @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{ }; Parent = $true }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{ } }
+            )
+        }
+
+        $folderA = Join-Path $testParams.Path 'FolderA'
+
+        New-Item -Path $folderA -ItemType Directory -Force | Out-Null
+
+        foreach ($wrongFolder in @($testParams.Path, $folderA)) {
+            $aclWrong = New-Object System.Security.AccessControl.DirectorySecurity
+            $aclWrong.SetAccessRuleProtection($true, $false)
+            $aclWrong.SetOwner($BuiltinAdmin)
+
+            $aceListWrong = @($AdminFullControlFolderAce)
+            $aceListWrong += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+            $aceListWrong.foreach({ $aclWrong.AddAccessRule($_) })
+
+            Set-Acl -Path (Get-Item $wrongFolder) -AclObject $aclWrong
+        }
+
+        $Actual = .$testScript @testParams
+
+        $inheritedWarning = $Actual |
+        Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+
+        $inheritedWarning | Should -Not -BeNullOrEmpty
+        $inheritedWarning.Value | Should -Contain $testParams.Path
+        $inheritedWarning.Value | Should -Contain $folderA
+
+        foreach ($wrongFolder in @($testParams.Path, $folderA)) {
+            $aclAfter = Get-Acl -LiteralPath $wrongFolder
+
+            $aclAfter.AreAccessRulesProtected |
+            Should -BeFalse -Because "Fix must restore inheritance on '$wrongFolder'"
+
+            $aclAfter.Access.Where({ -not $_.IsInherited }) |
+            Should -BeNullOrEmpty -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
+        }
+    }
+
+    It 'does not walk ignored Path but still walks mentioned child folders with or without permissions (Fix)' {
+        $testParams = @{
+            Path             = $testParentFolder
+            Action           = 'Fix'
+            JobThrottleLimit = 2
+            Matrix           = @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{ }; Parent = $true; Ignore = $true }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{ $testUser = 'L' } }
+                [PSCustomObject]@{Path = 'FolderB'; ACL = @{ } }
+            )
+        }
+
+        $folderA = Join-Path $testParams.Path 'FolderA'
+        $fileInFolderA = Join-Path $folderA 'report.txt'
+        $folderB = Join-Path $testParams.Path 'FolderB'
+        $fileInFolderB = Join-Path $folderB 'notes.txt'
+
+        New-Item -Path $folderA -ItemType Directory -Force | Out-Null
+        New-Item -Path $fileInFolderA -ItemType File -Force | Out-Null
+        New-Item -Path $folderB -ItemType Directory -Force | Out-Null
+        New-Item -Path $fileInFolderB -ItemType File -Force | Out-Null
+
+        $rootAcl = New-Object System.Security.AccessControl.DirectorySecurity
+        $rootAcl.SetAccessRuleProtection($true, $false)
+        $rootAcl.SetOwner($BuiltinAdmin)
+        $rootAceList = @($AdminFullControlFolderAce)
+        $rootAceList += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+        $rootAceList.foreach({ $rootAcl.AddAccessRule($_) })
+        Set-Acl -Path (Get-Item $testParams.Path) -AclObject $rootAcl
+
+        $fileAcl = New-Object System.Security.AccessControl.FileSecurity
+        $fileAcl.SetAccessRuleProtection($true, $false)
+        $fileAcl.SetOwner($BuiltinAdmin)
+        $fileAceList = @($AdminFullControlIFileAce)
+        $fileAceList += New-TestAceHC -Type 'InheritedFile' -Access 'F' -Name $testUser2
+        $fileAceList.foreach({ $fileAcl.AddAccessRule($_) })
+        Set-Acl -Path (Get-Item $fileInFolderA) -AclObject $fileAcl
+
+        $folderBAcl = New-Object System.Security.AccessControl.DirectorySecurity
+        $folderBAcl.SetAccessRuleProtection($true, $false)
+        $folderBAcl.SetOwner($BuiltinAdmin)
+        $folderBAceList = @($AdminFullControlFolderAce)
+        $folderBAceList += New-TestAceHC -Type 'Folder' -Access 'F' -Name $testUser2
+        $folderBAceList.foreach({ $folderBAcl.AddAccessRule($_) })
+        Set-Acl -Path (Get-Item $folderB) -AclObject $folderBAcl
+
+        $fileBAcl = New-Object System.Security.AccessControl.FileSecurity
+        $fileBAcl.SetAccessRuleProtection($true, $false)
+        $fileBAcl.SetOwner($BuiltinAdmin)
+        $fileBAceList = @($AdminFullControlIFileAce)
+        $fileBAceList += New-TestAceHC -Type 'InheritedFile' -Access 'F' -Name $testUser2
+        $fileBAceList.foreach({ $fileBAcl.AddAccessRule($_) })
+        Set-Acl -Path (Get-Item $fileInFolderB) -AclObject $fileBAcl
+
+        $Actual = .$testScript @testParams
+
+        $inheritedWarning = $Actual |
+        Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
+
+        $inheritedWarning | Should -Not -BeNullOrEmpty
+        $inheritedWarning.Value | Should -Contain $fileInFolderA
+        $inheritedWarning.Value | Should -Contain $folderB
+        $inheritedWarning.Value | Should -Contain $fileInFolderB
+        $inheritedWarning.Value | Should -Not -Contain $testParams.Path
+
+        (Get-Acl -LiteralPath $testParams.Path).AreAccessRulesProtected |
+        Should -BeTrue -Because 'an ignored Path must be left untouched'
+
+        (Get-Acl -LiteralPath $fileInFolderA).AreAccessRulesProtected |
+        Should -BeFalse -Because 'permissioned child folders still seed inheritance checking under an ignored Path'
+
+        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected |
+        Should -BeFalse -Because 'mentioned inherit-only child folders still seed inheritance checking under an ignored Path'
+
+        (Get-Acl -LiteralPath $fileInFolderB).AreAccessRulesProtected |
+        Should -BeFalse -Because 'mentioned inherit-only child folders walk their descendants under an ignored Path'
     }
 
     It 'strips explicit permissions from folder A and restores inheritance (Fix)' {

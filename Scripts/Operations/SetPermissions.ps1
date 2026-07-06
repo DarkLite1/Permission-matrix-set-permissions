@@ -274,6 +274,8 @@ begin {
             [Parameter()]
             [PSObject]$AdPermissions,
 
+            [Boolean]$CheckSeedPath,
+            [Boolean]$CheckInheritedOnly,
             [Boolean]$DetailedLog,
             [Boolean]$CollectTestedPaths = $false
         )
@@ -381,6 +383,28 @@ begin {
             catch {
                 throw "Failed testing the ACL for equality: $_"
             }
+        }
+        #endregion
+
+        #region Function Test-AclInheritedOnlyHC
+        function Test-AclInheritedOnlyHC {
+            [OutputType([Boolean])]
+            param (
+                [Parameter(Mandatory)]
+                [System.Security.AccessControl.FileSystemSecurity]$Acl
+            )
+
+            if ($Acl.AreAccessRulesProtected) {
+                return $false
+            }
+
+            foreach ($rule in $Acl.Access) {
+                if (-not $rule.IsInherited) {
+                    return $false
+                }
+            }
+
+            return $true
         }
         #endregion
 
@@ -522,7 +546,14 @@ begin {
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
                 if ($isContainer) {
-                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $folderRulesSet -DifferenceAce $diffAce))) {
+                    $isIncorrect = if ($CheckInheritedOnly) {
+                        $accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))
+                    }
+                    else {
+                        $accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $folderRulesSet -DifferenceAce $diffAce))
+                    }
+
+                    if ($isIncorrect) {
                         & $incorrectAclInheritedOnly
                     }
 
@@ -534,7 +565,14 @@ begin {
                     }
                 }
                 else {
-                    if ($accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $fileRulesSet -DifferenceAce $diffAce))) {
+                    $isIncorrect = if ($CheckInheritedOnly) {
+                        $accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))
+                    }
+                    else {
+                        $accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $fileRulesSet -DifferenceAce $diffAce))
+                    }
+
+                    if ($isIncorrect) {
                         & $incorrectAclInheritedOnly
                     }
                 }
@@ -672,6 +710,38 @@ begin {
             # rewrite the first folder and the first file (see comment there).
             Write-Verbose 'Inherited permissions'
             $builtinAdmin = [System.Security.Principal.NTAccount]'BUILTIN\Administrators'
+            #endregion
+
+            #region Check or fix the seed folder itself when it is inherit-only
+            if ($CheckSeedPath) {
+                $child = [System.IO.DirectoryInfo]::new($Path)
+                $isContainer = $true
+                $accessDenied = $false
+                $acl = $null
+
+                try {
+                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($child)
+                }
+                catch [System.UnauthorizedAccessException] {
+                    $accessDenied = $true
+                }
+                catch {
+                    try {
+                        $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
+                    }
+                    catch [System.UnauthorizedAccessException] {
+                        $accessDenied = $true
+                    }
+                }
+
+                if ($CollectTestedPaths) {
+                    $testedInheritedFilesAndFolders[$child.FullName] = $true
+                }
+
+                if ($accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))) {
+                    & $incorrectAclInheritedOnly
+                }
+            }
             #endregion
 
             #region Check or fix folder and file permissions
@@ -1051,6 +1121,11 @@ process {
         Write-Verbose 'Folders with ACL in the matrix that are not ignored'
 
         [array]$foldersWithAcl = $Matrix.Where({ ($_.FolderAcl) -and (-not $_.ignore) }) | Sort-Object -Property 'Path'
+        [array]$foldersWithInheritedOnlyAcl = $Matrix.Where({ (-not $_.FolderAcl) -and (-not $_.ignore) }) | Sort-Object -Property 'Path'
+
+        foreach ($folder in $foldersWithInheritedOnlyAcl) {
+            $ignoredFolderPaths[$folder.Path] = $true
+        }
 
         foreach ($folder in $foldersWithAcl) {
             try {
@@ -1177,32 +1252,54 @@ process {
                 $ErrorActionPreference = 'Continue'
                 $scriptBlockString = $inheritedPermissionsScriptBlock.ToString()
 
-                $safeFolders = foreach ($folder in $foldersWithAcl) {
-                    $extractRules = {
-                        param($acl)
-                        if (-not $acl) { return @() }
-                        $arr = @()
-                        foreach ($r in $acl.Access) {
-                            # OPTIMIZATION: Extract to primitive string before sending into the runspace!
-                            $arr += "$([int]$r.FileSystemRights)|$([int]$r.AccessControlType)|$($r.IdentityReference.ToString())|$([int]$r.InheritanceFlags)"
+                $extractRules = {
+                    param($acl)
+                    if (-not $acl) { return @() }
+                    $arr = @()
+                    foreach ($r in $acl.Access) {
+                        # OPTIMIZATION: Extract to primitive string before sending into the runspace!
+                        $arr += "$([int]$r.FileSystemRights)|$([int]$r.AccessControlType)|$($r.IdentityReference.ToString())|$([int]$r.InheritanceFlags)"
+                    }
+                    return $arr
+                }
+
+                $safeFolders = @(
+                    foreach ($folder in $foldersWithAcl) {
+                        [PSCustomObject]@{
+                            Path                = $folder.Path
+                            FolderRules         = &$extractRules $folder.InheritedFolderAcl
+                            FileRules           = &$extractRules $folder.InheritedFileAcl
+                            Action              = $Action
+                            IgnoredFolderPaths  = $ignoredFolderPaths
+                            TokenPrivileges     = $tokenPrivileges
+                            CheckSeedPath       = $false
+                            CheckInheritedOnly  = $false
+                            DetailedLog         = $DetailedLog
+                            CollectTestedPaths  = $CollectTestedPaths
+                            AdNames             = $folder.AdNames
+                            AdPermissions       = $folder.ACL
+                            ScriptString        = $scriptBlockString
                         }
-                        return $arr
                     }
 
-                    [PSCustomObject]@{
-                        Path               = $folder.Path
-                        FolderRules        = &$extractRules $folder.InheritedFolderAcl
-                        FileRules          = &$extractRules $folder.InheritedFileAcl
-                        Action             = $Action
-                        IgnoredFolderPaths = $ignoredFolderPaths
-                        TokenPrivileges    = $tokenPrivileges
-                        DetailedLog        = $DetailedLog
-                        CollectTestedPaths = $CollectTestedPaths
-                        AdNames            = $folder.AdNames
-                        AdPermissions      = $folder.ACL
-                        ScriptString       = $scriptBlockString
+                    foreach ($folder in $foldersWithInheritedOnlyAcl) {
+                        [PSCustomObject]@{
+                            Path                = $folder.Path
+                            FolderRules         = @()
+                            FileRules           = @()
+                            Action              = $Action
+                            IgnoredFolderPaths  = $ignoredFolderPaths
+                            TokenPrivileges     = $tokenPrivileges
+                            CheckSeedPath       = $true
+                            CheckInheritedOnly  = $true
+                            DetailedLog         = $DetailedLog
+                            CollectTestedPaths  = $CollectTestedPaths
+                            AdNames             = $null
+                            AdPermissions       = $null
+                            ScriptString        = $scriptBlockString
+                        }
                     }
-                }
+                )
 
                 $jobResults = $safeFolders | ForEach-Object -Parallel {
                     $folderDto = $_
@@ -1216,6 +1313,8 @@ process {
                         TokenPrivileges     = $folderDto.TokenPrivileges
                         AdNames             = $folderDto.AdNames
                         AdPermissions       = $folderDto.AdPermissions
+                        CheckSeedPath       = $folderDto.CheckSeedPath
+                        CheckInheritedOnly  = $folderDto.CheckInheritedOnly
                         DetailedLog         = $folderDto.DetailedLog
                         CollectTestedPaths  = $folderDto.CollectTestedPaths
                     }
