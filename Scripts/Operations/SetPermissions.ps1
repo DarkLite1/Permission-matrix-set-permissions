@@ -484,7 +484,7 @@ begin {
                                 # of embedded '\n' escapes. Sort the ACE lines so
                                 # 'OldAcl' has a stable order (aligns with the
                                 # non-inherited 'OldAcl'/'NewAcl' warning).
-                                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
+                                $aclText = @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
 
                                 # Key name matches the non-inherited warning: 'OldAcl'
                                 # is the current ACL found on disk. Inherited-only
@@ -548,7 +548,7 @@ begin {
                 # instead of a single string with embedded '\n' escapes. Sort the
                 # ACE lines so 'OldAcl' has a stable order (aligns with the
                 # non-inherited 'OldAcl'/'NewAcl' warning).
-                $aclText = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
+                $aclText = @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
 
                 if ($AdNames -and $AdNames.Count -gt 0) {
                     # Key name matches the non-inherited warning: 'OldAcl' is the
@@ -1086,7 +1086,7 @@ process {
                             # Sort the ACE lines so 'OldAcl' and 'NewAcl' have a
                             # stable, comparable order (mirrors 'MatrixFileAcl').
                             $entry = @{
-                                'OldAcl' = if ($accessDenied) { @('Access Denied') } else { @($acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object) }
+                                'OldAcl' = @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
                                 'NewAcl' = @(($folder.FolderAcl).AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object)
                             }
 

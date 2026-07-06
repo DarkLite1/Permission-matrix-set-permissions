@@ -279,12 +279,19 @@ function Invoke-PermissionMatrixProcessHC {
                         $needsRetry = $false
 
                         try {
-                            $restoredMatrix = if (
-                                -not [string]::IsNullOrWhiteSpace($job.MatrixJson)
-                            ) {
-                                @($job.MatrixJson | ConvertFrom-Json) 
-                            }
-                            else { @() } 
+                            # Wrap the whole if in @() so $restoredMatrix is
+                            # ALWAYS a real array. Assigning the result of an if
+                            # enumerates it: an empty branch collapses to $null
+                            # and a single-element branch collapses to a bare
+                            # scalar -- and $null cannot bind to the remote's
+                            # mandatory [PSCustomObject[]]$Matrix parameter.
+                            $restoredMatrix = @(
+                                if (
+                                    -not [string]::IsNullOrWhiteSpace($job.MatrixJson)
+                                ) {
+                                    $job.MatrixJson | ConvertFrom-Json
+                                }
+                            )
 
                             $session = New-PSSession `
                                 -ComputerName $job.ComputerName `
