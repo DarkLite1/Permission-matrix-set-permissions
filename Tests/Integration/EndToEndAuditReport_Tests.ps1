@@ -95,7 +95,7 @@ Describe 'Permission Matrix Audit Report - End to End' {
                         To              = @()
                         Bcc             = @()
                         Subject         = 'Audit {{MatrixFileName}}: {{UniqueUserCount}} users, {{UniqueGroupCount}} groups'
-                        Body            = '<p>Please review {{MatrixFileName}} at {{RequestTicketURL}}</p>'
+                        Body            = '<p>Please review {{MatrixFileName}}.xlsx at {{RequestTicketURL}}</p>'
                         Smtp            = [ordered]@{
                             ServerName     = 'smtp.example.com'
                             Port           = 25
@@ -187,6 +187,10 @@ Describe 'Permission Matrix Audit Report - End to End' {
         Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             (@($To) -join ';') -match 'owner@example\.com'
         } -Because 'the responsible should be the recipient'
+
+        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+            $Subject -like 'Audit TeamA:*' -and $Body -like '*TeamA.xlsx*'
+        } -Because 'the source Excel file name should be visible in the subject and body'
 
         # The per-matrix log file is attached and exists on disk.
         Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {

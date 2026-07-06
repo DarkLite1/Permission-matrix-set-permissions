@@ -87,6 +87,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
             param(
                 [string]$Name = 'Matrix.xlsx',
                 [string]$Responsible = 'jdoe',
+                [string]$FormDataMatrixFileName,
                 [switch]$NoFormData,
                 [switch]$NoResponsible,
                 [pscustomobject[]]$Check = @(),
@@ -106,7 +107,10 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
             }
             else {
                 [PSCustomObject]@{
-                    MatrixFileName          = $baseName
+                    MatrixFileName          = if ($PSBoundParameters.ContainsKey('FormDataMatrixFileName')) {
+                        $FormDataMatrixFileName
+                    }
+                    else { $baseName }
                     MatrixResponsible       = $Responsible
                     MatrixFilePath          = 'C:\Matrix.xlsx'
                     MatrixCategoryName      = 'Cat'
@@ -301,6 +305,23 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
             }
             Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'jdoe@example.com' -and $Subject -like 'Access review*'
+            }
+        }
+
+        It 'uses the source Excel base name for mail filename tokens' {
+            $script:auditContext = New-AuditContext -FileResults @(
+                New-AuditFileResult `
+                    -Name 'BEL-MTX-AGG-HQSouth-CS&L.xlsx' `
+                    -FormDataMatrixFileName '.xlsx'
+            )
+
+            Invoke-PermissionMatrixAuditReport `
+                -ConfigurationJsonFile $configFile `
+                -ScriptPath $scriptPath `
+                -SystemErrors ([ref]$systemErrors)
+
+            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+                $FormData.MatrixFileName -eq 'BEL-MTX-AGG-HQSouth-CS&L'
             }
         }
 

@@ -349,8 +349,18 @@ function Invoke-PermissionMatrixAuditReport {
         #endregion
 
         #region Build and send the mail (subject + body from config, log attached)
+        $mailFormData = $formData.PSObject.Copy()
+        $matrixFileBaseName = $fileResult.Item.BaseName
+        if ($mailFormData.PSObject.Properties['MatrixFileName']) {
+            $mailFormData.MatrixFileName = $matrixFileBaseName
+        }
+        else {
+            $mailFormData | Add-Member -NotePropertyName 'MatrixFileName' `
+                -NotePropertyValue $matrixFileBaseName
+        }
+
         $msg = Build-AuditReportMailHC `
-            -FormData $formData `
+            -FormData $mailFormData `
             -AccessList $logSheets.AccessList `
             -AttachmentPath $attachmentPath `
             -MailSettings $sendMail `
