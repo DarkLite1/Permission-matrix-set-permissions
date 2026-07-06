@@ -2043,6 +2043,15 @@ Describe 'when Action is' {
                                 foreach ($v in @('OldAcl', 'NewAcl')) {
                                     $_.Value.$v | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
                                 }
+
+                                # The detail JSON must always list the ACL keys in
+                                # the same order (OldAcl, NewAcl, MatrixFileAcl), so
+                                # the entry is built as an [ordered] hashtable.
+                                $actualKeys = @($_.Value.Keys)
+                                $expectedKeyOrder = @('OldAcl', 'NewAcl', 'MatrixFileAcl').Where(
+                                    { $actualKeys -contains $_ }
+                                )
+                                $actualKeys | Should -Be $expectedKeyOrder -Because 'the keys must always be ordered OldAcl, NewAcl, MatrixFileAcl'
                             })
                     }
                 }
@@ -3107,7 +3116,7 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                 [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUserSid = 'L' }; Parent = $true }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual.Value[$fixPath].ContainsKey('MatrixFileAcl') | Should -BeFalse `
+            $actual.Value[$fixPath].Contains('MatrixFileAcl') | Should -BeFalse `
                 -Because 'no AdNames was supplied so the field should not appear'
 
             # OldAcl/NewAcl still populated as before
