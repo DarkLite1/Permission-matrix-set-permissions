@@ -102,6 +102,15 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
 
         Mock Invoke-Command { return $null }
 
+        # SetPermissions phase now owns an explicit PSSession per job so it can
+        # forcibly close (terminate) an orphaned remote command before retrying.
+        # Return a real PSSession-typed mock object so the strongly-typed
+        # -Session parameter on Invoke-Command / Remove-PSSession binds.
+        Mock New-PSSession {
+            New-MockObject -Type 'System.Management.Automation.Runspaces.PSSession'
+        }
+        Mock Remove-PSSession { }
+
         Mock ConvertTo-StructuredObjectHC {
             [CmdletBinding()]
             param(
@@ -294,7 +303,6 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
 
             Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
-                $ComputerName -eq 'SERVER1' -and
                 # Positional argument order matches Set_permissions.ps1's param block:
                 # 0=Path, 1=Action, 2=Matrix, 3=JobThrottleLimit, 4=DetailedLog
                 $ArgumentList[0] -eq 'C:\Data' -and
@@ -304,6 +312,11 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 $ArgumentList[2][1].Path -eq 'C:\Data\Sub2' -and
                 $ArgumentList[3] -eq 5 -and
                 $ArgumentList[4] -eq $true
+            }
+
+            # ComputerName is now supplied to the session, not to Invoke-Command
+            Should -Invoke New-PSSession -Times 1 -ParameterFilter {
+                $ComputerName -eq 'SERVER1'
             }
         }
 
@@ -376,11 +389,13 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             $m2 = New-TestMatrix -ComputerName 'SERVER2' -Path 'C:\B'
             $ctx = New-TestContext -Matrices @($m1, $m2)
 
-            # Only the SERVER1 set-permissions call fails
+            # Only the SERVER1 set-permissions call fails. The session is opaque
+            # here, so distinguish computers by the job Path in ArgumentList[0]
+            # (SERVER1 -> C:\A, SERVER2 -> C:\B).
             Mock Invoke-Command {
                 throw 'set permissions failed'
             } -ParameterFilter {
-                $FilePath -eq 'TestDrive:\SetPerm.ps1' -and $ComputerName -eq 'SERVER1'
+                $FilePath -eq 'TestDrive:\SetPerm.ps1' -and $ArgumentList[0] -eq 'C:\A'
             }
 
             $null = Invoke-PermissionMatrixProcessHC `
@@ -392,6 +407,89 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             $m2.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
             Should -Be 0
         } -Tag test
+
+        It 'retries a transient WinRM I/O abort and succeeds without recording an error' {
+            $m = New-TestMatrix -ComputerName 'SERVER1' -Path 'C:\A'
+            $ctx = New-TestContext -Matrices @($m)
+
+            Mock Start-Sleep {}
+
+            $script:setPermAttempt = 0
+            Mock Invoke-Command {
+                $script:setPermAttempt++
+                if ($script:setPermAttempt -lt 3) {
+                    throw 'Processing data from remote server SERVER1 failed with the following error message: The I/O operation has been aborted because of either a thread exit or an application request.'
+                }
+                return $null
+            } -ParameterFilter { $FilePath -eq 'TestDrive:\SetPerm.ps1' }
+
+            $null = Invoke-PermissionMatrixProcessHC `
+                -Context $ctx `
+                -SystemErrors ([ref]$systemErrors)
+
+            # Two transient aborts + one success = 3 attempts, 2 back-off waits
+            Should -Invoke Invoke-Command -Times 3 -ParameterFilter {
+                $FilePath -eq 'TestDrive:\SetPerm.ps1'
+            }
+            Should -Invoke Start-Sleep -Times 2
+            # Every attempt opens then closes its own session, so an orphaned
+            # remote command is terminated before the next attempt reconnects.
+            Should -Invoke New-PSSession -Times 3
+            Should -Invoke Remove-PSSession -Times 3
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
+            Should -Be 0
+        }
+
+        It 'gives up after the maximum attempts on a persistent I/O abort and records one error' {
+            $m = New-TestMatrix -ComputerName 'SERVER1' -Path 'C:\A'
+            $ctx = New-TestContext -Matrices @($m)
+
+            Mock Start-Sleep {}
+
+            Mock Invoke-Command {
+                throw 'The I/O operation has been aborted because of either a thread exit or an application request.'
+            } -ParameterFilter { $FilePath -eq 'TestDrive:\SetPerm.ps1' }
+
+            $null = Invoke-PermissionMatrixProcessHC `
+                -Context $ctx `
+                -SystemErrors ([ref]$systemErrors)
+
+            # 3 attempts total (initial + 2 retries), 2 back-off waits
+            Should -Invoke Invoke-Command -Times 3 -ParameterFilter {
+                $FilePath -eq 'TestDrive:\SetPerm.ps1'
+            }
+            Should -Invoke Start-Sleep -Times 2
+            # Session closed before each retry to terminate any orphaned run
+            Should -Invoke Remove-PSSession -Times 3
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
+            Should -Be 1
+        }
+
+        It 'does NOT retry a genuine (non-transient) SetPermissions failure' {
+            $m = New-TestMatrix -ComputerName 'SERVER1' -Path 'C:\A'
+            $ctx = New-TestContext -Matrices @($m)
+
+            Mock Start-Sleep {}
+
+            Mock Invoke-Command {
+                throw 'Access to the path is denied.'
+            } -ParameterFilter { $FilePath -eq 'TestDrive:\SetPerm.ps1' }
+
+            $null = Invoke-PermissionMatrixProcessHC `
+                -Context $ctx `
+                -SystemErrors ([ref]$systemErrors)
+
+            # Business error: single attempt, no retries, no waits
+            Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
+                $FilePath -eq 'TestDrive:\SetPerm.ps1'
+            }
+            Should -Invoke Start-Sleep -Times 0
+            # Single session, still closed exactly once
+            Should -Invoke New-PSSession -Times 1
+            Should -Invoke Remove-PSSession -Times 1
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
+            Should -Be 1
+        }
 
         It 'returns context untouched if all matrices failed requirements' {
             $m = New-TestMatrix

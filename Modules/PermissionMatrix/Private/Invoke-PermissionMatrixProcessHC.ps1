@@ -246,46 +246,112 @@ function Invoke-PermissionMatrixProcessHC {
                     -MaximumReceivedObjectSize ([Int32]::MaxValue)
 
                 $innerResults = @()
-            
+
+                # Retry policy for TRANSIENT WinRM transport aborts only
+                # (Win32 995 ERROR_OPERATION_ABORTED, "The I/O operation has
+                # been aborted because of either a thread exit or an
+                # application request"). These are client-side session
+                # teardowns, not permission failures, and are safe to retry:
+                # SetPermissions.ps1 enforces declarative desired-state ACLs,
+                # so a re-run converges to the same result. Genuine business
+                # errors are NOT retried (recorded on the first failure).
+                #
+                # EXPLICIT SESSIONS (not implicit -ComputerName): a client-side
+                # abort does NOT guarantee the remote pipeline stopped -- WinRM
+                # keeps the server-side shell alive until its IdleTimeout, so a
+                # naive retry could start a SECOND SetPermissions run while the
+                # first is still orphaned-but-running, racing on the same tree
+                # (folder creation, SetAccessControl, ownership takeover). By
+                # owning the PSSession we can Remove-PSSession in the `finally`,
+                # which sends the WSMan terminate/delete that stops any orphaned
+                # remote command BEFORE we open a fresh session for the retry.
+                $maxAttempts = 3
+                $retryDelaySeconds = 5
+
                 foreach ($job in $compDto.Matrices) {
                     $startTime = Get-Date
-                    try {
-                        $restoredMatrix = if (
-                            -not [string]::IsNullOrWhiteSpace($job.MatrixJson)
-                        ) {
-                            @($job.MatrixJson | ConvertFrom-Json) 
+                    $attempt = 0
+                    $jobResult = $null
+
+                    while ($true) {
+                        $attempt++
+                        $session = $null
+                        $needsRetry = $false
+
+                        try {
+                            $restoredMatrix = if (
+                                -not [string]::IsNullOrWhiteSpace($job.MatrixJson)
+                            ) {
+                                @($job.MatrixJson | ConvertFrom-Json) 
+                            }
+                            else { @() } 
+
+                            $session = New-PSSession `
+                                -ComputerName $job.ComputerName `
+                                -ConfigurationName $sessionConfig `
+                                -SessionOption $sessionOption `
+                                -ErrorAction Stop
+
+                            $res = Invoke-Command `
+                                -Session $session `
+                                -FilePath $scriptPaths.SetPermissions `
+                                -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
+                                -ErrorAction Stop
+
+                            $jobResult = [PSCustomObject]@{ 
+                                ID     = $job.ID
+                                Result = $res
+                                Start  = $startTime 
+                                End    = (Get-Date) 
+                            }
                         }
-                        else { @() } 
-                    
-                        $res = Invoke-Command `
-                            -FilePath $scriptPaths.SetPermissions `
-                            -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
-                            -ConfigurationName $sessionConfig `
-                            -ComputerName $job.ComputerName `
-                            -SessionOption $sessionOption `
-                            -ErrorAction Stop
-                    
-                        $innerResults += [PSCustomObject]@{ 
-                            ID     = $job.ID
-                            Result = $res
-                            Start  = $startTime 
-                            End    = (Get-Date) 
+                        catch {
+                            $isTransientAbort = (
+                                "$($_.Exception.Message)" -match 'I/O operation has been aborted' -or
+                                ($_.Exception.HResult -band 0xFFFF) -eq 995
+                            )
+
+                            if ($isTransientAbort -and $attempt -lt $maxAttempts) {
+                                $needsRetry = $true
+                            }
+                            else {
+                                $errObj = [PSCustomObject]@{ 
+                                    Type        = 'FatalError' 
+                                    Name        = 'Set permissions'
+                                    Description = 'Failed applying action.' 
+                                    Value       = $_ 
+                                }
+                                $jobResult = [PSCustomObject]@{
+                                    ID     = $job.ID
+                                    Result = $errObj
+                                    Start  = $startTime
+                                    End    = (Get-Date) 
+                                }
+                            }
                         }
+                        finally {
+                            # Always close the session. On a transient abort
+                            # this forcibly terminates any still-running
+                            # (orphaned) remote command server-side, so the
+                            # retry never overlaps the previous run.
+                            if ($session) {
+                                Remove-PSSession `
+                                    -Session $session `
+                                    -ErrorAction SilentlyContinue
+                            }
+                        }
+
+                        if ($needsRetry) {
+                            # Settle delay: let the server finish tearing down
+                            # the terminated command before we reconnect.
+                            Start-Sleep -Seconds $retryDelaySeconds
+                            continue
+                        }
+
+                        break
                     }
-                    catch {
-                        $errObj = [PSCustomObject]@{ 
-                            Type        = 'FatalError' 
-                            Name        = 'Set permissions'
-                            Description = 'Failed applying action.' 
-                            Value       = $_ 
-                        }
-                        $innerResults += [PSCustomObject]@{
-                            ID     = $job.ID
-                            Result = $errObj
-                            Start  = $startTime
-                            End    = (Get-Date) 
-                        }
-                    }
+
+                    $innerResults += $jobResult
                 }
                 return $innerResults
             }
