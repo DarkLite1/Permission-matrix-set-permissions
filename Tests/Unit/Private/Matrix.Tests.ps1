@@ -92,6 +92,27 @@ Describe 'Format-PermissionsStringsHC' {
         $res = [pscustomobject]@{ P1 = ' Abc ' } | Format-PermissionsStringsHC
         $res.P1 | Should -Be 'Abc'
     }
+
+    It 'strips trailing slashes from P1 while preserving casing' {
+        $row = [pscustomobject]@{ P1 = ' Staff\COM\BENE\Com\SocialMedia\ '; P2 = ' w ' }
+
+        $res = Format-PermissionsStringsHC -Row $row
+
+        $res.P1 | Should -Be 'Staff\COM\BENE\Com\SocialMedia'
+        $res.P2 | Should -Be 'W'
+    }
+
+    It 'strips trailing slashes from relative P1 paths without a path root' {
+        $res = Format-PermissionsStringsHC -Row ([pscustomobject]@{ P1 = ' dd\dd\ ' })
+
+        $res.P1 | Should -Be 'dd\dd'
+    }
+
+    It 'does not strip a filesystem root from P1' {
+        $res = Format-PermissionsStringsHC -Row ([pscustomobject]@{ P1 = ' C:\ ' })
+
+        $res.P1 | Should -Be 'C:\'
+    }
 }
 
 Describe 'Format-SettingStringsHC' {
@@ -536,6 +557,14 @@ Describe 'Merge-DefaultPermissionsHC' {
 
         { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } |
         Should -Throw '*conflict*'
+    }
+
+    It 'treats default and matrix ACL conflicts as case-insensitive' {
+        $defaults = @{ Shared = 'F' }
+        $matrix = @{ shared = 'R' }
+
+        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } |
+        Should -Throw '*Shared*'
     }
 
     It 'names the conflicting AD object in the error' {

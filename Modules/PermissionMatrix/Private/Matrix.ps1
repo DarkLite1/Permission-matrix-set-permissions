@@ -90,9 +90,10 @@ function Format-PermissionsStringsHC {
         Produces a new object from a row returned by Import-Excel for the
         Permissions sheet, in which every string-valued property is trimmed of
         leading and trailing whitespace. All columns except P1 are also
-        converted to upper case; P1 holds the folder path (Column A) and keeps
-        its original capitalization because it is used verbatim to create
-        folders on disk. Values that are not strings (numbers, dates, booleans,
+        converted to upper case; P1 holds the folder path (Column A), keeps
+        its original capitalization, and has trailing path separators removed
+        because it is used verbatim to create folders on disk. Values that are
+        not strings (numbers, dates, booleans,
         $null, arrays, nested objects, and so on) are copied across unchanged.
 
         The original property order is preserved by building the result through
@@ -139,8 +140,9 @@ function Format-PermissionsStringsHC {
 
     .NOTES
         - Only scalar [string] values are trimmed. Every string column except
-          P1 is also uppercased; P1 (the folder path) is only trimmed so its
-          on-disk capitalization is preserved. Everything non-string is copied
+          P1 is also uppercased; P1 (the folder path) is trimmed and stripped of
+          trailing path separators so its on-disk capitalization is preserved
+          while path comparisons stay stable. Everything non-string is copied
           unchanged, including $null, numbers, dates, booleans and arrays. A
           string element inside an array property is therefore left as-is.
         - Trimming removes leading and trailing whitespace only; whitespace
@@ -165,11 +167,21 @@ function Format-PermissionsStringsHC {
             if ($val -is [string]) {
                 # P1 is the folder path (Column A). It is used verbatim to
                 # create missing folders on disk, so its original capitalization
-                # MUST be preserved - only trim it. Every other column holds a
-                # permission character (R/W/L/F/I) that is matched
-                # case-insensitively, so those are trimmed AND upper-cased.
+                # MUST be preserved. Remove trailing separators here so every
+                # downstream matrix consumer sees one canonical folder path.
+                # Every other column holds a permission character (R/W/L/F/I)
+                # that is matched case-insensitively, so those are trimmed AND
+                # upper-cased.
                 if ($prop.Name -eq 'P1') {
                     $val = $val.Trim()
+
+                    $rootPath = [System.IO.Path]::GetPathRoot($val)
+                    if ((-not $rootPath) -or ($val.Length -gt $rootPath.Length)) {
+                        $val = $val.TrimEnd(
+                            [System.IO.Path]::DirectorySeparatorChar,
+                            [System.IO.Path]::AltDirectorySeparatorChar
+                        )
+                    }
                 }
                 else {
                     $val = $val.Trim().ToUpper()
