@@ -733,6 +733,36 @@ Describe 'when the script runs for a matrix' {
         }
     }
 }
+Describe 'the output objects carry a DateTime for JSON logging' {
+    BeforeAll {
+        # Action='Check' against a non-existent parent folder is a
+        # deterministic path: the script returns the 'Parent folder missing'
+        # FatalError object without needing AD access or on-disk ACLs.
+        $testParams = @{
+            Path             = 'TestDrive:\DoesNotExist'
+            Action           = 'Check'
+            Matrix           = @(
+                [PSCustomObject]@{ Path = 'Path'; ACL = @{ $env:USERNAME = 'L' }; Parent = $true }
+            )
+            JobThrottleLimit = 2
+        }
+        $testResult = .$testScript @testParams | Where-Object {
+            ($_.Type -eq 'FatalError') -and ($_.Name -eq 'Parent folder missing')
+        }
+    }
+    It 'adds a DateTime property of type [DateTime]' {
+        $testResult | Should -Not -BeNullOrEmpty
+        $testResult.DateTime | Should -BeOfType [DateTime]
+    }
+    It 'keeps the DateTime visible after ConvertTo-Json, so it lands in the .json log file' {
+        # Mirror how Invoke-PermissionMatrixEndHC/ProcessHC serialize the
+        # objects when writing the .json log files.
+        $json = $testResult | ConvertTo-Json -Depth 10
+
+        $json | Should -Match '"DateTime":'
+        ($json | ConvertFrom-Json).DateTime | Should -Not -BeNullOrEmpty
+    }
+}
 Describe 'Permissions' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force

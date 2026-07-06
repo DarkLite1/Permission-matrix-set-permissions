@@ -879,6 +879,7 @@ process {
                 catch {
                     $Error.RemoveAt(0)
                     return [PSCustomObject]@{
+                        DateTime    = Get-Date
                         Type        = 'FatalError'
                         Name        = 'Parent folder exists already'
                         Description = "The folder defined as 'Path' in the worksheet 'Settings' cannot be present on the remote machine when 'Action=New' is used. Please use 'Action' with value 'Check' or 'Fix' instead."
@@ -888,6 +889,7 @@ process {
             }
             elseif (-not (Test-Path -LiteralPath $Path -PathType Container)) {
                 return [PSCustomObject]@{
+                    DateTime    = Get-Date
                     Type        = 'FatalError'
                     Name        = 'Parent folder missing'
                     Description = "The folder defined as 'Path' in the worksheet 'Settings' needs to be available on the remote machine. In case the folder structure needs to be created, please use 'Action=New' instead."
@@ -918,6 +920,7 @@ process {
                 })
 
             [PSCustomObject]@{
+                DateTime    = Get-Date
                 Type        = 'Information'
                 Name        = 'Ignored folder'
                 Description = "All rows in the worksheet 'Permissions' that have the character 'i' defined are ignored. These folders are not checked for incorrect permissions."
@@ -1020,6 +1023,7 @@ process {
 
             if ($missingFolders.Count -ne 0) {
                 $Obj = [PSCustomObject]@{
+                    DateTime    = Get-Date
                     Type        = 'Warning'
                     Name        = $null
                     Description = $null
@@ -1156,6 +1160,7 @@ process {
 
         if ($incorrectAclNonInheritedFolders.Count -ne 0) {
             [PSCustomObject]@{
+                DateTime    = Get-Date
                 Type        = 'Warning'
                 Name        = 'Non inherited folder incorrect permissions'
                 Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
@@ -1236,6 +1241,7 @@ process {
 
                 if ($IncorrectInheritedAcl.Count -ne 0) {
                     [PSCustomObject]@{
+                        DateTime    = Get-Date
                         Type        = 'Warning'
                         Name        = 'Inherited permissions incorrect'
                         Description = "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
