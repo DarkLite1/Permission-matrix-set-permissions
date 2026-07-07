@@ -69,7 +69,7 @@ $Script:Theme = @{
 
     # Typography stacks
     FontStack      = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    MonoStack      = "'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace"
+    MonoStack      = "Consolas, Menlo, monospace"
 
     # Body width — narrow enough to coexist with inbox sidebars on small laptops
     BodyWidth      = 620

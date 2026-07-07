@@ -243,19 +243,27 @@ function Build-SettingsRowHC {
         " class='rr-srow-status'"
     }
     else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:6px 14px 6px 4px; white-space:nowrap; line-height:16px; mso-line-height-rule:exactly;'>$pillHtml</td>"
+    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px; mso-line-height-rule:exactly;'>$pillHtml</td>"
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 6px 0; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:6px 0 6px 14px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
-        <td valign='top' class='rr-srow-ident' style='padding:6px 8px;'>
-            <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:inherit;'>
-                <div style='font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; margin:0; mso-line-height-rule:exactly;'>$comp</div>
-                <div class='rr-srow-path' style='font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; margin:0; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>$pathDisp</div>
-            </a>
+        <td valign='middle' width='20' style='padding:4px 0 4px 12px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
+        <td valign='middle' class='rr-srow-ident' style='padding:4px 8px;'>
+            <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; table-layout:fixed;'>
+                <tr>
+                    <td valign='top' style='padding:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'>
+                        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a>
+                    </td>
+                </tr>
+                <tr>
+                    <td valign='top' class='rr-srow-path' style='padding:0; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>
+                        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMuted);'>$pathDisp</a>
+                    </td>
+                </tr>
+            </table>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:6px 12px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
+        <td valign='middle' align='right' class='rr-srow-meta' width='104' style='padding:4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
@@ -344,6 +352,23 @@ function Build-MatrixFileCardHC {
     }
     else { '&nbsp;' }
 
+    $footerRowHtml = @"
+<!--[if mso]>
+    <tr>
+        <td valign='middle' style='padding:6px 16px 0 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:$($Script:Theme.TextLight);'>
+            $footerLinksHtml
+        </td>
+    </tr>
+<![endif]-->
+<!--[if !mso]><!-->
+    <tr>
+        <td valign='top' style='padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:$($Script:Theme.TextLight);'>
+            $footerLinksHtml
+        </td>
+    </tr>
+<!--<![endif]-->
+"@
+
     # Tally checks across all sources to decide header color and summary text
     $allChecks = @()
     if ($FileContext.Check) { $allChecks += $FileContext.Check }
@@ -419,8 +444,13 @@ function Build-MatrixFileCardHC {
         Sort-Object { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
 
         $settingsRowsHtml = ''
+        $settingsIndex = 0
         foreach ($m in $sortedMatrices) {
+            if ($settingsIndex -gt 0) {
+                $settingsRowsHtml += '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#ffffff" style="background-color:#ffffff;"><tr><td bgcolor="#ffffff" height="4" style="font-size:0; line-height:0; background-color:#ffffff;">&#160;</td></tr></table><![endif]-->'
+            }
             $settingsRowsHtml += Build-SettingsRowHC -MatrixItem $m -FileHasError $fileHasError
+            $settingsIndex++
         }
 
         $matrixCount = @($sortedMatrices).Count
@@ -447,13 +477,13 @@ function Build-MatrixFileCardHC {
     }
 
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$($Script:Theme.BgWhite)" style="border-collapse:separate; margin:0 0 24px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$($Script:Theme.BgWhite)" style="border-collapse:separate; margin:0 0 16px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
     <tr>
         <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
                     <td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
-                    <td valign='middle' style='padding:14px 10px 14px 4px;'>
+                    <td valign='middle' style='padding:14px 8px 14px 4px;'>
                         <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
                         </div>
@@ -461,17 +491,13 @@ function Build-MatrixFileCardHC {
                             $lastChangeInfo
                         </div>
                     </td>
-                    <td valign='middle' align='right' width='92' style='padding:14px 14px 14px 8px; white-space:nowrap; width:92px;'>$headerLabelHtml</td>
+                    <td valign='middle' align='right' width='112' style='padding:14px 12px 14px 6px; white-space:nowrap; width:112px;'>$headerLabelHtml</td>
                 </tr>
             </table>
         </td>
     </tr>
     $contentRows
-    <tr>
-        <td valign='top' style='padding:4px 16px 8px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:$($Script:Theme.TextLight);'>
-            $footerLinksHtml
-        </td>
-    </tr>
+    $footerRowHtml
 </table>
 <!--[if mso]>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="16" style="font-size:0; line-height:0;">&#160;</td></tr></table>
@@ -587,7 +613,7 @@ $($Html.Style)
             <!--[if mso]>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" align="center"><tr><td>
             <![endif]-->
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:${bodyWidth}px; margin:0 auto;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" style="border-collapse:collapse; width:${bodyWidth}px; max-width:${bodyWidth}px; margin:0 auto;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
                 <tr><td style="padding:0;">$topLinksBlock</td></tr>

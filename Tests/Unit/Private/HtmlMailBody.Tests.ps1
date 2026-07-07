@@ -179,12 +179,20 @@ Describe 'Build-SettingsRowHC' {
 
     It 'middle-aligns the Outlook row chrome with exact line heights' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match "valign='middle' width='20' style='padding:6px 0 6px 14px;"
-        $html | Should -Match "rr-srow-ident' style='padding:6px 8px;'"
-        $html | Should -Match "valign='middle' align='right' class='rr-srow-meta' width='120' style='padding:6px 12px;"
-        # The computer-name/path divs must carry margin:0 + exact line-height so
-        # Word doesn't add paragraph space above the computer name.
-        $html | Should -Match 'margin:0; mso-line-height-rule:exactly;'
+        $html | Should -Match "table-layout:fixed;"
+        $html | Should -Match "valign='middle' width='20' style='padding:4px 0 4px 12px;"
+        $html | Should -Match "valign='middle' class='rr-srow-ident' style='padding:4px 8px;'"
+        $html | Should -Match "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; table-layout:fixed;'>"
+        $html | Should -Match "valign='middle' align='right' class='rr-srow-meta' width='104' style='padding:4px 10px;"
+        $html | Should -Not -Match '<td height="6" style="font-size:0; line-height:0;">&#160;</td>'
+        $html | Should -Not -Match '<div style='
+    }
+
+    It 'keeps path wrapping styles valid inside single-quoted attributes' {
+        $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -Path 'E:\very\long\path')
+
+        $html | Should -Match "font-family:Consolas, Menlo, monospace; font-size:11px;"
+        $html | Should -Match "white-space:normal; overflow-wrap:anywhere; word-break:break-all;"
     }
 }
 
@@ -289,10 +297,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            # Each card is anchored by its footer link list. These
-            # fixtures have no ReportFilePath or LogMatrixFilePath, so
-            # the fallback 'Open matrix file' link renders once per card.
-            ([regex]::Matches($out, 'Open matrix file')).Count | Should -Be 3
+            ([regex]::Matches($out, 'width="100%" bgcolor="#ffffff"')).Count | Should -Be 3
         }
     }
 
@@ -349,7 +354,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
         }
 
-        It 'uses compact exact footer spacing for Outlook' {
+        It 'uses separate Outlook and browser footer spacing' {
             $files = @(
                 New-FileResult `
                     -ReportFilePath 'C:\logs\report.html' `
@@ -358,7 +363,11 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match "<td valign='top' style='padding:4px 16px 8px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;'"
+            $out | Should -Match '<!--\[if mso\]>'
+            $out | Should -Match "valign='middle' style='padding:6px 16px 0 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;"
+            $out | Should -Match '<!--\[if !mso\]><!-->'
+            $out | Should -Match "padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:#6b7280;"
+            $out | Should -Match '<td height="16" style="font-size:0; line-height:0;">&#160;</td>'
         }
 
         It 'falls back to the source matrix file link when no log artifacts exist' {
@@ -437,7 +446,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
         It 'reserves enough header space for the status label in Outlook' {
             $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
 
-            $out | Should -Match "valign='middle' align='right' width='92' style='padding:14px 14px 14px 8px; white-space:nowrap; width:92px;'"
+            $out | Should -Match "valign='middle' align='right' width='112' style='padding:14px 12px 14px 6px; white-space:nowrap; width:112px;'"
         }
 
         It 'shows a warning header when a matrix row has a Warning' {
@@ -481,6 +490,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should -Match 'Settings \(2\)'
             $out | Should -Match 'SRV01'
             $out | Should -Match 'SRV02'
+            ([regex]::Matches($out, 'bgcolor="#ffffff" height="4" style="font-size:0; line-height:0; background-color:#ffffff;">&#160;</td>')).Count | Should -Be 1
+            $out | Should -Not -Match 'height="6" style="font-size:0; line-height:0;">&#160;</td>'
         }
 
         It 'shows the empty-state message when there are no matrices and no issues' {
