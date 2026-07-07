@@ -2308,6 +2308,124 @@ Describe 'when Action is' {
                 }
             }
         }
+        Context 'incorrect file permissions' {
+            It 'a file directly under the parent folder is corrected on disk' {
+                #region Create the correct folder structure and permissions
+                # A fresh Matrix must be passed to every script invocation: the
+                # script mutates the matrix objects (adds FolderAcl/InheritedFileAcl
+                # members), so the same objects cannot be reused for a later run.
+                $newMatrix = {
+                    @(
+                        [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'R' }; Parent = $true }
+                    )
+                }
+
+                .$testScript -Path $testParentFolder -Action 'New' -JobThrottleLimit 2 -Matrix (& $newMatrix)
+                #endregion
+
+                #region Create a file that correctly inherits the parent folder ACL
+                $testFile = (New-Item -Path (Join-Path $testParentFolder 'File') -ItemType File -Force).FullName
+                #endregion
+
+                #region Corrupt the file with an explicit (non inherited) ACL
+                $acl = New-Object System.Security.AccessControl.FileSecurity
+                $acl.SetAccessRuleProtection($true, $false)
+                $acl.SetOwner($BuiltinAdmin)
+
+                $aceList = @($AdminFullControlIFileAce)
+                $aceList += New-TestAceHC -Type 'InheritedFile' -Access 'W' -Name $testUser2
+                $aceList.foreach( { $acl.AddAccessRule($_) })
+
+                Set-Acl -Path $testFile -AclObject $acl
+                #endregion
+
+                #region Sanity check: the file really carries an explicit ACL
+                (Get-Acl -LiteralPath $testFile).Access.IsInherited |
+                Should -Contain $false -Because 'the file must carry explicit ACEs for this test to be meaningful'
+                #endregion
+
+                .$testScript -Path $testParentFolder -Action 'Fix' -JobThrottleLimit 2 -Matrix (& $newMatrix)
+
+                #region The file is reset to inherit only, with the wrong ACE removed
+                $actual = (Get-Acl -LiteralPath $testFile).Access
+
+                $actual.IsInherited |
+                Should -Not -Contain $false -Because 'a corrected file only carries inherited ACEs'
+                $actual.IdentityReference.Value |
+                Should -Not -Contain "$env:USERDOMAIN\$testUser2" -Because 'the incorrect explicit ACE must be removed'
+                $actual.IdentityReference.Value |
+                Should -Contain "$env:USERDOMAIN\$testUser" -Because 'the file must inherit the correct group ACE from the parent folder'
+
+                (Get-Acl -LiteralPath $testFile).Owner |
+                Should -Be 'BUILTIN\Administrators' -Because 'the owner is reset to the built-in administrators'
+                #endregion
+            }
+            It 'deeply nested files 3 and 4 levels deep are corrected on disk' {
+                #region Create the correct folder structure and permissions
+                # A fresh Matrix must be passed to every script invocation: the
+                # script mutates the matrix objects (adds FolderAcl/InheritedFileAcl
+                # members), so the same objects cannot be reused for a later run.
+                $newMatrix = {
+                    @(
+                        [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'R' }; Parent = $true }
+                        [PSCustomObject]@{Path = 'A'; ACL = @{ } }
+                        [PSCustomObject]@{Path = 'A\B'; ACL = @{ } }
+                        [PSCustomObject]@{Path = 'A\B\C'; ACL = @{ } }
+                        [PSCustomObject]@{Path = 'A\B\C\D'; ACL = @{ } }
+                    )
+                }
+
+                .$testScript -Path $testParentFolder -Action 'New' -JobThrottleLimit 2 -Matrix (& $newMatrix)
+                #endregion
+
+                #region Create files that correctly inherit their parent folder ACL
+                # Level 3: ...\A\B\C\File3   Level 4: ...\A\B\C\D\File4
+                $testFiles = @(
+                    (New-Item -Path "$testParentFolder\A\B\C\File3" -ItemType File -Force).FullName
+                    (New-Item -Path "$testParentFolder\A\B\C\D\File4" -ItemType File -Force).FullName
+                )
+                #endregion
+
+                #region Corrupt each nested file with an explicit (non inherited) ACL
+                $testFiles.ForEach( {
+                        $acl = New-Object System.Security.AccessControl.FileSecurity
+                        $acl.SetAccessRuleProtection($true, $false)
+                        $acl.SetOwner($BuiltinAdmin)
+
+                        $aceList = @($AdminFullControlIFileAce)
+                        $aceList += New-TestAceHC -Type 'InheritedFile' -Access 'W' -Name $testUser2
+                        $aceList.foreach( { $acl.AddAccessRule($_) })
+
+                        Set-Acl -Path $_ -AclObject $acl
+                    })
+                #endregion
+
+                #region Sanity check: both files really carry an explicit ACL
+                $testFiles.ForEach( {
+                        (Get-Acl -LiteralPath $_).Access.IsInherited |
+                        Should -Contain $false -Because "file '$_' must carry explicit ACEs for this test to be meaningful"
+                    })
+                #endregion
+
+                .$testScript -Path $testParentFolder -Action 'Fix' -JobThrottleLimit 2 -Matrix (& $newMatrix)
+
+                #region Both nested files are reset to inherit only, wrong ACE removed
+                $testFiles.ForEach( {
+                        $actual = (Get-Acl -LiteralPath $_).Access
+
+                        $actual.IsInherited |
+                        Should -Not -Contain $false -Because "the corrected file '$_' only carries inherited ACEs"
+                        $actual.IdentityReference.Value |
+                        Should -Not -Contain "$env:USERDOMAIN\$testUser2" -Because "the incorrect explicit ACE must be removed from '$_'"
+                        $actual.IdentityReference.Value |
+                        Should -Contain "$env:USERDOMAIN\$testUser" -Because "the file '$_' must inherit the correct group ACE"
+
+                        (Get-Acl -LiteralPath $_).Owner |
+                        Should -Be 'BUILTIN\Administrators' -Because "the owner of '$_' is reset to the built-in administrators"
+                    })
+                #endregion
+            }
+        }
         Context 'when the script is run again after Action Fix/New' {
             It 'the permissions are unchanged' {
                 $testParams = @{
