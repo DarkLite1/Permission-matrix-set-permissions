@@ -215,16 +215,17 @@ function Build-SettingsRowHC {
     else { '#' }
 
     # Always reserve the pill cell so columns align even when this row has no issues.
-    $pillHtml = if ($err -gt 0) {
-        New-PillHtmlHC -Text 'Error' -Bg $Script:Theme.AccentError
+    $pillText = $null
+    $pillBg = $null
+    if ($err -gt 0) {
+        $pillText = 'Error'; $pillBg = $Script:Theme.AccentError
     }
     elseif ($warn -gt 0) {
-        New-PillHtmlHC -Text 'Warning' -Bg $Script:Theme.AccentWarning
+        $pillText = 'Warning'; $pillBg = $Script:Theme.AccentWarning
     }
     elseif ($isSkipped) {
-        New-PillHtmlHC -Text 'Skipped' -Bg $Script:Theme.AccentSkipped
+        $pillText = 'Skipped'; $pillBg = $Script:Theme.AccentSkipped
     }
-    else { '&nbsp;' }
 
     # Table-based card so Outlook Classic (Word rendering engine, which has no
     # flexbox support) shows the identifier, metadata and status pill as proper
@@ -239,17 +240,40 @@ function Build-SettingsRowHC {
     # 'rr-srow-status' class is only added when a pill is actually present (a test
     # asserts clean rows don't carry it), but the empty cell still reserves the
     # column width.
-    $pillClass = if ($pillHtml -and $pillHtml -ne '&nbsp;') {
-        " class='rr-srow-status'"
+    #
+    # Outlook (Word) and the browser need DIFFERENT pill cells, gated by
+    # conditional comments so each client renders exactly one:
+    #  * Outlook: an inline VML shape is BASELINE-aligned and Word does NOT
+    #    vertically centre a nested table via valign (it top-anchors a block that
+    #    is shorter than the row). Fix: a 3-row nested table with top/bottom spacer
+    #    cells around the pill, sized so the WHOLE nested table is the TALLEST cell
+    #    in the row (taller than the identifier cell). Being tallest, it drives the
+    #    row height. The spacers are slightly asymmetric (8px top / 4px bottom) to
+    #    nudge the pill down a couple of px, since the VML shape otherwise sits a
+    #    touch high on its baseline. Table = 8+26+4 = 38px > identifier cell (29px
+    #    text + 8px padding = 37px). The pill cell's line-height:26px fully contains
+    #    the pill so it is not clipped.
+    #  * Browser: the CSS span centres itself against the natural font baseline,
+    #    so it keeps a normal font-size (line-height:16px lets the span's own box
+    #    drive the line) and stays perfectly centred as before.
+    if ($pillText) {
+        $pillParts = New-PillHtmlHC -Text $pillText -Bg $pillBg -AsParts
+        $msoSpacerTop = "<tr><td height='8' style='font-size:0; line-height:8px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr>"
+        $msoSpacerBottom = "<tr><td height='4' style='font-size:0; line-height:4px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr>"
+        $pillTd =
+        "<!--[if mso]><td valign='middle' align='center' class='rr-srow-status' width='84' style='vertical-align:middle; padding:0 8px;'><table role='presentation' align='center' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'>$msoSpacerTop<tr><td style='padding:0; font-size:0; line-height:26px; mso-line-height-rule:exactly;'>$($pillParts.Mso)</td></tr>$msoSpacerBottom</table></td><![endif]-->" +
+        "<!--[if !mso]><!--><td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px;'>$($pillParts.Browser)</td><!--<![endif]-->"
     }
-    else { '' }
-    $pillTd = "<td valign='middle' align='right'$pillClass width='84' style='padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px; mso-line-height-rule:exactly;'>$pillHtml</td>"
+    else {
+        # Clean row: reserve the column width with a single empty cell.
+        $pillTd = "<td valign='middle' align='right' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px;'>&nbsp;</td>"
+    }
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign='middle' width='20' style='padding:4px 0 4px 12px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
-        <td valign='middle' class='rr-srow-ident' style='padding:4px 8px;'>
+        <td valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
+        <td valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'>
             <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; table-layout:fixed;'>
                 <tr>
                     <td valign='top' style='padding:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'>
@@ -263,7 +287,7 @@ function Build-SettingsRowHC {
                 </tr>
             </table>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='104' style='padding:4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
+        <td valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
             <span style='margin-right:14px;'>$action</span>
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
@@ -347,23 +371,38 @@ function Build-MatrixFileCardHC {
         $footerLinks.Add("<a href='$matrixLink' title=`"$matrixTitle`" target='_blank' rel='noopener noreferrer' style='$footerLinkStyle'>Open matrix file &rarr;</a>")
     }
 
-    $footerLinksHtml = if ($footerLinks.Count -gt 0) {
-        $footerLinks -join "<span style='color:$($Script:Theme.TextLight); padding:0 10px;'>&middot;</span>"
-    }
-    else { '&nbsp;' }
+    <#
+     The footer links are joined by a middot separator. The browser variant
+     spaces it with `padding:0 10px` on the <span>; Outlook's Word engine
+     IGNORES padding on an inline <span>, which glued the two links together
+     ("report &rarr;Open matrix..."). The MSO variant therefore spaces the
+     middot with non-breaking spaces (`&nbsp;`), which Word does honour.
+    #>
+    $browserSep = "<span style='color:$($Script:Theme.TextLight); padding:0 10px;'>&middot;</span>"
+    $msoSep = "<span style='color:$($Script:Theme.TextLight);'>&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span>"
+    $footerLinksHtmlBrowser = if ($footerLinks.Count -gt 0) { $footerLinks -join $browserSep } else { '&nbsp;' }
+    $footerLinksHtmlMso = if ($footerLinks.Count -gt 0) { $footerLinks -join $msoSep } else { '&nbsp;' }
 
+    <#
+     Outlook's Word engine applies the stylesheet default
+     `p { margin: 0 0 12px 0 }` to the implicit paragraph inside a <td>,
+     which adds ~12px of space BELOW the footer links (more than above).
+     Wrapping the links in a `<p style='margin:0'>` neutralises that so the
+     td's symmetric top/bottom padding yields equal white space on both
+     sides. The browser branch is untouched (still renders perfectly).
+    #>
     $footerRowHtml = @"
 <!--[if mso]>
     <tr>
-        <td valign='middle' style='padding:6px 16px 0 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:$($Script:Theme.TextLight);'>
-            $footerLinksHtml
+        <td valign='middle' style='padding:6px 16px 6px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:$($Script:Theme.TextLight);'>
+            <p style='margin:0; mso-line-height-rule:exactly; line-height:16px;'>$footerLinksHtmlMso</p>
         </td>
     </tr>
 <![endif]-->
 <!--[if !mso]><!-->
     <tr>
         <td valign='top' style='padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:$($Script:Theme.TextLight);'>
-            $footerLinksHtml
+            $footerLinksHtmlBrowser
         </td>
     </tr>
 <!--<![endif]-->
@@ -426,7 +465,7 @@ function Build-MatrixFileCardHC {
     if ($fileLevelCount -gt 0) {
         $contentRows += @"
 <tr>
-    <td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>File Issues ($fileLevelCount)</td>
+    <td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'><p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>File Issues ($fileLevelCount)</p></td>
 </tr>
 "@
         foreach ($g in $fileLevelGroups) {
@@ -447,7 +486,7 @@ function Build-MatrixFileCardHC {
         $settingsIndex = 0
         foreach ($m in $sortedMatrices) {
             if ($settingsIndex -gt 0) {
-                $settingsRowsHtml += '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#ffffff" style="background-color:#ffffff;"><tr><td bgcolor="#ffffff" height="4" style="font-size:0; line-height:0; background-color:#ffffff;">&#160;</td></tr></table><![endif]-->'
+                $settingsRowsHtml += '<!--[if mso]><table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#ffffff" style="background-color:#ffffff;"><tr><td bgcolor="#ffffff" height="4" style="font-size:0; line-height:4px; mso-line-height-rule:exactly; background-color:#ffffff;">&#160;</td></tr></table><![endif]-->'
             }
             $settingsRowsHtml += Build-SettingsRowHC -MatrixItem $m -FileHasError $fileHasError
             $settingsIndex++
@@ -456,7 +495,7 @@ function Build-MatrixFileCardHC {
         $matrixCount = @($sortedMatrices).Count
         $contentRows += @"
 <tr>
-    <td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>Settings ($matrixCount)</td>
+    <td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'><p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>Settings ($matrixCount)</p></td>
 </tr>
 <tr>
     <td style='padding:0 16px;'>
@@ -500,7 +539,7 @@ function Build-MatrixFileCardHC {
     $footerRowHtml
 </table>
 <!--[if mso]>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="16" style="font-size:0; line-height:0;">&#160;</td></tr></table>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="16" style="font-size:0; line-height:16px; mso-line-height-rule:exactly;">&#160;</td></tr></table>
 <![endif]-->
 "@
 }
@@ -613,7 +652,7 @@ $($Html.Style)
             <!--[if mso]>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" align="center"><tr><td>
             <![endif]-->
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" style="border-collapse:collapse; width:${bodyWidth}px; max-width:${bodyWidth}px; margin:0 auto;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; margin:0 auto;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
                 <tr><td style="padding:0;">$topLinksBlock</td></tr>

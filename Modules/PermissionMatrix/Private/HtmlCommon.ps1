@@ -326,7 +326,12 @@ function New-PillHtmlHC {
     param(
         [string]$Text,
         [string]$Bg,
-        [string]$Color = '#ffffff'
+        [string]$Color = '#ffffff',
+        # When set, returns an object with the raw MSO (VML) and Browser (span)
+        # markup separately (WITHOUT the conditional-comment wrappers) so a caller
+        # can place each variant in its own client-gated <td>. Default returns the
+        # single combined string used everywhere else.
+        [switch]$AsParts
     )
     if ([string]::IsNullOrWhiteSpace($Text)) { return '' }
 
@@ -341,12 +346,16 @@ function New-PillHtmlHC {
     # keeps the single line of text vertically centered so the pill isn't
     # squashed. Height 26px mirrors the browser span (padding 3px + 11px text
     # at line-height 1.6 ≈ 24-26px) so both clients look the same.
-    $vml = "<!--[if mso]>" +
-    "<v:roundrect xmlns:v=`"urn:schemas-microsoft-com:vml`" xmlns:w=`"urn:schemas-microsoft-com:office:word`" arcsize=`"50%`" fillcolor=`"$Bg`" stroked=`"f`" style=`"height:26px; width:${width}px; v-text-anchor:middle; mso-padding-alt:0;`">" +
+    $vmlInner = "<v:roundrect xmlns:v=`"urn:schemas-microsoft-com:vml`" xmlns:w=`"urn:schemas-microsoft-com:office:word`" arcsize=`"50%`" fillcolor=`"$Bg`" stroked=`"f`" style=`"height:26px; width:${width}px; v-text-anchor:middle; mso-padding-alt:0;`">" +
     "<w:anchorlock/>" +
     "<center style=`"color:$Color; font-family:sans-serif; font-size:11px; font-weight:700; letter-spacing:0.3px;`">$upper</center>" +
-    "</v:roundrect>" +
-    "<![endif]-->"
+    "</v:roundrect>"
+
+    if ($AsParts) {
+        return [pscustomobject]@{ Mso = $vmlInner; Browser = $span }
+    }
+
+    $vml = "<!--[if mso]>$vmlInner<![endif]-->"
 
     return "$vml<!--[if !mso]><!-->$span<!--<![endif]-->"
 }

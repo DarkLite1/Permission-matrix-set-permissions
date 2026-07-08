@@ -180,10 +180,10 @@ Describe 'Build-SettingsRowHC' {
     It 'middle-aligns the Outlook row chrome with exact line heights' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
         $html | Should -Match "table-layout:fixed;"
-        $html | Should -Match "valign='middle' width='20' style='padding:4px 0 4px 12px;"
-        $html | Should -Match "valign='middle' class='rr-srow-ident' style='padding:4px 8px;'"
+        $html | Should -Match "valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px;"
+        $html | Should -Match "valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'"
         $html | Should -Match "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; table-layout:fixed;'>"
-        $html | Should -Match "valign='middle' align='right' class='rr-srow-meta' width='104' style='padding:4px 10px;"
+        $html | Should -Match "valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px;"
         $html | Should -Not -Match '<td height="6" style="font-size:0; line-height:0;">&#160;</td>'
         $html | Should -Not -Match '<div style='
     }
@@ -193,6 +193,20 @@ Describe 'Build-SettingsRowHC' {
 
         $html | Should -Match "font-family:Consolas, Menlo, monospace; font-size:11px;"
         $html | Should -Match "white-space:normal; overflow-wrap:anywhere; word-break:break-all;"
+    }
+
+    It 'splits the pill into a nested-table Outlook cell and a normal browser cell' {
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Warning' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+
+        # Outlook cell: gated by [if mso], wraps the VML in a 3-row nested table
+        # whose top(8px)/bottom(4px) spacers make it the tallest cell (drives the
+        # row height) and nudge the pill down to centre; line-height:26px avoids clipping.
+        $html | Should -Match "<!--\[if mso\]><td valign='middle' align='center' class='rr-srow-status' width='84' style='vertical-align:middle; padding:0 8px;'><table role='presentation' align='center'[^>]*><tr><td height='8' style='font-size:0; line-height:8px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr><tr><td style='padding:0; font-size:0; line-height:26px; mso-line-height-rule:exactly;'><v:roundrect"
+        $html | Should -Match "</v:roundrect></td></tr><tr><td height='4' style='font-size:0; line-height:4px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr></table></td><!\[endif\]-->"
+        # Browser cell: gated by [if !mso], keeps a normal font-size (line-height
+        # 16px) so the CSS span stays perfectly centred as it was before.
+        $html | Should -Match "<!--\[if !mso\]><!--><td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px;'><span"
     }
 }
 
@@ -350,8 +364,11 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out | Should -Match 'Open execution report'
             $out | Should -Match 'Open matrix log copy'
-            # The two anchors are joined by a middot separator span
+            # The browser variant joins the two anchors with a padded middot span
             $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
+            # The Outlook (Word) variant ignores span padding, so the middot is
+            # spaced with non-breaking spaces instead
+            $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a'
         }
 
         It 'uses separate Outlook and browser footer spacing' {
@@ -364,10 +381,11 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
             $out | Should -Match '<!--\[if mso\]>'
-            $out | Should -Match "valign='middle' style='padding:6px 16px 0 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;"
+            $out | Should -Match "valign='middle' style='padding:6px 16px 6px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;"
+            $out | Should -Match "<p style='margin:0; mso-line-height-rule:exactly; line-height:16px;'>"
             $out | Should -Match '<!--\[if !mso\]><!-->'
             $out | Should -Match "padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:#6b7280;"
-            $out | Should -Match '<td height="16" style="font-size:0; line-height:0;">&#160;</td>'
+            $out | Should -Match '<td height="16" style="font-size:0; line-height:16px; mso-line-height-rule:exactly;">&#160;</td>'
         }
 
         It 'falls back to the source matrix file link when no log artifacts exist' {
@@ -490,7 +508,10 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should -Match 'Settings \(2\)'
             $out | Should -Match 'SRV01'
             $out | Should -Match 'SRV02'
-            ([regex]::Matches($out, 'bgcolor="#ffffff" height="4" style="font-size:0; line-height:0; background-color:#ffffff;">&#160;</td>')).Count | Should -Be 1
+            # The section label is wrapped in a margin-zero paragraph so Outlook
+            # doesn't add ~12px of extra space between the title and the rows
+            $out | Should -Match "<p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>Settings \(2\)</p>"
+            ([regex]::Matches($out, 'bgcolor="#ffffff" height="4" style="font-size:0; line-height:4px; mso-line-height-rule:exactly; background-color:#ffffff;">&#160;</td>')).Count | Should -Be 1
             $out | Should -Not -Match 'height="6" style="font-size:0; line-height:0;">&#160;</td>'
         }
 
