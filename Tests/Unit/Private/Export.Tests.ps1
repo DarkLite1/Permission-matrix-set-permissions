@@ -17,10 +17,10 @@ Describe 'Export-FilesHC' {
         )
 
         $script:FakeExportData = @{
-            Permissions = @(
+            Permissions    = @(
                 [pscustomobject]@{ Path = 'C:\A'; Permission = 'R' }
             )
-            FormData    = @(
+            FormData       = @(
                 [pscustomobject]@{
                     MatrixCategoryName      = 'Cat'
                     MatrixSubCategoryName   = 'Sub'
@@ -28,6 +28,16 @@ Describe 'Export-FilesHC' {
                     MatrixFilePath          = 'C:\X.xlsx'
                     MatrixFileName          = 'X.xlsx'
                     MatrixResponsible       = 'a@b.com'
+                }
+            )
+            ServiceNowData = @(
+                [pscustomobject]@{
+                    u_matrixcategoryname    = 'Cat'
+                    u_matrixsubcategoryname = 'Sub'
+                    u_adobjectname          = 'BEL ROL X'
+                    u_matrixfolderpath      = 'C:\X.xlsx'
+                    u_matrixfilename        = 'X.xlsx'
+                    u_matrixresponsible     = 'a@b.com'
                 }
             )
         }
@@ -575,9 +585,9 @@ Describe 'Build-ConsolidatedExportDataHC' {
     It 'emits one FormData row per file that has formatted FormData' {
         $res = Build-ConsolidatedExportDataHC -FileResults @(
             (New-FileResult -FileName 'One.xlsx' `
-                    -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'One.xlsx' }))
+                -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'One.xlsx' }))
             (New-FileResult -FileName 'Two.xlsx' `
-                    -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'Two.xlsx' }))
+                -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'Two.xlsx' }))
         ) -AdObjectDetails @()
 
         $res.FormData.Count | Should -Be 2
@@ -802,10 +812,23 @@ Describe 'Export-ServiceNowFormDataHC' {
         $rows = @([pscustomobject]@{ F = 1 })
         $path = Join-Path $TestDrive 'form.xlsx'
 
-        Export-ServiceNowFormDataHC -Rows $rows -Path $path | Out-Null
+        Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
         Should -Invoke Export-Excel -Times 1 -ParameterFilter {
             $Path -eq $path -and $WorksheetName -eq 'FormData' -and $AutoSize -eq $true
+        }
+    }
+
+    It 'writes to the "ServiceNowData" worksheet with -AutoSize' {
+        Mock Export-Excel
+
+        $rows = @([pscustomobject]@{ F = 1 })
+        $path = Join-Path $TestDrive 'form.xlsx'
+
+        Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
+
+        Should -Invoke Export-Excel -Times 1 -ParameterFilter {
+            $Path -eq $path -and $WorksheetName -eq 'ServiceNowData' -and $AutoSize -eq $true
         }
     }
 
@@ -813,18 +836,18 @@ Describe 'Export-ServiceNowFormDataHC' {
         Mock Export-Excel
 
         $path = Join-Path $TestDrive 'form.xlsx'
-        $result = Export-ServiceNowFormDataHC -Rows @([pscustomobject]@{ F = 1 }) -Path $path
+        $result = Export-ServiceNowFormDataHC -FormDataRows @([pscustomobject]@{ F = 1 }) -ServiceNowDataRows @([pscustomobject]@{ S = 1 }) -Path $path
 
         $result | Should -Be $path
     }
 
-    It 'forwards the supplied rows to Export-Excel' {
+    It 'forwards the supplied rows to Export-Excel for sheet "FormData"' {
         $script:capturedRows = [System.Collections.Generic.List[object]]::new()
         Mock Export-Excel {
             $bp = $PesterBoundParameters
             $key = 'TargetData', 'InputObject' | Where-Object { $bp.ContainsKey($_) } | Select-Object -First 1
             if ($key) { foreach ($r in @($bp[$key])) { $script:capturedRows.Add($r) } }
-        }
+        } -ParameterFilter { $WorksheetName -eq 'FormData' }
 
         $rows = @(
             [pscustomobject]@{ Field = 'Owner' }
@@ -832,18 +855,38 @@ Describe 'Export-ServiceNowFormDataHC' {
         )
         $path = Join-Path $TestDrive 'form.xlsx'
 
-        Export-ServiceNowFormDataHC -Rows $rows -Path $path | Out-Null
+        Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
         $script:capturedRows.Count | Should -Be 2
         $script:capturedRows[1].Field | Should -Be 'Team'
-    }
+    } -Tag 'test'
+
+    It 'forwards the supplied rows to Export-Excel for sheet "ServiceNowData"' {
+        $script:capturedRows = [System.Collections.Generic.List[object]]::new()
+        Mock Export-Excel {
+            $bp = $PesterBoundParameters
+            $key = 'TargetData', 'InputObject' | Where-Object { $bp.ContainsKey($_) } | Select-Object -First 1
+            if ($key) { foreach ($r in @($bp[$key])) { $script:capturedRows.Add($r) } }
+        } -ParameterFilter { $WorksheetName -eq 'ServiceNowData' }
+
+        $rows = @(
+            [pscustomobject]@{ Field = 'Owner' }
+            [pscustomobject]@{ Field = 'Team' }
+        )
+        $path = Join-Path $TestDrive 'form.xlsx'
+
+        Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
+
+        $script:capturedRows.Count | Should -Be 2
+        $script:capturedRows[1].Field | Should -Be 'Team'
+    } -Tag 'test'
 
     It 'wraps a failure from Export-Excel in a descriptive terminating error' {
         Mock Export-Excel { throw 'locked file' }
 
         $path = Join-Path $TestDrive 'form.xlsx'
 
-        { Export-ServiceNowFormDataHC -Rows @([pscustomobject]@{ F = 1 }) -Path $path } |
+        { Export-ServiceNowFormDataHC -FormDataRows @([pscustomobject]@{ F = 1 }) -ServiceNowDataRows @([pscustomobject]@{ S = 1 }) -Path $path } |
         Should -Throw -ExpectedMessage '*Failed exporting ServiceNow FormData Excel*locked file*'
     }
 }

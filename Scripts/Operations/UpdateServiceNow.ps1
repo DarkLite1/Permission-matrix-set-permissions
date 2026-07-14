@@ -179,7 +179,12 @@ begin {
             New-ServiceNowSession @params
         }
         catch {
-            $errorMessage = $_; $Error.RemoveAt(0)
+            $errorMessage = $_
+            
+            if ($global:Error.Count -gt 0) {
+                $global:Error.RemoveAt(0)
+            }
+            
             throw "Failed to create a ServiceNow session with Uri '$Uri' UserName '$UserName' ClientId '$ClientId': $errorMessage"
         }
     }

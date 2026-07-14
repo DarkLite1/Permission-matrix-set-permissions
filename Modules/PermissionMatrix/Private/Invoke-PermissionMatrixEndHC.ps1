@@ -98,7 +98,7 @@ function Invoke-PermissionMatrixEndHC {
                     Environment            = $Context.Config.ServiceNow.Environment
                     TableName              = $Context.Config.ServiceNow.TableName
                     FormDataExcelFilePath  = $Context.Config.Export.ServiceNowFormDataExcelFile
-                    ExcelFileWorksheetName = 'SnowFormData'
+                    ExcelFileWorksheetName = 'ServiceNowData'
                 }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
             }

@@ -38,6 +38,7 @@ function Build-ExportDataHC {
 
     $permissionsRows = [System.Collections.Generic.List[pscustomobject]]::new()
     $formDataRows = [System.Collections.Generic.List[pscustomobject]]::new()
+    $serviceNowData = [System.Collections.Generic.List[pscustomobject]]::new()
 
     # Tracks the files whose FormData row has already been emitted, so a file
     # with several enabled Settings rows still yields a single FormData row
@@ -78,7 +79,36 @@ function Build-ExportDataHC {
             if ($fileKey -and $seenFiles.Add($fileKey)) {
                 $formData = $fileContext.Sheets.FormData.Formatted
                 if ($formData) {
+                    $formData | Add-Member -NotePropertyMembers @{
+                        MatrixFileName = $fileContext.Item.Name
+                    } -Force
+                    
                     $formDataRows.Add([pscustomobject]$formData)
+
+                    #region Create ServiceNow upload data
+                    $adObjects = @(
+                        $matrixObj.Matrix.AdNames.Values | 
+                        Sort-Object -Unique
+                    )
+
+                    $emailsResponsible = (
+                        Resolve-ResponsibleEmailHC `
+                            -Responsible $formData.MatrixResponsible
+                    ).Emails -join ','
+
+                    foreach ($adObject in $adObjects) {
+                        $serviceNowData.Add(
+                            [pscustomobject]@{
+                                u_matrixfilename        = $formData.MatrixFileName
+                                u_matrixfolderpath      = $formData.MatrixFolderPath
+                                u_matrixcategoryname    = $formData.MatrixCategoryName
+                                u_matrixsubcategoryname = $formData.MatrixSubCategoryName
+                                u_matrixresponsible     = $emailsResponsible
+                                u_adobjectname          = $adObject
+                            }
+                        )
+                    }
+                    #endregion
                 }
             }
         }
@@ -86,8 +116,9 @@ function Build-ExportDataHC {
     }
 
     return [pscustomobject]@{
-        Permissions = $permissionsRows.ToArray()
-        FormData    = $formDataRows.ToArray()
+        Permissions    = $permissionsRows.ToArray()
+        FormData       = $formDataRows.ToArray()
+        ServiceNowData = $serviceNowData.ToArray()
     }
 }
 
@@ -155,7 +186,8 @@ function Export-FilesHC {
     # 2. ServiceNow FormData Excel
     if ($ExportSettings.ServiceNowFormDataExcelFile) {
         $results.FormData = Export-ServiceNowFormDataHC `
-            -Rows $exportData.FormData `
+            -FormDataRows $exportData.FormData `
+            -ServiceNowDataRows $exportData.ServiceNowData `
             -Path $ExportSettings.ServiceNowFormDataExcelFile
     }
 
@@ -195,12 +227,23 @@ function Export-ServiceNowFormDataHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][array]$Rows,
+        [Parameter(Mandatory)][array]$FormDataRows,
+        [Parameter(Mandatory)][array]$ServiceNowDataRows,
         [Parameter(Mandatory)][string]$Path
     )
 
     try {
-        $Rows | Export-Excel -Path $Path -WorksheetName 'FormData' -AutoSize
+        $params = @{
+            Path     = $Path
+            AutoSize = $true
+        }
+
+        $FormDataRows | 
+        Export-Excel @params -WorksheetName 'FormData'-TableName 'FormData'
+
+        $ServiceNowDataRows | 
+        Export-Excel @params -WorksheetName 'ServiceNowData'-TableName 'ServiceNowData'
+
         return $Path
     }
     catch {
