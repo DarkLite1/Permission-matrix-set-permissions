@@ -52,7 +52,12 @@ function Build-SystemErrorsBlockHC {
 
         $catHtml = ''
         if ($category) {
-            $catHtml = "<span style='display:inline-block; margin-right:8px; padding:1px 8px; background-color:$($Script:Theme.BgAlt); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; font-size:10px; font-weight:600; color:$($Script:Theme.TextMuted); text-transform:uppercase; letter-spacing:0.5px;'>$category</span>"
+            $catText = $category.ToUpper()
+            $pillW = 18 + (7 * $catText.Length)
+
+            $catHtml = @"
+<!--[if mso]><v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" style="height:16px;width:${pillW}px;v-text-anchor:middle;display:inline-block;" arcsize="50%" fillcolor="$($Script:Theme.BgAlt)" strokecolor="$($Script:Theme.BorderLight)" strokeweight="1px"><w:anchorlock/><center style="color:$($Script:Theme.TextMuted); font-family:Arial,sans-serif; font-size:10px; font-weight:600; letter-spacing:0.5px;">$catText</center></v:roundrect>&nbsp;&nbsp;<![endif]--><!--[if !mso]><!--><span style='display:inline-block; margin-right:8px; padding:1px 8px; background-color:$($Script:Theme.BgAlt); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; font-size:10px; font-weight:600; color:$($Script:Theme.TextMuted); letter-spacing:0.5px;'>$catText</span><!--<![endif]-->
+"@
         }
 
         $pill = New-PillHtmlHC -Text $pillText -Bg $pillBg
