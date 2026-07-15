@@ -492,6 +492,30 @@ function Build-MatrixFileCardHC {
         $gradFrom, $gradTo = $Script:Theme.GradSuccess
     }
 
+    <#
+     Outlook's Word engine cannot render CSS gradients, so it falls back to
+     the header's flat 'background-color'. Using $gradTo (the brightest end)
+     made the Outlook header noticeably lighter than the browser's gradient.
+     Instead, compute the per-channel midpoint of the two gradient stops and
+     use THAT as the fallback: Outlook gets the gradient's average tone,
+     while browsers paint the gradient over the fallback, so they are
+     unaffected. Falls back to $gradTo if the hex parse ever fails.
+    #>
+    $gradMid = $gradTo
+    try {
+        $f = $gradFrom.TrimStart('#')
+        $t = $gradTo.TrimStart('#')
+        if ($f.Length -eq 6 -and $t.Length -eq 6) {
+            $gradMid = '#' + ((0, 2, 4 | ForEach-Object {
+                        '{0:x2}' -f [int][Math]::Round(
+                            ([Convert]::ToInt32($f.Substring($_, 2), 16) +
+                            [Convert]::ToInt32($t.Substring($_, 2), 16)) / 2
+                        )
+                    }) -join '')
+        }
+    }
+    catch { $gradMid = $gradTo }
+
     $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns
     $headerLabelHtml = "<span style=`"font-size:12px; font-weight:700; color:#e5e7eb; text-transform:uppercase; letter-spacing:0.5px;`">$headerLabel</span>"
 
@@ -576,7 +600,7 @@ function Build-MatrixFileCardHC {
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$($Script:Theme.BgWhite)" style="border-collapse:separate; margin:0 0 16px 0; table-layout:fixed; width:100%; max-width:100%; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
     <tr>
-        <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
+        <td bgcolor="$gradMid" style='padding:0; background-color:$gradMid; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
                     <!--
@@ -588,10 +612,14 @@ function Build-MatrixFileCardHC {
                      cause; the MSO glyph cell additionally gets an explicit
                      line-height equal to the content height (20 + 2 + 17 =
                      39px) so the glyph is dead-centre regardless of Word's
-                     baseline handling. Browsers keep the original line-height:1
-                     cell, centred by valign as before.
+                     baseline handling. Horizontally, Word mis-renders the
+                     browser's asymmetric 18px-left-padding layout, so the MSO
+                     cell instead centres the glyph in a fixed 52px column —
+                     the same footprint as the browser's 18px padding + 34px
+                     cell — putting the glyph centre at ~26px in both clients.
+                     Browsers keep the original cell, untouched.
                     -->
-                    <!--[if mso]><td valign='middle' width='34' style='vertical-align:middle; padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:39px; mso-line-height-rule:exactly; text-align:left;'>$headerSymbol</td><![endif]-->
+                    <!--[if mso]><td valign='middle' align='center' width='52' style='vertical-align:middle; text-align:center; padding:14px 0; font-size:20px; font-weight:bold; color:#ffffff; line-height:39px; mso-line-height-rule:exactly;'>$headerSymbol</td><![endif]-->
                     <!--[if !mso]><!--><td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td><!--<![endif]-->
                     <td valign='middle' style='padding:14px 8px 14px 4px;'>
                         <p style='margin:0; font-size:16px; font-weight:700; color:#ffffff; line-height:20px; mso-line-height-rule:exactly;'>
