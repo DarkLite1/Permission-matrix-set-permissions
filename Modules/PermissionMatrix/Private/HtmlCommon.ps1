@@ -368,6 +368,11 @@ function Build-ErrorWarningTableHC {
             warnings. Both counts include matrix-level checks AND script-level
             system errors, (filtered by Type) — the counter object passed in
             is the single source of truth (see Update-MatrixCounterHC).
+
+            Outlook (Word engine) ignores 'margin' on <table>, so the wrapping
+            table's 'margin:0 0 16px 0' — the gap below the banner — never
+            rendered there. An MSO-only 16px spacer table after the banner
+            restores it; browsers skip the conditional and keep the CSS margin.
     #>
     param($CounterData)
 
@@ -399,6 +404,9 @@ function Build-ErrorWarningTableHC {
         </td>
     </tr>
 </table>
+<!--[if mso]>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="16" style="font-size:0; line-height:16px; mso-line-height-rule:exactly;">&#160;</td></tr></table>
+<![endif]-->
 "@
 }
 
@@ -459,16 +467,19 @@ function Build-FileLevelCheckRowHC {
     # pill as aligned columns. Browsers render the same table identically. The
     # name/description use <div> blocks (with margin:0 + exact line-height) so
     # the name stacks ABOVE the description in Outlook too — Word collapses
-    # <span style='display:block'> onto one inline line.
+    # <span style='display:block'> onto one inline line. The icon and pill cells
+    # are vertically centered (valign='middle' attribute — honored by Word,
+    # unlike the CSS property alone) while the text cell stays top-aligned; the
+    # icon cell also centers horizontally via align='center' + text-align.
     $cardHtml = @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-check-row" style="border-collapse:separate; width:100%; max-width:100%; background-color:$cardBg; border:1px solid $($Script:Theme.BorderLight); border-left:3px solid $accent; border-radius:6px;">
     <tr>
-        <td valign="top" width="24" style='padding:12px 0 12px 14px; color:$accent; font-size:15px; line-height:16px; mso-line-height-rule:exactly;'>$icon</td>
+        <td valign="middle" align="center" width="24" style='vertical-align:middle; text-align:center; padding:12px 0 12px 14px; color:$accent; font-size:15px; line-height:16px; mso-line-height-rule:exactly;'>$icon</td>
         <td valign="top" style='padding:12px 10px;'>
             $labelHtml<div style='font-size:13px; font-weight:700; color:$($Script:Theme.TextMain); line-height:16px; margin:0 0 2px 0; mso-line-height-rule:exactly;'>$nameHtml</div>
             <div style='font-size:11px; color:$($Script:Theme.TextMuted); line-height:15px; margin:0; mso-line-height-rule:exactly;'>$desc</div>
         </td>
-        <td valign="top" align="right" style='padding:12px 14px 12px 6px; white-space:nowrap;'>$pillHtml</td>
+        <td valign="middle" align="right" style='vertical-align:middle; padding:12px 14px 12px 6px; white-space:nowrap;'>$pillHtml</td>
     </tr>
 </table>
 "@

@@ -579,14 +579,27 @@ function Build-MatrixFileCardHC {
         <td style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
                 <tr>
-                    <td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td>
+                    <!--
+                     Glyph cell: Word treats the title/subtitle blocks as
+                     paragraphs and (without explicit margins) pads them with
+                     its default 12px bottom margin, which threw off the row
+                     height and made valign='middle' place the glyph off-centre
+                     in Outlook. The <p margin:0> wrappers below fix the root
+                     cause; the MSO glyph cell additionally gets an explicit
+                     line-height equal to the content height (20 + 2 + 17 =
+                     39px) so the glyph is dead-centre regardless of Word's
+                     baseline handling. Browsers keep the original line-height:1
+                     cell, centred by valign as before.
+                    -->
+                    <!--[if mso]><td valign='middle' width='34' style='vertical-align:middle; padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:39px; mso-line-height-rule:exactly; text-align:left;'>$headerSymbol</td><![endif]-->
+                    <!--[if !mso]><!--><td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td><!--<![endif]-->
                     <td valign='middle' style='padding:14px 8px 14px 4px;'>
-                        <div style='font-size:16px; font-weight:700; color:#ffffff; line-height:1.25;'>
+                        <p style='margin:0; font-size:16px; font-weight:700; color:#ffffff; line-height:20px; mso-line-height-rule:exactly;'>
                             <a href="$matrixLink" title="$matrixTitle" style="color:#ffffff; text-decoration:none;">$fileName</a>
-                        </div>
-                        <div style='font-size:12px; color:#f1f2f4; line-height:1.4; margin-top:2px;font-style:italic;'>
+                        </p>
+                        <p style='margin:2px 0 0 0; font-size:12px; color:#f1f2f4; line-height:17px; mso-line-height-rule:exactly; font-style:italic;'>
                             $lastChangeInfo
-                        </div>
+                        </p>
                     </td>
                     <td valign='middle' align='right' width='112' style='padding:14px 12px 14px 6px; white-space:nowrap; width:112px;'>$headerLabelHtml</td>
                 </tr>
