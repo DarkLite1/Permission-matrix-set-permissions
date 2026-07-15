@@ -11,6 +11,19 @@ function Build-SystemErrorsBlockHC {
             run. Errors get a red stripe and ✖ glyph; warnings get an amber
             stripe and ⚠ glyph. Anything that isn't a 'FatalError' or
             'Warning' is ignored.
+
+            Outlook (Word engine) spacing fixes:
+             * The section header text is wrapped in <p style='margin:0'>.
+               Word wraps bare td text in an implicit paragraph with a
+               default 12px bottom margin, which added ~12px of phantom
+               space between the header and the first card. The wrapper
+               kills that; the td's own 8px bottom padding remains the
+               single source of the gap (matching the browser).
+             * Word ignores 'margin' on <table>, so the wrapping table's
+               'margin:0 0 20px 0' — the space below the section — never
+               rendered in Outlook. An MSO-only 20px spacer table after the
+               section restores it; browsers skip the conditional and keep
+               using the CSS margin.
     #>
     param([array]$SystemErrors)
 
@@ -91,14 +104,37 @@ function Build-SystemErrorsBlockHC {
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 20px 0; table-layout:fixed; width:100%; max-width:100%;">
     <tr>
-        <td style='padding:0 0 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$headerLabel</td>
+        <td style='padding:0 0 8px 0; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'><p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>$headerLabel</p></td>
     </tr>
     $rows
 </table>
+<!--[if mso]>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="12" style="font-size:0; line-height:12px; mso-line-height-rule:exactly;">&#160;</td></tr></table>
+<![endif]-->
 "@
 }
 
 function Build-MailTopLinksBlockHC {
+    <#
+        .DESCRIPTION
+            Renders the "view in browser" line and the "Export files: A · B · C"
+            link line at the top of the mail.
+
+            Outlook (Word engine) fixes, mirroring Build-MatrixFileCardHC:
+             * The export-link middot separator spaced itself with
+               'padding:0 8px' on an inline <span>, which Word ignores —
+               the links rendered glued together. The MSO variant spaces
+               the middot with '&nbsp;' instead; the browser variant keeps
+               the original padding, so browser rendering is unchanged.
+               Each variant lives in its own conditional row so every
+               client renders exactly one.
+             * Both td texts are wrapped in <p style='margin:0'> to kill
+               Word's implicit-paragraph 12px bottom margin.
+             * Word ignores 'margin' on <table>, so the wrapping table's
+               'margin:0 0 14px 0' (the gap above "Detected issues") never
+               rendered in Outlook. An MSO-only 14px spacer table after the
+               block restores it; browsers skip it and keep the CSS margin.
+    #>
     param(
         [string]$BrowserViewFilePath,
         $ExportedFiles
@@ -114,7 +150,7 @@ function Build-MailTopLinksBlockHC {
 
         $rows += @"
 <tr>
-    <td style='padding:0 0 8px 0; $mutedStyle'>If this mail is not visible, please <a href='$browserUrl' title="$browserTitle" target='_blank' rel='noopener noreferrer' style='$linkStyle'>click here to view it in the browser</a>.</td>
+    <td style='padding:0 0 8px 0; $mutedStyle'><p style='margin:0; mso-line-height-rule:exactly; line-height:17px;'>If this mail is not visible, please <a href='$browserUrl' title="$browserTitle" target='_blank' rel='noopener noreferrer' style='$linkStyle'>click here to view it in the browser</a>.</p></td>
 </tr>
 "@
     }
@@ -147,11 +183,25 @@ function Build-MailTopLinksBlockHC {
     }
 
     if ($exportLinks.Count -gt 0) {
-        $linksHtml = $exportLinks -join "<span style='color:$($Script:Theme.TextLight); padding:0 8px;'>&middot;</span>"
+        # Word ignores padding on inline spans, so the browser separator
+        # (padding:0 8px) collapses in Outlook and the links run together.
+        # MSO variant spaces the middot with non-breaking spaces instead.
+        $browserSep = "<span style='color:$($Script:Theme.TextLight); padding:0 8px;'>&middot;</span>"
+        $msoSep = "<span style='color:$($Script:Theme.TextLight);'>&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span>"
+        $linksHtmlBrowser = $exportLinks -join $browserSep
+        $linksHtmlMso = $exportLinks -join $msoSep
+
         $rows += @"
+<!--[if mso]>
 <tr>
-    <td style='padding:0; $mutedStyle'>Export files: $linksHtml</td>
+    <td style='padding:0; $mutedStyle'><p style='margin:0; mso-line-height-rule:exactly; line-height:17px;'>Export files: $linksHtmlMso</p></td>
 </tr>
+<![endif]-->
+<!--[if !mso]><!-->
+<tr>
+    <td style='padding:0; $mutedStyle'>Export files: $linksHtmlBrowser</td>
+</tr>
+<!--<![endif]-->
 "@
     }
 
@@ -161,6 +211,9 @@ function Build-MailTopLinksBlockHC {
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 14px 0; table-layout:fixed; width:100%; max-width:100%;">
     $rows
 </table>
+<!--[if mso]>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td height="14" style="font-size:0; line-height:14px; mso-line-height-rule:exactly;">&#160;</td></tr></table>
+<![endif]-->
 "@
 }
 
