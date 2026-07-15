@@ -74,7 +74,8 @@ function Invoke-PermissionMatrixEndHC {
                 -ImportedMatrix $Context.AllMatrices `
                 -ExportSettings $Context.Config.Export `
                 -FileResults $Context.FileResults `
-                -AdObjectDetails $Context.AdObjectDetails
+                -AdObjectDetails $Context.AdObjectDetails `
+                -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
             # FormData sheet errors do not block permission application, but the
             # ServiceNow table is built from the FormData, so a fatal FormData

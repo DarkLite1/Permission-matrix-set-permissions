@@ -33,7 +33,8 @@ function Build-ExportDataHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
-        [array]$ImportedMatrix
+        [array]$ImportedMatrix,
+        [string[]]$ExcludedSamAccountName = @()
     )
 
     $permissionsRows = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -93,7 +94,8 @@ function Build-ExportDataHC {
 
                     $emailsResponsible = (
                         Resolve-ResponsibleEmailHC `
-                            -Responsible $formData.MatrixResponsible
+                            -Responsible $formData.MatrixResponsible `
+                            -ExcludeSamAccountName $ExcludedSamAccountName
                     ).Emails -join ','
 
                     foreach ($adObject in $adObjects) {
@@ -157,10 +159,13 @@ function Export-FilesHC {
         [Parameter(Mandatory)][array]$ImportedMatrix,
         [Parameter(Mandatory)]      $ExportSettings,
         [array]$FileResults = @(),
-        [array]$AdObjectDetails = @()
+        [array]$AdObjectDetails = @(),
+        [string[]]$ExcludedSamAccountName = @()
     )
 
-    $exportData = Build-ExportDataHC -ImportedMatrix $ImportedMatrix
+    $exportData = Build-ExportDataHC `
+        -ImportedMatrix $ImportedMatrix `
+        -ExcludedSamAccountName $ExcludedSamAccountName
 
     $results = [ordered]@{
         Permissions  = $null
