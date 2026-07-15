@@ -326,9 +326,18 @@ function Build-SettingsRowHC {
     #     line-height:16px clamped Word's line box below the 26px VML pill,
     #     which then overflowed UPWARD from its baseline and sat high. The
     #     check-row pill cell has no line-height, which is why it centres.
+    #  4. The cell DOES need 'font-size:0': Word reserves descender space
+    #     below an inline VML shape proportional to the cell's font size.
+    #     Without it the pill cell grew a few px taller than the identifier
+    #     cell, became the row's tallest cell, and the extra height appeared
+    #     as empty space UNDER the identifier text (which then looked
+    #     top-aligned). Zero font size = zero descent = the pill's line box
+    #     is exactly the 26px shape and the identifier cell drives the row
+    #     height again. The browser pill span sets its own font-size, so
+    #     browsers are unaffected.
     if ($pillText) {
         $pillHtml = New-PillHtmlHC -Text $pillText -Bg $pillBg
-        $pillTd = "<td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap;'>$pillHtml</td>"
+        $pillTd = "<td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; font-size:0;'>$pillHtml</td>"
     }
     else {
         # Clean row: reserve the column width with a single empty cell.
