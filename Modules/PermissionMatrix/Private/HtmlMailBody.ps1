@@ -148,10 +148,19 @@ function Build-MailTopLinksBlockHC {
         $browserUrl = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $BrowserViewFilePath))
         $browserTitle = [System.Net.WebUtility]::HtmlEncode($BrowserViewFilePath)
 
+        # MSO-only: the "view it in the browser" escape hatch only makes
+        # sense inside a mail client with limited rendering (classic
+        # Outlook). When the saved HTML file is opened in a browser, the
+        # reader IS already in the browser, so the line is hidden there.
+        # NOTE: this also hides the line in non-Word mail clients (Outlook
+        # on the web, Gmail, mobile) — acceptable, since those render the
+        # mail correctly anyway and share the same HTML as the saved file.
         $rows += @"
+<!--[if mso]>
 <tr>
     <td style='padding:0 0 8px 0; $mutedStyle'><p style='margin:0; mso-line-height-rule:exactly; line-height:17px;'>If this mail is not visible, please <a href='$browserUrl' title="$browserTitle" target='_blank' rel='noopener noreferrer' style='$linkStyle'>click here to view it in the browser</a>.</p></td>
 </tr>
+<![endif]-->
 "@
     }
 
@@ -299,32 +308,31 @@ function Build-SettingsRowHC {
     # asserts clean rows don't carry it), but the empty cell still reserves the
     # column width.
     #
-    # Outlook (Word) and the browser need DIFFERENT pill cells, gated by
-    # conditional comments so each client renders exactly one:
-    #  * Outlook: an inline VML shape is BASELINE-aligned and Word does NOT
-    #    vertically centre a nested table via valign (it top-anchors a block that
-    #    is shorter than the row). Fix: a 3-row nested table with top/bottom spacer
-    #    cells around the pill, sized so the WHOLE nested table is the TALLEST cell
-    #    in the row (taller than the identifier cell). Being tallest, it drives the
-    #    row height. The spacers are slightly asymmetric (8px top / 4px bottom) to
-    #    nudge the pill down a couple of px, since the VML shape otherwise sits a
-    #    touch high on its baseline. Table = 8+26+4 = 38px > identifier cell (29px
-    #    text + 8px padding = 37px). The pill cell's line-height:26px fully contains
-    #    the pill so it is not clipped.
-    #  * Browser: the CSS span centres itself against the natural font baseline,
-    #    so it keeps a normal font-size (line-height:16px lets the span's own box
-    #    drive the line) and stays perfectly centred as before.
+    # The pill cell is a plain valign='middle' td holding the standard combined
+    # (MSO VML + browser span) pill from New-PillHtmlHC — the same pattern as
+    # the file-level check rows, where it demonstrably centres correctly in
+    # both Outlook and browsers. Two earlier constructions failed in Outlook:
+    #  1. An MSO-only nested spacer table (8px/4px asymmetric) around the pill
+    #     drove the whole row's height and skewed the vertical alignment of
+    #     the pill AND the metadata cell.
+    #  2. Even with that removed, the pill stayed off-centre because the
+    #     IDENTIFIER cell stacked its two lines with a nested <table> — and
+    #     a nested table in one cell breaks Word's valign='middle' for the
+    #     SIBLING cells in the same row. The identifier now stacks its lines
+    #     with <div>s (margin:0 + exact line-height), exactly like the
+    #     file-level check rows where centring is proven to work.
+    #  3. The cell must NOT carry a line-height: the global '<head>' MSO style
+    #     applies 'mso-line-height-rule:exactly' to every td, and an explicit
+    #     line-height:16px clamped Word's line box below the 26px VML pill,
+    #     which then overflowed UPWARD from its baseline and sat high. The
+    #     check-row pill cell has no line-height, which is why it centres.
     if ($pillText) {
-        $pillParts = New-PillHtmlHC -Text $pillText -Bg $pillBg -AsParts
-        $msoSpacerTop = "<tr><td height='8' style='font-size:0; line-height:8px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr>"
-        $msoSpacerBottom = "<tr><td height='4' style='font-size:0; line-height:4px; mso-line-height-rule:exactly; padding:0;'>&#160;</td></tr>"
-        $pillTd =
-        "<!--[if mso]><td valign='middle' align='center' class='rr-srow-status' width='84' style='vertical-align:middle; padding:0 8px;'><table role='presentation' align='center' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'>$msoSpacerTop<tr><td style='padding:0; font-size:0; line-height:26px; mso-line-height-rule:exactly;'>$($pillParts.Mso)</td></tr>$msoSpacerBottom</table></td><![endif]-->" +
-        "<!--[if !mso]><!--><td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px;'>$($pillParts.Browser)</td><!--<![endif]-->"
+        $pillHtml = New-PillHtmlHC -Text $pillText -Bg $pillBg
+        $pillTd = "<td valign='middle' align='right' class='rr-srow-status' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap;'>$pillHtml</td>"
     }
     else {
         # Clean row: reserve the column width with a single empty cell.
-        $pillTd = "<td valign='middle' align='right' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap; line-height:16px;'>&nbsp;</td>"
+        $pillTd = "<td valign='middle' align='right' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap;'>&nbsp;</td>"
     }
 
     return @"
@@ -332,21 +340,11 @@ function Build-SettingsRowHC {
     <tr>
         <td valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
         <td valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'>
-            <table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; table-layout:fixed;'>
-                <tr>
-                    <td valign='top' style='padding:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'>
-                        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a>
-                    </td>
-                </tr>
-                <tr>
-                    <td valign='top' class='rr-srow-path' style='padding:0; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle>
-                        <a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMuted);'>$pathDisp</a>
-                    </td>
-                </tr>
-            </table>
+            <div style='margin:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a></div>
+            <div style='margin:0; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMuted);'>$pathDisp</a></div>
         </td>
         <td valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
-            <span style='margin-right:14px;'>$action</span>
+            <span style='margin-right:14px;'>$action</span><!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->
             <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
         </td>
         $pillTd
@@ -610,16 +608,17 @@ function Build-MatrixFileCardHC {
                      height and made valign='middle' place the glyph off-centre
                      in Outlook. The <p margin:0> wrappers below fix the root
                      cause; the MSO glyph cell additionally gets an explicit
-                     line-height equal to the content height (20 + 2 + 17 =
-                     39px) so the glyph is dead-centre regardless of Word's
-                     baseline handling. Horizontally, Word mis-renders the
+                     line-height (33px, tuned by eye — Word places the glyph on
+                     the line box's baseline, so the line-height is the knob
+                     that moves it up/down; smaller lifts it) so the glyph is
+                     vertically centred regardless of Word's baseline handling. Horizontally, Word mis-renders the
                      browser's asymmetric 18px-left-padding layout, so the MSO
                      cell instead centres the glyph in a fixed 52px column —
                      the same footprint as the browser's 18px padding + 34px
                      cell — putting the glyph centre at ~26px in both clients.
                      Browsers keep the original cell, untouched.
                     -->
-                    <!--[if mso]><td valign='middle' align='center' width='52' style='vertical-align:middle; text-align:center; padding:14px 0; font-size:20px; font-weight:bold; color:#ffffff; line-height:39px; mso-line-height-rule:exactly;'>$headerSymbol</td><![endif]-->
+                    <!--[if mso]><td valign='middle' align='center' width='52' style='vertical-align:middle; text-align:center; padding:14px 0; font-size:20px; font-weight:bold; color:#ffffff; line-height:33px; mso-line-height-rule:exactly;'>$headerSymbol</td><![endif]-->
                     <!--[if !mso]><!--><td valign='middle' width='34' style='padding:14px 0 14px 18px; font-size:20px; font-weight:bold; color:#ffffff; line-height:1; text-align:left;'>$headerSymbol</td><!--<![endif]-->
                     <td valign='middle' style='padding:14px 8px 14px 4px;'>
                         <p style='margin:0; font-size:16px; font-weight:700; color:#ffffff; line-height:20px; mso-line-height-rule:exactly;'>
