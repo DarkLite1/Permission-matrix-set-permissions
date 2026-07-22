@@ -546,6 +546,9 @@ function Copy-MatrixFileToLogFolderHC {
     .PARAMETER AdObjectRows
         Rows for the 'AdObjects' worksheet.
 
+    .PARAMETER DefaultsAcl
+        Rows for the 'DefaultsAcl' worksheet.
+
     .PARAMETER DestinationFileName
         Optional file name (with extension) for the copy inside LogFolder. When
         omitted, the source file's own name is used. Lets callers add a
@@ -562,6 +565,7 @@ function Copy-MatrixFileToLogFolderHC {
         [array]$AccessListRows,
         [array]$GroupManagerRows,
         [array]$AdObjectRows,
+        [hashtable]$DefaultsAcl,
         [string]$DestinationFileName
     )
 
@@ -582,6 +586,17 @@ function Copy-MatrixFileToLogFolderHC {
         # that attribute and Export-Excel would fail to open the package
         Set-ItemProperty -LiteralPath $destinationPath `
             -Name IsReadOnly -Value $false -ErrorAction SilentlyContinue
+
+        #region Convert hashtable to array
+        if (-not $DefaultsAcl) { $DefaultsAcl = @{} }
+
+        $DefaultsAclRows = $DefaultsAcl.GetEnumerator() | Sort-Object Key | ForEach-Object {
+            [pscustomobject]@{
+                SamAccountName = $_.Key
+                Permission     = $_.Value
+            }
+        }
+        #endregion
 
         $worksheets = @(
             @{
@@ -606,6 +621,13 @@ function Copy-MatrixFileToLogFolderHC {
                 Headers = @(
                     'MatrixFileName', 'SamAccountName',
                     'GroupName', 'SiteCode', 'Name', 'Enabled'
+                )
+            }
+            @{
+                Name    = 'DefaultsAcl'
+                Rows    = $DefaultsAclRows
+                Headers = @(
+                    'SamAccountName', 'Permission'
                 )
             }
         )
