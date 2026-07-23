@@ -115,6 +115,29 @@ function Invoke-PermissionMatrixEndHC {
                     -Category 'Reporting' `
                     -SystemErrors $SystemErrors
             }
+
+            if (
+                $Context.ExportedFiles.OverviewHtml -and
+                $Context.Config.SharePoint.SiteUrl
+            ) {
+                $spParams = @{
+                    FilePath              = $Context.ExportedFiles.OverviewHtml
+                    SiteUrl               = $Context.Config.SharePoint.SiteUrl
+                    DocumentLibraryName   = $Context.Config.SharePoint.DocumentLibraryName
+                    ClientId              = $Context.Config.SharePoint.ClientId
+                    TenantId              = $Context.Config.SharePoint.TenantId
+                    CertificateThumbprint = $Context.Config.SharePoint.CertificateThumbprint
+                }
+
+                if ($Context.Config.SharePoint.FolderPath) {
+                    $spParams.FolderPath = $Context.Config.SharePoint.FolderPath
+                }
+                if ($Context.Config.SharePoint.FileName) {
+                    $spParams.FileName = $Context.Config.SharePoint.FileName
+                }
+
+                $null = & $Context.ScriptPath.UploadToSharePoint @spParams
+            }
         }
         catch {
             Add-ErrorHC `

@@ -72,6 +72,7 @@ begin {
             SetPermissions         = Join-Path $opsRoot 'SetPermissions.ps1'
             TestRequirements       = Join-Path $opsRoot 'TestRequirements.ps1'
             UpdateServiceNow       = Join-Path $opsRoot 'UpdateServiceNow.ps1'
+            UploadToSharePoint     = Join-Path $opsRoot 'UploadToSharePoint.ps1'
         }
 
         Import-PermissionMatrixModuleHC `

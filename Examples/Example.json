@@ -20,6 +20,15 @@
     "Environment": "Prod",
     "TableName": "u_bnl_roles"
   },
+  "SharePoint": {
+    "SiteUrl": "https://contoso.sharepoint.com/sites/IT",
+    "DocumentLibraryName": "Documents",
+    "FolderPath": "Reports/Permission matrix",
+    "FileName": "",
+    "ClientId": "ENV:AZURE_CLIENT_ID",
+    "TenantId": "ENV:AZURE_TENANT_ID",
+    "CertificateThumbprint": "ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT"
+  },
   "PSSessionConfiguration": "PowerShell.7",
   "Settings": {
     "ScriptName": "Permission matrix",
@@ -74,6 +83,20 @@
       "ServiceNowFormDataExcelFile": "(Optional) The path where to save the file that contains the data to upload to the ServiceNow ticketing tool.",
       "OverviewHtmlFile": "(Optional) The path where the html file will be saved that contains an overview of the processed matrix files.",
       "PermissionsExcelFile": "(Optional) The path where to save the Excel file that contains the active directory groups and users used in the matrix files."
+    },
+    "ServiceNow": {
+      "CredentialsFilePath": "(Mandatory) The path to the JSON file that contains the ServiceNow credentials.",
+      "Environment": "(Mandatory) The ServiceNow environment to use. Possible values: 'Dev', 'Test', 'Prod'.",
+      "TableName": "(Mandatory) The name of the ServiceNow table to update."
+    },
+    "SharePoint": {
+      "SiteUrl": "(Optional) The SharePoint Online site that hosts the document library where 'Export.OverviewHtmlFile' is uploaded. When not set, no upload is done.",
+      "DocumentLibraryName": "(Mandatory when SiteUrl is used) The display name of the target document library, e.g. 'Documents'.",
+      "FolderPath": "(Optional) A folder path inside the document library. Missing folders are created. Defaults to the library root.",
+      "FileName": "(Optional) The name to give the file in SharePoint. Defaults to the file name of 'Export.OverviewHtmlFile'.",
+      "ClientId": "(Mandatory when SiteUrl is used) The Entra ID application ID. Supports environment variables (e.g. 'ENV:AZURE_CLIENT_ID').",
+      "TenantId": "(Mandatory when SiteUrl is used) The Entra ID tenant ID. Supports environment variables (e.g. 'ENV:AZURE_TENANT_ID').",
+      "CertificateThumbprint": "(Mandatory when SiteUrl is used) The thumbprint of the certificate used for app-only authentication. Supports environment variables (e.g. 'ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT')."
     },
     "PSSessionConfiguration": "(Optional) The PowerShell version of the remote endpoint. This value corresponds to the output of the Get-PSSessionConfiguration cmdlet. The minimum supported version is 'PowerShell.7'. Defaults to 'PowerShell.7' if not specified.",
     "Settings": {

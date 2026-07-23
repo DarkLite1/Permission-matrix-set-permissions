@@ -752,4 +752,31 @@ function Test-ConfigurationStructureHC {
         }
     }
     #endregion
+
+    #region SharePoint
+    if ($Json.SharePoint -and $Json.SharePoint.SiteUrl) {
+        if ($Json.SharePoint.SiteUrl -notmatch '^https://') {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'SharePoint.SiteUrl'" `
+                -Message 'Must be a URL starting with https://' `
+                -SystemErrors $SystemErrors
+        }
+
+        foreach ($p in 'DocumentLibraryName', 'ClientId', 'TenantId', 'CertificateThumbprint') {
+            if (-not $Json.SharePoint.$p) {
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Missing 'SharePoint.$p'" `
+                    -Message "$p is required when 'SharePoint.SiteUrl' is used." `
+                    -SystemErrors $SystemErrors
+            }
+        }
+
+        if (-not $Json.Export.OverviewHtmlFile) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name 'Incorrect configuration' `
+                -Message "'Export.OverviewHtmlFile' must be defined when 'SharePoint.SiteUrl' is used." `
+                -SystemErrors $SystemErrors
+        }
+    }
+    #endregion
 }
