@@ -624,7 +624,7 @@ function Copy-MatrixFileToLogFolderHC {
                 )
             }
             @{
-                Name    = 'DefaultsAcl'
+                Name    = 'DefaultPermissions'
                 Rows    = $DefaultsAclRows
                 Headers = @(
                     'SamAccountName', 'Permission'
