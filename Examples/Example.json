@@ -1,6 +1,6 @@
 {
   "MaxConcurrent": {
-    "JobsTotal": 30,
+    "JobsTotal": 20,
     "JobsPerComputer": 3,
     "FoldersPerMatrix": 3
   },
