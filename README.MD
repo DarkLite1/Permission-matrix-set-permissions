@@ -33,6 +33,11 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
   ```
   The upload authenticates as an Entra ID app registration using a certificate. The app needs an admin-consented `Sites.ReadWrite.All` role, or a `Sites.Selected` grant with the **write** role on the specific target site.
 - **Permissions**: Administrative rights on the target file systems and remote management permissions.
+- **WinRM capacity**: Each concurrent job holds one WinRM shell on the remote computer for its lifetime, so `MaxConcurrent.JobsPerComputer` must stay within that computer's `MaxShellsPerUser` limit. Check it on the busy file servers before raising the concurrency settings:
+  ```powershell
+  winrm get winrm/config/winrs
+  ```
+  Exceeding the limit surfaces as ordinary-looking connection failures rather than a clear quota error, so it is worth confirming up front. See [Concurrency](#concurrency) below.
 
 ### Usage
 
@@ -60,6 +65,47 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 The script is driven by a single JSON configuration file, passed with `-ConfigurationJsonFile`. There's no schema to memorize: copy **[`Example.json`](Examples/Example.json)** and adjust the values to suit your environment. It's a complete, self-documenting template — every option is described inline in its `?` block, including whether it is mandatory, its accepted values, and its default.
 
 💡 **TIP**: Most fields accept an environment-variable reference such as `"ENV:SMTP_SERVER"` in place of a literal value, so secrets like SMTP or ServiceNow credentials never need to live in the file.
+
+### Concurrency
+
+Run time is usually dominated by how much work is allowed to happen at once. Three settings control it, and each caps a different thing:
+
+```json
+"MaxConcurrent": {
+  "JobsTotal": 30,
+  "JobsPerComputer": 3,
+  "FoldersPerMatrix": 3
+}
+```
+
+| Setting            | Caps                                                            |
+| ------------------ | --------------------------------------------------------------- |
+| `JobsTotal`        | Jobs running at the same time across **all** remote computers.    |
+| `JobsPerComputer`  | Jobs running at the same time on any **single** remote computer.  |
+| `FoldersPerMatrix` | Folders processed at the same time **within one** job.            |
+
+One job means one matrix file being applied to one computer, and it holds exactly one WinRM shell from start to finish. So `JobsPerComputer` is also the most shells this script will ever open on a single machine — that's the number to keep under the remote computer's `MaxShellsPerUser`. It is enforced structurally rather than by the throttle, so no other setting can cause it to be exceeded.
+
+`JobsTotal` is the overall budget and must be greater than or equal to `JobsPerComputer`; a per-computer cap above the total would be unreachable, and the configuration is rejected at validation.
+
+#### Sizing them
+
+Matrix files are grouped by the computer they target, and each computer's jobs are handed to up to `JobsPerComputer` workers that pull from a shared queue. Workers are started deepest-queue-first, so the busiest computer begins immediately rather than waiting behind lighter ones.
+
+The consequence is that **an uneven spread of matrix files matters more than the raw numbers**. A run where most matrix files target the same file server is limited by that one computer, no matter how high `JobsTotal` goes:
+
+- A run of 99 matrix files with 82 of them on a single server, at `JobsPerComputer: 1`, spent ~65 minutes working through that one queue while everything else sat idle.
+- Raising `JobsPerComputer` to `3` divides that queue three ways.
+
+Once the queue is divided, the floor becomes the **single slowest matrix file**, since one matrix cannot be split across workers. Beyond that point, raising `JobsPerComputer` buys nothing and `FoldersPerMatrix` is the setting that helps, because it parallelises the folders inside that one matrix.
+
+A practical order to tune in:
+
+1. Set `JobsPerComputer` from the remote computers' `MaxShellsPerUser`, leaving headroom.
+2. Set `JobsTotal` to roughly `JobsPerComputer` × the number of computers you want busy at once.
+3. If one long-running matrix still dominates, raise `FoldersPerMatrix`.
+
+💡 **TIP**: The `Duration` column in the summary mail shows the time for each matrix file. If the total run time is far greater than the longest individual duration, work is being serialised somewhere and there is room to raise these numbers.
 
 ## 📄 Matrix Files
 
