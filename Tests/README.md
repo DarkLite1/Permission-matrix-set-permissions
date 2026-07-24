@@ -9,7 +9,7 @@ Tests/
 ├── Helpers/         Shared fixtures and utilities (dot-sourced by tests)
 ├── Unit/            One test file per source file; mocks everything external
 ├── Integration/     Multi-component scenarios; shells out to entrypoint scripts
-└── Scripts/         Tests for the Operations\ scripts
+└── Operations/      Tests for the Operations\ scripts
 ```
 
 ### Unit/
@@ -51,10 +51,10 @@ Cross-cutting tests that exercise more than one component, typically by
 shelling out to an entrypoint script with a real (TestDrive) config. These run
 slower and serve as a safety net for end-to-end flows.
 
-### Scripts/
+### Operations/
 
 Tests for the standalone scripts under `Operations\`: `SetPermissions.ps1`,
-`TestRequirements.ps1`, `UpdateServiceNow.ps1`.
+`TestRequirements.ps1`, `UpdateServiceNow.ps1`, `UploadToSharePoint.ps1`.
 
 ### Helpers/
 
