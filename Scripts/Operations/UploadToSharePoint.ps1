@@ -563,11 +563,16 @@ begin {
 
                 if ($bytesRead -le 0) { break }
 
+                # A short final chunk needs its own buffer. $buffer[0..n] would
+                # return Object[] rather than byte[], leaving the request body to
+                # rely on coercion; Array.Copy keeps it a genuine byte[].
                 $chunk = if ($bytesRead -eq $buffer.Length) {
                     $buffer
                 }
                 else {
-                    $buffer[0..($bytesRead - 1)]
+                    $lastChunk = [byte[]]::new($bytesRead)
+                    [Array]::Copy($buffer, 0, $lastChunk, 0, $bytesRead)
+                    $lastChunk
                 }
 
                 $rangeStart = $position
