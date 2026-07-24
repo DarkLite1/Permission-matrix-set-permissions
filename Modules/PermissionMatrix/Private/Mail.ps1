@@ -115,8 +115,8 @@ function Get-MailSubjectHC {
         are only used when no system errors are present.
 
     .PARAMETER MatrixCount
-        The number of matrix files processed. Always reported in the subject
-        and drives the 'matrix file' / 'matrix files' wording.
+        The number of matrixes processed. Always reported in the subject
+        and drives the 'matrix' / 'matrixes' wording.
 
     .PARAMETER CustomSubject
         Optional free text appended to the end of the subject, prefixed with a
@@ -130,22 +130,22 @@ function Get-MailSubjectHC {
             -Counter $counter `
             -MatrixCount 3
 
-        Returns '3 matrix files, 2 system errors'. Because system errors are
+        Returns '3 matrixes, 2 system errors'. Because system errors are
         present, the error and warning counts from Counter are omitted.
 
     .EXAMPLE
         $counter = [PSCustomObject]@{ TotalErrors = 1; TotalWarnings = 4 }
         Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 1
 
-        Returns '1 matrix file, 1 error, 4 warnings'. No system errors, so the
+        Returns '1 matrix, 1 error, 4 warnings'. No system errors, so the
         Counter totals are included with correct pluralisation.
 
     .EXAMPLE
         $counter = [PSCustomObject]@{ TotalErrors = 0; TotalWarnings = 0 }
         Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 2 -CustomSubject 'Nightly run'
 
-        Returns '2 matrix files, Nightly run'. A clean run shows only the matrix
-        file count plus the custom suffix.
+        Returns '2 matrixes, Nightly run'. A clean run shows only the matrix
+        count plus the custom suffix.
 
     .OUTPUTS
         System.String
@@ -170,13 +170,13 @@ function Get-MailSubjectHC {
         [string]$CustomSubject
     )
 
-    $matrixPlural = if ($MatrixCount -ne 1) { 's' } else { '' }
+    $matrixPlural = if ($MatrixCount -ne 1) { 'es' } else { '' }
     $cSuffix = if ($CustomSubject) { ", $CustomSubject" } else { '' }
 
     # If system errors exist
     if ($SystemErrors.Count -gt 0) {
         $sysPlural = if ($SystemErrors.Count -ne 1) { 's' } else { '' }
-        return "$MatrixCount matrix file$matrixPlural, $($SystemErrors.Count) system error$sysPlural$cSuffix"
+        return "$MatrixCount matrix$matrixPlural, $($SystemErrors.Count) system error$sysPlural$cSuffix"
     }
 
     # No system errors: embed matrix counts + warnings/errors
@@ -186,7 +186,7 @@ function Get-MailSubjectHC {
     $errPart = if ($err -gt 0) { ", $err error$(if ($err -ne 1) {'s'})" } else { '' }
     $warnPart = if ($warn -gt 0) { ", $warn warning$(if ($warn -ne 1) {'s'})" } else { '' }
 
-    return "$MatrixCount matrix file$matrixPlural$errPart$warnPart$cSuffix"
+    return "$MatrixCount matrix$matrixPlural$errPart$warnPart$cSuffix"
 }
 
 function Send-MailKitMessageHC {

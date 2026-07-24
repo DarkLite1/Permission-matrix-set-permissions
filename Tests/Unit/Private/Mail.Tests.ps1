@@ -176,14 +176,14 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $zeroCounter -MatrixCount 1
 
-            $result | Should -Be '1 matrix file, 1 System Error'
+            $result | Should -Be '1 matrix, 1 System Error'
         }
 
-        It 'pluralises matrix files and system errors' {
+        It 'pluralises matrix and system errors' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 3) `
                 -Counter $zeroCounter -MatrixCount 2
 
-            $result | Should -Be '2 matrix files, 3 System Errors'
+            $result | Should -Be '2 matrixes, 3 System Errors'
         }
 
         It 'ignores counter errors and warnings when system errors exist' {
@@ -192,14 +192,14 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $counter -MatrixCount 1
 
-            $result | Should -Be '1 matrix file, 1 System Error'
+            $result | Should -Be '1 matrix, 1 System Error'
         }
 
         It 'appends the custom subject' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 2) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'Nightly run'
 
-            $result | Should -Be '1 matrix file, 2 System Errors, Nightly run'
+            $result | Should -Be '1 matrix, 2 System Errors, Nightly run'
         }
     }
 
@@ -208,37 +208,37 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1
 
-            $result | Should -Be '1 matrix file'
+            $result | Should -Be '1 matrix'
         }
 
         It 'pluralises the matrix count' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 3
 
-            $result | Should -Be '3 matrix files'
+            $result | Should -Be '3 matrixes'
         }
 
         It 'pluralises a zero matrix count' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 0
 
-            $result | Should -Be '0 matrix files'
+            $result | Should -Be '0 matrixes'
         }
 
         It 'appends the custom subject' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'All good'
 
-            $result | Should -Be '1 matrix file, All good'
+            $result | Should -Be '1 matrix, All good'
         }
 
         It 'builds the subject for <Errors> error(s) and <Warnings> warning(s): <Expected>' -TestCases @(
-            @{ Errors = 1; Warnings = 0; Expected = '1 matrix file, 1 error' }
-            @{ Errors = 2; Warnings = 0; Expected = '1 matrix file, 2 errors' }
-            @{ Errors = 0; Warnings = 1; Expected = '1 matrix file, 1 warning' }
-            @{ Errors = 0; Warnings = 2; Expected = '1 matrix file, 2 warnings' }
-            @{ Errors = 1; Warnings = 1; Expected = '1 matrix file, 1 error, 1 warning' }
-            @{ Errors = 2; Warnings = 3; Expected = '1 matrix file, 2 errors, 3 warnings' }
+            @{ Errors = 1; Warnings = 0; Expected = '1 matrix, 1 error' }
+            @{ Errors = 2; Warnings = 0; Expected = '1 matrix, 2 errors' }
+            @{ Errors = 0; Warnings = 1; Expected = '1 matrix, 1 warning' }
+            @{ Errors = 0; Warnings = 2; Expected = '1 matrix, 2 warnings' }
+            @{ Errors = 1; Warnings = 1; Expected = '1 matrix, 1 error, 1 warning' }
+            @{ Errors = 2; Warnings = 3; Expected = '1 matrix, 2 errors, 3 warnings' }
         ) {
             param($Errors, $Warnings, $Expected)
 
