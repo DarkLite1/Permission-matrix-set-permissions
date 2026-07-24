@@ -808,5 +808,170 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 Get-ErrorNames $errors | Should -Contain "Missing 'ServiceNow.$_'"
             }
         }
+
+        Context 'SharePoint block' {
+            BeforeAll {
+                # SharePoint is optional, so it is absent from New-JsonFixture.
+                # Tests that need it add it here rather than changing the shared
+                # fixture, which would make every other test in this file carry a
+                # block it does not care about.
+                function Add-SharePointBlock {
+                    param(
+                        [Parameter(Mandatory)][hashtable]$Json,
+                        [hashtable]$Override = @{}
+                    )
+
+                    $block = @{
+                        SiteUrl               = 'https://contoso.sharepoint.com/sites/IT'
+                        DocumentLibraryName   = 'Documents'
+                        ClientId              = 'ENV:AZURE_CLIENT_ID'
+                        TenantId              = 'ENV:AZURE_TENANT_ID'
+                        CertificateThumbprint = 'ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT'
+                    }
+
+                    foreach ($key in $Override.Keys) {
+                        $block[$key] = $Override[$key]
+                    }
+
+                    $Json.SharePoint = $block
+                    $Json
+                }
+            }
+
+            It 'records no errors when the SharePoint block is absent entirely' {
+                # The most important case in this Context: SharePoint was added to
+                # the schema after configurations were already in production, and
+                # it must stay optional. If this fails, every existing config
+                # stops loading.
+                $json = Set-ValidPaths (New-JsonFixture)
+
+                $json.ContainsKey('SharePoint') | Should -BeFalse
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should -Be 0
+            }
+
+            It 'records no errors when SharePoint is present but SiteUrl is empty' {
+                # A block left in place with the upload switched off must not be
+                # treated as a misconfiguration.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{ SiteUrl = '' }
+                $json.Export.OverviewHtmlFile = $null
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should -Be 0
+            }
+
+            It 'records no errors for a complete SharePoint block' {
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should -Be 0
+            }
+
+            It 'accepts an optional FolderPath and FileName' {
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{
+                    FolderPath = 'Reports/Permission matrix'
+                    FileName   = 'Permission matrix overview.html'
+                }
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should -Be 0
+            }
+
+            It 'flags a SiteUrl that does not start with https://' -ForEach @(
+                'http://contoso.sharepoint.com/sites/IT'
+                'contoso.sharepoint.com/sites/IT'
+                'ftp://contoso.sharepoint.com'
+            ) {
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{ SiteUrl = $_ }
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors | Should -Contain "Incorrect 'SharePoint.SiteUrl'"
+            }
+
+            It 'flags missing SharePoint.<_> when that property is blank' -ForEach @(
+                'DocumentLibraryName', 'ClientId', 'TenantId', 'CertificateThumbprint'
+            ) {
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{ $_ = '' }
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors | Should -Contain "Missing 'SharePoint.$_'"
+            }
+
+            It 'flags every missing property at once rather than stopping at the first' {
+                # The validation loop must report all four, so a user fixing the
+                # config sees the whole list in one run instead of rediscovering
+                # them one at a time.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{
+                    DocumentLibraryName   = ''
+                    ClientId              = ''
+                    TenantId              = ''
+                    CertificateThumbprint = ''
+                }
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+                $names = Get-ErrorNames $errors
+
+                $names | Should -Contain "Missing 'SharePoint.DocumentLibraryName'"
+                $names | Should -Contain "Missing 'SharePoint.ClientId'"
+                $names | Should -Contain "Missing 'SharePoint.TenantId'"
+                $names | Should -Contain "Missing 'SharePoint.CertificateThumbprint'"
+            }
+
+            It 'flags a SharePoint upload configured without Export.OverviewHtmlFile' {
+                # There would be nothing to upload: the html the whole feature
+                # exists to publish is never produced.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json
+                $json.Export.OverviewHtmlFile = $null
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors | Should -Contain 'Incorrect configuration'
+            }
+
+            It 'does not flag the OverviewHtmlFile dependency when SharePoint is unused' {
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.Export.OverviewHtmlFile = $null
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors | Should -Not -Contain 'Incorrect configuration'
+            }
+
+            It 'raises FatalError, not Warning, for an incomplete SharePoint block' {
+                # These are fatal on purpose: a half-configured upload should stop
+                # the run at validation rather than fail at 02:00 after the
+                # permissions have already been applied.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json = Add-SharePointBlock -Json $json -Override @{ ClientId = '' }
+                $json.Export.OverviewHtmlFile = 'TestDrive:\Overview.html'
+
+                $errors = Invoke-Validation -Json $json
+
+                $sharePointErrors = @($errors | Where-Object { $_.Name -like "*SharePoint*" })
+
+                $sharePointErrors.Count | Should -BeGreaterThan 0
+                $sharePointErrors.Type | Should -Not -Contain 'Warning'
+                $sharePointErrors.Type | Select-Object -Unique | Should -BeExactly 'FatalError'
+            }
+        }
     }
 }
