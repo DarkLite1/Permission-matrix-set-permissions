@@ -66,9 +66,10 @@ function Invoke-PermissionMatrixEndHC {
     $mailSubject = $null
 
     # =====================================================================
-    # 1. EXPORTS & SERVICENOW (Skip if Fatal Errors)
+    # 1. EXPORT FILES, SERVICENOW & SHAREPOINT (Skip if Fatal Errors)
     # =====================================================================
     if (-not $hasFatalErrors -and $Context.AllMatrices) {
+        #region Export files
         try {
             $Context.ExportedFiles = Export-FilesHC `
                 -ImportedMatrix $Context.AllMatrices `
@@ -77,23 +78,36 @@ function Invoke-PermissionMatrixEndHC {
                 -AdObjectDetails $Context.AdObjectDetails `
                 -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
 
-            # FormData sheet errors do not block permission application, but the
-            # ServiceNow table is built from the FormData, so a fatal FormData
-            # error means we cannot reliably sync. Skip UpdateServiceNow in that
-            # case while still producing the other exports above.
-            $hasFormDataErrors = $false
-            foreach ($file in $Context.FileResults) {
-                if (Test-ItemHasFatalErrorHC -CheckList $file.Sheets.FormData.Check) {
-                    $hasFormDataErrors = $true
-                    break
-                }
-            }
+        }
+        catch {
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'Exports' `
+                -Message "Failed to export files: $_" `
+                -Category 'Reporting' `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
 
-            if (
-                $Context.Config.Export.ServiceNowFormDataExcelFile -and
-                $Context.Config.ServiceNow.CredentialsFilePath -and
-                -not $hasFormDataErrors
-            ) {
+        # FormData sheet errors do not block permission application, but the
+        # ServiceNow table is built from the FormData, so a fatal FormData
+        # error means we cannot reliably sync. Skip UpdateServiceNow in that
+        # case while still producing the other exports above.
+        $hasFormDataErrors = $false
+        foreach ($file in $Context.FileResults) {
+            if (Test-ItemHasFatalErrorHC -CheckList $file.Sheets.FormData.Check) {
+                $hasFormDataErrors = $true
+                break
+            }
+        }
+
+        #region ServiceNow Update
+        if (
+            $Context.Config.Export.ServiceNowFormDataExcelFile -and
+            $Context.Config.ServiceNow.CredentialsFilePath -and
+            -not $hasFormDataErrors
+        ) {
+            try {
                 $snowParams = @{
                     CredentialsFilePath    = $Context.Config.ServiceNow.CredentialsFilePath
                     Environment            = $Context.Config.ServiceNow.Environment
@@ -103,23 +117,36 @@ function Invoke-PermissionMatrixEndHC {
                 }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams
             }
-            elseif (
-                $Context.Config.Export.ServiceNowFormDataExcelFile -and
-                $Context.Config.ServiceNow.CredentialsFilePath -and
-                $hasFormDataErrors
-            ) {
+            catch { 
                 Add-ErrorHC `
                     -Type 'Warning' `
-                    -Name 'ServiceNow skipped' `
-                    -Message 'ServiceNow update was skipped because one or more matrix files have FormData errors.' `
+                    -Name 'ServiceNow' `
+                    -Message "Failed to update ServiceNow: $_" `
                     -Category 'Reporting' `
                     -SystemErrors $SystemErrors
             }
 
-            if (
-                $Context.ExportedFiles.OverviewHtml -and
-                $Context.Config.SharePoint.SiteUrl
-            ) {
+        }
+        elseif (
+            $Context.Config.Export.ServiceNowFormDataExcelFile -and
+            $Context.Config.ServiceNow.CredentialsFilePath -and
+            $hasFormDataErrors
+        ) {
+            Add-ErrorHC `
+                -Type 'Warning' `
+                -Name 'ServiceNow skipped' `
+                -Message 'ServiceNow update was skipped because one or more matrix files have FormData errors.' `
+                -Category 'Reporting' `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
+
+        #region SharePoint Upload
+        if (
+            $Context.ExportedFiles.OverviewHtml -and
+            $Context.Config.SharePoint.SiteUrl
+        ) {
+            try {
                 $spParams = @{
                     FilePath              = $Context.ExportedFiles.OverviewHtml
                     SiteUrl               = $Context.Config.SharePoint.SiteUrl
@@ -128,25 +155,26 @@ function Invoke-PermissionMatrixEndHC {
                     TenantId              = $Context.Config.SharePoint.TenantId
                     CertificateThumbprint = $Context.Config.SharePoint.CertificateThumbprint
                 }
-
+            
                 if ($Context.Config.SharePoint.FolderPath) {
                     $spParams.FolderPath = $Context.Config.SharePoint.FolderPath
                 }
                 if ($Context.Config.SharePoint.FileName) {
                     $spParams.FileName = $Context.Config.SharePoint.FileName
                 }
-
+            
                 $null = & $Context.ScriptPath.UploadToSharePoint @spParams
             }
+            catch {
+                Add-ErrorHC `
+                    -Type 'Warning' `
+                    -Name 'SharePoint' `
+                    -Message "Failed to upload overview HTML to SharePoint: $_" `
+                    -Category 'Reporting' `
+                    -SystemErrors $SystemErrors
+            }
         }
-        catch {
-            Add-ErrorHC `
-                -Type 'Warning' `
-                -Name 'Exports/ServiceNow' `
-                -Message "Failed during export phase: $_" `
-                -Category 'Reporting' `
-                -SystemErrors $SystemErrors
-        }
+        #endregion
     }
 
     #region Create log folder

@@ -334,7 +334,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({ $_.Name -eq 'Exports/ServiceNow' }).Count | Should -Be 1
+            $systemErrors.Where({ $_.Name -eq 'Exports' }).Count | Should -Be 1
         }
     }
 
@@ -541,7 +541,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             # A SharePoint outage must not cost us the notification mail.
             $systemErrors.Where({
-                    $_.Name -eq 'Exports/ServiceNow' -and $_.Type -eq 'Warning'
+                    $_.Name -eq 'SharePoint' -and $_.Type -eq 'Warning'
                 }).Count | Should -Be 1
 
             Should -Invoke Send-MailKitMessageHC -Times 1
