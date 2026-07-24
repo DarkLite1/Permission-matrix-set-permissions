@@ -179,17 +179,122 @@ begin {
         }
     }
 
+    function Test-IsRetryableErrorHC {
+        <#
+        .SYNOPSIS
+            Decide whether a failed Graph call is worth attempting again.
+
+        .DESCRIPTION
+            Client errors mean the request itself is wrong: the app lacks the
+            permission, the site does not exist, the path is malformed. Repeating
+            an identical request cannot change any of that, so retrying only
+            delays the report by MaxRetries * the backoff.
+
+            Throttling (429) and server-side failures (5xx) are the opposite:
+            the request was fine and a later attempt has a real chance.
+
+            Returns $true when the error is worth retrying.
+        #>
+        param (
+            [Parameter(Mandatory)][string]$ErrorText
+        )
+
+        # 429 is a client error but IS retryable, so it is checked first.
+        if ($ErrorText -match '\b429\b|activityLimitReached|TooManyRequests|throttl') {
+            return $true
+        }
+
+        $nonRetryable = @(
+            'accessDenied'          # no permission on the site or library
+            'itemNotFound'          # wrong site, library, or path
+            'unauthenticated'       # token rejected
+            'invalidRequest'        # malformed request
+            'invalidRange'          # bad Content-Range on a chunk
+            'nameAlreadyExists'     # handled by the caller, never retried here
+            'malwareDetected'
+            'quotaLimitReached'
+            'resourceModified'
+            '\b40[0-9]\b'           # any other 4xx
+        )
+
+        foreach ($pattern in $nonRetryable) {
+            if ($ErrorText -match $pattern) {
+                return $false
+            }
+        }
+
+        # Unknown failures (network blips, 5xx, transient DNS) get the benefit of
+        # the doubt: retrying them is cheap and often works.
+        $true
+    }
+
+    function Get-RetryAfterSecondsHC {
+        <#
+        .SYNOPSIS
+            Read a Retry-After hint out of a Graph error, if it carries one.
+
+        .DESCRIPTION
+            When Graph throttles it returns a Retry-After header saying how long
+            to wait. Ignoring it and retrying sooner makes the throttling worse,
+            so it is honoured when present.
+
+            The header is read from the exception's response where the SDK
+            surfaces it, and otherwise scraped from the message text. Returns 0
+            when no hint is available, leaving the caller to fall back to its own
+            backoff.
+        #>
+        param (
+            $ErrorRecord
+        )
+
+        try {
+            $response = $ErrorRecord.Exception.Response
+
+            if ($response -and $response.Headers) {
+                $retryAfter = $response.Headers.RetryAfter
+
+                if ($retryAfter.Delta.TotalSeconds -gt 0) {
+                    return [int][math]::Ceiling($retryAfter.Delta.TotalSeconds)
+                }
+                if ($retryAfter.Date) {
+                    $seconds = ($retryAfter.Date - (Get-Date)).TotalSeconds
+                    if ($seconds -gt 0) { return [int][math]::Ceiling($seconds) }
+                }
+            }
+        }
+        catch {
+            if ($global:Error.Count -gt 0) { $global:Error.RemoveAt(0) }
+        }
+
+        if ("$ErrorRecord" -match 'Retry-After[:\s]+(\d+)') {
+            return [int]$Matches[1]
+        }
+
+        0
+    }
+
     function Invoke-WithRetryHC {
         <#
         .SYNOPSIS
             Run a Graph operation with bounded retries and return its result.
 
         .DESCRIPTION
-            Executes the supplied script block, retrying on failure up to
-            MaxRetries attempts with a 3 second pause *between* attempts (never
-            after the final attempt). Exhausting the retries rethrows, because
-            every call in this script is required for the upload to succeed:
-            there is no useful "carry on without it" state.
+            Executes the supplied script block, retrying up to MaxRetries
+            attempts. Exhausting the retries rethrows, because every call in this
+            script is required for the upload to succeed: there is no useful
+            "carry on without it" state.
+
+            Three things decide what happens after a failure:
+
+            - Errors that cannot succeed on a repeat (403, 404, malformed
+              requests) throw immediately. Retrying a missing Sites.Selected
+              grant three times just delays an accurate error by nine seconds.
+            - A Retry-After hint from a throttling response is honoured exactly,
+              because retrying sooner deepens the throttling.
+            - Everything else backs off exponentially (RetryDelaySeconds, then
+              doubling, capped at 60s) rather than hammering at a fixed interval.
+
+            Pauses happen only *between* attempts, never after the last one.
 
             Returns whatever the script block returns.
 
@@ -202,14 +307,19 @@ begin {
 
         .PARAMETER MaxRetries
             Maximum attempts before giving up and throwing.
+
+        .PARAMETER RetryDelaySeconds
+            Base delay for the first retry. Each subsequent wait doubles it.
         #>
         param (
             [Parameter(Mandatory)][scriptblock]$Action,
             [Parameter(Mandatory)][string]$Description,
-            [Parameter(Mandatory)][int]$MaxRetries
+            [Parameter(Mandatory)][int]$MaxRetries,
+            [int]$RetryDelaySeconds = 3
         )
 
         $attempt = 0
+        $maxDelaySeconds = 60
 
         while ($true) {
             $attempt++
@@ -218,26 +328,35 @@ begin {
                 return & $Action
             }
             catch {
-                $errorMessage = $_
+                $errorRecord = $_
+                $errorMessage = "$_"
 
                 if ($global:Error.Count -gt 0) {
                     $global:Error.RemoveAt(0)
                 }
 
-                # 4xx other than 429 means the request itself is wrong: 
-                # wrong permissions, wrong site, wrong path. 
-                # Retrying cannot fix it and only delays the report.
-                if ("$errorMessage" -match 'accessDenied|itemNotFound|unauthenticated|invalidRequest') {
-                    throw "Failed to $Description (not retryable): $errorMessage"
+                if (-not (Test-IsRetryableErrorHC -ErrorText $errorMessage)) {
+                    throw "Failed to $Description and the error will not be resolved by retrying: $errorMessage"
                 }
 
                 if ($attempt -ge $MaxRetries) {
                     throw "Failed to $Description after $MaxRetries attempts. Last error: $errorMessage"
                 }
 
-                Write-Warning "Attempt $attempt of $MaxRetries failed to $Description. Retrying in 3 seconds... Error: $errorMessage"
+                $retryAfter = Get-RetryAfterSecondsHC -ErrorRecord $errorRecord
 
-                Start-Sleep -Seconds 3
+                $delay = if ($retryAfter -gt 0) {
+                    [math]::Min($retryAfter, $maxDelaySeconds)
+                }
+                else {
+                    [math]::Min($RetryDelaySeconds * [math]::Pow(2, $attempt - 1), $maxDelaySeconds)
+                }
+
+                $delay = [int]$delay
+
+                Write-Warning "Attempt $attempt of $MaxRetries failed to $Description. Retrying in $delay seconds... Error: $errorMessage"
+
+                Start-Sleep -Seconds $delay
             }
         }
     }
@@ -269,6 +388,44 @@ begin {
         ($segments | ForEach-Object {
             [System.Uri]::EscapeDataString($_)
         }) -join '/'
+    }
+
+    function Get-ContentTypeHC {
+        <#
+        .SYNOPSIS
+            Map a file extension to a MIME type for the upload request.
+
+        .DESCRIPTION
+            The single-request upload has to declare a content type. Deriving it
+            from the extension keeps the script honest about what it is sending:
+            the parameter is FilePath, not HtmlFilePath, so it will not always be
+            the overview HTML.
+
+            Unknown extensions fall back to application/octet-stream, which
+            SharePoint accepts and then classifies from the file name anyway.
+        #>
+        param (
+            [Parameter(Mandatory)][string]$Path
+        )
+
+        switch ([System.IO.Path]::GetExtension($Path).ToLowerInvariant()) {
+            '.html' { 'text/html'; break }
+            '.htm' { 'text/html'; break }
+            '.csv' { 'text/csv'; break }
+            '.txt' { 'text/plain'; break }
+            '.json' { 'application/json'; break }
+            '.xml' { 'application/xml'; break }
+            '.pdf' { 'application/pdf'; break }
+            '.xlsx' { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'; break }
+            '.xlsm' { 'application/vnd.ms-excel.sheet.macroEnabled.12'; break }
+            '.docx' { 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; break }
+            '.pptx' { 'application/vnd.openxmlformats-officedocument.presentationml.presentation'; break }
+            '.zip' { 'application/zip'; break }
+            '.png' { 'image/png'; break }
+            '.jpg' { 'image/jpeg'; break }
+            '.jpeg' { 'image/jpeg'; break }
+            default { 'application/octet-stream' }
+        }
     }
 
     function Get-GraphSiteIdHC {
@@ -515,13 +672,14 @@ begin {
             Write-Verbose "Upload $([math]::Round($file.Length / 1KB, 1)) KB in a single request"
 
             $uploadUri = "https://graph.microsoft.com/v1.0/drives/$DriveId/root:/$($encodedTargetPath):/content"
+            $contentType = Get-ContentTypeHC -Path $LocalFilePath
 
             return Invoke-WithRetryHC -MaxRetries $MaxRetries -Description "upload file to '$TargetPath'" -Action {
                 $params = @{
                     Method        = 'PUT'
                     Uri           = $uploadUri
                     InputFilePath = $LocalFilePath
-                    ContentType   = 'text/html'
+                    ContentType   = $contentType
                     OutputType    = 'PSObject'
                 }
                 Invoke-MgGraphRequest @params
@@ -550,11 +708,14 @@ begin {
 
         $uploadUrl = $session.uploadUrl
 
-        # 320 KiB is the Graph chunk granularity; every chunk except the last
-        # must be a multiple of it.
-        $chunkSize = $ChunkSizeMB * 320 * 1024 * [math]::Floor(1MB / (320 * 1024))
-
-        if ($chunkSize -le 0) { $chunkSize = 320 * 1024 }
+        # Graph requires every chunk except the last to be a multiple of 320 KiB.
+        # ChunkSizeMB is therefore rounded DOWN to the nearest legal boundary.
+        # Sizes that divide evenly are exact (5 MB is 16 x 320 KiB); others are
+        # not (1 MB becomes 0.94 MB, being 3 x 320 KiB rather than 3.2).
+        $chunkGranularity = 320KB
+        $chunkSize = [math]::Max(
+            1, [math]::Floor(($ChunkSizeMB * 1MB) / $chunkGranularity)
+        ) * $chunkGranularity
 
         $result = $null
         $stream = $null
@@ -640,6 +801,21 @@ begin {
         if (-not $FileName) {
             $FileName = Split-Path -Path $FilePath -Leaf
         }
+
+        # SharePoint rejects these outright. Catching it here produces a clear
+        # message naming the offending characters instead of a Graph
+        # invalidRequest after the connection and site lookup have already run.
+        $illegalCharacters = '"', '*', ':', '<', '>', '?', '/', '\', '|'
+
+        $foundIllegal = @($illegalCharacters.Where({ $FileName.Contains($_) }))
+
+        if ($foundIllegal) {
+            throw "FileName '$FileName' contains characters SharePoint does not allow: $($foundIllegal -join ' ')"
+        }
+
+        if ($FileName.EndsWith('.') -or $FileName.StartsWith('.') -or $FileName.Trim() -ne $FileName) {
+            throw "FileName '$FileName' cannot start or end with a period or whitespace."
+        }
         #endregion
 
         #region Get the connection details
@@ -696,7 +872,10 @@ begin {
                 $global:Error.RemoveAt(0)
             }
 
-            throw "Failed to connect to MS Graph with ClientId '$graphClientId' TenantId '$graphTenantId' CertificateThumbprint '$graphThumbprint': $errorMessage"
+            # The message ends up in SystemErrors and therefore in the summary
+            # mail. ClientId and TenantId identify which app failed and are safe
+            # to include; the credential is deliberately not echoed back.
+            throw "Failed to connect to MS Graph with ClientId '$graphClientId' TenantId '$graphTenantId': $errorMessage"
         }
     }
     #endregion

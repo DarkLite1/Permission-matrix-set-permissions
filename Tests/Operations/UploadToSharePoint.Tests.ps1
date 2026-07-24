@@ -87,6 +87,17 @@
         Any assertion that is specifically about percent-encoding must use
         $Uri.AbsoluteUri, which preserves it. Everything else can use $Uri.
 
+    Note on the retry contract:
+        Invoke-WithRetryHC no longer retries blindly. Three behaviours are pinned
+        by the tests in the 'retries' Context:
+            - errors a repeat cannot fix (accessDenied, itemNotFound, 4xx) throw
+              on the first attempt with no sleep at all
+            - 429 / throttling IS retried, despite being a client error
+            - a Retry-After hint overrides the exponential schedule (3, 6, 12,
+              capped at 60)
+        Start-Sleep is mocked, so these run instantly and can be asserted on by
+        the -Seconds value.
+
     Note on -Exactly:
         Every Should -Invoke below uses -Exactly. In Pester 5, `-Times N` without
         `-Exactly` means "at least N", so `-Times 0` ("at least 0") never fails and
@@ -299,7 +310,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.FilePath = Join-Path $TestDrive 'no-such-file.html'
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not found*'
+            Should -Throw -ExpectedMessage '*not found*'
 
             Should -Invoke Connect-MgGraph -Exactly -Times 0
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
@@ -360,7 +371,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.ClientId = 'ENV:SP_MISSING_VAR'
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage "*Environment variable 'SP_MISSING_VAR' not found*"
+            Should -Throw -ExpectedMessage "*Environment variable 'SP_MISSING_VAR' not found*"
 
             Should -Invoke Connect-MgGraph -Exactly -Times 0
         }
@@ -418,7 +429,7 @@ Describe 'UploadToSharePoint.ps1' {
             Mock Connect-MgGraph { throw 'certificate not found' }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Failed to connect to MS Graph*'
+            Should -Throw -ExpectedMessage '*Failed to connect to MS Graph*'
 
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
         }
@@ -461,7 +472,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not found*'
+            Should -Throw -ExpectedMessage '*not found*'
         }
 
         It 'throws when the site URL is not a valid URL' {
@@ -472,7 +483,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.SiteUrl = 'contoso.sharepoint.com/sites/IT'   # no scheme
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not a valid URL*'
+            Should -Throw -ExpectedMessage '*not a valid URL*'
         }
     }
 
@@ -559,7 +570,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Site Assets*'
+            Should -Throw -ExpectedMessage '*Site Assets*'
         }
     }
 
@@ -589,7 +600,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Sites.Selected*'
+            Should -Throw -ExpectedMessage '*Sites.Selected*'
         }
     }
 
@@ -805,7 +816,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*no upload URL*'
+            Should -Throw -ExpectedMessage '*no upload URL*'
 
             Should -Invoke Invoke-RestMethod -Exactly -Times 0
         }
@@ -861,7 +872,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*after 3 attempts*'
+            Should -Throw -ExpectedMessage '*after 3 attempts*'
 
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
@@ -907,6 +918,154 @@ Describe 'UploadToSharePoint.ps1' {
                 $Method -eq 'GET' -and $Uri -notmatch '/drives?(/|$)' -and $Uri -notmatch '/children$'
             }
             Should -Invoke Start-Sleep -Exactly -Times 1
+        }
+
+        It 'does not retry <Error>, which a repeat cannot fix' -TestCases @(
+            @{ Error = 'accessDenied' }
+            @{ Error = 'itemNotFound' }
+            @{ Error = 'unauthenticated' }
+            @{ Error = 'invalidRequest' }
+            @{ Error = 'HTTP 403 Forbidden' }
+        ) {
+            param($Error)
+
+            # A missing Sites.Selected grant used to cost three attempts and two
+            # backoff waits before reporting an error that was never going to
+            # clear. It now fails on the first attempt.
+            $params.MaxRetries = 3
+
+            Mock Invoke-MgGraphRequest -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            } -MockWith {
+                throw $Error
+            }
+
+            { & $ScriptPath @params } |
+            Should -Throw -ExpectedMessage '*will not be resolved by retrying*'
+
+            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            }
+            Should -Invoke Start-Sleep -Exactly -Times 0
+        }
+
+        It 'still retries throttling, even though 429 is a client error' {
+            $params.MaxRetries = 3
+            $script:throttleAttempt = 0
+
+            Mock Invoke-MgGraphRequest -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            } -MockWith {
+                $script:throttleAttempt = ([int]$script:throttleAttempt) + 1
+
+                if ($script:throttleAttempt -lt 2) { throw 'HTTP 429 activityLimitReached' }
+
+                New-UploadedItem
+            }
+
+            { & $ScriptPath @params } | Should -Not -Throw
+
+            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            }
+        }
+
+        It 'honours a Retry-After hint instead of its own backoff' {
+            $params.MaxRetries = 3
+            $script:retryAfterAttempt = 0
+
+            Mock Invoke-MgGraphRequest -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            } -MockWith {
+                $script:retryAfterAttempt = ([int]$script:retryAfterAttempt) + 1
+
+                if ($script:retryAfterAttempt -lt 2) {
+                    throw 'HTTP 429 TooManyRequests Retry-After: 17'
+                }
+
+                New-UploadedItem
+            }
+
+            & $ScriptPath @params
+
+            # Retrying sooner than Graph asked deepens the throttling, so the
+            # hint wins over the exponential schedule (which would say 3).
+            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter {
+                $Seconds -eq 17
+            }
+        }
+
+        It 'backs off exponentially when there is no Retry-After hint' {
+            $params.MaxRetries = 4
+
+            Mock Invoke-MgGraphRequest -ParameterFilter {
+                $Method -eq 'PUT' -and $Uri -match ':/content$'
+            } -MockWith {
+                throw 'transient 503'
+            }
+
+            { & $ScriptPath @params } | Should -Throw
+
+            # Four attempts, three waits: 3, 6, 12.
+            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 3 }
+            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 6 }
+            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 12 }
+        }
+    }
+
+    Context 'target file name validation' {
+        It 'rejects a FileName containing <Character>, which SharePoint forbids' -TestCases @(
+            @{ Character = '*'; FileName = 'Over*view.html' }
+            @{ Character = ':'; FileName = 'Over:view.html' }
+            @{ Character = '<'; FileName = 'Over<view.html' }
+            @{ Character = '|'; FileName = 'Over|view.html' }
+            @{ Character = '?'; FileName = 'Over?view.html' }
+        ) {
+            param($FileName)
+
+            # Caught before connecting, so the message names the character
+            # instead of arriving as a Graph invalidRequest after the site and
+            # library have already been resolved.
+            $params.FileName = $FileName
+
+            { & $ScriptPath @params } |
+            Should -Throw -ExpectedMessage '*SharePoint does not allow*'
+
+            Should -Invoke Connect-MgGraph -Exactly -Times 0
+        }
+
+        It 'rejects a FileName that ends with a period' {
+            $params.FileName = 'Overview.html.'
+
+            { & $ScriptPath @params } |
+            Should -Throw -ExpectedMessage '*period or whitespace*'
+        }
+
+        It 'accepts a FileName with spaces and other legal punctuation' {
+            $params.FileName = 'Permission matrix overview (2026-07).html'
+
+            { & $ScriptPath @params } | Should -Not -Throw
+        }
+    }
+
+    Context 'content type' {
+        It 'declares <Expected> when uploading a <Extension> file' -TestCases @(
+            @{ Extension = '.html'; Expected = 'text/html' }
+            @{ Extension = '.csv'; Expected = 'text/csv' }
+            @{ Extension = '.json'; Expected = 'application/json' }
+            @{ Extension = '.bin'; Expected = 'application/octet-stream' }
+        ) {
+            param($Extension, $Expected)
+
+            # The parameter is FilePath, not HtmlFilePath: hardcoding text/html
+            # mislabels anything else this gets pointed at.
+            $params.FilePath = New-SmallFile -Path (Join-Path $TestDrive "Report$Extension")
+
+            & $ScriptPath @params
+
+            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+                $Method -eq 'PUT' -and $ContentType -eq $Expected
+            }
         }
     }
 
