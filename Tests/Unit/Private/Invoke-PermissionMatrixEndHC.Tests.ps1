@@ -186,7 +186,17 @@ param(
         Mock Build-MatrixEmailHtmlHC { return '<table>matrix</table>' }
         Mock Build-ErrorWarningTableHC { return '<table>errors</table>' }
         Mock Get-MailBodyHtmlHC { return '<html><body>OK</body></html>' }
-        Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\overview.html' } }
+        # Matches the shape Export-FilesHC really returns, with the keys EndHC
+        # guards on present. Those guards read ExportedFiles.FormData and
+        # ExportedFiles.OverviewHtml, so a mock missing a key silently skips the
+        # branch a test means to exercise.
+        Mock Export-FilesHC {
+            return [ordered]@{
+                Permissions  = $null
+                FormData     = $null
+                OverviewHtml = 'TestDrive:\overview.html'
+            }
+        }
         Mock Get-MailRecipientListHC { return @('test@example.com') }
         Mock Get-MailSubjectHC { return 'Test Subject' }
         Mock Send-MailKitMessageHC { }
@@ -320,6 +330,18 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
         }
 
         It 'skips the ServiceNow script when CredentialsFilePath is missing' {
+            # The export succeeded and produced the workbook, so the missing
+            # credentials are the only reason to skip. Without this the guard
+            # would fail on ExportedFiles.FormData first and the test would pass
+            # even if the credentials check were removed.
+            Mock Export-FilesHC {
+                return [ordered]@{
+                    Permissions  = $null
+                    FormData     = 'TestDrive:\snow.xlsx'
+                    OverviewHtml = $null
+                }
+            }
+
             $ctx = New-EndContext `
                 -AllMatrices @((New-EndMatrix)) `
                 -Export @{ ServiceNowFormDataExcelFile = 'TestDrive:\snow.xlsx' } `
@@ -369,11 +391,16 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             New-UploadStub -Path $uploadStub -CapturePath $capture
 
-            # The file-level default mock returns the key 'OverviewHtml', which
-            # is not what Export-FilesHC produces. EndHC reads 'OverviewHtml', so
-            # the correct key has to be used here or the upload would never
-            # trigger and these tests would pass without proving anything.
-            Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\overview.html' } }
+            # The file-level default already supplies OverviewHtml, but these
+            # tests assert on the value, so it is pinned here rather than left
+            # coupled to whatever the shared default happens to hold.
+            Mock Export-FilesHC {
+                return [ordered]@{
+                    Permissions  = $null
+                    FormData     = $null
+                    OverviewHtml = 'TestDrive:\overview.html'
+                }
+            }
 
             $sharePointConfig = @{
                 SiteUrl               = 'https://contoso.sharepoint.com/sites/IT'
@@ -405,7 +432,13 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
         It 'does not upload when no overview html was exported' {
             # Export-FilesHC ran but OverviewHtmlFile was not configured, so
             # there is nothing to upload even though SharePoint is set up.
-            Mock Export-FilesHC { return @{ OverviewHtml = $null } }
+            Mock Export-FilesHC {
+                return [ordered]@{
+                    Permissions  = $null
+                    FormData     = $null
+                    OverviewHtml = $null
+                }
+            }
 
             $ctx = New-EndContext `
                 -AllMatrices @((New-EndMatrix)) `
@@ -445,7 +478,13 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             # The config holds the path the html SHOULD be written to;
             # Export-FilesHC returns where it actually landed. The upload must
             # follow the latter.
-            Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\actual-overview.html' } }
+            Mock Export-FilesHC {
+                return [ordered]@{
+                    Permissions  = $null
+                    FormData     = $null
+                    OverviewHtml = 'TestDrive:\actual-overview.html'
+                }
+            }
 
             $ctx = New-EndContext `
                 -AllMatrices @((New-EndMatrix)) `
