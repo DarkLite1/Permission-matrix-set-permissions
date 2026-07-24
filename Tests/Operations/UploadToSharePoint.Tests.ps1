@@ -310,7 +310,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.FilePath = Join-Path $TestDrive 'no-such-file.html'
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*not found*'
+                Should -Throw -ExpectedMessage '*not found*'
 
             Should -Invoke Connect-MgGraph -Exactly -Times 0
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
@@ -371,7 +371,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.ClientId = 'ENV:SP_MISSING_VAR'
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage "*Environment variable 'SP_MISSING_VAR' not found*"
+                Should -Throw -ExpectedMessage "*Environment variable 'SP_MISSING_VAR' not found*"
 
             Should -Invoke Connect-MgGraph -Exactly -Times 0
         }
@@ -429,7 +429,7 @@ Describe 'UploadToSharePoint.ps1' {
             Mock Connect-MgGraph { throw 'certificate not found' }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*Failed to connect to MS Graph*'
+                Should -Throw -ExpectedMessage '*Failed to connect to MS Graph*'
 
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
         }
@@ -472,7 +472,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*not found*'
+                Should -Throw -ExpectedMessage '*not found*'
         }
 
         It 'throws when the site URL is not a valid URL' {
@@ -483,7 +483,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.SiteUrl = 'contoso.sharepoint.com/sites/IT'   # no scheme
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*not a valid URL*'
+                Should -Throw -ExpectedMessage '*not a valid URL*'
         }
     }
 
@@ -570,7 +570,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*Site Assets*'
+                Should -Throw -ExpectedMessage '*Site Assets*'
         }
     }
 
@@ -600,7 +600,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*Sites.Selected*'
+                Should -Throw -ExpectedMessage '*Sites.Selected*'
         }
     }
 
@@ -816,7 +816,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*no upload URL*'
+                Should -Throw -ExpectedMessage '*no upload URL*'
 
             Should -Invoke Invoke-RestMethod -Exactly -Times 0
         }
@@ -872,7 +872,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*after 3 attempts*'
+                Should -Throw -ExpectedMessage '*after 3 attempts*'
 
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
@@ -941,7 +941,7 @@ Describe 'UploadToSharePoint.ps1' {
             }
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*will not be resolved by retrying*'
+                Should -Throw -ExpectedMessage '*will not be resolved by retrying*'
 
             Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
@@ -1029,7 +1029,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.FileName = $FileName
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*SharePoint does not allow*'
+                Should -Throw -ExpectedMessage '*SharePoint does not allow*'
 
             Should -Invoke Connect-MgGraph -Exactly -Times 0
         }
@@ -1038,7 +1038,7 @@ Describe 'UploadToSharePoint.ps1' {
             $params.FileName = 'Overview.html.'
 
             { & $ScriptPath @params } |
-            Should -Throw -ExpectedMessage '*period or whitespace*'
+                Should -Throw -ExpectedMessage '*period or whitespace*'
         }
 
         It 'accepts a FileName with spaces and other legal punctuation' {

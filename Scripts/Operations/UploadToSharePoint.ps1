@@ -263,7 +263,9 @@ begin {
             }
         }
         catch {
-            if ($global:Error.Count -gt 0) { $global:Error.RemoveAt(0) }
+            # The exception shape varies by SDK version. Failing to read a hint
+            # is not itself a problem: fall through to scraping the message and
+            # then to the caller's own backoff.
         }
 
         if ("$ErrorRecord" -match 'Retry-After[:\s]+(\d+)') {
@@ -330,10 +332,6 @@ begin {
             catch {
                 $errorRecord = $_
                 $errorMessage = "$_"
-
-                if ($global:Error.Count -gt 0) {
-                    $global:Error.RemoveAt(0)
-                }
 
                 if (-not (Test-IsRetryableErrorHC -ErrorText $errorMessage)) {
                     throw "Failed to $Description and the error will not be resolved by retrying: $errorMessage"
@@ -540,7 +538,9 @@ begin {
                     }
                 }
                 catch {
-                    if ($global:Error.Count -gt 0) { $global:Error.RemoveAt(0) }
+                    # The fallback is best effort. Whatever it failed with, the
+                    # permissions message below is the more useful thing to
+                    # report, so the original error is deliberately dropped.
                 }
 
                 throw "No document libraries are visible to this application on site '$SiteId'. The site itself resolved, so this is an access problem rather than a wrong library name: verify that the app registration has an admin-consented 'Sites.ReadWrite.All' role, or a 'Sites.Selected' grant with the 'write' role on this specific site."
@@ -622,10 +622,6 @@ begin {
                 catch {
                     if ("$_" -notmatch 'nameAlreadyExists') {
                         throw
-                    }
-
-                    if ($global:Error.Count -gt 0) {
-                        $global:Error.RemoveAt(0)
                     }
 
                     Write-Verbose "Folder '$currentPath' was created by another process"
@@ -777,9 +773,9 @@ begin {
                     Invoke-RestMethod -Method 'DELETE' -Uri $uploadUrl -EA Ignore | Out-Null
                 }
                 catch {
-                    if ($global:Error.Count -gt 0) {
-                        $global:Error.RemoveAt(0)
-                    }
+                    # Abandoning the session is a courtesy to SharePoint, not a
+                    # requirement. The upload failure is already on its way up;
+                    # a failed cleanup must not replace it.
                 }
             }
         }
@@ -867,10 +863,6 @@ begin {
         }
         catch {
             $errorMessage = $_
-
-            if ($global:Error.Count -gt 0) {
-                $global:Error.RemoveAt(0)
-            }
 
             # The message ends up in SystemErrors and therefore in the summary
             # mail. ClientId and TenantId identify which app failed and are safe
