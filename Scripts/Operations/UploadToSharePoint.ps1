@@ -224,6 +224,13 @@ begin {
                     $global:Error.RemoveAt(0)
                 }
 
+                # 4xx other than 429 means the request itself is wrong: 
+                # wrong permissions, wrong site, wrong path. 
+                # Retrying cannot fix it and only delays the report.
+                if ("$errorMessage" -match 'accessDenied|itemNotFound|unauthenticated|invalidRequest') {
+                    throw "Failed to $Description (not retryable): $errorMessage"
+                }
+
                 if ($attempt -ge $MaxRetries) {
                     throw "Failed to $Description after $MaxRetries attempts. Last error: $errorMessage"
                 }
