@@ -465,9 +465,14 @@ Describe 'UploadToSharePoint.ps1' {
         }
 
         It 'throws when the site URL is not a valid URL' {
+            # A scheme-less value constructs as a relative Uri without throwing;
+            # it is the AbsolutePath call that fails. Both are inside the same
+            # try, so the friendly message must come back rather than a raw
+            # InvalidOperationException.
             $params.SiteUrl = 'contoso.sharepoint.com/sites/IT'   # no scheme
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } |
+                Should -Throw -ExpectedMessage '*not a valid URL*'
         }
     }
 
