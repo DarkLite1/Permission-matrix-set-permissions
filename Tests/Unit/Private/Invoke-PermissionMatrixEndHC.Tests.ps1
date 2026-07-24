@@ -19,6 +19,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
                 [bool]$Archive = $false,
                 [string]$JsonFileName = 'TestInput',
                 [hashtable]$ServiceNow = @{},
+                [hashtable]$SharePoint = @{},
                 [hashtable]$Defaults = @{ MailTo = @() },
                 [hashtable]$SaveLogFiles = @{
                     Detailed            = $false
@@ -39,7 +40,10 @@ Describe 'Invoke-PermissionMatrixEndHC' {
                     }
                 }, 
                 [hashtable]$Export = @{},
-                [hashtable]$ScriptPath = @{ UpdateServiceNow = 'TestDrive:\Snow.ps1' },
+                [hashtable]$ScriptPath = @{
+                    UpdateServiceNow   = 'TestDrive:\Snow.ps1'
+                    UploadToSharePoint = (Join-Path $TestDrive 'Upload.ps1')
+                },
                 [string]$ScriptName = 'Permission Matrix'
             )
 
@@ -64,6 +68,7 @@ Describe 'Invoke-PermissionMatrixEndHC' {
                     }
                     Export     = [PSCustomObject]$Export
                     ServiceNow = [PSCustomObject]$ServiceNow
+                    SharePoint = [PSCustomObject]$SharePoint
                 }
             }
         }
@@ -90,6 +95,73 @@ Describe 'Invoke-PermissionMatrixEndHC' {
                 LogFolder      = $null
                 ReportFileName = "$Name.html"
                 ReportFilePath = $null
+            }
+        }
+
+        function New-UploadStub {
+            <#
+            .SYNOPSIS
+                Write a stand-in UploadToSharePoint.ps1 onto TestDrive.
+
+            .DESCRIPTION
+                EndHC invokes the operation script with the call operator
+                (& $Context.ScriptPath.UploadToSharePoint @spParams), which
+                Pester cannot mock. This writes a real script that records the
+                arguments it received as JSON, so tests can assert WHICH
+                arguments were passed rather than only that a call happened.
+
+                Every parameter is optional on purpose: a mandatory one the
+                caller forgot would make PowerShell prompt, hanging a
+                non-interactive run instead of failing it. Missing arguments are
+                detected from the captured JSON instead.
+
+            .PARAMETER Path
+                Where to write the stub script.
+
+            .PARAMETER CapturePath
+                Where the stub writes the JSON record of its arguments.
+
+            .PARAMETER Throw
+                Make the stub throw after recording, to exercise the caller's
+                error handling.
+            #>
+            param(
+                [Parameter(Mandatory)][string]$Path,
+                [Parameter(Mandatory)][string]$CapturePath,
+                [switch]$Throw
+            )
+
+            $body = @"
+param(
+    [String]`$FilePath,
+    [String]`$SiteUrl,
+    [String]`$DocumentLibraryName,
+    [String]`$FolderPath,
+    [String]`$FileName,
+    [String]`$ClientId,
+    [String]`$TenantId,
+    [String]`$CertificateThumbprint,
+    [int]`$MaxRetries,
+    [int]`$ChunkSizeMB
+)
+
+`$PSBoundParameters | ConvertTo-Json -Depth 3 |
+    Set-Content -LiteralPath '$CapturePath' -Encoding UTF8
+"@
+
+            if ($Throw) {
+                $body += "`n`nthrow 'upload boom'"
+            }
+
+            $null = New-Item -Path $Path -ItemType File -Force
+
+            Set-Content -Path $Path -Value $body
+
+            # Set-Content has been observed to report success without producing
+            # the file when handed a TestDrive: qualified path. Fail here rather
+            # than let every assertion downstream report a confusing absence.
+            if (-not (Test-Path -LiteralPath $Path)) {
+                throw "New-UploadStub could not create the stub at '$Path'."
             }
         }
 
@@ -263,6 +335,228 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
             $systemErrors.Where({ $_.Name -eq 'Exports/ServiceNow' }).Count | Should -Be 1
+        }
+    }
+
+    Context 'Phase 2b: SharePoint upload' {
+        BeforeEach {
+            $uploadStub = Join-Path $TestDrive 'Upload.ps1'
+            $capture = Join-Path $TestDrive 'upload-args.json'
+
+            New-UploadStub -Path $uploadStub -CapturePath $capture
+
+            # The file-level default mock returns the key 'HtmlOverview', which
+            # is not what Export-FilesHC produces. EndHC reads 'OverviewHtml', so
+            # the correct key has to be used here or the upload would never
+            # trigger and these tests would pass without proving anything.
+            Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\overview.html' } }
+
+            $sharePointConfig = @{
+                SiteUrl               = 'https://contoso.sharepoint.com/sites/IT'
+                DocumentLibraryName   = 'Documents'
+                ClientId              = 'client-id-1'
+                TenantId              = 'tenant-id-1'
+                CertificateThumbprint = 'THUMBPRINT1'
+            }
+        }
+
+        It 'uploads when an overview html was exported and a site is configured' {
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $capture | Should -BeTrue
+        }
+
+        It 'does not upload when no site is configured' {
+            $ctx = New-EndContext -AllMatrices @((New-EndMatrix)) -SharePoint @{}
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $capture | Should -BeFalse
+        }
+
+        It 'does not upload when no overview html was exported' {
+            # Export-FilesHC ran but OverviewHtmlFile was not configured, so
+            # there is nothing to upload even though SharePoint is set up.
+            Mock Export-FilesHC { return @{ OverviewHtml = $null } }
+
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $capture | Should -BeFalse
+        }
+
+        It 'does not upload when there are no matrices to report on' {
+            $ctx = New-EndContext -AllMatrices @() -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $capture | Should -BeFalse
+        }
+
+        It 'passes the exported html file and the configured site settings' {
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            $sent = Get-Content $capture -Raw | ConvertFrom-Json
+
+            $sent.FilePath | Should -BeExactly 'TestDrive:\overview.html'
+            $sent.SiteUrl | Should -BeExactly 'https://contoso.sharepoint.com/sites/IT'
+            $sent.DocumentLibraryName | Should -BeExactly 'Documents'
+            $sent.ClientId | Should -BeExactly 'client-id-1'
+            $sent.TenantId | Should -BeExactly 'tenant-id-1'
+            $sent.CertificateThumbprint | Should -BeExactly 'THUMBPRINT1'
+        }
+
+        It 'forwards the file path produced by Export-FilesHC, not the configured one' {
+            # The config holds the path the html SHOULD be written to;
+            # Export-FilesHC returns where it actually landed. The upload must
+            # follow the latter.
+            Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\actual-overview.html' } }
+
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -Export @{ OverviewHtmlFile = 'TestDrive:\configured-overview.html' } `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            $sent = Get-Content $capture -Raw | ConvertFrom-Json
+
+            $sent.FilePath | Should -BeExactly 'TestDrive:\actual-overview.html'
+        }
+
+        It 'omits FolderPath and FileName when they are not configured' {
+            # These are optional on the script and must not be sent as empty
+            # strings, which would upload to a folder literally named ''.
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            # Without this the assertions below pass on a $null when the upload
+            # never ran, which is a false green.
+            Test-Path $capture | Should -BeTrue
+
+            $sentNames = (Get-Content $capture -Raw |
+                ConvertFrom-Json).PSObject.Properties.Name
+
+            $sentNames | Should -Not -Contain 'FolderPath'
+            $sentNames | Should -Not -Contain 'FileName'
+        }
+
+        It 'passes FolderPath and FileName when they are configured' {
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint ($sharePointConfig + @{
+                    FolderPath = 'Reports/Permission matrix'
+                    FileName   = 'Permission matrix overview.html'
+                })
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            $sent = Get-Content $capture -Raw | ConvertFrom-Json
+
+            $sent.FolderPath | Should -BeExactly 'Reports/Permission matrix'
+            $sent.FileName | Should -BeExactly 'Permission matrix overview.html'
+        }
+
+        It 'sends only parameters that UploadToSharePoint.ps1 declares' {
+            # Guards against caller/script drift: renaming a parameter on the
+            # script without updating EndHC would fail here rather than at 02:00
+            # in production, where the splat would throw a binding error.
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint ($sharePointConfig + @{
+                    FolderPath = 'Reports'
+                    FileName   = 'Overview.html'
+                })
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            # Without this the assertion below passes on a $null when the upload
+            # never ran, which is a false green.
+            Test-Path $capture |
+                Should -BeTrue -Because 'the upload must have run for this assertion to mean anything'
+
+            $sentNames = (Get-Content $capture -Raw |
+                ConvertFrom-Json).PSObject.Properties.Name
+
+            $realScript = Join-Path $root 'Scripts\Operations\UploadToSharePoint.ps1'
+            $declared = (Get-Command $realScript).Parameters.Keys
+
+            $unknown = $sentNames | Where-Object { $_ -notin $declared }
+
+            $unknown | Should -BeNullOrEmpty -Because "EndHC must not splat parameters the script does not accept, found: $($unknown -join ', ')"
+        }
+
+        It 'sends every mandatory parameter of UploadToSharePoint.ps1' {
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            $sentNames = (Get-Content $capture -Raw |
+                ConvertFrom-Json).PSObject.Properties.Name
+
+            $realScript = Join-Path $root 'Scripts\Operations\UploadToSharePoint.ps1'
+
+            $mandatory = (Get-Command $realScript).Parameters.Values |
+                Where-Object {
+                    $_.Attributes.Where({
+                        $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory
+                    })
+                } |
+                Select-Object -ExpandProperty Name
+
+            $missing = $mandatory | Where-Object { $_ -notin $sentNames }
+
+            $missing | Should -BeNullOrEmpty -Because "EndHC must supply every mandatory parameter, missing: $($missing -join ', ')"
+        }
+
+        It 'records a Warning and still sends the mail when the upload throws' {
+            New-UploadStub -Path $uploadStub -CapturePath $capture -Throw
+
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            # The stub records its arguments before throwing, so this proves the
+            # warning came from the upload and not from something earlier in the
+            # export phase that the same catch block also covers.
+            Test-Path $capture | Should -BeTrue
+
+            # A SharePoint outage must not cost us the notification mail.
+            $systemErrors.Where({
+                    $_.Name -eq 'Exports/ServiceNow' -and $_.Type -eq 'Warning'
+                }).Count | Should -Be 1
+
+            Should -Invoke Send-MailKitMessageHC -Times 1
+        }
+
+        It 'does not upload when Export-FilesHC threw' {
+            Mock Export-FilesHC { throw 'export boom' }
+
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -SharePoint $sharePointConfig
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $capture | Should -BeFalse
         }
     }
 
