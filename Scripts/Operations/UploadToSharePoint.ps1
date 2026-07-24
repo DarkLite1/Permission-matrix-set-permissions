@@ -282,12 +282,11 @@ begin {
 
         try {
             $uri = [System.Uri]$SiteUrl
+            $sitePath = $uri.AbsolutePath.TrimEnd('/')
         }
         catch {
             throw "SharePoint site URL '$SiteUrl' is not a valid URL: $_"
         }
-
-        $sitePath = $uri.AbsolutePath.TrimEnd('/')
 
         $graphUri = if ($sitePath) {
             "https://graph.microsoft.com/v1.0/sites/$($uri.Host):$($sitePath)"
