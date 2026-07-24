@@ -103,7 +103,7 @@ function Invoke-PermissionMatrixEndHC {
 
         #region ServiceNow Update
         if (
-            $Context.Config.Export.ServiceNowFormDataExcelFile -and
+            $Context.ExportedFiles.FormData -and
             $Context.Config.ServiceNow.CredentialsFilePath -and
             -not $hasFormDataErrors
         ) {
@@ -112,7 +112,7 @@ function Invoke-PermissionMatrixEndHC {
                     CredentialsFilePath    = $Context.Config.ServiceNow.CredentialsFilePath
                     Environment            = $Context.Config.ServiceNow.Environment
                     TableName              = $Context.Config.ServiceNow.TableName
-                    FormDataExcelFilePath  = $Context.Config.Export.ServiceNowFormDataExcelFile
+                    FormDataExcelFilePath  = $Context.ExportedFiles.FormData
                     ExcelFileWorksheetName = 'ServiceNowData'
                 }
                 & $Context.ScriptPath.UpdateServiceNow @snowParams

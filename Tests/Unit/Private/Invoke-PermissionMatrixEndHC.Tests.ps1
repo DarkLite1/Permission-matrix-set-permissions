@@ -186,7 +186,7 @@ param(
         Mock Build-MatrixEmailHtmlHC { return '<table>matrix</table>' }
         Mock Build-ErrorWarningTableHC { return '<table>errors</table>' }
         Mock Get-MailBodyHtmlHC { return '<html><body>OK</body></html>' }
-        Mock Export-FilesHC { return @{ HtmlOverview = 'TestDrive:\overview.html' } }
+        Mock Export-FilesHC { return @{ OverviewHtml = 'TestDrive:\overview.html' } }
         Mock Get-MailRecipientListHC { return @('test@example.com') }
         Mock Get-MailSubjectHC { return 'Test Subject' }
         Mock Send-MailKitMessageHC { }
@@ -285,6 +285,16 @@ param(
         It 'invokes the ServiceNow script only when both Excel path AND credentials are set' {
             $null = New-Item 'TestDrive:\Snow.ps1' -ItemType File -Force
 
+            # The guard now requires Export-FilesHC to have produced the workbook, not
+            # merely for it to be configured.
+            Mock Export-FilesHC {
+                return @{
+                    Permissions  = $null
+                    FormData     = 'TestDrive:\snow.xlsx'
+                    OverviewHtml = $null
+                }
+            }
+
             $ctx = New-EndContext `
                 -AllMatrices @((New-EndMatrix)) `
                 -Export @{ ServiceNowFormDataExcelFile = 'TestDrive:\snow.xlsx' } `
@@ -294,13 +304,10 @@ param(
                 TableName           = 'u_test'
             }
 
-            # Mock the script invocation by stubbing it as a function the same name
-            $script:snowCalled = $false
             $ctx.ScriptPath.UpdateServiceNow = 'TestDrive:\Snow.ps1'
 
-            # We can't easily mock `& $path` direct script invocation in Pester,
-            # so this test verifies through side effect: a real testscript on
-            # TestDrive that touches a file when called.
+            # We can't mock `& $path` script invocation in Pester, so this verifies
+            # through side effect: a real script on TestDrive that touches a file.
             $marker = 'TestDrive:\snow-was-called.txt'
             Set-Content -Path $ctx.ScriptPath.UpdateServiceNow -Value @"
 param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath, `$ExcelFileWorksheetName)
@@ -336,6 +343,23 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $systemErrors.Where({ $_.Name -eq 'Exports' }).Count | Should -Be 1
         }
+        It 'does not update ServiceNow when Export-FilesHC threw' {
+            Mock Export-FilesHC { throw 'export boom' }
+
+            $marker = Join-Path $TestDrive 'snow-was-called.txt'
+            $snowStub = Join-Path $TestDrive 'Snow.ps1'
+            Set-Content -Path $snowStub -Value "'called' | Set-Content '$marker'"
+
+            $ctx = New-EndContext `
+                -AllMatrices @((New-EndMatrix)) `
+                -Export @{ ServiceNowFormDataExcelFile = 'TestDrive:\snow.xlsx' } `
+                -ServiceNow @{ CredentialsFilePath = 'TestDrive:\creds.json' }
+            $ctx.ScriptPath.UpdateServiceNow = $snowStub
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Test-Path $marker | Should -BeFalse
+        }
     }
 
     Context 'Phase 2b: SharePoint upload' {
@@ -345,7 +369,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             New-UploadStub -Path $uploadStub -CapturePath $capture
 
-            # The file-level default mock returns the key 'HtmlOverview', which
+            # The file-level default mock returns the key 'OverviewHtml', which
             # is not what Export-FilesHC produces. EndHC reads 'OverviewHtml', so
             # the correct key has to be used here or the upload would never
             # trigger and these tests would pass without proving anything.
@@ -487,7 +511,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             # Without this the assertion below passes on a $null when the upload
             # never ran, which is a false green.
             Test-Path $capture |
-                Should -BeTrue -Because 'the upload must have run for this assertion to mean anything'
+            Should -BeTrue -Because 'the upload must have run for this assertion to mean anything'
 
             $sentNames = (Get-Content $capture -Raw |
                 ConvertFrom-Json).PSObject.Properties.Name
@@ -513,12 +537,12 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             $realScript = Join-Path $root 'Scripts\Operations\UploadToSharePoint.ps1'
 
             $mandatory = (Get-Command $realScript).Parameters.Values |
-                Where-Object {
-                    $_.Attributes.Where({
+            Where-Object {
+                $_.Attributes.Where({
                         $_ -is [System.Management.Automation.ParameterAttribute] -and $_.Mandatory
                     })
-                } |
-                Select-Object -ExpandProperty Name
+            } |
+            Select-Object -ExpandProperty Name
 
             $missing = $mandatory | Where-Object { $_ -notin $sentNames }
 
