@@ -10,6 +10,7 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
 - **Automated Notifications**: Integrated SMTP support (via MailKit/MimeKit) to send status updates by mail.
 - **Granular Logging**: Detailed logging to XLSX/JSON and the Windows Event Log.
 - **ServiceNow Integration**: Syncs with ServiceNow tables to manage roles and form data.
+- **SharePoint Publishing**: Optionally uploads the HTML overview to a SharePoint Online document library after each run, overwriting the previous version in place.
 - **Access Reviews**: A separate, read-only audit entrypoint e-mails folder owners their current access for periodic sign-off — without changing any permissions.
 
 ## 🚀 Getting Started
@@ -26,6 +27,11 @@ A robust PowerShell tool designed to **apply, verify, and manage NTFS and SMB pe
   Install-Package -Name 'MailKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   Install-Package -Name 'MimeKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   ```
+- **Microsoft.Graph.Authentication**: Only required when `SharePoint.SiteUrl` is set in the configuration. Without it the run applies permissions normally and reports the failed upload as a system error in the summary mail.
+  ```powershell
+  Install-Module -Name 'Microsoft.Graph.Authentication' -Scope 'AllUsers'
+  ```
+  The upload authenticates as an Entra ID app registration using a certificate. The app needs an admin-consented `Sites.ReadWrite.All` role, or a `Sites.Selected` grant with the **write** role on the specific target site.
 - **Permissions**: Administrative rights on the target file systems and remote management permissions.
 
 ### Usage
