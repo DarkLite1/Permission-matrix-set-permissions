@@ -95,16 +95,45 @@ function Invoke-PermissionMatrixProcessHC {
         #endregion
 
         #region Set throttling and session configuration
-        $throttleComputers = if (
-            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.Computers)
+        # CONCURRENCY
+        #
+        # Two independent caps, both meaning exactly what they say:
+        #
+        #   JobsPerComputer - the most jobs that may run at the same time on any
+        #                     ONE remote computer. A job holds exactly one
+        #                     PSSession for its lifetime, so this is also the
+        #                     most WinRM shells this script will ever open on a
+        #                     single machine. Enforced STRUCTURALLY: a computer
+        #                     contributes exactly this many workers (see
+        #                     $workerCount below), so no throttle value can
+        #                     breach it.
+        #
+        #   JobsTotal       - the most jobs that may run at the same time across
+        #                     ALL computers. Applied directly as -ThrottleLimit.
+        #
+        # WinRM's MaxShellsPerUser is enforced by the REMOTE server and limits
+        # shells per user on that machine, so JobsPerComputer is the setting
+        # that keeps it satisfied. Its default is commonly 30; confirm with
+        # `winrm get winrm/config/winrs` on the busy hosts before raising
+        # either number.
+        $throttleJobsTotal = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.JobsTotal)
         ) {
             10
         }
         else {
-            $Context.Config.MaxConcurrent.Computers
+            [math]::Max(1, [int]$Context.Config.MaxConcurrent.JobsTotal)
         }
-        
-        
+
+        $throttleJobsPerComputer = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.JobsPerComputer)
+        ) {
+            1
+        }
+        else {
+            [math]::Max(1, [int]$Context.Config.MaxConcurrent.JobsPerComputer)
+        }
+
         $psSessionConfig = if (
             [string]::IsNullOrWhiteSpace($Context.Config.Settings.PSSessionConfiguration)
         ) {
@@ -131,7 +160,7 @@ function Invoke-PermissionMatrixProcessHC {
         if ($safeReqGroups) {
             $reqResults = Invoke-WithOptionalParallelismHC `
                 -InputObject $safeReqGroups `
-                -ThrottleLimit $throttleComputers `
+                -ThrottleLimit $throttleJobsTotal `
                 -ArgumentList $Context.ScriptPath, $psSessionConfig `
                 -ScriptBlock {
                 param($dto, $scriptPaths, $sessionConfig)
@@ -203,31 +232,70 @@ function Invoke-PermissionMatrixProcessHC {
         $compGroupsForPerms = $matricesToExecute |
         Group-Object -Property { $_.Setting.Formatted.ComputerName }
 
-        # DTO FLATTENING: Protects deep properties from runspace truncation 
-        $safePermGroups = foreach ($group in $compGroupsForPerms) {
-            [PSCustomObject]@{
-                ComputerName = $group.Name
-                Matrices     = @(
-                    foreach ($S in $group.Group) {
-                        [PSCustomObject]@{
-                            ID           = $S.ID
-                            ComputerName = $S.Setting.Formatted.ComputerName
-                            Path         = $S.Setting.Formatted.Path
-                            Action       = $S.Setting.Formatted.Action
-                            MatrixJson   = (
-                                $S.Matrix | 
-                                ConvertTo-Json -Depth 10 -Compress
-                            )
-                        }
+        # DTO FLATTENING: Protects deep properties from runspace truncation.
+        #
+        # WORK QUEUE PER COMPUTER
+        #
+        # The obvious way to run several jobs per computer is to nest a second
+        # parallel loop inside this one. That does not work here: a nested
+        # ForEach-Object -Parallel cannot see module-private functions, and it
+        # bypasses Invoke-WithOptionalParallelismHC's sequential fallback, which
+        # is the seam the unit tests rely on to mock Invoke-Command.
+        #
+        # So the work is flattened to ONE level instead:
+        #   - each computer owns a ConcurrentQueue holding all of its jobs
+        #   - each computer contributes up to JobsPerComputer WORKERS, all
+        #     draining that same queue
+        #   - every worker, across every computer, is a single input item for a
+        #     single Invoke-WithOptionalParallelismHC call
+        #
+        # Workers pull rather than being handed a fixed slice, so one very slow
+        # matrix cannot strand its share of the queue while other workers idle.
+        $safePermWorkers = foreach ($group in $compGroupsForPerms) {
+            $jobQueue = [System.Collections.Concurrent.ConcurrentQueue[object]]::new()
+
+            foreach ($S in $group.Group) {
+                $jobQueue.Enqueue(
+                    [PSCustomObject]@{
+                        ID           = $S.ID
+                        ComputerName = $S.Setting.Formatted.ComputerName
+                        Path         = $S.Setting.Formatted.Path
+                        Action       = $S.Setting.Formatted.Action
+                        MatrixJson   = (
+                            $S.Matrix | 
+                            ConvertTo-Json -Depth 10 -Compress
+                        )
                     }
                 )
             }
+
+            # Never create more workers than there is work for them to do.
+            $workerCount = [math]::Min($throttleJobsPerComputer, $jobQueue.Count)
+
+            for ($worker = 0; $worker -lt $workerCount; $worker++) {
+                [PSCustomObject]@{
+                    ComputerName = $group.Name
+                    JobQueue     = $jobQueue
+                }
+            }
         }
 
-        if ($safePermGroups) {
+        # ForEach-Object -Parallel consumes the pipeline in order, so whichever
+        # workers appear first are the ones that start first. Emitting them in
+        # group order would let the busiest server begin last and become the
+        # critical path for no reason.
+        #
+        # Longest-processing-time-first: the computer with the deepest queue
+        # starts at t=0. Queue depth is a proxy for cost (durations are not
+        # known in advance), but it is the only signal available and a far
+        # better one than declaration order.
+        $safePermWorkers = @($safePermWorkers) |
+        Sort-Object -Property { $_.JobQueue.Count } -Descending
+
+        if ($safePermWorkers) {
             $permResults = Invoke-WithOptionalParallelismHC `
-                -InputObject $safePermGroups `
-                -ThrottleLimit $throttleComputers `
+                -InputObject @($safePermWorkers) `
+                -ThrottleLimit $throttleJobsTotal `
                 -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.Config.MaxConcurrent, $Context.Config.Settings.SaveLogFiles.Detailed `
                 -ScriptBlock {
                 param(
@@ -268,7 +336,11 @@ function Invoke-PermissionMatrixProcessHC {
                 $maxAttempts = 3
                 $retryDelaySeconds = 5
 
-                foreach ($job in $compDto.Matrices) {
+                # TryDequeue is atomic, so several workers can safely share one
+                # computer's queue. A worker that finds it empty simply returns.
+                $job = $null
+
+                while ($compDto.JobQueue.TryDequeue([ref]$job)) {
                     $startTime = Get-Date
                     $attempt = 0
                     $jobResult = $null

@@ -21,9 +21,9 @@ function Get-MissingTopLevelProperties {
 
 function Get-MissingMaxConcurrentProperties {
     return @(
-        @{ Property = 'Computers' }
+        @{ Property = 'JobsTotal' }
         @{ Property = 'FoldersPerMatrix' }
-        @{ Property = 'JobsPerRemoteComputer' }
+        @{ Property = 'JobsPerComputer' }
     )
 }
 
@@ -58,9 +58,9 @@ function Get-InvalidBooleanCases {
 
 function Get-InvalidIntegerCases {
     return @(
-        @{ Path = 'MaxConcurrent.Computers'        ; Value = 'hello' }
+        @{ Path = 'MaxConcurrent.JobsTotal'        ; Value = 'hello' }
         @{ Path = 'MaxConcurrent.FoldersPerMatrix' ; Value = 'world' }
-        @{ Path = 'MaxConcurrent.JobsPerRemoteComputer'; Value = 'abc123' }
+        @{ Path = 'MaxConcurrent.JobsPerComputer'; Value = 'abc123' }
     )
 }
 

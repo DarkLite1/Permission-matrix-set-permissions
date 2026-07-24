@@ -93,9 +93,9 @@ function Invoke-PermissionMatrixAuditReport {
             }
             PSSessionConfiguration = 'PowerShell.7'
             MaxConcurrent          = [ordered]@{
-                Computers             = 1
-                FoldersPerMatrix      = 3
-                JobsPerRemoteComputer = 1
+                JobsTotal        = 1
+                JobsPerComputer  = 1
+                FoldersPerMatrix = 3
             }
         }
         foreach ($key in $topLevelDefaults.Keys) {

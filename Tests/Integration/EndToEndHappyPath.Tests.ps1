@@ -504,9 +504,9 @@ Describe 'Permission Matrix - End to End' {
         # on shared state, missing module imports inside child runspaces).
         #
         # The three knobs:
-        #   Computers              — parallelism across remote computers
+        #   JobsTotal              — overall concurrent job budget
         #   FoldersPerMatrix       — parallelism within a matrix's folders
-        #   JobsPerRemoteComputer  — parallel jobs per remote machine
+        #   JobsPerComputer        — parallel jobs on one remote machine
         # Values >1 are required; values >=3 force the parallel code paths
         # even with our small single-matrix fixture.
         # -------------------------------------------------------------------
@@ -540,9 +540,9 @@ Describe 'Permission Matrix - End to End' {
 
         # The only meaningful difference from the sequential test:
         # crank the concurrency knobs to force runspace-based parallelism.
-        $configFixture.MaxConcurrent.Computers = 10
+        $configFixture.MaxConcurrent.JobsTotal = 30
         $configFixture.MaxConcurrent.FoldersPerMatrix = 3
-        $configFixture.MaxConcurrent.JobsPerRemoteComputer = 3
+        $configFixture.MaxConcurrent.JobsPerComputer = 3
 
         $configPath = Join-Path $matrixDir 'Input.json'
         $configFixture |

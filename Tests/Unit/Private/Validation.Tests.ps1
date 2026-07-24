@@ -737,12 +737,40 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
         Context 'MaxConcurrent block' {
             It 'flags non-numeric MaxConcurrent.<_>' -ForEach @(
-                'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer'
+                'JobsTotal', 'JobsPerComputer', 'FoldersPerMatrix'
             ) {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidInteger -Path "MaxConcurrent.$_")
                 $errors = Invoke-Validation -Json $json
 
                 Get-ErrorNames $errors | Should -Contain "Incorrect 'MaxConcurrent.$_'"
+            }
+
+            It 'flags JobsPerComputer greater than JobsTotal' {
+                # A per-computer cap above the total is unreachable: the overall
+                # throttle stops the run before one computer could ever get
+                # there, so the configured number would quietly mean something
+                # other than what it says.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.MaxConcurrent.JobsTotal = 5
+                $json.MaxConcurrent.JobsPerComputer = 10
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors |
+                    Should -Contain "Incorrect 'MaxConcurrent.JobsPerComputer'"
+            }
+
+            It 'accepts JobsPerComputer equal to JobsTotal' {
+                # One computer being allowed to consume the entire budget is a
+                # legitimate configuration, not an error.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.MaxConcurrent.JobsTotal = 5
+                $json.MaxConcurrent.JobsPerComputer = 5
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors |
+                    Should -Not -Contain "Incorrect 'MaxConcurrent.JobsPerComputer'"
             }
         }
 

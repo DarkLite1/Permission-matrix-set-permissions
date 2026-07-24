@@ -698,7 +698,7 @@ function Test-ConfigurationStructureHC {
 
     #region MaxConcurrent
     if ($Json.MaxConcurrent) {
-        foreach ($prop in 'Computers', 'FoldersPerMatrix', 'JobsPerRemoteComputer') {
+        foreach ($prop in 'JobsTotal', 'JobsPerComputer', 'FoldersPerMatrix') {
             $val = $Json.MaxConcurrent.$prop
             if ($null -eq $val -or $val -notmatch '^\d+$') {
                 Add-JsonSchemaErrorHC -Type 'FatalError' `
@@ -707,6 +707,22 @@ function Test-ConfigurationStructureHC {
                     -SystemErrors $SystemErrors
             }
         }
+
+        #region JobsPerComputer cannot exceed JobsTotal
+        # A per-computer cap larger than the total is unreachable: the throttle
+        # would stop the run before a single computer ever reached it, so the
+        # configured value would silently mean something else.
+        if (
+            ($Json.MaxConcurrent.JobsTotal -match '^\d+$') -and
+            ($Json.MaxConcurrent.JobsPerComputer -match '^\d+$') -and
+            ([int]$Json.MaxConcurrent.JobsPerComputer -gt [int]$Json.MaxConcurrent.JobsTotal)
+        ) {
+            Add-JsonSchemaErrorHC -Type 'FatalError' `
+                -Name "Incorrect 'MaxConcurrent.JobsPerComputer'" `
+                -Message "Property 'MaxConcurrent.JobsPerComputer' ($($Json.MaxConcurrent.JobsPerComputer)) cannot be greater than 'MaxConcurrent.JobsTotal' ($($Json.MaxConcurrent.JobsTotal))." `
+                -SystemErrors $SystemErrors
+        }
+        #endregion
     }
     #endregion
 

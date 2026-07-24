@@ -20,7 +20,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                     SetPermissions   = 'TestDrive:\SetPerm.ps1'
                 },
                 [hashtable]$MaxConcurrent = @{
-                    Computers        = 10
+                    JobsTotal        = 10
                     FoldersPerMatrix = 3
                 },
                 [string]$PSSessionConfiguration = 'PowerShell.7',
@@ -294,7 +294,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
 
             $ctx = New-TestContext `
                 -Matrices @($m) `
-                -MaxConcurrent @{ Computers = 10; FoldersPerMatrix = 5 } `
+                -MaxConcurrent @{ JobsTotal = 10; FoldersPerMatrix = 5 } `
                 -Detailed $true
 
             $null = Invoke-PermissionMatrixProcessHC `
@@ -343,7 +343,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
         It 'passes MaxConcurrent.FoldersPerMatrix to SetPermissions' {
             $m = New-TestMatrix
             $ctx = New-TestContext -Matrices @($m) -MaxConcurrent @{
-                Computers        = 5
+                JobsTotal        = 5
                 FoldersPerMatrix = 7
             }
 

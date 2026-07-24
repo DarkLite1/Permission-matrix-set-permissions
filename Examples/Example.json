@@ -1,8 +1,8 @@
 {
   "MaxConcurrent": {
-    "Computers": 10,
-    "FoldersPerMatrix": 3,
-    "JobsPerRemoteComputer": 3
+    "JobsTotal": 30,
+    "JobsPerComputer": 3,
+    "FoldersPerMatrix": 3
   },
   "Matrix": {
     "FolderPath": "C:\\Permission matrix files",
@@ -69,9 +69,9 @@
   },
   "?": {
     "MaxConcurrent": {
-      "Computers": "(Mandatory) Maximum quantity of unique computer names that can be requested to perform jobs at the same time.",
-      "FoldersPerMatrix": "(Mandatory) Maximum quantity of folders to iterate at the same time within a single job running on a remote computer.",
-      "JobsPerRemoteComputer": "(Mandatory) Maximum quantity of jobs to run at the same time on a single remote computer."
+      "JobsTotal": "(Mandatory) Maximum quantity of jobs to run at the same time across ALL remote computers. This is the overall concurrency budget and is applied directly as the throttle limit.",
+      "JobsPerComputer": "(Mandatory) Maximum quantity of jobs to run at the same time on a SINGLE remote computer. A job holds exactly one PSSession for its lifetime, so this is also the maximum quantity of WinRM shells opened on one machine at once. Keep it below the 'MaxShellsPerUser' setting of the remote computers (check with 'winrm get winrm/config/winrs'). Cannot be greater than 'JobsTotal'.",
+      "FoldersPerMatrix": "(Mandatory) Maximum quantity of folders to iterate at the same time within a single job running on a remote computer."
     },
     "Matrix": {
       "FolderPath": "(Mandatory) The folder path where the matrix Excel files are located.",

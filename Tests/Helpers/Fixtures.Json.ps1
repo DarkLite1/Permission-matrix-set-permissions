@@ -18,8 +18,8 @@ function New-JsonFixture {
 
     return @{
         MaxConcurrent          = @{
-            Computers             = 1
-            JobsPerRemoteComputer = 1
+            JobsTotal             = 1
+            JobsPerComputer       = 1
             FoldersPerMatrix      = 1
         }
         Matrix                 = @{
