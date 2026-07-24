@@ -450,9 +450,9 @@ function Invoke-PermissionMatrixEndHC {
     # =====================================================================
     try {
         # Re-tally — system warnings/errors may have been added by
-        # Exports/ServiceNow, logging, or other branches since the initial
-        # count at the top of this function. Without this the banner pills
-        # under-count any system items added after line 9.
+        # Exports, ServiceNow, SharePoint, logging, or other branches since
+        # the initial count at the top of this function. Without this the
+        # banner pills under-count any system items added after line 9.
         $Context.Counter = Update-MatrixCounterHC `
             -Context $Context `
             -SystemErrors $SystemErrors
