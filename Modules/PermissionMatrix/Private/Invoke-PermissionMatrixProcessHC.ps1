@@ -190,6 +190,7 @@ function Invoke-PermissionMatrixProcessHC {
                 }
                 catch {
                     $errObj = [PSCustomObject]@{ 
+                        DateTime    = Get-Date
                         Type        = 'FatalError'
                         Name        = 'Computer requirements'
                         Description = 'Failed checking computer requirements.' 
@@ -395,6 +396,7 @@ function Invoke-PermissionMatrixProcessHC {
                             }
                             else {
                                 $errObj = [PSCustomObject]@{ 
+                                    DateTime    = Get-Date
                                     Type        = 'FatalError' 
                                     Name        = 'Set permissions'
                                     Description = 'Failed applying action.' 
