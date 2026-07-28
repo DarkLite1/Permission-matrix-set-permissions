@@ -215,6 +215,14 @@ function Invoke-PermissionMatrixEndHC {
     }
     #endregion
 
+    #region Remember job durations for the next run
+    # Lets the next run start its expensive jobs first instead of discovering
+    # which they are by accident. Purely a performance hint: the function
+    # swallows every failure and never touches SystemErrors, because a cache
+    # that could not be written is not worth a line in the summary mail.
+    Save-JobDurationCacheHC -LogFolder $logFolder -Matrices $Context.AllMatrices
+    #endregion
+
     $scriptExecutionEndTime = Get-Date
 
     #region Create log files

@@ -252,10 +252,37 @@ function Invoke-PermissionMatrixProcessHC {
         #
         # Workers pull rather than being handed a fixed slice, so one very slow
         # matrix cannot strand its share of the queue while other workers idle.
+        # ORDERING: longest job first, within each queue and across computers.
+        #
+        # Whether the single longest job starts at the beginning or the end of a
+        # queue decides the wall clock, and matrix-file order decides it by
+        # accident. The cache remembers how long each job took last night, which
+        # is a good estimate of tonight.
+        #
+        # This is a hint only. A missing, unreadable or corrupt cache returns
+        # empty and every job is then treated as unknown, which reproduces the
+        # previous behaviour. Nothing below can throw on that account.
+        $jobDurationCache = Get-JobDurationCacheHC `
+            -LogFolder $Context.Config.Settings.SaveLogFiles.Where.Folder
+
         $safePermWorkers = foreach ($group in $compGroupsForPerms) {
             $jobQueue = [System.Collections.Concurrent.ConcurrentQueue[object]]::new()
 
-            foreach ($S in $group.Group) {
+            # Workers drain the queue in order, so enqueueing expensive first is
+            # what actually applies the ordering. Unknown jobs sort ahead of
+            # everything (see Get-JobDurationEstimateHC).
+            $orderedSettings = @($group.Group) |
+            Sort-Object -Property {
+                Get-JobDurationEstimateHC `
+                    -Cache $jobDurationCache `
+                    -ComputerName $_.Setting.Formatted.ComputerName `
+                    -Path $_.Setting.Formatted.Path `
+                    -Action $_.Setting.Formatted.Action
+            } -Descending
+
+            $queueCost = 0
+
+            foreach ($S in $orderedSettings) {
                 $jobQueue.Enqueue(
                     [PSCustomObject]@{
                         ID           = $S.ID
@@ -268,6 +295,20 @@ function Invoke-PermissionMatrixProcessHC {
                         )
                     }
                 )
+
+                $estimate = Get-JobDurationEstimateHC `
+                    -Cache $jobDurationCache `
+                    -ComputerName $S.Setting.Formatted.ComputerName `
+                    -Path $S.Setting.Formatted.Path `
+                    -Action $S.Setting.Formatted.Action
+
+                # MaxValue means 'unknown', not 'astronomically expensive': adding
+                # it would overflow the total and make every queue holding one
+                # unknown job look identical. Count it as zero and let the
+                # QueueHasUnknown flag speak for it instead.
+                if ($estimate -ne [double]::MaxValue) {
+                    $queueCost += $estimate
+                }
             }
 
             # Never create more workers than there is work for them to do.
@@ -277,6 +318,8 @@ function Invoke-PermissionMatrixProcessHC {
                 [PSCustomObject]@{
                     ComputerName = $group.Name
                     JobQueue     = $jobQueue
+                    QueueCost    = $queueCost
+                    QueueDepth   = $jobQueue.Count
                 }
             }
         }
@@ -286,12 +329,13 @@ function Invoke-PermissionMatrixProcessHC {
         # group order would let the busiest server begin last and become the
         # critical path for no reason.
         #
-        # Longest-processing-time-first: the computer with the deepest queue
-        # starts at t=0. Queue depth is a proxy for cost (durations are not
-        # known in advance), but it is the only signal available and a far
-        # better one than declaration order.
+        # Longest-processing-time-first across computers: known cost is the best
+        # signal, queue depth is the fallback when nothing is cached. Sorting on
+        # both means a first run behaves exactly as before.
         $safePermWorkers = @($safePermWorkers) |
-        Sort-Object -Property { $_.JobQueue.Count } -Descending
+        Sort-Object -Property `
+        @{ Expression = { $_.QueueCost }; Descending = $true },
+        @{ Expression = { $_.QueueDepth }; Descending = $true }
 
         if ($safePermWorkers) {
             $permResults = Invoke-WithOptionalParallelismHC `
