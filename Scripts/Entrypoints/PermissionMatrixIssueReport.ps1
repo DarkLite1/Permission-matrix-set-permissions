@@ -8,10 +8,15 @@
     Walks every run folder (e.g. "2026_07_26_220004 (BNL Nightly)"), reads the
     per-matrix-file logs and produces a workbook with four sheets:
 
-        Errors & Warnings    MatrixFileName / DateTime / Error / Warning / ComputerName
+        Errors & Warnings    MatrixFileName / DateTime / Type / Name / Description /
+                             ComputerName
         Summary              totals and breakdowns (COUNTIFS formulas)
-        All issues (detail)  same rows + Information level + full context
+        All issues (detail)  same columns + Information level + full context
         Notes & method       how the data was collected, with caveats
+
+    The matrix file name on sheet 1, and the LogFile and DetailFile columns on
+    the detail sheet, are hyperlinks: clicking one opens the log page that the
+    row came from.
 
     Two log formats are supported and detected automatically:
 
@@ -36,6 +41,13 @@
 .PARAMETER CsvFolder
     Optional. Also writes Issues.csv and Runs.csv there (handy for a quick diff
     or for feeding another tool). No Excel module needed for this part.
+
+.PARAMETER LinkRoot
+    Optional. Base path the hyperlinks should point at, when that is not the
+    same as -LogRoot. Use it when the logs are read from a local copy but the
+    workbook is shared with people who reach the logs over the network:
+
+        -LogRoot D:\LogCopy -LinkRoot \\BELSGFRANIT07\Log\File or folder\...
 
 .PARAMETER Parallel
     Read several run folders at the same time. Worth it when the log share is
@@ -76,6 +88,8 @@ param(
 
     [string] $CsvFolder,
 
+    [string] $LinkRoot,
+
     [switch] $Parallel,
 
     [ValidateRange(1, 25)]
@@ -100,8 +114,14 @@ $parser = {
     $script:RxOptions = [System.Text.RegularExpressions.RegexOptions]::Singleline -bor `
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 
-    # Severity words used in the report pills; the icon glyphs are filtered by shape.
-    $script:SeverityWords = @('ERROR', 'WARNING', 'INFORMATION', 'INFO')
+    # The words used in the report pills; the icon glyphs are filtered by shape.
+    $script:TypeWords = @('ERROR', 'WARNING', 'INFORMATION', 'INFO')
+
+    # Placeholder for issues that belong to the run rather than to a matrix file.
+    # Scope lives here so that Type can stay a clean Error / Warning / Information:
+    # the run level log is called SystemErrors.json but records all three. Defined
+    # in the parser so the parallel runspaces get it too.
+    $script:RunLevelName = '(run level)'
 
     function Read-TextFile {
         param([string] $Path)
@@ -136,7 +156,7 @@ $parser = {
         foreach ($line in ($stripped -split "`n")) {
             $t = Get-CleanText $line
             if ($t -eq '') { continue }
-            if ($script:SeverityWords -contains $t.ToUpperInvariant()) { continue }
+            if ($script:TypeWords -contains $t.ToUpperInvariant()) { continue }
             # icon glyphs such as the cross, warning triangle, bullet, check mark
             if ($t.Length -le 2 -and $t -notmatch '[0-9A-Za-z]') { continue }
             if (-not $blocks.Contains($t)) { $blocks.Add($t) }
@@ -144,7 +164,8 @@ $parser = {
         return $blocks
     }
 
-    function Get-SeverityName {
+    function Get-IssueType {
+        <# The pill text of a problem row -> Error / Warning / Information. #>
         param([string] $Raw)
         $r = (Get-CleanText $Raw).ToUpperInvariant()
         if ($r -like 'ERR*') { return 'Error' }
@@ -204,37 +225,46 @@ $parser = {
         return ''
     }
 
-    function Get-DetailFileDateTime {
-        <# Exact timestamp of a single problem, from the detail JSON it links to. #>
+    function Get-DetailFilePath {
+        <# The report links to a detail file with a UNC or relative href; this
+           resolves it to a real path in the matrix folder, or '' when it is
+           not there. #>
         param([string] $Folder, [string] $Href)
-        if ([string]::IsNullOrEmpty($Href)) { return $null }
-        $name = ($Href -split '[\\/]')[-1]
-        $path = Join-Path $Folder $name
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $null }
+        if ([string]::IsNullOrEmpty($Href)) { return '' }
+        $path = Join-Path $Folder (($Href -split '[\\/]')[-1])
+        if (Test-Path -LiteralPath $path -PathType Leaf) { return $path }
+        return ''
+    }
+
+    function Get-DetailFileDateTime {
+        <# Exact timestamp of a single problem, from its detail JSON. #>
+        param([string] $Path)
+        if ([string]::IsNullOrEmpty($Path)) { return $null }
         try {
-            $head = Read-TextFile $path
+            $head = Read-TextFile $Path
             if ($head.Length -gt 600) { $head = $head.Substring(0, 600) }
             $m = [regex]::Match($head, '"DateTime"\s*:\s*"([^"]+)"')
             if ($m.Success) { return Convert-IsoDate $m.Groups[1].Value }
         }
         catch {
-            Write-Verbose "Could not read detail file '$path': $($_.Exception.Message)"
+            Write-Verbose "Could not read detail file '$Path': $($_.Exception.Message)"
         }
         return $null
     }
 
     function New-Issue {
         param(
-            [string] $MatrixFileName, $DateTime, [string] $Severity, [string] $Problem,
+            [string] $MatrixFileName, $DateTime, [string] $Type, [string] $Name,
             [string] $Description, [string] $ComputerName, [string] $Path, [string] $Site,
             [string] $SettingId, [string] $RunFolder, [string] $LogFormat,
-            [string] $DetailFile, [string] $TimestampSource
+            [string] $DetailFile, [string] $TimestampSource,
+            [string] $LogFile, [string] $DetailPath
         )
         return [pscustomobject] @{
             MatrixFileName  = $MatrixFileName
             DateTime        = $DateTime
-            Severity        = $Severity
-            Problem         = $Problem
+            Type            = $Type
+            Name            = $Name
             Description     = $Description
             ComputerName    = $ComputerName
             Path            = $Path
@@ -245,6 +275,8 @@ $parser = {
             LogFormat       = $LogFormat
             DetailFile      = $DetailFile
             TimestampSource = $TimestampSource
+            LogFile         = $LogFile
+            DetailPath      = $DetailPath
         }
     }
 
@@ -320,14 +352,14 @@ $parser = {
             # ---- problem row ---------------------------------------------
             $pill = [regex]::Match($chunk, '>\s*(ERROR|WARNING|INFORMATION|INFO)\s*<')
             if ($pill.Success) {
-                $severity = Get-SeverityName $pill.Groups[1].Value
+                $type = Get-IssueType $pill.Groups[1].Value
                 # cut at the '<' that opens the pill so its own tag cannot leak text
                 $cut = $chunk.LastIndexOf('<', $pill.Index)
                 if ($cut -lt 0) { $cut = $pill.Index }
                 $content = $chunk.Substring(0, $cut)
             }
             else {
-                $severity = 'Unknown'
+                $type = 'Unknown'
                 $content = $chunk
             }
 
@@ -354,16 +386,18 @@ $parser = {
                 $problem = if ($problem -ne '') { "$category`: $problem" } else { $category }
             }
 
-            $stamp = Get-DetailFileDateTime -Folder $folder -Href $href
+            $detailPath = Get-DetailFilePath -Folder $folder -Href $href
+            $stamp = Get-DetailFileDateTime -Path $detailPath
             $stampSource = 'problem detail file'
             if ($null -eq $stamp) { $stamp = $startTime; $stampSource = 'run start time' }
 
-            $counts[$severity] = $counts[$severity] + 1
+            $counts[$type] = $counts[$type] + 1
             $Issues.Add((New-Issue -MatrixFileName $matrixName -DateTime $stamp `
-                        -Severity $severity -Problem $problem -Description $description `
+                        -Type $type -Name $problem -Description $description `
                         -ComputerName $computer -Path $path -Site $site -SettingId $settingId `
                         -RunFolder $RunFolder -LogFormat 'new' -DetailFile $href `
-                        -TimestampSource $stampSource))
+                        -TimestampSource $stampSource `
+                        -LogFile $ReportPath -DetailPath $detailPath))
         }
 
         return [pscustomobject] @{
@@ -378,6 +412,7 @@ $parser = {
             StartTime      = $startTime
             EndTime        = $endTime
             LogFormat      = 'new'
+            LogFile        = $ReportPath
         }
     }
 
@@ -398,6 +433,11 @@ $parser = {
         $errors = 0; $warnings = 0; $information = 0
         $starts = [System.Collections.Generic.List[datetime]]::new()
         $ends = [System.Collections.Generic.List[datetime]]::new()
+
+        # the troubleshooting log is the overview page for the whole matrix file,
+        # so it is the better link target when it exists
+        $overview = Join-Path $MatrixDir '00 - Troubleshooting Log.html'
+        if (-not (Test-Path -LiteralPath $overview -PathType Leaf)) { $overview = '' }
 
         foreach ($file in $settingFiles) {
             $html = Remove-HtmlNoise (Read-TextFile $file.FullName)
@@ -438,7 +478,7 @@ $parser = {
             # problem rows
             $rx = '<tr>\s*<td id="probType(Error|Warning|Info)"[^>]*>\s*</td>\s*<td colspan="7">(.*?)</td>\s*</tr>'
             foreach ($pm in [regex]::Matches($html, $rx, $script:RxOptions)) {
-                $severity = Get-SeverityName $pm.Groups[1].Value
+                $type = Get-IssueType $pm.Groups[1].Value
                 $block = $pm.Groups[2].Value
 
                 $problem = ''
@@ -454,24 +494,27 @@ $parser = {
                 $detail = ''
                 $m = [regex]::Match($block, 'href="([^"]*)"', $script:RxOptions)
                 if ($m.Success) { $detail = ($m.Groups[1].Value -split '[\\/]')[-1] }
+                $detailPath = Get-DetailFilePath -Folder $MatrixDir -Href $detail
 
-                switch ($severity) {
+                switch ($type) {
                     'Error' { $errors++ }
                     'Warning' { $warnings++ }
                     'Information' { $information++ }
                 }
 
                 $Issues.Add((New-Issue -MatrixFileName $matrixName -DateTime $startTime `
-                            -Severity $severity -Problem $problem -Description $description `
+                            -Type $type -Name $problem -Description $description `
                             -ComputerName $computer -Path $path -Site '' -SettingId $settingId `
                             -RunFolder $RunFolder -LogFormat 'old' -DetailFile $detail `
-                            -TimestampSource $stampSource))
+                            -TimestampSource $stampSource `
+                            -LogFile $file.FullName -DetailPath $detailPath))
             }
         }
 
         $status = if ($errors -gt 0) { 'Error' } elseif ($warnings -gt 0) { 'Warning' } else { 'Success' }
         $runStart = if ($starts.Count -gt 0) { ($starts | Measure-Object -Minimum).Minimum } else { Get-RunFolderDate $RunFolder }
         $runEnd = if ($ends.Count -gt 0) { ($ends | Measure-Object -Maximum).Maximum } else { $null }
+        $logFile = if ($overview -ne '') { $overview } elseif ($settingFiles.Count -gt 0) { $settingFiles[0].FullName } else { '' }
 
         return [pscustomobject] @{
             RunFolder      = $RunFolder
@@ -485,6 +528,7 @@ $parser = {
             StartTime      = $runStart
             EndTime        = $runEnd
             LogFormat      = 'old'
+            LogFile        = $logFile
         }
     }
 
@@ -493,7 +537,8 @@ $parser = {
     function Read-SystemErrorLog {
         <# "SystemErrors.json" (new) / "System errors log.json" (old). These are
            run level: no matrix file and no computer, so they get MatrixFileName
-           "(system)" and a "[System]" prefix on the main sheet. #>
+           "(run level)". Despite the file name they are not all errors - the Type
+           field in the JSON decides, and it also carries Warning and Information. #>
         param([string] $RunDir, [string] $RunFolder,
             [System.Collections.Generic.List[object]] $Issues)
 
@@ -538,11 +583,12 @@ $parser = {
                 $stampSource = 'system error log'
                 if ($null -eq $stamp) { $stamp = Get-RunFolderDate $RunFolder; $stampSource = 'run start time' }
 
-                $Issues.Add((New-Issue -MatrixFileName '(system)' -DateTime $stamp `
-                            -Severity ('System ' + (Get-SeverityName $type)) -Problem $problem `
+                $Issues.Add((New-Issue -MatrixFileName $script:RunLevelName -DateTime $stamp `
+                            -Type (Get-IssueType $type) -Name $problem `
                             -Description $message -ComputerName '' -Path '' -Site '' -SettingId '' `
                             -RunFolder $RunFolder -LogFormat 'system' -DetailFile $name `
-                            -TimestampSource $stampSource))
+                            -TimestampSource $stampSource `
+                            -LogFile $path -DetailPath $path))
             }
         }
     }
@@ -581,7 +627,7 @@ $parser = {
                         MatrixFileName = "$($matrixDir.Name).xlsx"; Status = 'no log'
                         Settings = 0; Errors = 0; Warnings = 0; Information = 0
                         StartTime = (Get-RunFolderDate $RunFolder); EndTime = $null
-                        LogFormat = 'none'
+                        LogFormat = 'none'; LogFile = ''
                     })
             }
         }
@@ -660,21 +706,25 @@ $allIssues = @(
     $issues | Sort-Object `
         -Stable `
         -Property @{ Expression = 'DateTime'; Descending = $true }, 
-    MatrixFileName, ComputerName, Problem
+    MatrixFileName, ComputerName, Name
 )
 $runs = @($runs | Sort-Object -Stable RunFolder, MatrixFileName)
 
 $errorsAndWarnings = @(
     $allIssues | Where-Object { 
-        $_.Severity -like '*Error' -or $_.Severity -like '*Warning' 
+        $_.Type -eq 'Error' -or $_.Type -eq 'Warning' 
     }
 )
 
-$countError = @($allIssues | Where-Object Severity -EQ 'Error').Count
-$countWarning = @($allIssues | Where-Object Severity -EQ 'Warning').Count
-$countSysError = @($allIssues | Where-Object Severity -EQ 'System Error').Count
-$countSysWarning = @($allIssues | Where-Object Severity -EQ 'System Warning').Count
-$countInformation = @($allIssues | Where-Object Severity -Like '*Information').Count
+# split by scope: a run level issue has no matrix file to blame
+$matrixIssues = @($allIssues | Where-Object MatrixFileName -NE $script:RunLevelName)
+$runLevelIssues = @($allIssues | Where-Object MatrixFileName -EQ $script:RunLevelName)
+
+$countError = @($matrixIssues | Where-Object Type -EQ 'Error').Count
+$countWarning = @($matrixIssues | Where-Object Type -EQ 'Warning').Count
+$countRunError = @($runLevelIssues | Where-Object Type -EQ 'Error').Count
+$countRunWarning = @($runLevelIssues | Where-Object Type -EQ 'Warning').Count
+$countInformation = @($allIssues | Where-Object Type -EQ 'Information').Count
 
 Write-Host ('Matrix file runs : {0}   (new format {1}, old format {2}, no log {3})   in {4:n1}s' -f
     $runs.Count,
@@ -682,8 +732,8 @@ Write-Host ('Matrix file runs : {0}   (new format {1}, old format {2}, no log {3
     @($runs | Where-Object LogFormat -EQ 'old').Count,
     $foldersWithoutLog,
     $stopwatch.Elapsed.TotalSeconds)
-Write-Host ('Errors {0} (+{1} system)   Warnings {2} (+{3} system)   Information {4}' -f
-    $countError, $countSysError, $countWarning, $countSysWarning, $countInformation)
+Write-Host ('Errors {0} (+{1} run level)   Warnings {2} (+{3} run level)   Information {4}' -f
+    $countError, $countRunError, $countWarning, $countRunWarning, $countInformation)
 
 if ($CsvFolder) {
     if (-not (Test-Path -LiteralPath $CsvFolder -PathType Container)) {
@@ -721,6 +771,7 @@ $redBg = [System.Drawing.Color]::FromArgb(252, 228, 228)
 $amber = [System.Drawing.Color]::FromArgb(255, 243, 208)
 $grey = [System.Drawing.Color]::FromArgb(242, 242, 242)
 $white = [System.Drawing.Color]::White
+$linkBlue = [System.Drawing.Color]::FromArgb(5, 99, 193)
 $solid = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
 $dateFormat = 'dd/mm/yyyy hh:mm:ss'
 
@@ -747,25 +798,48 @@ function Set-RowFills {
         $row = $i + 2
         $cells = $Worksheet.Cells["A$row" + ":$LastColumn$row"]
         $cells.Style.Fill.PatternType = $script:solid
-        $color = if ($Rows[$i].Severity -like '*Error') { $script:redBg }
-        elseif ($Rows[$i].Severity -like '*Warning') { $script:amber }
+        $color = if ($Rows[$i].Type -eq 'Error') { $script:redBg }
+        elseif ($Rows[$i].Type -eq 'Warning') { $script:amber }
         else { $script:grey }
         $cells.Style.Fill.BackgroundColor.SetColor($color)
     }
 }
 
-# ---- sheet 1: the five requested columns ---------------------------------
-$mainRows = foreach ($x in $errorsAndWarnings) {
-    $message = if ($x.Severity -like 'System*') { "[System] $($x.Problem)" } else { $x.Problem }
-    $isError = $x.Severity -like '*Error'
-    [pscustomobject] @{
-        MatrixFileName = $x.MatrixFileName
-        DateTime       = $x.DateTime
-        Error          = if ($isError) { $message } else { $null }
-        Warning        = if ($isError) { $null } else { $message }
-        ComputerName   = $x.ComputerName
+function Convert-LinkPath {
+    <# Rewrites a path so the links point at -LinkRoot instead of the folder the
+       logs were actually read from. #>
+    param([string] $Path)
+    if (-not $LinkRoot) { return $Path }
+    if (-not $Path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) { return $Path }
+    $rest = $Path.Substring($root.Length)
+    if ($LinkRoot.Contains('\')) { $rest = $rest -replace '/', '\' }
+    return $LinkRoot.TrimEnd('\', '/') + $rest
+}
+
+function Set-CellLink {
+    <# Turns an existing cell into a hyperlink without changing what it shows.
+       Setting .Hyperlink on an empty cell would overwrite the text, hence the
+       save and restore. A cell that shows the path itself follows -LinkRoot. #>
+    param($Worksheet, [int] $Row, [int] $Column, [string] $Target)
+    if ([string]::IsNullOrEmpty($Target)) { return }
+    $cell = $Worksheet.Cells[$Row, $Column]
+    $linkTarget = Convert-LinkPath $Target
+    $text = $cell.Value
+    if ($text -is [string] -and $text -eq $Target) { $text = $linkTarget }
+    try {
+        $cell.Hyperlink = [System.Uri]::new($linkTarget)
+        $cell.Value = $text
+        $cell.Style.Font.UnderLine = $true
+        $cell.Style.Font.Color.SetColor($script:linkBlue)
+    }
+    catch {
+        Write-Verbose "Could not link '$linkTarget': $($_.Exception.Message)"
     }
 }
+
+# ---- sheet 1: errors and warnings, one Type column ------------------------
+$mainRows = $errorsAndWarnings |
+Select-Object MatrixFileName, DateTime, Type, Name, Description, ComputerName
 
 $pkg = $mainRows | 
 Export-Excel -Path $OutputFile `
@@ -774,9 +848,9 @@ Export-Excel -Path $OutputFile `
 
 # ---- sheet 2: full detail ------------------------------------------------
 $pkg = $allIssues |
-Select-Object MatrixFileName, DateTime, Severity, Problem, Description,
+Select-Object MatrixFileName, DateTime, Type, Name, Description,
 ComputerName, Path, Site, SettingId, RunFolder, RunType,
-LogFormat, DetailFile, TimestampSource |
+LogFormat, DetailFile, TimestampSource, LogFile |
 Export-Excel -ExcelPackage $pkg -WorksheetName 'All issues (detail)' `
     -AutoFilter -FreezeTopRow -PassThru
 
@@ -784,26 +858,38 @@ Export-Excel -ExcelPackage $pkg -WorksheetName 'All issues (detail)' `
 $wsMain = $pkg.Workbook.Worksheets['Errors & Warnings']
 $wsMain.Cells.Style.Font.Name = 'Arial'
 $wsMain.Cells.Style.Font.Size = 10
-Set-HeaderStyle -Worksheet $wsMain -Range 'A1:E1'
-Set-ColumnWidths -Worksheet $wsMain -Widths @(42, 19, 40, 40, 18)
+Set-HeaderStyle -Worksheet $wsMain -Range 'A1:F1'
+Set-ColumnWidths -Worksheet $wsMain -Widths @(42, 19, 13, 36, 70, 18)
 $wsMain.Column(2).Style.Numberformat.Format = $dateFormat
-$wsMain.Cells['C:D'].Style.WrapText = $true
-Set-RowFills -Worksheet $wsMain -Rows $errorsAndWarnings -LastColumn 'E'
+$wsMain.Cells['D:E'].Style.WrapText = $true
+Set-RowFills -Worksheet $wsMain -Rows $errorsAndWarnings -LastColumn 'F'
+
+# the matrix file name opens the log page the row came from
+for ($i = 0; $i -lt $errorsAndWarnings.Count; $i++) {
+    Set-CellLink -Worksheet $wsMain -Row ($i + 2) -Column 1 -Target $errorsAndWarnings[$i].LogFile
+}
 
 $wsDetail = $pkg.Workbook.Worksheets['All issues (detail)']
 $wsDetail.Cells.Style.Font.Name = 'Arial'
 $wsDetail.Cells.Style.Font.Size = 10
-Set-HeaderStyle -Worksheet $wsDetail -Range 'A1:N1'
-Set-ColumnWidths -Worksheet $wsDetail -Widths @(42, 19, 14, 38, 70, 18, 46, 16, 38, 34, 13, 11, 46, 22)
+Set-HeaderStyle -Worksheet $wsDetail -Range 'A1:O1'
+Set-ColumnWidths -Worksheet $wsDetail -Widths @(42, 19, 14, 38, 70, 18, 46, 16, 38, 34, 13, 11, 46, 22, 80)
 $wsDetail.Column(2).Style.Numberformat.Format = $dateFormat
-Set-RowFills -Worksheet $wsDetail -Rows $allIssues -LastColumn 'N'
+Set-RowFills -Worksheet $wsDetail -Rows $allIssues -LastColumn 'O'
+
+# DetailFile (M) opens the single problem, LogFile (O) opens the whole report
+for ($i = 0; $i -lt $allIssues.Count; $i++) {
+    $row = $i + 2
+    Set-CellLink -Worksheet $wsDetail -Row $row -Column 13 -Target $allIssues[$i].DetailPath
+    Set-CellLink -Worksheet $wsDetail -Row $row -Column 15 -Target $allIssues[$i].LogFile
+}
 
 # ---- sheet 3: summary, everything by formula ------------------------------
 $detailLast = $allIssues.Count + 1
 $det = "'All issues (detail)'"
-$sevCol = "$det!`$C`$2:`$C`$$detailLast"
+$typeCol = "$det!`$C`$2:`$C`$$detailLast"
 $matCol = "$det!`$A`$2:`$A`$$detailLast"
-$probCol = "$det!`$D`$2:`$D`$$detailLast"
+$nameCol = "$det!`$D`$2:`$D`$$detailLast"
 $compCol = "$det!`$F`$2:`$F`$$detailLast"
 $dtCol = "$det!`$B`$2:`$B`$$detailLast"
 
@@ -842,19 +928,21 @@ Add-BlockTitle -Worksheet $ws -Row $row -Text 'Totals'
 $row++
 Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Category', 'Count')
 $row++
+$runLevel = """$script:RunLevelName"""
+$notRunLevel = """<>$script:RunLevelName"""
 foreach ($pair in @(
-        @('Errors (matrix files)', 'Error'),
-        @('Warnings (matrix files)', 'Warning'),
-        @('System errors', 'System Error'),
-        @('System warnings', 'System Warning'),
-        @('Information (not an issue)', 'Information'))) {
+        @('Errors (matrix files)', "COUNTIFS($typeCol,""Error"",$matCol,$notRunLevel)"),
+        @('Warnings (matrix files)', "COUNTIFS($typeCol,""Warning"",$matCol,$notRunLevel)"),
+        @('Errors (run level)', "COUNTIFS($typeCol,""Error"",$matCol,$runLevel)"),
+        @('Warnings (run level)', "COUNTIFS($typeCol,""Warning"",$matCol,$runLevel)"),
+        @('Information (not an issue)', "COUNTIF($typeCol,""Information"")"))) {
     $ws.Cells[$row, 1].Value = $pair[0]
-    $ws.Cells[$row, 2].Formula = "COUNTIF($sevCol,""$($pair[1])"")"
+    $ws.Cells[$row, 2].Formula = $pair[1]
     $ws.Cells[$row, 2].Style.Font.Bold = $true
     $row++
 }
 $ws.Cells[$row, 1].Value = 'Errors + warnings (rows on sheet 1)'
-$ws.Cells[$row, 2].Formula = "COUNTIF($sevCol,""*Error"")+COUNTIF($sevCol,""*Warning"")"
+$ws.Cells[$row, 2].Formula = "COUNTIF($typeCol,""Error"")+COUNTIF($typeCol,""Warning"")"
 $ws.Cells[$row, 2].Style.Font.Bold = $true
 $row++
 foreach ($pair in @(@('First issue timestamp', 'MIN'), @('Last issue timestamp', 'MAX'))) {
@@ -875,26 +963,29 @@ Add-BlockHeader -Worksheet $ws -Row $row -Headers @('MatrixFileName', 'Errors', 
 $row++
 foreach ($g in $byMatrix) {
     $ws.Cells[$row, 1].Value = $g.Name
-    $ws.Cells[$row, 2].Formula = "COUNTIFS($matCol,`$A$row,$sevCol,""*Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($matCol,`$A$row,$sevCol,""*Warning"")"
+    $ws.Cells[$row, 2].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Error"")"
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Warning"")"
     $ws.Cells[$row, 4].Formula = "B$row+C$row"
     $ws.Cells[$row, 4].Style.Font.Bold = $true
     # SUMPRODUCT keeps this a normal formula - no Ctrl+Shift+Enter needed
     $ws.Cells[$row, 5].Formula = "SUMPRODUCT(MAX(($matCol=`$A$row)*$dtCol))"
     $ws.Cells[$row, 5].Style.Numberformat.Format = $dateFormat
+    # the name links to the most recent log for that matrix file
+    $newest = @($g.Group | Sort-Object DateTime -Descending)[0]
+    Set-CellLink -Worksheet $ws -Row $row -Column 1 -Target $newest.LogFile
     $row++
 }
 $row++
 
-# per problem type
-Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per problem type'
+# per issue name
+Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per issue name'
 $row++
-Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Problem', 'Errors', 'Warnings', 'Total')
+Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Name', 'Errors', 'Warnings', 'Total')
 $row++
-foreach ($g in ($errorsAndWarnings | Group-Object Problem | Sort-Object Count -Descending)) {
+foreach ($g in ($errorsAndWarnings | Group-Object Name | Sort-Object Count -Descending)) {
     $ws.Cells[$row, 1].Value = $g.Name
-    $ws.Cells[$row, 2].Formula = "COUNTIFS($probCol,`$A$row,$sevCol,""*Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($probCol,`$A$row,$sevCol,""*Warning"")"
+    $ws.Cells[$row, 2].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Error"")"
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Warning"")"
     $ws.Cells[$row, 4].Formula = "B$row+C$row"
     $ws.Cells[$row, 4].Style.Font.Bold = $true
     $row++
@@ -910,8 +1001,8 @@ foreach ($g in ($errorsAndWarnings | Group-Object ComputerName | Sort-Object Cou
     $label = if ([string]::IsNullOrEmpty($g.Name)) { '(no computer / file level issue)' } else { $g.Name }
     $criteria = """$($g.Name)"""
     $ws.Cells[$row, 1].Value = $label
-    $ws.Cells[$row, 2].Formula = "COUNTIFS($compCol,$criteria,$sevCol,""*Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($compCol,$criteria,$sevCol,""*Warning"")"
+    $ws.Cells[$row, 2].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Error"")"
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Warning"")"
     $ws.Cells[$row, 4].Formula = "B$row+C$row"
     $ws.Cells[$row, 4].Style.Font.Bold = $true
     $row++
@@ -927,15 +1018,17 @@ $wsNotes.Cells['A1'].Style.Font.Bold = $true
 $wsNotes.Cells['A1'].Style.Font.Size = 13
 $wsNotes.Cells['A1'].Style.Font.Color.SetColor($navy)
 
+$linkBase = if ($LinkRoot) { $LinkRoot } else { $root }
 $notes = @(
     @('Generated', "$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss') by $($MyInvocation.MyCommand.Name) on $env:COMPUTERNAME"),
     @('Source', "$root - $($runs.Count) matrix file runs in $($runFolders.Count) run folders"),
-    @('Sheet 1', 'One row per logged error or warning, newest first. Information level entries are not on this sheet.'),
-    @('Sheet 3', 'Same rows plus Information level entries and the full context (description, path, site, run folder, setting id, detail file).'),
+    @('Sheet 1', 'One row per logged error or warning, newest first: Type says which of the two it is, Name and Description say what happened. Information level entries are not on this sheet.'),
+    @('Sheet 3', 'Same columns plus Information level entries and the full context (path, site, run folder, setting id, detail file).'),
+    @('Links', "Blue underlined cells open the log itself: the matrix file name on sheet 1 and on the summary, and the DetailFile and LogFile columns on sheet 3. They point at $linkBase, so they keep working for anyone who can reach that path. Old format rows link to the 'ID <n> - Settings.html' of the computer concerned; new format rows link to the execution report."),
     @('Two log formats', 'Old runs use "ID <n> - Settings.html", newer runs use "00 - Execution Report.html". The LogFormat column says which one a row came from.'),
     @('DateTime', 'New format rows use the exact timestamp from the problem detail JSON when the report links to one; otherwise the start time of the setting (old format) or of the run is used. See the TimestampSource column.'),
     @('ComputerName', 'Taken from the setting a problem belongs to. File level issues (for example "Excel File: Runspace processing failed") are not tied to a computer, so the cell is empty.'),
-    @('System issues', 'SystemErrors.json / "System errors log.json" are run level, so they show as MatrixFileName "(system)" and are prefixed "[System]" on sheet 1.'),
+    @('Run level issues', 'SystemErrors.json / "System errors log.json" belong to the run as a whole, not to one matrix file, so they show as MatrixFileName "(run level)" with an ordinary Type. They are not all errors despite the file name: the Type field in the JSON decides, and it also records Warning and Information. Filter MatrixFileName on "(run level)" to see only these, or filter them out to count what the matrix files themselves caused.'),
     @('Folders without a log', "$foldersWithoutLog matrix folders contained no log file and are counted as 'no log'."),
     @('Coverage caveat', 'Only the matrix folders present under the log root can be reported on. If the run mails mention more matrix files than there are folders, the missing ones are not represented here.')
 )
