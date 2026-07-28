@@ -34,7 +34,7 @@
           "Version": 1,
           "Jobs": {
             "server01|\\\\server01\\share\\folder|fix": {
-              "Seconds": 1465.32,
+              "TotalSeconds": 1465.32,
               "LastSeen": "2026-07-28T02:14:33.0000000Z"
             }
           }
@@ -177,7 +177,7 @@ function Get-JobDurationCacheHC {
         foreach ($entry in $json.Jobs.PSObject.Properties) {
             # One malformed record must not discard the others.
             try {
-                $seconds = [double]$entry.Value.Seconds
+                $seconds = [double]$entry.Value.TotalSeconds
 
                 if (
                     ($seconds -gt 0) -and
@@ -288,7 +288,7 @@ function Save-JobDurationCacheHC {
 
                             if ($lastSeen -ge $cutOff) {
                                 $merged[$entry.Name] = [PSCustomObject]@{
-                                    Seconds  = [double]$entry.Value.Seconds
+                                    TotalSeconds = [double]$entry.Value.TotalSeconds
                                     LastSeen = $lastSeen
                                 }
                             }
@@ -320,6 +320,12 @@ function Save-JobDurationCacheHC {
             # would demote an expensive job in tomorrow's ordering, so leave
             # whatever is already remembered in place.
             if (-not ($duration -is [timespan])) { continue }
+
+            # TotalSeconds, never Seconds. On a [timespan], Seconds is the
+            # 0-59 COMPONENT: a 24m25s job would be stored as 25 and sort last,
+            # which is precisely the mistake this cache exists to prevent. The
+            # JSON field carries the same name so the file and the member can
+            # never drift apart.
             if ($duration.TotalSeconds -le 0) { continue }
 
             $key = Get-JobDurationCacheKeyHC `
@@ -328,7 +334,7 @@ function Save-JobDurationCacheHC {
                 -Action $matrix.Setting.Formatted.Action
 
             $merged[$key] = [PSCustomObject]@{
-                Seconds  = [math]::Round($duration.TotalSeconds, 2)
+                TotalSeconds = [math]::Round($duration.TotalSeconds, 2)
                 LastSeen = $now
             }
 
@@ -348,7 +354,7 @@ function Save-JobDurationCacheHC {
 
         foreach ($key in ($merged.Keys | Sort-Object)) {
             $jobs[$key] = [ordered]@{
-                Seconds  = $merged[$key].Seconds
+                TotalSeconds = $merged[$key].TotalSeconds
                 LastSeen = $merged[$key].LastSeen.ToString('o')
             }
         }

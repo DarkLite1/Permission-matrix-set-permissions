@@ -147,11 +147,11 @@ Describe 'Get-JobDurationCacheHC' {
                 Version = 1
                 Jobs    = @{
                     'server01|\\server01\share|fix'  = @{
-                        Seconds  = 1465.32
+                        TotalSeconds = 1465.32
                         LastSeen = '2026-07-27T02:14:33.0000000Z'
                     }
                     'server02|\\server02\other|fix' = @{
-                        Seconds  = 12
+                        TotalSeconds = 12
                         LastSeen = '2026-07-27T02:14:33.0000000Z'
                     }
                 }
@@ -190,12 +190,12 @@ Describe 'Get-JobDurationCacheHC' {
 
         It 'returns empty for <Description>' -TestCases @(
             @{ Description = 'malformed JSON'; Content = '{ this is not json' }
-            @{ Description = 'JSON truncated mid-write'; Content = '{ "Version": 1, "Jobs": { "a|b|c": { "Sec' }
+            @{ Description = 'JSON truncated mid-write'; Content = '{ "Version": 1, "Jobs": { "a|b|c": { "Tot' }
             @{ Description = 'an empty file'; Content = '' }
             @{ Description = 'whitespace only'; Content = "   `n  " }
             @{ Description = 'a JSON array instead of an object'; Content = '[1,2,3]' }
             @{ Description = 'valid JSON with no Jobs property'; Content = '{ "Version": 1 }' }
-            @{ Description = 'a future schema version'; Content = '{ "Version": 99, "Jobs": { "a|b|c": { "Seconds": 5 } } }' }
+            @{ Description = 'a future schema version'; Content = '{ "Version": 99, "Jobs": { "a|b|c": { "TotalSeconds": 5 } } }' }
         ) {
             param($Content)
 
@@ -222,9 +222,9 @@ Describe 'Get-JobDurationCacheHC' {
 {
   "Version": 1,
   "Jobs": {
-    "good|path|fix": { "Seconds": 500, "LastSeen": "2026-07-27T02:00:00.0000000Z" },
-    "bad|path|fix": { "Seconds": "not-a-number", "LastSeen": "2026-07-27T02:00:00.0000000Z" },
-    "alsogood|path|fix": { "Seconds": 20, "LastSeen": "2026-07-27T02:00:00.0000000Z" }
+    "good|path|fix": { "TotalSeconds": 500, "LastSeen": "2026-07-27T02:00:00.0000000Z" },
+    "bad|path|fix": { "TotalSeconds": "not-a-number", "LastSeen": "2026-07-27T02:00:00.0000000Z" },
+    "alsogood|path|fix": { "TotalSeconds": 20, "LastSeen": "2026-07-27T02:00:00.0000000Z" }
   }
 }
 '@
@@ -246,7 +246,7 @@ Describe 'Get-JobDurationCacheHC' {
 
             # A non-positive duration is meaningless and would corrupt the
             # ordering rather than improve it.
-            $content = '{ "Version": 1, "Jobs": { "a|b|c": { "Seconds": ' + $Value + ', "LastSeen": "2026-07-27T02:00:00.0000000Z" } } }'
+            $content = '{ "Version": 1, "Jobs": { "a|b|c": { "TotalSeconds": ' + $Value + ', "LastSeen": "2026-07-27T02:00:00.0000000Z" } } }'
 
             Set-Content -LiteralPath (Join-Path $TestDrive 'JobDurations.json') `
                 -Value $content -Encoding UTF8
@@ -348,7 +348,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json.Version | Should -Be 1
             $json.Updated | Should -Not -BeNullOrEmpty
-            $json.Jobs.'server01|\\server01\share\folder|fix'.Seconds | Should -Be 250
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
         }
 
         It 'records one entry per job, not per matrix file' {
@@ -365,6 +365,26 @@ Describe 'Save-JobDurationCacheHC' {
             @($json.Jobs.PSObject.Properties).Count | Should -Be 3
         }
 
+        It 'stores the WHOLE duration, not the seconds component' {
+            # The bug this guards: [timespan].Seconds is the 0-59 component,
+            # while .TotalSeconds is the whole duration. A 24m25s job stored via
+            # .Seconds would be recorded as 25 and sort last - the exact
+            # inversion the cache exists to prevent. Anything over a minute
+            # distinguishes the two; 1465s is the real duration that motivated
+            # this feature.
+            Save-JobDurationCacheHC -LogFolder $TestDrive `
+                -Matrices @((New-MatrixItem -Seconds 1465))
+
+            $json = Get-CacheFileContent -LogFolder $TestDrive
+
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds |
+                Should -Be 1465
+
+            # 1465s is 24m25s, so the component value would be 25.
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds |
+                Should -Not -Be 25
+        }
+
         It 'rounds the duration to two decimals' {
             $matrices = @((New-MatrixItem -Seconds 123.456789))
 
@@ -372,7 +392,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.Seconds | Should -Be 123.46
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 123.46
         }
 
         It 'stores a round-trippable UTC timestamp' {
@@ -412,11 +432,11 @@ Describe 'Save-JobDurationCacheHC' {
                 Version = 1
                 Jobs    = @{
                     'server01|\\server01\share\folder|fix' = @{
-                        Seconds  = 999
+                        TotalSeconds = 999
                         LastSeen = (Get-Date).ToUniversalTime().AddDays(-1).ToString('o')
                     }
                     'absent|\\absent\share|fix'            = @{
-                        Seconds  = 777
+                        TotalSeconds = 777
                         LastSeen = (Get-Date).ToUniversalTime().AddDays(-2).ToString('o')
                     }
                 }
@@ -430,7 +450,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.Seconds | Should -Be 250
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
         }
 
         It 'keeps a job that did not run this time' {
@@ -441,7 +461,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'absent|\\absent\share|fix'.Seconds | Should -Be 777
+            $json.Jobs.'absent|\\absent\share|fix'.TotalSeconds | Should -Be 777
         }
 
         It 'does not overwrite a remembered duration when the job failed' {
@@ -456,7 +476,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.Seconds | Should -Be 999
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 999
         }
 
         It 'prunes entries not seen within the retention window' {
@@ -482,7 +502,7 @@ Describe 'Save-JobDurationCacheHC' {
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
             @($json.Jobs.PSObject.Properties).Count | Should -Be 1
-            $json.Jobs.'server01|\\server01\share\folder|fix'.Seconds | Should -Be 250
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
         }
     }
 
