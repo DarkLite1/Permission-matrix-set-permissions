@@ -8,11 +8,13 @@
     Walks every run folder (e.g. "2026_07_26_220004 (BNL Nightly)"), reads the
     per-matrix-file logs and produces a workbook with four sheets:
 
-        Errors & Warnings    MatrixFileName / DateTime / Type / Name / Description /
-                             ComputerName
-        Summary              totals and breakdowns (COUNTIFS formulas)
-        All issues (detail)  same columns + Information level + full context
-        Notes & method       how the data was collected, with caveats
+        Errors & Warnings      MatrixFileName / DateTime / Type / Name / Description /
+                               ComputerName
+        Summary                totals and breakdowns (COUNTIFS formulas)
+        Performance            processing time per matrix file and per run
+        All issues (detail)    same columns + Information level + full context
+        Runs (per matrix file) one row per matrix file per run, with its duration
+        Notes & method         how the data was collected, with caveats
 
     The matrix file name on sheet 1, and the LogFile and DetailFile columns on
     the detail sheet, are hyperlinks: clicking one opens the log page that the
@@ -208,6 +210,17 @@ $parser = {
         return $null
     }
 
+    function Convert-Duration {
+        <# "00:04:16" -> [timespan]. Returns zero when it cannot be read. #>
+        param([string] $Text)
+        $result = [timespan]::Zero
+        if ([timespan]::TryParse($Text, [System.Globalization.CultureInfo]::InvariantCulture,
+                [ref] $result)) {
+            return $result
+        }
+        return [timespan]::Zero
+    }
+
     function Get-RunFolderDate {
         <# "2026_07_26_220004 (BNL Nightly)" -> [datetime] 2026-07-26 22:00:04 #>
         param([string] $RunFolder)
@@ -323,6 +336,10 @@ $parser = {
 
         $computer = ''; $path = ''; $site = ''; $settingId = ''
         $settingCount = 0
+        # the footer Start/End time is the window of the whole run, identical in every
+        # report of that run, so the only per matrix file timing is the clock value in
+        # each settings card - summed here into the processing time of this matrix file
+        $work = [timespan]::Zero
         $counts = @{ Error = 0; Warning = 0; Information = 0; Unknown = 0 }
 
         $markers = [regex]::Matches($body, 'class="rr-(settings-head|check-row)"')
@@ -346,6 +363,8 @@ $parser = {
                 if ($m.Success) { $site = Get-CleanText $m.Groups[1].Value }
                 $m = [regex]::Match($chunk, 'title="([0-9a-fA-F\-]{36})"')
                 if ($m.Success) { $settingId = $m.Groups[1].Value }
+                $m = [regex]::Match($chunk, '>(\d{2}:\d{2}:\d{2})<')
+                if ($m.Success) { $work += (Convert-Duration $m.Groups[1].Value) }
                 continue
             }
 
@@ -409,6 +428,7 @@ $parser = {
             Errors         = $counts['Error']
             Warnings       = $counts['Warning']
             Information    = $counts['Information']
+            Duration       = $work
             StartTime      = $startTime
             EndTime        = $endTime
             LogFormat      = 'new'
@@ -431,6 +451,7 @@ $parser = {
             Sort-Object Name)
 
         $errors = 0; $warnings = 0; $information = 0
+        $work = [timespan]::Zero
         $starts = [System.Collections.Generic.List[datetime]]::new()
         $ends = [System.Collections.Generic.List[datetime]]::new()
 
@@ -460,15 +481,21 @@ $parser = {
                 $stampSource = 'run start time'
             }
 
-            # settings summary row: <probType cell><ID><ComputerName><Path><Action><Duration>
+            # settings summary row: <marker cell><ID><ComputerName><Path><Action><Duration>
+            # the marker cell is id="probTypeError|Warning|Info" when the setting has a
+            # problem and id="" when it does not, so match on shape, not on the id
             $computer = ''; $path = ''; $settingId = ''
             $m = [regex]::Match($html,
-                '<tr>\s*<td id="probType\w+"[^>]*>\s*</td>\s*<td>\s*(\d+)\s*</td>\s*<td>([^<]*)</td>\s*<td>([^<]*)</td>',
+                '<tr>\s*<td id="[^"]*"[^>]*>\s*</td>\s*<td>\s*(\d+)\s*</td>(.*?)</tr>',
                 $script:RxOptions)
             if ($m.Success) {
                 $settingId = Get-CleanText $m.Groups[1].Value
-                $computer = Get-CleanText $m.Groups[2].Value
-                $path = Get-CleanText $m.Groups[3].Value
+                # remaining cells: ComputerName, Path, Action, Duration
+                $cells = @([regex]::Matches($m.Groups[2].Value, '<td[^>]*>(.*?)</td>', $script:RxOptions) |
+                    ForEach-Object { Get-CleanText $_.Groups[1].Value })
+                if ($cells.Count -gt 0) { $computer = $cells[0] }
+                if ($cells.Count -gt 1) { $path = $cells[1] }
+                if ($cells.Count -gt 3) { $work += (Convert-Duration $cells[3]) }
             }
             if ($settingId -eq '') {
                 $m = [regex]::Match($file.Name, 'ID (\d+) - Settings')
@@ -525,6 +552,7 @@ $parser = {
             Errors         = $errors
             Warnings       = $warnings
             Information    = $information
+            Duration       = $work
             StartTime      = $runStart
             EndTime        = $runEnd
             LogFormat      = 'old'
@@ -626,6 +654,7 @@ $parser = {
                         RunFolder = $RunFolder; RunType = (Get-RunType $RunFolder)
                         MatrixFileName = "$($matrixDir.Name).xlsx"; Status = 'no log'
                         Settings = 0; Errors = 0; Warnings = 0; Information = 0
+                        Duration = [timespan]::Zero
                         StartTime = (Get-RunFolderDate $RunFolder); EndTime = $null
                         LogFormat = 'none'; LogFile = ''
                     })
@@ -774,6 +803,7 @@ $white = [System.Drawing.Color]::White
 $linkBlue = [System.Drawing.Color]::FromArgb(5, 99, 193)
 $solid = [OfficeOpenXml.Style.ExcelFillStyle]::Solid
 $dateFormat = 'dd/mm/yyyy hh:mm:ss'
+$durationFormat = '[h]:mm:ss'
 
 function Set-HeaderStyle {
     param($Worksheet, [string] $Range)
@@ -1009,6 +1039,124 @@ foreach ($g in ($errorsAndWarnings | Group-Object ComputerName | Sort-Object Cou
 }
 Set-ColumnWidths -Worksheet $ws -Widths @(56, 12, 12, 12, 20)
 
+# ---- sheet: per matrix file run data (feeds the performance sheet) --------
+$runsSheet = 'Runs (per matrix file)'
+$runRows = $runs |
+Select-Object RunFolder, RunType, MatrixFileName, Status, Settings,
+@{ Name = 'Duration'; Expression = { $_.Duration.TotalDays } },
+StartTime, EndTime, Errors, Warnings, Information, LogFormat, LogFile
+
+$pkg = $runRows | Export-Excel -ExcelPackage $pkg -WorksheetName $runsSheet `
+    -AutoFilter -FreezeTopRow -PassThru
+
+$wsRuns = $pkg.Workbook.Worksheets[$runsSheet]
+$wsRuns.Cells.Style.Font.Name = 'Arial'
+$wsRuns.Cells.Style.Font.Size = 10
+Set-HeaderStyle -Worksheet $wsRuns -Range 'A1:M1'
+Set-ColumnWidths -Worksheet $wsRuns -Widths @(34, 13, 42, 22, 9, 11, 19, 19, 8, 10, 12, 11, 80)
+$wsRuns.Column(6).Style.Numberformat.Format = $durationFormat
+$wsRuns.Column(7).Style.Numberformat.Format = $dateFormat
+$wsRuns.Column(8).Style.Numberformat.Format = $dateFormat
+
+# only the rows that had a problem get a colour, so the sheet stays readable
+for ($i = 0; $i -lt $runs.Count; $i++) {
+    $row = $i + 2
+    $color = if ($runs[$i].Errors -gt 0) { $redBg } elseif ($runs[$i].Warnings -gt 0) { $amber } else { $null }
+    if ($color) {
+        $cells = $wsRuns.Cells["A$row" + ":M$row"]
+        $cells.Style.Fill.PatternType = $solid
+        $cells.Style.Fill.BackgroundColor.SetColor($color)
+    }
+    Set-CellLink -Worksheet $wsRuns -Row $row -Column 3 -Target $runs[$i].LogFile
+}
+
+# ---- sheet: performance --------------------------------------------------
+$rs = "'$runsSheet'"
+$rLast = $runs.Count + 1
+$rFolder = "$rs!`$A`$2:`$A`$$rLast"
+$rMatrix = "$rs!`$C`$2:`$C`$$rLast"
+$rSettings = "$rs!`$E`$2:`$E`$$rLast"
+$rDuration = "$rs!`$F`$2:`$F`$$rLast"
+$rStart = "$rs!`$G`$2:`$G`$$rLast"
+$rEnd = "$rs!`$H`$2:`$H`$$rLast"
+$rErrors = "$rs!`$I`$2:`$I`$$rLast"
+$rWarnings = "$rs!`$J`$2:`$J`$$rLast"
+
+$perf = $pkg.Workbook.Worksheets.Add('Performance')
+$perf.Cells.Style.Font.Name = 'Arial'
+$perf.Cells.Style.Font.Size = 10
+$perf.Cells['A1'].Value = 'Permission matrix - processing time'
+$perf.Cells['A1'].Style.Font.Bold = $true
+$perf.Cells['A1'].Style.Font.Size = 13
+$perf.Cells['A1'].Style.Font.Color.SetColor($navy)
+$perf.Cells['A2'].Value = "Duration is the sum of the per setting durations of that matrix file, so it is processing time, not elapsed time. Counts and averages are formulas over the '$runsSheet' sheet."
+$perf.Cells['A2'].Style.Font.Size = 9
+$perf.Cells['A2'].Style.Font.Color.SetColor([System.Drawing.Color]::Gray)
+
+# average duration per matrix file decides the order; the values are formulas
+$byDuration = foreach ($g in ($runs | Group-Object MatrixFileName)) {
+    $timed = @($g.Group | Where-Object { $_.Duration.TotalSeconds -gt 0 })
+    $average = 0.0
+    if ($timed.Count -gt 0) {
+        $total = 0.0
+        foreach ($x in $timed) { $total += $x.Duration.TotalSeconds }
+        $average = $total / $timed.Count
+    }
+    [pscustomobject] @{ Name = $g.Name; Average = $average; Newest = @($g.Group | Sort-Object StartTime -Descending)[0] }
+}
+$byDuration = @($byDuration | Sort-Object Average -Descending)
+
+$row = 4
+Add-BlockTitle -Worksheet $perf -Row $row -Text "Per matrix file ($($byDuration.Count) matrix files, slowest first)"
+$row++
+Add-BlockHeader -Worksheet $perf -Row $row -Headers @('MatrixFileName', 'Runs', 'Avg settings',
+    'Avg duration', 'Shortest', 'Longest', 'Total time', 'Last run', 'Last duration')
+$row++
+foreach ($item in $byDuration) {
+    $perf.Cells[$row, 1].Value = $item.Name
+    $perf.Cells[$row, 2].Formula = "COUNTIF($rMatrix,`$A$row)"
+    $perf.Cells[$row, 3].Formula = "AVERAGEIFS($rSettings,$rMatrix,`$A$row)"
+    $perf.Cells[$row, 3].Style.Numberformat.Format = '0.0'
+    $perf.Cells[$row, 4].Formula = "AVERAGEIFS($rDuration,$rMatrix,`$A$row,$rDuration,"">0"")"
+    # MIN needs the non matching rows out of the way, and "" is ignored by MIN;
+    # SUMPRODUCT forces the array evaluation so no Ctrl+Shift+Enter is needed
+    $perf.Cells[$row, 5].Formula = "SUMPRODUCT(MIN(IF(($rMatrix=`$A$row)*($rDuration>0),$rDuration,"""")))"
+    $perf.Cells[$row, 6].Formula = "SUMPRODUCT(MAX(($rMatrix=`$A$row)*$rDuration))"
+    $perf.Cells[$row, 7].Formula = "SUMIFS($rDuration,$rMatrix,`$A$row)"
+    $perf.Cells[$row, 8].Formula = "SUMPRODUCT(MAX(($rMatrix=`$A$row)*$rStart))"
+    $perf.Cells[$row, 8].Style.Numberformat.Format = $dateFormat
+    $perf.Cells[$row, 9].Formula = "SUMIFS($rDuration,$rMatrix,`$A$row,$rStart,`$H$row)"
+    foreach ($c in 4, 5, 6, 7, 9) { $perf.Cells[$row, $c].Style.Numberformat.Format = $durationFormat }
+    Set-CellLink -Worksheet $perf -Row $row -Column 1 -Target $item.Newest.LogFile
+    $row++
+}
+$row++
+
+# per run
+$byRun = @($runs | Group-Object RunFolder | Sort-Object Name -Descending)
+Add-BlockTitle -Worksheet $perf -Row $row -Text "Per run ($($byRun.Count) runs, newest first)"
+$row++
+Add-BlockHeader -Worksheet $perf -Row $row -Headers @('RunFolder', 'RunType', 'Matrix files',
+    'First start', 'Last end', 'Elapsed', 'Processing time', 'Errors', 'Warnings')
+$row++
+foreach ($g in $byRun) {
+    $perf.Cells[$row, 1].Value = $g.Name
+    $perf.Cells[$row, 2].Value = $g.Group[0].RunType
+    $perf.Cells[$row, 3].Formula = "COUNTIF($rFolder,`$A$row)"
+    $perf.Cells[$row, 4].Formula = "SUMPRODUCT(MIN(IF($rFolder=`$A$row,$rStart,"""")))"
+    $perf.Cells[$row, 5].Formula = "SUMPRODUCT(MAX(($rFolder=`$A$row)*$rEnd))"
+    $perf.Cells[$row, 6].Formula = "E$row-D$row"
+    $perf.Cells[$row, 7].Formula = "SUMIFS($rDuration,$rFolder,`$A$row)"
+    $perf.Cells[$row, 8].Formula = "SUMIFS($rErrors,$rFolder,`$A$row)"
+    $perf.Cells[$row, 9].Formula = "SUMIFS($rWarnings,$rFolder,`$A$row)"
+    $perf.Cells[$row, 4].Style.Numberformat.Format = $dateFormat
+    $perf.Cells[$row, 5].Style.Numberformat.Format = $dateFormat
+    $perf.Cells[$row, 6].Style.Numberformat.Format = $durationFormat
+    $perf.Cells[$row, 7].Style.Numberformat.Format = $durationFormat
+    $row++
+}
+Set-ColumnWidths -Worksheet $perf -Widths @(46, 13, 13, 19, 19, 13, 15, 10, 10)
+
 # ---- sheet 4: notes ------------------------------------------------------
 $wsNotes = $pkg.Workbook.Worksheets.Add('Notes & method')
 $wsNotes.Cells.Style.Font.Name = 'Arial'
@@ -1025,6 +1173,7 @@ $notes = @(
     @('Sheet 1', 'One row per logged error or warning, newest first: Type says which of the two it is, Name and Description say what happened. Information level entries are not on this sheet.'),
     @('Sheet 3', 'Same columns plus Information level entries and the full context (path, site, run folder, setting id, detail file).'),
     @('Links', "Blue underlined cells open the log itself: the matrix file name on sheet 1 and on the summary, and the DetailFile and LogFile columns on sheet 3. They point at $linkBase, so they keep working for anyone who can reach that path. Old format rows link to the 'ID <n> - Settings.html' of the computer concerned; new format rows link to the execution report."),
+    @('Duration', 'The duration of a matrix file is the sum of the durations of its settings, so it is processing time rather than elapsed time. It is deliberately not End time minus Start time: in the newer reports that footer holds the window of the whole run and is identical in every report of that run. On the Performance sheet, Elapsed is the run window and Processing time is the sum of the matrix file durations, so Processing time above Elapsed means settings ran in parallel.'),
     @('Two log formats', 'Old runs use "ID <n> - Settings.html", newer runs use "00 - Execution Report.html". The LogFormat column says which one a row came from.'),
     @('DateTime', 'New format rows use the exact timestamp from the problem detail JSON when the report links to one; otherwise the start time of the setting (old format) or of the run is used. See the TimestampSource column.'),
     @('ComputerName', 'Taken from the setting a problem belongs to. File level issues (for example "Excel File: Runspace processing failed") are not tied to a computer, so the cell is empty.'),
@@ -1044,8 +1193,19 @@ foreach ($n in $notes) {
 $wsNotes.Column(1).Width = 26
 $wsNotes.Column(2).Width = 110
 
-# ---- order the sheets ----------------------------------------------------
+# ---- vertical centering and sheet order ----------------------------------
+# Excel puts text on the bottom of the row by default, which looks off as soon as
+# one column wraps onto several lines, so centre everything that has content.
+foreach ($sheet in $pkg.Workbook.Worksheets) {
+    if ($sheet.Dimension) {
+        $sheet.Cells[$sheet.Dimension.Address].Style.VerticalAlignment =
+        [OfficeOpenXml.Style.ExcelVerticalAlignment]::Center
+    }
+}
+
 $pkg.Workbook.Worksheets.MoveAfter('Summary', 'Errors & Warnings')
+$pkg.Workbook.Worksheets.MoveAfter('Performance', 'Summary')
+$pkg.Workbook.Worksheets.MoveAfter($runsSheet, 'All issues (detail)')
 $pkg.Workbook.Worksheets.MoveToEnd('Notes & method')
 $pkg.Workbook.Worksheets['Errors & Warnings'].View.TabSelected = $true
 
