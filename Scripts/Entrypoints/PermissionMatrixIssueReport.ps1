@@ -888,6 +888,17 @@ function Set-HeaderStyle {
     $h.Style.Fill.BackgroundColor.SetColor($script:navy)
 }
 
+function Add-BlockTable {
+    <# Turns a block into a real Excel table so the user can sort and filter it.
+       Style None keeps the header formatting used everywhere else and leaves the
+       severity row colours visible, which banding would fight with. #>
+    param($Worksheet, [string] $Range, [string] $Name)
+    $table = $Worksheet.Tables.Add($Worksheet.Cells[$Range], $Name)
+    $table.TableStyle = [OfficeOpenXml.Table.TableStyles]::None
+    $table.ShowFilter = $true
+    return $table
+}
+
 function Set-ColumnWidths {
     param($Worksheet, [int[]] $Widths)
     for ($c = 1; $c -le $Widths.Count; $c++) { 
@@ -948,7 +959,7 @@ Select-Object MatrixFileName, DateTime, Type, Name, Description, ComputerName
 $pkg = $mainRows | 
 Export-Excel -Path $OutputFile `
     -WorksheetName 'Errors & Warnings' `
-    -AutoFilter -FreezeTopRow -PassThru
+    -TableName 'tblErrorsWarnings' -TableStyle None -FreezeTopRow -PassThru
 
 # ---- sheet 2: full detail ------------------------------------------------
 $pkg = $allIssues |
@@ -956,7 +967,7 @@ Select-Object MatrixFileName, DateTime, Type, Name, Description,
 ComputerName, Path, Site, SettingId, RunFolder, RunType,
 LogFormat, DetailFile, TimestampSource, LogFile |
 Export-Excel -ExcelPackage $pkg -WorksheetName 'All issues (detail)' `
-    -AutoFilter -FreezeTopRow -PassThru
+    -TableName 'tblAllIssues' -TableStyle None -FreezeTopRow -PassThru
 
 # ---- styling -------------------------------------------------------------
 $wsMain = $pkg.Workbook.Worksheets['Errors & Warnings']
@@ -1030,6 +1041,7 @@ function Add-BlockHeader {
 $row = 4
 Add-BlockTitle -Worksheet $ws -Row $row -Text 'Totals'
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Category', 'Count')
 $row++
 $runLevel = """$script:RunLevelName"""
@@ -1056,6 +1068,7 @@ foreach ($pair in @(@('First issue timestamp', 'MIN'), @('Last issue timestamp',
     $ws.Cells[$row, 2].Style.Font.Bold = $true
     $row++
 }
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:B$($row - 1)" -Name 'tblTotals'
 $row++
 
 # per matrix file
@@ -1063,6 +1076,7 @@ $byMatrix = @($errorsAndWarnings | Group-Object MatrixFileName | Sort-Object Cou
 Add-BlockTitle -Worksheet $ws -Row $row `
     -Text "Per matrix file ($($byMatrix.Count) with at least one error or warning)"
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $ws -Row $row -Headers @('MatrixFileName', 'Errors', 'Warnings', 'Total', 'Last occurrence')
 $row++
 foreach ($g in $byMatrix) {
@@ -1079,11 +1093,13 @@ foreach ($g in $byMatrix) {
     Set-CellLink -Worksheet $ws -Row $row -Column 1 -Target $newest.LogFile
     $row++
 }
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:E$($row - 1)" -Name 'tblSummaryPerMatrix'
 $row++
 
 # per issue name
 Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per issue name'
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Name', 'Errors', 'Warnings', 'Total')
 $row++
 foreach ($g in ($errorsAndWarnings | Group-Object Name | Sort-Object Count -Descending)) {
@@ -1094,11 +1110,13 @@ foreach ($g in ($errorsAndWarnings | Group-Object Name | Sort-Object Count -Desc
     $ws.Cells[$row, 4].Style.Font.Bold = $true
     $row++
 }
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:D$($row - 1)" -Name 'tblSummaryPerName'
 $row++
 
 # per computer
 Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per computer'
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $ws -Row $row -Headers @('ComputerName', 'Errors', 'Warnings', 'Total')
 $row++
 foreach ($g in ($errorsAndWarnings | Group-Object ComputerName | Sort-Object Count -Descending)) {
@@ -1111,6 +1129,7 @@ foreach ($g in ($errorsAndWarnings | Group-Object ComputerName | Sort-Object Cou
     $ws.Cells[$row, 4].Style.Font.Bold = $true
     $row++
 }
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:D$($row - 1)" -Name 'tblSummaryPerComputer'
 Set-ColumnWidths -Worksheet $ws -Widths @(56, 12, 12, 12, 20)
 
 # ---- sheet: per matrix file run data (feeds the performance sheet) --------
@@ -1121,7 +1140,7 @@ Select-Object RunFolder, RunType, MatrixFileName, Status, Settings,
 StartTime, EndTime, Errors, Warnings, Information, LogFormat, LogFile
 
 $pkg = $runRows | Export-Excel -ExcelPackage $pkg -WorksheetName $runsSheet `
-    -AutoFilter -FreezeTopRow -PassThru
+    -TableName 'tblRuns' -TableStyle None -FreezeTopRow -PassThru
 
 $wsRuns = $pkg.Workbook.Worksheets[$runsSheet]
 $wsRuns.Cells.Style.Font.Name = 'Arial'
@@ -1183,6 +1202,7 @@ $byDuration = @($byDuration | Sort-Object Average -Descending)
 $row = 4
 Add-BlockTitle -Worksheet $perf -Row $row -Text "Per matrix file ($($byDuration.Count) matrix files, slowest first)"
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $perf -Row $row -Headers @('MatrixFileName', 'Runs', 'Avg settings',
     'Avg duration', 'Shortest', 'Longest', 'Total time', 'Last run', 'Last duration')
 $row++
@@ -1194,11 +1214,14 @@ foreach ($item in $byDuration) {
     # IFERROR covers a matrix file whose every run has a zero duration
     $perf.Cells[$row, 4].Formula = "IFERROR(AVERAGEIFS($rDuration,$rMatrix,`$A$row,$rDuration,"">0""),0)"
     # MAX can use the multiplication trick because the non matching rows become 0 and
-    # 0 never wins a MAX of positive values. MIN needs the non matching rows removed
-    # instead of zeroed, which takes an IF - and MIN(IF(..)) only evaluates as an
-    # array formula, so it is written as one. SUMPRODUCT(MIN(IF(..))) returns #VALUE!
-    # in Excel even though LibreOffice accepts it.
-    $perf.Cells[$row, 5].CreateArrayFormula("MIN(IF(($rMatrix=`$A$row)*($rDuration>0),$rDuration))")
+    # 0 never wins a MAX of positive values. MIN cannot: 0 would always win, so the non
+    # matching rows have to be removed rather than zeroed. Dividing by the condition
+    # turns them into #DIV/0! and AGGREGATE(15,..,6,..) takes the smallest value while
+    # ignoring errors - a normal formula, so it survives sorting inside a table.
+    # (MIN(IF(..)) would work too but only as an array formula, and SUMPRODUCT(MIN(IF(..)))
+    # returns #VALUE! in Excel even though LibreOffice accepts it.)
+    $perf.Cells[$row, 5].Formula =
+    "IFERROR(_xlfn.AGGREGATE(15,6,$rDuration/(($rMatrix=`$A$row)*($rDuration>0)),1),0)"
     $perf.Cells[$row, 6].Formula = "SUMPRODUCT(MAX(($rMatrix=`$A$row)*$rDuration))"
     $perf.Cells[$row, 7].Formula = "SUMIFS($rDuration,$rMatrix,`$A$row)"
     $perf.Cells[$row, 8].Formula = "SUMPRODUCT(MAX(($rMatrix=`$A$row)*$rStart))"
@@ -1208,12 +1231,14 @@ foreach ($item in $byDuration) {
     Set-CellLink -Worksheet $perf -Row $row -Column 1 -Target $item.Newest.LogFile
     $row++
 }
+$null = Add-BlockTable -Worksheet $perf -Range "A$blockHeader`:I$($row - 1)" -Name 'tblPerfPerMatrix'
 $row++
 
 # per run
 $byRun = @($runs | Group-Object RunFolder | Sort-Object Name -Descending)
 Add-BlockTitle -Worksheet $perf -Row $row -Text "Per run ($($byRun.Count) runs, newest first)"
 $row++
+$blockHeader = $row
 Add-BlockHeader -Worksheet $perf -Row $row -Headers @('RunFolder', 'RunType', 'Matrix files',
     'First start', 'Last end', 'Elapsed', 'Processing time', 'Errors', 'Warnings')
 $row++
@@ -1221,7 +1246,8 @@ foreach ($g in $byRun) {
     $perf.Cells[$row, 1].Value = $g.Name
     $perf.Cells[$row, 2].Value = $g.Group[0].RunType
     $perf.Cells[$row, 3].Formula = "COUNTIF($rFolder,`$A$row)"
-    $perf.Cells[$row, 4].CreateArrayFormula("MIN(IF($rFolder=`$A$row,$rStart))")
+    $perf.Cells[$row, 4].Formula =
+    "IFERROR(_xlfn.AGGREGATE(15,6,$rStart/($rFolder=`$A$row),1),0)"
     $perf.Cells[$row, 5].Formula = "SUMPRODUCT(MAX(($rFolder=`$A$row)*$rEnd))"
     $perf.Cells[$row, 6].Formula = "E$row-D$row"
     $perf.Cells[$row, 7].Formula = "SUMIFS($rDuration,$rFolder,`$A$row)"
@@ -1233,6 +1259,7 @@ foreach ($g in $byRun) {
     $perf.Cells[$row, 7].Style.Numberformat.Format = $durationFormat
     $row++
 }
+$null = Add-BlockTable -Worksheet $perf -Range "A$blockHeader`:I$($row - 1)" -Name 'tblPerfPerRun'
 Set-ColumnWidths -Worksheet $perf -Widths @(46, 13, 13, 19, 19, 13, 15, 10, 10)
 
 # ---- sheet: per setting data (feeds the per target performance) -----------
@@ -1243,7 +1270,7 @@ Select-Object RunFolder, RunType, MatrixFileName, SettingId, ComputerName, Path,
 StartTime, Errors, Warnings, Information, LogFormat, LogFile
 
 $pkg = $settingSheetRows | Export-Excel -ExcelPackage $pkg -WorksheetName $settingsSheet `
-    -AutoFilter -FreezeTopRow -PassThru
+    -TableName 'tblSettings' -TableStyle None -FreezeTopRow -PassThru
 
 $wsSettings = $pkg.Workbook.Worksheets[$settingsSheet]
 $wsSettings.Cells.Style.Font.Name = 'Arial'
@@ -1298,7 +1325,7 @@ function Add-TargetBlock {
        sits on). #>
     param(
         $Worksheet, [int] $StartRow, [string] $Title, [string] $KeyHeader,
-        [string] $Range, [object[]] $Groups, [switch] $WithComputer
+        [string] $Range, [object[]] $Groups, [string] $TableName, [switch] $WithComputer
     )
     $row = $StartRow
     Add-BlockTitle -Worksheet $Worksheet -Row $row -Text $Title
@@ -1306,6 +1333,7 @@ function Add-TargetBlock {
     $headers = @($KeyHeader)
     if ($WithComputer) { $headers += 'ComputerName' }
     $headers += @('Settings run', 'Avg duration', 'Shortest', 'Longest', 'Total time', 'Errors', 'Warnings')
+    $blockHeader = $row
     Add-BlockHeader -Worksheet $Worksheet -Row $row -Headers $headers
     $row++
     $offset = if ($WithComputer) { 1 } else { 0 }
@@ -1328,8 +1356,8 @@ function Add-TargetBlock {
         $key = """$($g.Key)"""
         $Worksheet.Cells[$row, $cCount].Formula = "COUNTIF($Range,$key)"
         $Worksheet.Cells[$row, $cAvg].Formula = "IFERROR(AVERAGEIFS($script:sDurationRef,$Range,$key,$script:sDurationRef,"">0""),0)"
-        $Worksheet.Cells[$row, $cMin].CreateArrayFormula(
-            "MIN(IF(($Range=$key)*($script:sDurationRef>0),$script:sDurationRef))")
+        $Worksheet.Cells[$row, $cMin].Formula =
+        "IFERROR(_xlfn.AGGREGATE(15,6,$script:sDurationRef/(($Range=$key)*($script:sDurationRef>0)),1),0)"
         $Worksheet.Cells[$row, $cMax].Formula = "SUMPRODUCT(MAX(($Range=$key)*$script:sDurationRef))"
         $Worksheet.Cells[$row, $cTotal].Formula = "SUMIFS($script:sDurationRef,$Range,$key)"
         $Worksheet.Cells[$row, $cErrors].Formula = "SUMIFS($script:sErrorsRef,$Range,$key)"
@@ -1339,6 +1367,9 @@ function Add-TargetBlock {
         }
         $row++
     }
+    $lastColumn = [OfficeOpenXml.ExcelCellAddress]::GetColumnLetter($headers.Count)
+    $null = Add-BlockTable -Worksheet $Worksheet `
+        -Range "A$blockHeader`:$lastColumn$($row - 1)" -Name $TableName
     return $row
 }
 
@@ -1353,7 +1384,7 @@ $byComputer = @(
 )
 $row = Add-TargetBlock -Worksheet $target -StartRow 4 `
     -Title "Per computer ($($byComputer.Count) computers, slowest first)" `
-    -KeyHeader 'ComputerName' -Range $sComputer -Groups $byComputer
+    -KeyHeader 'ComputerName' -Range $sComputer -Groups $byComputer -TableName 'tblPerfPerComputer'
 $row++
 
 $byPath = @(
@@ -1367,7 +1398,7 @@ $byPath = @(
 )
 $null = Add-TargetBlock -Worksheet $target -StartRow $row `
     -Title "Per path ($($byPath.Count) paths, slowest first)" `
-    -KeyHeader 'Path' -Range $sPath -Groups $byPath -WithComputer
+    -KeyHeader 'Path' -Range $sPath -Groups $byPath -TableName 'tblPerfPerPath' -WithComputer
 
 Set-ColumnWidths -Worksheet $target -Widths @(52, 18, 13, 13, 13, 13, 13, 10, 10)
 
@@ -1387,6 +1418,7 @@ $notes = @(
     @('Sheet 1', 'One row per logged error or warning, newest first: Type says which of the two it is, Name and Description say what happened. Information level entries are not on this sheet.'),
     @('Sheet 3', 'Same columns plus Information level entries and the full context (path, site, run folder, setting id, detail file).'),
     @('Links', "Blue underlined cells open the log itself: the matrix file name on sheet 1 and on the summary, and the DetailFile and LogFile columns on sheet 3. They point at $linkBase, so they keep working for anyone who can reach that path. Old format rows link to the 'ID <n> - Settings.html' of the computer concerned; new format rows link to the execution report."),
+    @('Sorting', 'Every block is a real Excel table, so the header row has filter buttons and sorting a block only reorders that block. Sorting is safe: the figures are formulas that either travel with their row or match on the value in the row, and the totals elsewhere read fixed ranges, so nothing shifts when you reorder.'),
     @('Per computer and path', 'A setting is one computer plus one path, and it is the setting that carries the duration, so that sheet is the finest grain available. A matrix file can hold many settings, which is why the per computer totals do not add up to the per matrix file totals.'),
     @('Duration', 'The duration of a matrix file is the sum of the durations of its settings, so it is processing time rather than elapsed time. It is deliberately not End time minus Start time: in the newer reports that footer holds the window of the whole run and is identical in every report of that run. On the Performance sheet, Elapsed is the run window and Processing time is the sum of the matrix file durations, so Processing time above Elapsed means settings ran in parallel.'),
     @('Two log formats', 'Old runs use "ID <n> - Settings.html", newer runs use "00 - Execution Report.html". The LogFormat column says which one a row came from.'),
