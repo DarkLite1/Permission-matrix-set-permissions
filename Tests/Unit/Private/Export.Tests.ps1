@@ -843,6 +843,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
     It 'forwards the supplied rows to Export-Excel for sheet "FormData"' {
         $script:capturedRows = [System.Collections.Generic.List[object]]::new()
+        Mock Export-Excel
         Mock Export-Excel {
             $bp = $PesterBoundParameters
             $key = 'TargetData', 'InputObject' | Where-Object { $bp.ContainsKey($_) } | Select-Object -First 1
@@ -863,6 +864,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
     It 'forwards the supplied rows to Export-Excel for sheet "ServiceNowData"' {
         $script:capturedRows = [System.Collections.Generic.List[object]]::new()
+        Mock Export-Excel
         Mock Export-Excel {
             $bp = $PesterBoundParameters
             $key = 'TargetData', 'InputObject' | Where-Object { $bp.ContainsKey($_) } | Select-Object -First 1
