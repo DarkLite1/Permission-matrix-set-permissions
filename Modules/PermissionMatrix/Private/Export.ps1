@@ -497,6 +497,10 @@ function Export-ConsolidatedPermissionsFileHC {
             }
         }
 
+        Set-DefaultSheetFilterHC -Path $Path `
+            -WorksheetName 'AccessList', 'GroupManagers' `
+            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
+
         return $Path
     }
     catch {
@@ -657,6 +661,10 @@ function Copy-MatrixFileToLogFolderHC {
                 }
             }
         }
+
+        Set-DefaultSheetFilterHC -Path $destinationPath `
+            -WorksheetName 'AccessList', 'GroupManagers' `
+            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
 
         return $destinationPath
     }
