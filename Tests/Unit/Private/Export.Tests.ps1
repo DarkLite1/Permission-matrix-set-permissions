@@ -860,7 +860,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         $script:capturedRows.Count | Should -Be 2
         $script:capturedRows[1].Field | Should -Be 'Team'
-    } -Tag 'test'
+    }
 
     It 'forwards the supplied rows to Export-Excel for sheet "ServiceNowData"' {
         $script:capturedRows = [System.Collections.Generic.List[object]]::new()
@@ -881,7 +881,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         $script:capturedRows.Count | Should -Be 2
         $script:capturedRows[1].Field | Should -Be 'Team'
-    } -Tag 'test'
+    }
 
     It 'wraps a failure from Export-Excel in a descriptive terminating error' {
         Mock Export-Excel { throw 'locked file' }
