@@ -15,13 +15,13 @@ Describe 'Format-FormDataStringsHC' {
 
         $res = Format-FormDataStringsHC -Row $row
 
-        $res.Name | Should -Be 'Bob'
-        $res.Note | Should -Be 'hi'
+        $res.Name | Should-Be 'Bob'
+        $res.Note | Should-Be 'hi'
     }
 
     It 'does not change casing' {
         $res = Format-FormDataStringsHC -Row ([pscustomobject]@{ Name = ' MixedCase ' })
-        $res.Name | Should -Be 'MixedCase'
+        $res.Name | Should-Be 'MixedCase'
     }
 
     It 'leaves non-string values untouched' {
@@ -29,9 +29,9 @@ Describe 'Format-FormDataStringsHC' {
 
         $res = Format-FormDataStringsHC -Row $row
 
-        $res.Count | Should -Be 5
-        $res.Flag | Should -BeTrue
-        $res.Empty | Should -BeNullOrEmpty
+        $res.Count | Should-Be 5
+        $res.Flag | Should-BeTrue
+        $res.Empty | Should-BeFalsy
     }
 
     It 'preserves column order' {
@@ -39,12 +39,12 @@ Describe 'Format-FormDataStringsHC' {
 
         $res = Format-FormDataStringsHC -Row $row
 
-        $res.PSObject.Properties.Name | Should -Be @('Z', 'A', 'M')
+        $res.PSObject.Properties.Name | Should-BeCollection @('Z', 'A', 'M')
     }
 
     It 'accepts input from the pipeline' {
         $res = [pscustomobject]@{ Name = ' x ' } | Format-FormDataStringsHC
-        $res.Name | Should -Be 'x'
+        $res.Name | Should-Be 'x'
     }
 
     It 'processes multiple rows from the pipeline' {
@@ -55,9 +55,9 @@ Describe 'Format-FormDataStringsHC' {
 
         $res = $rows | Format-FormDataStringsHC
 
-        $res.Count | Should -Be 2
-        $res[0].Name | Should -Be 'a'
-        $res[1].Name | Should -Be 'b'
+        $res.Count | Should-Be 2
+        $res[0].Name | Should-Be 'a'
+        $res[1].Name | Should-Be 'b'
     }
 }
 
@@ -67,9 +67,9 @@ Describe 'Format-PermissionsStringsHC' {
 
         $res = Format-PermissionsStringsHC -Row $row
 
-        $res.P1 | Should -Be 'Path\To\Folder'
-        $res.P2 | Should -Be 'R'
-        $res.P3 | Should -Be 'F'
+        $res.P1 | Should-Be 'Path\To\Folder'
+        $res.P2 | Should-Be 'R'
+        $res.P3 | Should-Be 'F'
     }
 
     It 'leaves non-string values untouched' {
@@ -77,7 +77,7 @@ Describe 'Format-PermissionsStringsHC' {
 
         $res = Format-PermissionsStringsHC -Row $row
 
-        $res.Count | Should -Be 3
+        $res.Count | Should-Be 3
     }
 
     It 'preserves column order' {
@@ -85,12 +85,12 @@ Describe 'Format-PermissionsStringsHC' {
 
         $res = Format-PermissionsStringsHC -Row $row
 
-        $res.PSObject.Properties.Name | Should -Be @('P3', 'P1', 'P2')
+        $res.PSObject.Properties.Name | Should-BeCollection @('P3', 'P1', 'P2')
     }
 
     It 'accepts input from the pipeline and preserves P1 casing' {
         $res = [pscustomobject]@{ P1 = ' Abc ' } | Format-PermissionsStringsHC
-        $res.P1 | Should -Be 'Abc'
+        $res.P1 | Should-Be 'Abc'
     }
 
     It 'strips trailing slashes from P1 while preserving casing' {
@@ -98,20 +98,20 @@ Describe 'Format-PermissionsStringsHC' {
 
         $res = Format-PermissionsStringsHC -Row $row
 
-        $res.P1 | Should -Be 'Staff\COM\BENE\Com\SocialMedia'
-        $res.P2 | Should -Be 'W'
+        $res.P1 | Should-Be 'Staff\COM\BENE\Com\SocialMedia'
+        $res.P2 | Should-Be 'W'
     }
 
     It 'strips trailing slashes from relative P1 paths without a path root' {
         $res = Format-PermissionsStringsHC -Row ([pscustomobject]@{ P1 = ' dd\dd\ ' })
 
-        $res.P1 | Should -Be 'dd\dd'
+        $res.P1 | Should-Be 'dd\dd'
     }
 
     It 'does not strip a filesystem root from P1' {
         $res = Format-PermissionsStringsHC -Row ([pscustomobject]@{ P1 = ' C:\ ' })
 
-        $res.P1 | Should -Be 'C:\'
+        $res.P1 | Should-Be 'C:\'
     }
 }
 
@@ -125,40 +125,40 @@ Describe 'Format-SettingStringsHC' {
 
         $res = Format-SettingStringsHC -Settings $settings
 
-        $res.Path | Should -Be 'C:\Test'
-        $res.Action | Should -Be 'Fix'
-        $res.Other | Should -Be 'value'
+        $res.Path | Should-Be 'C:\Test'
+        $res.Action | Should-Be 'Fix'
+        $res.Other | Should-Be 'value'
     }
 
     It 'strips both forward and back trailing slashes from Path' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ Path = 'C:\a\b//' })
-        $res.Path | Should -Be 'C:\a\b'
+        $res.Path | Should-Be 'C:\a\b'
     }
 
     It 'uppercases ComputerName' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ ComputerName = ' srv01 ' })
-        $res.ComputerName | Should -Be 'SRV01'
+        $res.ComputerName | Should-Be 'SRV01'
     }
 
     It 'title-cases an all-caps action' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ Action = 'REPORT' })
-        $res.Action | Should -Be 'Report'
+        $res.Action | Should-Be 'Report'
     }
 
     It 'parses ApplyDefaultPermissions string into a boolean' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ ApplyDefaultPermissions = 'true' })
-        $res.ApplyDefaultPermissions | Should -BeOfType [bool]
-        $res.ApplyDefaultPermissions | Should -BeTrue
+        $res.ApplyDefaultPermissions | Should-HaveType ([bool])
+        $res.ApplyDefaultPermissions | Should-BeTrue
     }
 
     It 'parses a false ApplyDefaultPermissions value' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ ApplyDefaultPermissions = 'false' })
-        $res.ApplyDefaultPermissions | Should -BeFalse
+        $res.ApplyDefaultPermissions | Should-BeFalse
     }
 
     It 'leaves an unparseable ApplyDefaultPermissions as false' {
         $res = Format-SettingStringsHC -Settings ([pscustomobject]@{ ApplyDefaultPermissions = 'maybe' })
-        $res.ApplyDefaultPermissions | Should -BeFalse
+        $res.ApplyDefaultPermissions | Should-BeFalse
     }
 
     It 'does not mutate the original input object' {
@@ -166,7 +166,7 @@ Describe 'Format-SettingStringsHC' {
 
         $null = Format-SettingStringsHC -Settings $settings
 
-        $settings.Path | Should -Be ' C:\x\ '
+        $settings.Path | Should-Be ' C:\x\ '
     }
 
     It 'does not error when optional properties are absent' {
@@ -176,7 +176,7 @@ Describe 'Format-SettingStringsHC' {
 
     It 'accepts input from the pipeline' {
         $res = [pscustomobject]@{ Action = 'fix' } | Format-SettingStringsHC
-        $res.Action | Should -Be 'Fix'
+        $res.Action | Should-Be 'Fix'
     }
 }
 
@@ -190,11 +190,11 @@ Describe 'ConvertTo-MatrixADNamesHC' {
 
         $res = ConvertTo-MatrixADNamesHC -Begin 'GroupA' -Middle 'SiteB' -ColumnHeaders $headers
 
-        $res | Should -Contain 'GroupA'
-        $res | Should -Contain 'SiteB'
-        $res | Should -Contain 'Header1'
-        $res | Should -Contain 'Header2'
-        $res.Count | Should -Be 4
+        $res | Should-ContainCollection 'GroupA'
+        $res | Should-ContainCollection 'SiteB'
+        $res | Should-ContainCollection 'Header1'
+        $res | Should-ContainCollection 'Header2'
+        $res.Count | Should-Be 4
     }
 
     It 'returns a unique sorted list' {
@@ -202,7 +202,7 @@ Describe 'ConvertTo-MatrixADNamesHC' {
 
         $res = ConvertTo-MatrixADNamesHC -Begin 'Alpha' -Middle 'Mid' -ColumnHeaders $headers
 
-        $res | Should -Be @('Alpha', 'Mid', 'Zeta')
+        $res | Should-BeCollection @('Alpha', 'Mid', 'Zeta')
     }
 
     It 'skips header rows without a P2 value' {
@@ -214,8 +214,8 @@ Describe 'ConvertTo-MatrixADNamesHC' {
 
         $res = ConvertTo-MatrixADNamesHC -Begin 'B' -Middle 'M' -ColumnHeaders $headers
 
-        $res | Should -Contain 'Keep'
-        $res.Count | Should -Be 3
+        $res | Should-ContainCollection 'Keep'
+        $res.Count | Should-Be 3
     }
 }
 
@@ -231,8 +231,8 @@ Describe 'Get-MatrixADObjectsMapHC' {
         $map = Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
         # Header rows are walked bottom-to-top and joined with a space.
-        $map['P2'] | Should -Be 'Admins ACME'
-        $map['P3'] | Should -Be 'Users BRU'
+        $map['P2'] | Should-Be 'Admins ACME'
+        $map['P3'] | Should-Be 'Users BRU'
     }
 
     It 'skips empty header cells without producing double spaces' {
@@ -245,7 +245,7 @@ Describe 'Get-MatrixADObjectsMapHC' {
 
         $map = Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
-        $map['P2'] | Should -Be 'Solo'
+        $map['P2'] | Should-Be 'Solo'
     }
 
     It 'omits a column whose resolved name is blank' {
@@ -258,7 +258,7 @@ Describe 'Get-MatrixADObjectsMapHC' {
 
         $map = Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
-        $map.Keys | Should -Not -Contain 'P2'
+        $map.Keys | Should-NotContainCollection 'P2'
     }
 
     It 'stops at the first non-existent column' {
@@ -271,7 +271,7 @@ Describe 'Get-MatrixADObjectsMapHC' {
 
         $map = Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
-        $map.Keys | Should -Be @('P2', 'P3')
+        $map.Keys | Should-BeCollection @('P2', 'P3')
     }
 
     It 'returns an ordered map keyed by column name' {
@@ -284,7 +284,7 @@ Describe 'Get-MatrixADObjectsMapHC' {
 
         $map = Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
-        $map.Keys | Should -Be @('P2', 'P3')
+        $map.Keys | Should-BeCollection @('P2', 'P3')
     }
 }
 
@@ -303,11 +303,11 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        $res.Count | Should -Be 1
-        $res[0].Path | Should -Be 'Folder1'
-        $res[0].ACL['Obj1'] | Should -Be 'R'
-        $res[0].ACL['Obj2'] | Should -Be 'W'
-        $res[0].Ignore | Should -BeFalse
+        $res.Count | Should-Be 1
+        $res[0].Path | Should-Be 'Folder1'
+        $res[0].ACL['Obj1'] | Should-Be 'R'
+        $res[0].ACL['Obj2'] | Should-Be 'W'
+        $res[0].Ignore | Should-BeFalse
     }
 
     It "flags a row containing 'I' (Ignore) and discards its permissions" {
@@ -319,8 +319,8 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         # A single 'I' marks the whole folder as ignored: no ACL is produced
         # and any other permission on the row (here 'F') is discarded.
-        $res[0].Ignore | Should -BeTrue
-        $res[0].ACL.Count | Should -Be 0
+        $res[0].Ignore | Should-BeTrue
+        $res[0].ACL.Count | Should-Be 0
     }
 
     It "flags a row where the only permission is 'I'" {
@@ -330,8 +330,8 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        $res[0].Ignore | Should -BeTrue
-        $res[0].ACL.Count | Should -Be 0
+        $res[0].Ignore | Should-BeTrue
+        $res[0].ACL.Count | Should-Be 0
     }
 
     It 'skips rows with no path (P1 empty)' {
@@ -342,8 +342,8 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        $res.Count | Should -Be 1
-        $res[0].Path | Should -Be 'Keep'
+        $res.Count | Should-Be 1
+        $res[0].Path | Should-Be 'Keep'
     }
 
     It 'omits empty permission cells from the ACL' {
@@ -353,9 +353,9 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        $res[0].ACL.ContainsKey('Obj2') | Should -BeFalse
-        $res[0].ACL.Count | Should -Be 1
-        $res[0].Ignore | Should -BeFalse
+        $res[0].ACL.ContainsKey('Obj2') | Should-BeFalse
+        $res[0].ACL.Count | Should-Be 1
+        $res[0].Ignore | Should-BeFalse
     }
 
     It 'returns an empty result when all rows lack a path' {
@@ -365,7 +365,7 @@ Describe 'ConvertTo-MatrixAclHC' {
 
         $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
 
-        @($res).Count | Should -Be 0
+        @($res).Count | Should-Be 0
     }
 
     It 'accepts an empty DataRows collection without throwing' {
@@ -375,7 +375,7 @@ Describe 'ConvertTo-MatrixAclHC' {
         # an empty result instead of a 'Cannot bind argument ... null' error.
         $res = ConvertTo-MatrixAclHC -DataRows @() -AdObjectsMap $script:adMap
 
-        @($res).Count | Should -Be 0
+        @($res).Count | Should-Be 0
     }
 }
 
@@ -392,10 +392,10 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl['Bob'] | Should -Be 'L'
-        $acl['Mike'] | Should -Be 'R'
-        $acl.Keys.Count | Should -Be 2
-        $script:errors.Count | Should -Be 0
+        $acl['Bob'] | Should-Be 'L'
+        $acl['Mike'] | Should-Be 'R'
+        $acl.Keys.Count | Should-Be 2
+        $script:errors.Count | Should-Be 0
     }
 
     It 'trims and uppercases the permission character' {
@@ -405,7 +405,7 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl['Bob'] | Should -Be 'W'
+        $acl['Bob'] | Should-Be 'W'
     }
 
     It 'silently skips rows where both name and permission are empty' {
@@ -416,8 +416,8 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 1
-        $script:errors.Count | Should -Be 0
+        $acl.Keys.Count | Should-Be 1
+        $script:errors.Count | Should-Be 0
     }
 
     It 'flags a row with Permission but no ADObjectName' {
@@ -427,10 +427,10 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 0
-        $script:errors.Count | Should -Be 1
-        $script:errors[0].Type | Should -Be 'FatalError'
-        $script:errors[0].Name | Should -Be 'Incomplete default ACL entry'
+        $acl.Keys.Count | Should-Be 0
+        $script:errors.Count | Should-Be 1
+        $script:errors[0].Type | Should-Be 'FatalError'
+        $script:errors[0].Name | Should-Be 'Incomplete default ACL entry'
     }
 
     It 'flags a row with ADObjectName but no Permission' {
@@ -440,8 +440,8 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 0
-        $script:errors[0].Name | Should -Be 'Incomplete default ACL entry'
+        $acl.Keys.Count | Should-Be 0
+        $script:errors[0].Name | Should-Be 'Incomplete default ACL entry'
     }
 
     It 'flags an invalid permission character' {
@@ -451,8 +451,8 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 0
-        $script:errors[0].Name | Should -Be 'Invalid default ACL permission'
+        $acl.Keys.Count | Should-Be 0
+        $script:errors[0].Name | Should-Be 'Invalid default ACL permission'
     }
 
     It "rejects the 'I' (inherit) permission in defaults" {
@@ -462,8 +462,8 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 0
-        $script:errors[0].Name | Should -Be 'Invalid default ACL permission'
+        $acl.Keys.Count | Should-Be 0
+        $script:errors[0].Name | Should-Be 'Invalid default ACL permission'
     }
 
     It 'flags a duplicate ADObjectName (case insensitive)' {
@@ -474,9 +474,9 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 1
-        $acl['Bob'] | Should -Be 'R'   # first one wins
-        $script:errors[0].Name | Should -Be 'Duplicate default ACL entry'
+        $acl.Keys.Count | Should-Be 1
+        $acl['Bob'] | Should-Be 'R'   # first one wins
+        $script:errors[0].Name | Should-Be 'Duplicate default ACL entry'
     }
 
     It 'returns an empty hashtable when every row is a skip-row' {
@@ -487,17 +487,17 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl | Should -BeOfType [hashtable]
-        $acl.Keys.Count | Should -Be 0
-        $script:errors.Count | Should -Be 0
+        $acl | Should-HaveType ([hashtable])
+        $acl.Keys.Count | Should-Be 0
+        $script:errors.Count | Should-Be 0
     }
 
     It 'returns an empty hashtable for an empty sheet' {
         $acl = Get-DefaultAclHC -Sheet @() -SystemErrors ([ref]$script:errors)
 
-        $acl | Should -BeOfType [hashtable]
-        $acl.Keys.Count | Should -Be 0
-        $script:errors.Count | Should -Be 0
+        $acl | Should-HaveType ([hashtable])
+        $acl.Keys.Count | Should-Be 0
+        $script:errors.Count | Should-Be 0
     }
 
     It 'silently skips a MailTo-only row (name and permission empty)' {
@@ -510,9 +510,9 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $acl.Keys.Count | Should -Be 1
-        $acl['Bob'] | Should -Be 'R'
-        $script:errors.Count | Should -Be 0
+        $acl.Keys.Count | Should-Be 1
+        $acl['Bob'] | Should-Be 'R'
+        $script:errors.Count | Should-Be 0
     }
 
     It 'continues processing valid rows after a bad row' {
@@ -523,9 +523,9 @@ Describe 'Get-DefaultAclHC' {
 
         $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$script:errors)
 
-        $script:errors.Count | Should -Be 1
-        $acl.Keys.Count | Should -Be 1
-        $acl['GoodOne'] | Should -Be 'L'
+        $script:errors.Count | Should-Be 1
+        $acl.Keys.Count | Should-Be 1
+        $acl['GoodOne'] | Should-Be 'L'
     }
 }
 
@@ -536,8 +536,8 @@ Describe 'Merge-DefaultPermissionsHC' {
 
         $res = Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $false
 
-        $res.ContainsKey('Bob') | Should -BeFalse
-        $res['Alice'] | Should -Be 'R'
+        $res.ContainsKey('Bob') | Should-BeFalse
+        $res['Alice'] | Should-Be 'R'
     }
 
     It 'merges defaults into the matrix ACL when enabled' {
@@ -546,33 +546,30 @@ Describe 'Merge-DefaultPermissionsHC' {
 
         $res = Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true
 
-        $res['Alice'] | Should -Be 'R'
-        $res['Bob'] | Should -Be 'F'
-        $res.Keys.Count | Should -Be 2
+        $res['Alice'] | Should-Be 'R'
+        $res['Bob'] | Should-Be 'F'
+        $res.Keys.Count | Should-Be 2
     }
 
     It 'throws on a key present in both matrix and defaults' {
         $defaults = @{ Shared = 'F' }
         $matrix = @{ Shared = 'R' }
 
-        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } |
-        Should -Throw '*conflict*'
+        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } | Should-Throw '*conflict*'
     }
 
     It 'treats default and matrix ACL conflicts as case-insensitive' {
         $defaults = @{ Shared = 'F' }
         $matrix = @{ shared = 'R' }
 
-        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } |
-        Should -Throw '*Shared*'
+        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } | Should-Throw '*Shared*'
     }
 
     It 'names the conflicting AD object in the error' {
         $defaults = @{ Conflicto = 'F' }
         $matrix = @{ Conflicto = 'R' }
 
-        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } |
-        Should -Throw '*Conflicto*'
+        { Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true } | Should-Throw '*Conflicto*'
     }
 
     It 'does not mutate the original matrix ACL' {
@@ -581,8 +578,8 @@ Describe 'Merge-DefaultPermissionsHC' {
 
         $null = Merge-DefaultPermissionsHC -Defaults $defaults -MatrixAcl $matrix -ApplyDefaultPermissions $true
 
-        $matrix.ContainsKey('Bob') | Should -BeFalse
-        $matrix.Keys.Count | Should -Be 1
+        $matrix.ContainsKey('Bob') | Should-BeFalse
+        $matrix.Keys.Count | Should-Be 1
     }
 
     It 'handles empty defaults' {
@@ -590,7 +587,7 @@ Describe 'Merge-DefaultPermissionsHC' {
 
         $res = Merge-DefaultPermissionsHC -Defaults @{} -MatrixAcl $matrix -ApplyDefaultPermissions $true
 
-        $res['Alice'] | Should -Be 'R'
-        $res.Keys.Count | Should -Be 1
+        $res['Alice'] | Should-Be 'R'
+        $res.Keys.Count | Should-Be 1
     }
 }

@@ -91,10 +91,9 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
                 -SystemErrors ([ref]$systemErrors) } |
         Should -Not -Throw -Because 'the orchestrator records the failure instead of propagating it'
 
-        $systemErrors.Count |
-        Should -BeGreaterThan 0 -Because 'a missing config file must be recorded as an error'
+        $systemErrors.Count | Should-BeGreaterThan 0 -Because 'a missing config file must be recorded as an error'
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
             'with no execution context the END stage never runs, so no mail is sent'
         )
     }
@@ -125,14 +124,13 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
             -ScriptPath $ScriptPath `
             -SystemErrors ([ref]$systemErrors)
 
-        ($systemErrors.Where({ $_.Type -eq 'FatalError' })).Count |
-        Should -BeGreaterThan 0 -Because 'an invalid Matrix.FolderPath is a fatal input error'
+        ($systemErrors.Where({ $_.Type -eq 'FatalError' })).Count | Should-BeGreaterThan 0 -Because 'an invalid Matrix.FolderPath is a fatal input error'
 
-        Should -Invoke Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
+        Should-Invoke Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
             'a fatal input error must skip the PROCESS stage so no permission is applied'
         )
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'the END stage still runs on a non-catastrophic failure, so the error report is mailed'
         )
     }
@@ -194,10 +192,9 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
                 -SystemErrors ([ref]$systemErrors) } |
         Should -Not -Throw -Because 'the orchestrator catches stage exceptions instead of propagating them'
 
-        ($systemErrors.Where({ $_.Type -eq 'FatalError' -and $_.Category -eq 'Runtime' })).Count |
-        Should -BeGreaterThan 0 -Because 'an unhandled stage exception is recorded as a Runtime fatal'
+        ($systemErrors.Where({ $_.Type -eq 'FatalError' -and $_.Category -eq 'Runtime' })).Count | Should-BeGreaterThan 0 -Because 'an unhandled stage exception is recorded as a Runtime fatal'
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'the END stage runs in the finally block even after a stage throws'
         )
     }
@@ -257,14 +254,13 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
                 -SystemErrors ([ref]$systemErrors) } |
         Should -Not -Throw -Because 'an AD lookup failure is caught inside the BEGIN stage'
 
-        ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' -and $_.Type -eq 'FatalError' })).Count |
-        Should -BeGreaterThan 0 -Because 'a total AD lookup failure is fatal so no matrices run'
+        ($systemErrors.Where({ $_.Name -eq 'AD Bulk Lookup Failure' -and $_.Type -eq 'FatalError' })).Count | Should-BeGreaterThan 0 -Because 'a total AD lookup failure is fatal so no matrices run'
 
-        Should -Invoke Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
+        Should-Invoke Invoke-PermissionMatrixProcessHC -ModuleName PermissionMatrix -Times 0 -Exactly -Because (
             'a fatal AD lookup failure must skip the PROCESS stage so no permission is applied'
         )
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'the END stage still runs and mails the report even when AD resolution fails fatally'
         )
     }
@@ -324,11 +320,10 @@ Describe 'Permission Matrix - End to End (non-happy paths)' {
                 -SystemErrors ([ref]$systemErrors) } |
         Should -Not -Throw -Because 'EndHC swallows a send failure instead of letting it escape the finally'
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'the send is attempted exactly once before it fails'
         )
 
-        ($systemErrors.Where({ $_.Name -eq 'Email Failed' })).Count |
-        Should -BeGreaterThan 0 -Because 'a failed send is recorded as a warning so the operator can see mail did not go out'
+        ($systemErrors.Where({ $_.Name -eq 'Email Failed' })).Count | Should-BeGreaterThan 0 -Because 'a failed send is recorded as a warning so the operator can see mail did not go out'
     }
 }

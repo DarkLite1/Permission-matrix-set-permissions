@@ -73,10 +73,10 @@ Describe 'Import-MatrixDefaultsFileHC' {
 
             $result = Invoke-Sut -DefaultsFile $path
 
-            $result.Output | Should -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
             $check = $result.Errors | Where-Object Name -EQ 'Defaults file not found'
-            $check | Should -Not -BeNullOrEmpty
-            $check.Type | Should -Be 'FatalError'
+            $check | Should-BeTruthy
+            $check.Type | Should-Be 'FatalError'
         }
 
         It "records a FatalError and returns `$null when the 'Settings' worksheet is missing" {
@@ -87,9 +87,8 @@ Describe 'Import-MatrixDefaultsFileHC' {
 
             $result = Invoke-Sut -DefaultsFile $path
 
-            $result.Output | Should -BeNullOrEmpty
-            ($result.Errors | Where-Object Name -EQ 'Defaults worksheet missing') |
-                Should -Not -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
+            ($result.Errors | Where-Object Name -EQ 'Defaults worksheet missing') | Should-BeTruthy
         }
     }
 
@@ -111,10 +110,10 @@ Describe 'Import-MatrixDefaultsFileHC' {
 
             $result = Invoke-Sut -DefaultsFile $path
 
-            $result.Output | Should -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
             $check = $result.Errors | Where-Object Name -EQ 'Invalid defaults format'
-            $check | Should -Not -BeNullOrEmpty
-            $check.Type | Should -Be 'FatalError'
+            $check | Should-BeTruthy
+            $check.Type | Should-Be 'FatalError'
         }
     }
 
@@ -130,9 +129,8 @@ Describe 'Import-MatrixDefaultsFileHC' {
 
             $result = Invoke-Sut -DefaultsFile $path
 
-            $result.Output | Should -BeNullOrEmpty
-            ($result.Errors | Where-Object Name -EQ 'No MailTo addresses') |
-                Should -Not -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
+            ($result.Errors | Where-Object Name -EQ 'No MailTo addresses') | Should-BeTruthy
         }
     }
 
@@ -161,12 +159,10 @@ Describe 'Import-MatrixDefaultsFileHC' {
                 [pscustomobject]@{ Output = $output; Errors = @($errors) }
             }
 
-            $result.Output | Should -BeNullOrEmpty
-            ($result.Errors | Where-Object Name -EQ 'Default ACL invalid') |
-                Should -Not -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
+            ($result.Errors | Where-Object Name -EQ 'Default ACL invalid') | Should-BeTruthy
             # It bailed before the MailTo loop, so no MailTo error was added.
-            ($result.Errors | Where-Object Name -EQ 'No MailTo addresses') |
-                Should -BeNullOrEmpty
+            ($result.Errors | Where-Object Name -EQ 'No MailTo addresses') | Should-BeFalsy
         }
     }
 
@@ -176,11 +172,11 @@ Describe 'Import-MatrixDefaultsFileHC' {
 
             $result = Invoke-Sut -DefaultsFile $path
 
-            $result.Output | Should -Not -BeNullOrEmpty
-            $result.Output.FilePath | Should -Be (Get-Item -LiteralPath $path).FullName
-            $result.Output.DefaultAcl | Should -Not -BeNullOrEmpty
+            $result.Output | Should-BeTruthy
+            $result.Output.FilePath | Should-Be (Get-Item -LiteralPath $path).FullName
+            $result.Output.DefaultAcl | Should-BeTruthy
             # No FatalError was recorded on the success path.
-            ($result.Errors | Where-Object Type -EQ 'FatalError') | Should -BeNullOrEmpty
+            ($result.Errors | Where-Object Type -EQ 'FatalError') | Should-BeFalsy
         }
 
         It 'collects only non-blank MailTo values and trims surrounding whitespace' {
@@ -189,9 +185,9 @@ Describe 'Import-MatrixDefaultsFileHC' {
             $result = Invoke-Sut -DefaultsFile $path
 
             # Default fixture: admin@ (kept), '  ops@ ' (kept, trimmed), '' (skipped).
-            $result.Output.MailTo | Should -HaveCount 2
-            $result.Output.MailTo | Should -Contain 'admin@contoso.com'
-            $result.Output.MailTo | Should -Contain 'ops@contoso.com'
+            $result.Output.MailTo | Should-BeCollection -Count 2
+            $result.Output.MailTo | Should-ContainCollection 'admin@contoso.com'
+            $result.Output.MailTo | Should-ContainCollection 'ops@contoso.com'
         }
     }
 
@@ -211,10 +207,10 @@ Describe 'Import-MatrixDefaultsFileHC' {
                 [pscustomobject]@{ Output = $output; Errors = @($errors) }
             }
 
-            $result.Output | Should -BeNullOrEmpty
+            $result.Output | Should-BeFalsy
             $check = $result.Errors | Where-Object Name -EQ 'Defaults import failed'
-            $check | Should -Not -BeNullOrEmpty
-            $check.Type | Should -Be 'FatalError'
+            $check | Should-BeTruthy
+            $check.Type | Should-Be 'FatalError'
         }
     }
 }

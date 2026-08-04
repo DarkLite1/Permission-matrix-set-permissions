@@ -288,9 +288,9 @@ Describe 'UploadToSharePoint.ps1' {
         It 'rejects a MaxRetries below 1' {
             $params.MaxRetries = 0
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
         }
 
         It 'rejects a ChunkSizeMB of <ChunkSizeMB>' -TestCases @(
@@ -301,19 +301,18 @@ Describe 'UploadToSharePoint.ps1' {
 
             $params.ChunkSizeMB = $ChunkSizeMB
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
         }
 
         It 'throws when the file to upload does not exist' {
             $params.FilePath = Join-Path $TestDrive 'no-such-file.html'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not found*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*not found*'
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0
         }
 
         It 'throws when the file to upload is a folder rather than a file' {
@@ -321,9 +320,9 @@ Describe 'UploadToSharePoint.ps1' {
             $null = New-Item -Path $folder -ItemType Directory
             $params.FilePath = $folder
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0
         }
     }
 
@@ -331,7 +330,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'passes a plain credential value straight through' {
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
                 $ClientId -eq 'client-id-1' -and
                 $TenantId -eq 'tenant-id-1' -and
                 $CertificateThumbprint -eq 'THUMBPRINT1'
@@ -349,7 +348,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
                 $ClientId -eq 'client-from-env' -and
                 $TenantId -eq 'tenant-from-env' -and
                 $CertificateThumbprint -eq 'thumbprint-from-env'
@@ -362,7 +361,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
                 $ClientId -eq 'client-from-env'
             }
         }
@@ -370,10 +369,9 @@ Describe 'UploadToSharePoint.ps1' {
         It 'throws when an ENV: value points to a missing variable' {
             $params.ClientId = 'ENV:SP_MISSING_VAR'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage "*Environment variable 'SP_MISSING_VAR' not found*"
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage "*Environment variable 'SP_MISSING_VAR' not found*"
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
         }
     }
 
@@ -381,7 +379,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'connects when there is no existing session' {
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1
+            Should-Invoke Connect-MgGraph -Exactly -Times 1
         }
 
         It 'reuses an existing session for the same app and tenant' {
@@ -391,8 +389,8 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
         }
@@ -404,7 +402,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1
+            Should-Invoke Connect-MgGraph -Exactly -Times 1
         }
 
         It 'reconnects when the existing session belongs to a different tenant' {
@@ -414,13 +412,13 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1
+            Should-Invoke Connect-MgGraph -Exactly -Times 1
         }
 
         It 'connects without a welcome banner' {
             & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 1 -ParameterFilter {
                 $NoWelcome -eq $true
             }
         }
@@ -428,10 +426,9 @@ Describe 'UploadToSharePoint.ps1' {
         It 'throws a clear error when the connection fails' {
             Mock Connect-MgGraph { throw 'certificate not found' }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Failed to connect to MS Graph*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Failed to connect to MS Graph*'
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0
         }
     }
 
@@ -439,7 +436,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'addresses a team site by hostname and server relative path' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/IT'
             }
         }
@@ -449,7 +446,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com'
             }
         }
@@ -459,7 +456,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/IT'
             }
         }
@@ -471,8 +468,7 @@ Describe 'UploadToSharePoint.ps1' {
                 [PSCustomObject]@{ }
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not found*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*not found*'
         }
 
         It 'throws when the site URL is not a valid URL' {
@@ -482,8 +478,7 @@ Describe 'UploadToSharePoint.ps1' {
             # InvalidOperationException.
             $params.SiteUrl = 'contoso.sharepoint.com/sites/IT'   # no scheme
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*not a valid URL*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*not a valid URL*'
         }
     }
 
@@ -491,10 +486,10 @@ Describe 'UploadToSharePoint.ps1' {
         It 'matches the library by its display name' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com,site-guid,web-guid/drives'
             }
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/drives/b!documents-drive-id/root:/Overview.html:/content'
             }
@@ -511,7 +506,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match '/drives/b!documents-drive-id/'
             }
         }
@@ -527,7 +522,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match '/drives/b!documents-drive-id/'
             }
         }
@@ -552,7 +547,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             # The counter drives the branching inside the mock only; it cannot be
             # read back here, so the call count is asserted through Pester.
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'GET' -and $Uri -match '/drives'
             }
         }
@@ -569,8 +564,7 @@ Describe 'UploadToSharePoint.ps1' {
                 )
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Site Assets*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Site Assets*'
         }
     }
 
@@ -586,7 +580,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'falls back to the default library when the list comes back empty' {
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'GET' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com,site-guid,web-guid/drive'
             }
@@ -599,8 +593,7 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'accessDenied'
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Sites.Selected*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Sites.Selected*'
         }
     }
 
@@ -608,7 +601,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'does not touch folders when no FolderPath is given' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
         }
@@ -618,7 +611,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
         }
@@ -634,7 +627,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
         }
@@ -651,7 +644,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
         }
@@ -667,7 +660,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
         }
@@ -681,7 +674,7 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'quotaLimitReached'
             }
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
         }
 
         It 'normalises mixed and duplicated separators' {
@@ -689,7 +682,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
         }
@@ -699,13 +692,13 @@ Describe 'UploadToSharePoint.ps1' {
         It 'sends a single PUT to the content endpoint' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/drives/b!documents-drive-id/root:/Overview.html:/content' -and
                 $InputFilePath -match 'Overview\.html$'
             }
 
-            Should -Invoke Invoke-RestMethod -Exactly -Times 0
+            Should-Invoke Invoke-RestMethod -Exactly -Times 0
         }
 
         It 'defaults the target name to the local file name' {
@@ -716,7 +709,7 @@ Describe 'UploadToSharePoint.ps1' {
             # $Uri is bound as [System.Uri], and its ToString() returns the
             # UNESCAPED form, so '%20' would never match. AbsoluteUri keeps the
             # escaping, which is the whole point of this assertion.
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri.AbsoluteUri -match 'Something%20else\.html'
             }
         }
@@ -726,7 +719,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri.AbsoluteUri -match 'Permission%20matrix%20overview\.html'
             }
         }
@@ -736,7 +729,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/drives/b!documents-drive-id/root:/Reports/Permission%20matrix/Overview.html:/content'
             }
@@ -745,11 +738,11 @@ Describe 'UploadToSharePoint.ps1' {
         It 'returns the uploaded item details' {
             $result = & $ScriptPath @params
 
-            $result.Name | Should -BeExactly 'Overview.html'
-            $result.Id | Should -BeExactly 'item-id-1'
-            $result.DriveId | Should -BeExactly 'b!documents-drive-id'
-            $result.SiteId | Should -BeExactly 'contoso.sharepoint.com,site-guid,web-guid'
-            $result.WebUrl | Should -Not -BeNullOrEmpty
+            $result.Name | Should-BeString 'Overview.html' -CaseSensitive
+            $result.Id | Should-BeString 'item-id-1' -CaseSensitive
+            $result.DriveId | Should-BeString 'b!documents-drive-id' -CaseSensitive
+            $result.SiteId | Should-BeString 'contoso.sharepoint.com,site-guid,web-guid' -CaseSensitive
+            $result.WebUrl | Should-BeTruthy
         }
 
         It 'overwrites without complaint when the file is already there' {
@@ -757,7 +750,7 @@ Describe 'UploadToSharePoint.ps1' {
             # script must not branch on existence: no DELETE before uploading.
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
                 $Method -eq 'DELETE'
             }
         }
@@ -772,7 +765,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'creates a resumable upload session that replaces on conflict' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'POST' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/drives/b!documents-drive-id/root:/Big.html:/createUploadSession' -and
                 $Body -match 'replace'
@@ -782,7 +775,7 @@ Describe 'UploadToSharePoint.ps1' {
         It 'does not use the single request endpoint' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 0 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
         }
@@ -792,7 +785,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             # 4.5 MB (4718592 bytes) in chunks of 983040 bytes (1 * 320 KiB * 3)
             # is 5 requests: four full chunks and a short final one.
-            Should -Invoke Invoke-RestMethod -Exactly -Times 5 -ParameterFilter {
+            Should-Invoke Invoke-RestMethod -Exactly -Times 5 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -eq 'https://upload.contoso.example/session/abc123'
             }
         }
@@ -800,10 +793,10 @@ Describe 'UploadToSharePoint.ps1' {
         It 'sends a Content-Range header describing each chunk' {
             & $ScriptPath @params
 
-            Should -Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
                 $Headers['Content-Range'] -eq 'bytes 0-983039/4718592'
             }
-            Should -Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
                 $Headers['Content-Range'] -eq 'bytes 3932160-4718591/4718592'
             }
         }
@@ -815,10 +808,9 @@ Describe 'UploadToSharePoint.ps1' {
                 [PSCustomObject]@{ }
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*no upload URL*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*no upload URL*'
 
-            Should -Invoke Invoke-RestMethod -Exactly -Times 0
+            Should-Invoke Invoke-RestMethod -Exactly -Times 0
         }
 
         It 'abandons the session when a chunk fails, so no lock is left behind' {
@@ -826,14 +818,14 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'network error'
             }
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
             # The chunk is retried MaxRetries (default 3) times before the
             # session is abandoned exactly once.
-            Should -Invoke Invoke-RestMethod -Exactly -Times 3 -ParameterFilter {
+            Should-Invoke Invoke-RestMethod -Exactly -Times 3 -ParameterFilter {
                 $Method -eq 'PUT'
             }
-            Should -Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-RestMethod -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'DELETE' -and $Uri -eq 'https://upload.contoso.example/session/abc123'
             }
         }
@@ -855,11 +847,11 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
-            Should -Invoke Start-Sleep -Exactly -Times 2
-            Should -Invoke Write-Warning -Exactly -Times 2
+            Should-Invoke Start-Sleep -Exactly -Times 2
+            Should-Invoke Write-Warning -Exactly -Times 2
         }
 
         It 'gives up after MaxRetries attempts' {
@@ -871,14 +863,13 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'permanent 500'
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*after 3 attempts*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*after 3 attempts*'
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 3 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
             # Three attempts means two pauses: never sleep after the last one.
-            Should -Invoke Start-Sleep -Exactly -Times 2
+            Should-Invoke Start-Sleep -Exactly -Times 2
         }
 
         It 'does not retry when MaxRetries is 1' {
@@ -890,12 +881,12 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'permanent 500'
             }
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
-            Should -Invoke Start-Sleep -Exactly -Times 0
+            Should-Invoke Start-Sleep -Exactly -Times 0
         }
 
         It 'retries the site lookup as well as the upload' {
@@ -914,10 +905,10 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'GET' -and $Uri -notmatch '/drives?(/|$)' -and $Uri -notmatch '/children$'
             }
-            Should -Invoke Start-Sleep -Exactly -Times 1
+            Should-Invoke Start-Sleep -Exactly -Times 1
         }
 
         It 'does not retry <Error>, which a repeat cannot fix' -TestCases @(
@@ -940,13 +931,12 @@ Describe 'UploadToSharePoint.ps1' {
                 throw $Error
             }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*will not be resolved by retrying*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*will not be resolved by retrying*'
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
-            Should -Invoke Start-Sleep -Exactly -Times 0
+            Should-Invoke Start-Sleep -Exactly -Times 0
         }
 
         It 'still retries throttling, even though 429 is a client error' {
@@ -965,7 +955,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
         }
@@ -990,7 +980,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             # Retrying sooner than Graph asked deepens the throttling, so the
             # hint wins over the exponential schedule (which would say 3).
-            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter {
                 $Seconds -eq 17
             }
         }
@@ -1004,12 +994,12 @@ Describe 'UploadToSharePoint.ps1' {
                 throw 'transient 503'
             }
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
             # Four attempts, three waits: 3, 6, 12.
-            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 3 }
-            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 6 }
-            Should -Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 12 }
+            Should-Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 3 }
+            Should-Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 6 }
+            Should-Invoke Start-Sleep -Exactly -Times 1 -ParameterFilter { $Seconds -eq 12 }
         }
     }
 
@@ -1028,17 +1018,15 @@ Describe 'UploadToSharePoint.ps1' {
             # library have already been resolved.
             $params.FileName = $FileName
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*SharePoint does not allow*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*SharePoint does not allow*'
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 0
+            Should-Invoke Connect-MgGraph -Exactly -Times 0
         }
 
         It 'rejects a FileName that ends with a period' {
             $params.FileName = 'Overview.html.'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*period or whitespace*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*period or whitespace*'
         }
 
         It 'accepts a FileName with spaces and other legal punctuation' {
@@ -1063,7 +1051,7 @@ Describe 'UploadToSharePoint.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and $ContentType -eq $Expected
             }
         }
@@ -1075,33 +1063,33 @@ Describe 'UploadToSharePoint.ps1' {
 
             $result = & $ScriptPath @params
 
-            Should -Invoke Connect-MgGraph -Exactly -Times 1
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Connect-MgGraph -Exactly -Times 1
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com:/sites/IT'
             }
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Uri -eq 'https://graph.microsoft.com/v1.0/sites/contoso.sharepoint.com,site-guid,web-guid/drives'
             }
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'POST' -and $Uri -match '/children$'
             }
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 1 -ParameterFilter {
                 $Method -eq 'PUT' -and
                 $Uri -eq 'https://graph.microsoft.com/v1.0/drives/b!documents-drive-id/root:/Reports/Overview.html:/content'
             }
-            Should -Invoke Start-Sleep -Exactly -Times 0
-            Should -Invoke Write-Warning -Exactly -Times 0
+            Should-Invoke Start-Sleep -Exactly -Times 0
+            Should-Invoke Write-Warning -Exactly -Times 0
 
-            $result.Name | Should -BeExactly 'Overview.html'
+            $result.Name | Should-BeString 'Overview.html' -CaseSensitive
         }
 
         It 'is repeatable: a second run behaves identically' {
             & $ScriptPath @params
             $second = & $ScriptPath @params
 
-            $second.Name | Should -BeExactly 'Overview.html'
+            $second.Name | Should-BeString 'Overview.html' -CaseSensitive
 
-            Should -Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-MgGraphRequest -Exactly -Times 2 -ParameterFilter {
                 $Method -eq 'PUT' -and $Uri -match ':/content$'
             }
         }

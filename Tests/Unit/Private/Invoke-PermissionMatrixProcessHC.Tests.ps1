@@ -133,9 +133,9 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $result | Should -Be $ctx
-            Should -Invoke Invoke-Command -Times 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+            $result | Should-Be $ctx
+            Should-Invoke Invoke-Command -Times 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'returns immediately when AllMatrices is $null' {
@@ -146,8 +146,8 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $result | Should -Be $ctx
-            Should -Invoke Invoke-Command -Times 0
+            $result | Should-Be $ctx
+            Should-Invoke Invoke-Command -Times 0
         }
 
         It 'skips matrices belonging to a file with file-level FatalError' {
@@ -165,7 +165,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -SystemErrors ([ref]$systemErrors)
 
             # No remote work attempted because the only executable group is empty
-            Should -Invoke Invoke-Command -Times 0
+            Should-Invoke Invoke-Command -Times 0
         }
 
         It 'skips matrices that already have FatalError in their own Check list' {
@@ -178,7 +178,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -Times 0
+            Should-Invoke Invoke-Command -Times 0
         }
     }
 
@@ -195,7 +195,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -SystemErrors ([ref]$systemErrors)
 
             # One Invoke-Command per computer for requirements (2 total here)
-            Should -Invoke Invoke-Command -Times 2 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 2 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\TestReq.ps1'
             }
         }
@@ -209,7 +209,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 1 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\TestReq.ps1' -and
                 $ArgumentList[0] -contains 'C:\A' -and
                 $ArgumentList[0] -contains 'C:\B'
@@ -224,7 +224,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -ParameterFilter {
+            Should-Invoke Invoke-Command -ParameterFilter {
                 $ConfigurationName -eq 'CustomConfig'
             }
         }
@@ -237,7 +237,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -ParameterFilter {
+            Should-Invoke Invoke-Command -ParameterFilter {
                 $ConfigurationName -eq 'PowerShell.7'
             }
         }
@@ -256,10 +256,10 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $m1.Check.Count | Should -BeGreaterThan 0
-            $m2.Check.Count | Should -BeGreaterThan 0
-            $m1.Check[0].Type | Should -Be 'FatalError'
-            $m1.Check[0].Name | Should -Be 'Computer requirements'
+            $m1.Check.Count | Should-BeGreaterThan 0
+            $m2.Check.Count | Should-BeGreaterThan 0
+            $m1.Check[0].Type | Should-Be 'FatalError'
+            $m1.Check[0].Name | Should-Be 'Computer requirements'
         }
 
         It 'excludes a matrix from Set Permissions phase if requirements added FatalError' {
@@ -274,7 +274,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -Times 0 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 0 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1'
             }
         }
@@ -301,7 +301,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 1 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
                 # Positional argument order matches Set_permissions.ps1's param block:
                 # 0=Path, 1=Action, 2=Matrix, 3=JobThrottleLimit, 4=DetailedLog
@@ -315,7 +315,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             }
 
             # ComputerName is now supplied to the session, not to Invoke-Command
-            Should -Invoke New-PSSession -Times 1 -ParameterFilter {
+            Should-Invoke New-PSSession -Times 1 -ParameterFilter {
                 $ComputerName -eq 'SERVER1'
             }
         }
@@ -334,7 +334,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             # The ArgumentList passed to Invoke-Command should include the
             # deserialized matrix, not raw JSON — deserialization happens
             # inside the scriptblock before Invoke-Command runs.
-            Should -Invoke Invoke-Command -ParameterFilter {
+            Should-Invoke Invoke-Command -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
                 $ArgumentList[2] -ne $null
             }
@@ -351,7 +351,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -ParameterFilter {
+            Should-Invoke Invoke-Command -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
                 $ArgumentList[3] -eq 7
             }
@@ -365,7 +365,7 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-Command -ParameterFilter {
+            Should-Invoke Invoke-Command -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
                 $ArgumentList[4] -eq $true
             }
@@ -379,9 +379,9 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $m.JobTime.Start | Should -Not -BeNullOrEmpty
-            $m.JobTime.End | Should -Not -BeNullOrEmpty
-            $m.JobTime.Duration | Should -BeOfType [TimeSpan]
+            $m.JobTime.Start | Should-BeTruthy
+            $m.JobTime.End | Should-BeTruthy
+            $m.JobTime.Duration | Should-HaveType ([TimeSpan])
         }
 
         It 'appends SetPermissions errors to the originating matrix only' {
@@ -402,10 +402,8 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $m1.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
-            Should -Be 1
-            $m2.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
-            Should -Be 0
+            $m1.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count | Should-Be 1
+            $m2.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count | Should-Be 0
         } -Tag test
 
         It 'retries a transient WinRM I/O abort and succeeds without recording an error' {
@@ -428,16 +426,15 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -SystemErrors ([ref]$systemErrors)
 
             # Two transient aborts + one success = 3 attempts, 2 back-off waits
-            Should -Invoke Invoke-Command -Times 3 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 3 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1'
             }
-            Should -Invoke Start-Sleep -Times 2
+            Should-Invoke Start-Sleep -Times 2
             # Every attempt opens then closes its own session, so an orphaned
             # remote command is terminated before the next attempt reconnects.
-            Should -Invoke New-PSSession -Times 3
-            Should -Invoke Remove-PSSession -Times 3
-            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
-            Should -Be 0
+            Should-Invoke New-PSSession -Times 3
+            Should-Invoke Remove-PSSession -Times 3
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count | Should-Be 0
         }
 
         It 'gives up after the maximum attempts on a persistent I/O abort and records one error' {
@@ -455,14 +452,13 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -SystemErrors ([ref]$systemErrors)
 
             # 3 attempts total (initial + 2 retries), 2 back-off waits
-            Should -Invoke Invoke-Command -Times 3 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 3 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1'
             }
-            Should -Invoke Start-Sleep -Times 2
+            Should-Invoke Start-Sleep -Times 2
             # Session closed before each retry to terminate any orphaned run
-            Should -Invoke Remove-PSSession -Times 3
-            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
-            Should -Be 1
+            Should-Invoke Remove-PSSession -Times 3
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count | Should-Be 1
         }
 
         It 'does NOT retry a genuine (non-transient) SetPermissions failure' {
@@ -480,15 +476,14 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -SystemErrors ([ref]$systemErrors)
 
             # Business error: single attempt, no retries, no waits
-            Should -Invoke Invoke-Command -Times 1 -ParameterFilter {
+            Should-Invoke Invoke-Command -Times 1 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1'
             }
-            Should -Invoke Start-Sleep -Times 0
+            Should-Invoke Start-Sleep -Times 0
             # Single session, still closed exactly once
-            Should -Invoke New-PSSession -Times 1
-            Should -Invoke Remove-PSSession -Times 1
-            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count |
-            Should -Be 1
+            Should-Invoke New-PSSession -Times 1
+            Should-Invoke Remove-PSSession -Times 1
+            $m.Check.Where({ $_.Type -eq 'FatalError' -and $_.Name -eq 'Set permissions' }).Count | Should-Be 1
         }
 
         It 'returns context untouched if all matrices failed requirements' {
@@ -503,8 +498,8 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $result | Should -Be $ctx
-            Should -Invoke Invoke-Command -Times 0 -ParameterFilter {
+            $result | Should-Be $ctx
+            Should-Invoke Invoke-Command -Times 0 -ParameterFilter {
                 $FilePath -eq 'TestDrive:\SetPerm.ps1'
             }
         }
@@ -522,10 +517,10 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 -Context $ctx `
                 -SystemErrors ([ref]$systemErrors)
 
-            $result | Should -Be $ctx
-            $systemErrors.Count | Should -BeGreaterThan 0
-            $systemErrors[0].Type | Should -Be 'FatalError'
-            $systemErrors[0].Name | Should -Be 'PROCESS stage failure'
+            $result | Should-Be $ctx
+            $systemErrors.Count | Should-BeGreaterThan 0
+            $systemErrors[0].Type | Should-Be 'FatalError'
+            $systemErrors[0].Name | Should-Be 'PROCESS stage failure'
         }
     }
 }

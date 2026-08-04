@@ -212,7 +212,7 @@ BeforeAll {
 }
 Describe 'the mandatory parameters are' {
     It '<_>' -TestCases @('Path', 'Action', 'Matrix') {
-        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | Should -BeTrue
+        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | Should-BeTrue
     }
 }
 Describe 'create a Matrix object' {
@@ -232,61 +232,55 @@ Describe 'create a Matrix object' {
         .$testScript @testParams
     }
     It 'one Matrix object for each folder' {
-        $Matrix | Should -HaveCount 2
+        $Matrix | Should-BeCollection -Count 2
     }
     Context 'the property FolderAcl' {
         It 'is added for each folder' {
-            $Matrix.FolderAcl | Should -HaveCount 2
+            $Matrix.FolderAcl | Should-BeCollection -Count 2
         }
         It 'is of type DirectorySecurity' {
             $Matrix.FolderAcl | ForEach-Object {
-                $_ | Should -BeOfType [System.Security.AccessControl.DirectorySecurity]
+                $_ | Should-HaveType ([System.Security.AccessControl.DirectorySecurity])
             }
         }
         It "has 'BUILTIN\Administrators' added with 'FullControl'" {
             foreach ($testFolderAcl in $Matrix.FolderAcl) {
-                $testFolderAcl.Access[0].IdentityReference |
-                Should -Be 'BUILTIN\Administrators'
-                $testFolderAcl.Access[0].FileSystemRights |
-                Should -Be 'FullControl'
+                $testFolderAcl.Access[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                $testFolderAcl.Access[0].FileSystemRights | Should-Be 'FullControl'
             }
         }
         It "has 'BUILTIN\Administrators' set as owner" {
             foreach ($testFolderAcl in $Matrix.FolderAcl) {
-                $testFolderAcl.Owner |
-                Should -Be 'BUILTIN\Administrators'
+                $testFolderAcl.Owner | Should-Be 'BUILTIN\Administrators'
             }
         }
         It 'contains all other requested permissions' {
             foreach ($testFolderAcl in $Matrix.FolderAcl) {
-                $testFolderAcl.Access[1] |
-                Should -Not -BeNullOrEmpty
+                $testFolderAcl.Access[1] | Should-BeTruthy
             }
         }
     }
     Context 'the property Path' {
         It 'is converted to the folder FullName' {
-            $Matrix[0].Path | Should -Be $testParent.FullName
-            $Matrix[1].Path | Should -Be $testFolder.FullName
+            $Matrix[0].Path | Should-Be $testParent.FullName
+            $Matrix[1].Path | Should-Be $testFolder.FullName
         }
     }
     Context 'the property Parent' {
         It 'is only marked as true for the parent folder' {
-            $Matrix[0].Parent | Should -BeTrue
-            $Matrix[1].Parent | Should -BeFalse
+            $Matrix[0].Parent | Should-BeTrue
+            $Matrix[1].Parent | Should-BeFalse
         }
     }
     Context 'extra property added for later comparison' {
         It 'InheritedFolderAcl' {
             foreach ($testMatrix in $Matrix) {
-                $testMatrix.InheritedFolderAcl.GetType().Name |
-                Should -Be 'DirectorySecurity'
+                $testMatrix.InheritedFolderAcl.GetType().Name | Should-Be 'DirectorySecurity'
             }
         }
         It 'InheritedFileAcl' {
             foreach ($testMatrix in $Matrix) {
-                $testMatrix.InheritedFileAcl.GetType().Name |
-                Should -Be 'FileSecurity'
+                $testMatrix.InheritedFileAcl.GetType().Name | Should-Be 'FileSecurity'
             }
         }
     }
@@ -707,21 +701,19 @@ Describe 'when the script runs for a matrix' {
         }
         It 'all non inherited folders are checked' {
             $expected.nonInheritanceTested | ForEach-Object {
-                $testedNonInheritedFolders.Keys |
-                Should -Contain ($_ -f $testParams.Path)
+                $testedNonInheritedFolders.Keys | Should-ContainCollection ($_ -f $testParams.Path)
                 # Pester scoping issue: variables not available in TestCases
             }
             $testedNonInheritedFolders.Count |
-            Should -BeExactly $expected.nonInheritanceTested.Count
+            Should-Be $expected.nonInheritanceTested.Count
         }
         It 'all files and folders that should be inherited are checked' {
             $expected.inheritanceTested | ForEach-Object {
-                $testedInheritedFilesAndFolders.Keys |
-                Should -Contain ($_ -f $testParams.Path)
+                $testedInheritedFilesAndFolders.Keys | Should-ContainCollection ($_ -f $testParams.Path)
                 # Pester scoping issue: variables not available in TestCases
             }
             $testedInheritedFilesAndFolders.Count |
-            Should -BeExactly $expected.inheritanceTested.Count
+            Should-Be $expected.inheritanceTested.Count
         } -Tag test
         It 'output is generated for ignored folders in an information object' {
             if ($testIgnoredFolders = $testMatrix | Where-Object ignore) {
@@ -734,7 +726,7 @@ Describe 'when the script runs for a matrix' {
                     else { Join-Path $testParentFolder $_.Path }
                 }
 
-                $actual.Value | Should -Be $testIgnoredFolders
+                @($actual.Value) | Should-BeCollection @($testIgnoredFolders)
             }
         }
     }
@@ -757,16 +749,16 @@ Describe 'the output objects carry a DateTime for JSON logging' {
         }
     }
     It 'adds a DateTime property of type [DateTime]' {
-        $testResult | Should -Not -BeNullOrEmpty
-        $testResult.DateTime | Should -BeOfType [DateTime]
+        $testResult | Should-BeTruthy
+        $testResult.DateTime | Should-HaveType ([DateTime])
     }
     It 'keeps the DateTime visible after ConvertTo-Json, so it lands in the .json log file' {
         # Mirror how Invoke-PermissionMatrixEndHC/ProcessHC serialize the
         # objects when writing the .json log files.
         $json = $testResult | ConvertTo-Json -Depth 10
 
-        $json | Should -Match '"DateTime":'
-        ($json | ConvertFrom-Json).DateTime | Should -Not -BeNullOrEmpty
+        $json | Should-MatchString '"DateTime":'
+        ($json | ConvertFrom-Json).DateTime | Should-BeTruthy
     }
 }
 Describe 'Permissions' {
@@ -822,7 +814,7 @@ Describe 'Permissions' {
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
 
-            $Actual | Should -BeNullOrEmpty
+            $Actual | Should-BeFalsy
         }
         It 'a file inheriting BUILTIN\Administrators FullControl plus the correct group permissions' {
             # Regression guard: BUILTIN\Administrators FullControl is part of the
@@ -862,7 +854,7 @@ Describe 'Permissions' {
             (Get-Acl -LiteralPath $testFile.FullName).Access.Where({
                     ($_.IdentityReference.Value -eq 'BUILTIN\Administrators') -and
                     ($_.FileSystemRights -eq 'FullControl')
-                }) | Should -Not -BeNullOrEmpty `
+                }) | Should-BeTruthy `
                 -Because 'the file must carry the admin FullControl ACE for this test to be meaningful'
             #endregion
 
@@ -871,9 +863,9 @@ Describe 'Permissions' {
             $inheritedWarning = $Actual | Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
             $nonInheritedWarning = $Actual | Where-Object { $_.Name -eq 'Non inherited folder incorrect permissions' }
 
-            $inheritedWarning | Should -BeNullOrEmpty `
+            $inheritedWarning | Should-BeFalsy `
                 -Because 'the file inherits admin FullControl plus the correct group ACEs, so it matches the expected inherited ACL'
-            $nonInheritedWarning | Should -BeNullOrEmpty `
+            $nonInheritedWarning | Should-BeFalsy `
                 -Because 'the parent folder itself carries admin FullControl plus the correct group ACEs'
         }
         It 'List only on the parent folder' {
@@ -920,7 +912,7 @@ Describe 'Permissions' {
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
 
-            $Actual | Should -BeNullOrEmpty
+            $Actual | Should-BeFalsy
         }
         It 'List only on the parent folder and Read on a subfolder' {
             $testParams = @{
@@ -981,7 +973,7 @@ Describe 'Permissions' {
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
 
-            $Actual | Should -BeNullOrEmpty
+            $Actual | Should-BeFalsy
         }
         It 'List only on the parent folder and different permissions on subfolders' {
             $testParams = @{
@@ -1073,7 +1065,7 @@ Describe 'Permissions' {
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
 
-            $Actual | Should -BeNullOrEmpty
+            $Actual | Should-BeFalsy
         }
         It 'folders that are not in the matrix as they should be inherited' {
             $testParams = @{
@@ -1173,7 +1165,7 @@ Describe 'Permissions' {
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
 
-            $Actual | Should -BeNullOrEmpty
+            $Actual | Should-BeFalsy
         }
     }
     Context 'are corrected when they are incorrect when' {
@@ -1264,7 +1256,7 @@ Describe 'Permissions' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
 
-                $Actual.Value | Should -Be $testParams.Path
+                $Actual.Value | Should-Be $testParams.Path
             }
             It 'the correct explicit permissions but one ACE too much' {
                 $testParams = @{
@@ -1353,7 +1345,7 @@ Describe 'Permissions' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
 
-                $Actual.Value | Should -Be $testParams.Path
+                $Actual.Value | Should-Be $testParams.Path
             }
             It 'inherited permissions' {
                 $testParams = @{
@@ -1430,7 +1422,7 @@ Describe 'Permissions' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions'
 
-                $Actual.Value | Should -Be $testParams.Path
+                $Actual.Value | Should-Be $testParams.Path
             }
         }
         Context 'a file has' {
@@ -1523,7 +1515,7 @@ Describe 'Permissions' {
                     $_.Name -eq 'Inherited permissions incorrect'
                 }
 
-                $actual.Value | Should -Be "$($testParams.Path)\FolderA\File"
+                $actual.Value | Should-Be "$($testParams.Path)\FolderA\File"
             }
         }
         Context 'a folder that should have inherited permissions' {
@@ -1629,7 +1621,7 @@ Describe 'Permissions' {
 
                 $Actual | Where-Object Name -EQ 'Inherited permissions incorrect'
 
-                $Actual.Value | Should -Be "$($testParams.Path)\FolderB"
+                $Actual.Value | Should-Be "$($testParams.Path)\FolderB"
             }
             It 'not defined in the matrix has explicit permissions' {
                 $testParams = @{
@@ -1734,7 +1726,7 @@ Describe 'Permissions' {
                     $_.Name -eq 'Inherited permissions incorrect'
                 }
 
-                $Actual.Value | Should -Be "$($testParams.Path)\FolderC"
+                $Actual.Value | Should-Be "$($testParams.Path)\FolderC"
             }
         }
     }
@@ -1754,7 +1746,7 @@ Describe 'when Action is' {
 
             .$testScript @testParams
 
-            $testParams.Path | Should -Exist
+            Test-Path -LiteralPath $testParams.Path | Should-BeTrue
         }
         It 'create a FatalError object when the parent folder is already present' {
             $testParams = @{
@@ -1775,10 +1767,10 @@ Describe 'when Action is' {
                 Value       = $testParams.Path
             }
 
-            $Actual.Type | Should -Be $Expected.Type
-            $Actual.Name | Should -Be $Expected.Name
-            $Actual.Description | Should -Be $Expected.Description
-            $Actual.Value | Should -Be $Expected.Value
+            $Actual.Type | Should-Be $Expected.Type
+            $Actual.Name | Should-Be $Expected.Name
+            $Actual.Description | Should-Be $Expected.Description
+            $Actual.Value | Should-Be $Expected.Value
         }
         Context 'folders in the matrix that need to be created' {
             It 'are created' {
@@ -1795,9 +1787,9 @@ Describe 'when Action is' {
 
                 .$testScript @testParams
 
-                $testParams.Path | Should -Exist
-                $testParams.Path + '\FolderA' | Should -Exist
-                $testParams.Path + '\FolderB\FolderC' | Should -Exist
+                Test-Path -LiteralPath $testParams.Path | Should-BeTrue
+                Test-Path -LiteralPath ($testParams.Path + '\FolderA') | Should-BeTrue
+                Test-Path -LiteralPath ($testParams.Path + '\FolderB\FolderC') | Should-BeTrue
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
@@ -1813,17 +1805,17 @@ Describe 'when Action is' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -Like '*child folder*'
 
-                $Actual.Type | Should -Be 'Warning'
-                $Actual.Name | Should -Be 'Child folder created'
+                $Actual.Type | Should-Be 'Warning'
+                $Actual.Name | Should-Be 'Child folder created'
 
                 @(
                     "$($testParams.Path)",
                     "$($testParams.Path)\FolderA",
                     "$($testParams.Path)\FolderB\FolderC"
                 ).ForEach( {
-                        $Actual.Value | Should -Contain $_
+                        $Actual.Value | Should-ContainCollection $_
                     })
-                $actual.Value.Count | Should -BeExactly 3
+                $actual.Value.Count | Should-Be 3
             }
             It 'are not created when Path is set to Ignore' {
                 $testParams = @{
@@ -1839,8 +1831,8 @@ Describe 'when Action is' {
 
                 .$testScript @testParams
 
-                "$($testParams.Path)\FolderA" | Should -Not -Exist
-                "$($testParams.Path)\FolderB\FolderC" | Should -Exist
+                Test-Path -LiteralPath "$($testParams.Path)\FolderA" | Should-BeFalse
+                Test-Path -LiteralPath "$($testParams.Path)\FolderB\FolderC" | Should-BeTrue
             }
         }
         Context 'set permissions' {
@@ -1859,9 +1851,9 @@ Describe 'when Action is' {
 
                 $Actual = (Get-Acl -Path $testParams.Path).Access
 
-                $Actual.Count | Should -BeExactly 2 -Because "ACL is 'BUILTIN\Administrators' and '$testUser'."
-                $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser"
+                $Actual.Count | Should-Be 2 -Because "ACL is 'BUILTIN\Administrators' and '$testUser'."
+                $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser"
             }
             It 'on the child folders' {
                 $testParams = @{
@@ -1878,14 +1870,14 @@ Describe 'when Action is' {
                 .$testScript @testParams
 
                 $Actual = (Get-Acl -Path $testParams.Path).Access
-                $Actual.Count | Should -BeExactly 2
-                $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser"
+                $Actual.Count | Should-Be 2
+                $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser"
 
                 $Actual = (Get-Acl -Path "$($testParams.Path)\FolderB").Access
-                $Actual.Count | Should -BeExactly 2
-                $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser2"
+                $Actual.Count | Should-Be 2
+                $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser2"
             }
             It 'a Warning object for incorrect permissions is not created' {
                 $testParams = @{
@@ -1899,8 +1891,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions' |
-                Should -BeNullOrEmpty
+                .$testScript @testParams | Where-Object Name -EQ 'Non inherited folder incorrect permissions' | Should-BeFalsy
             }
         }
     }
@@ -1922,10 +1913,10 @@ Describe 'when Action is' {
                 Value       = $testParams.Path
             }
 
-            $Actual.Type | Should -Be $Expected.Type
-            $Actual.Name | Should -Be $Expected.Name
-            $Actual.Description | Should -Be $Expected.Description
-            $Actual.Value | Should -Be $Expected.Value
+            $Actual.Type | Should-Be $Expected.Type
+            $Actual.Name | Should-Be $Expected.Name
+            $Actual.Description | Should-Be $Expected.Description
+            $Actual.Value | Should-Be $Expected.Value
         }
         Context 'folders in the matrix that are missing' {
             It 'are created' {
@@ -1943,8 +1934,8 @@ Describe 'when Action is' {
 
                 .$testScript @testParams
 
-                "$($testParams.Path)\FolderA" | Should -Exist
-                "$($testParams.Path)\FolderB\FolderC" | Should -Exist
+                Test-Path -LiteralPath "$($testParams.Path)\FolderA" | Should-BeTrue
+                Test-Path -LiteralPath "$($testParams.Path)\FolderB\FolderC" | Should-BeTrue
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
@@ -1961,11 +1952,11 @@ Describe 'when Action is' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -Like '*child folder*'
 
-                $Actual.Type | Should -Be 'Warning'
-                $Actual.Name | Should -Be 'Child folder created'
+                $Actual.Type | Should-Be 'Warning'
+                $Actual.Name | Should-Be 'Child folder created'
 
-                $Actual.Value[0] | Should -Be "$($testParams.Path)\FolderA"
-                $Actual.Value[1] | Should -Be "$($testParams.Path)\FolderB\FolderC"
+                $Actual.Value[0] | Should-Be "$($testParams.Path)\FolderA"
+                $Actual.Value[1] | Should-Be "$($testParams.Path)\FolderB\FolderC"
             }
             It 'are not created when Path is set to Ignore' {
                 $testParams = @{
@@ -1982,8 +1973,8 @@ Describe 'when Action is' {
 
                 .$testScript @testParams
 
-                "$($testParams.Path)\FolderA" | Should -Not -Exist
-                "$($testParams.Path)\FolderB\FolderC" | Should -Exist
+                Test-Path -LiteralPath "$($testParams.Path)\FolderA" | Should-BeFalse
+                Test-Path -LiteralPath "$($testParams.Path)\FolderB\FolderC" | Should-BeTrue
             }
         }
         Context 'incorrect folder permissions' {
@@ -2014,14 +2005,14 @@ Describe 'when Action is' {
                     .$testScript @testParams
 
                     $Actual = (Get-Acl -Path $testParams.Path).Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser2"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser2"
 
                     $Actual = (Get-Acl -Path ($testParams.Path + '\FolderA')).Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser"
                 }
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
@@ -2040,12 +2031,12 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclNonInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclNonInheritedFolders.Type
                         @(
                             $testParams.Path,
                             "$($testParams.Path)\FolderA"
                         ).ForEach( {
-                                $Actual.Value | Should -Contain $_
+                                $Actual.Value | Should-ContainCollection $_
                             })
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
@@ -2065,19 +2056,19 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclNonInheritedFolders.Type
-                        $Actual.Value.Count | Should -BeExactly 2 -Because 'two folders have an incorrect ACL'
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclNonInheritedFolders.Type
+                        $Actual.Value.Count | Should-Be 2 -Because 'two folders have an incorrect ACL'
 
                         @(
                             $testParams.Path,
                             "$($testParams.Path)\FolderA"
                         ).ForEach( {
-                                $Actual.Value.Keys | Should -Contain $_ -Because 'the folder FullName is expected'
+                                $Actual.Value.Keys | Should-ContainCollection $_ -Because 'the folder FullName is expected'
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
                                 foreach ($v in @('OldAcl', 'NewAcl')) {
-                                    $_.Value.$v | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
+                                    $_.Value.$v | Should-BeTruthy -Because 'an ACL is expected'
                                 }
 
                                 # The detail JSON must always list the ACL keys in
@@ -2087,7 +2078,7 @@ Describe 'when Action is' {
                                 $expectedKeyOrder = @('OldAcl', 'NewAcl', 'MatrixFileAcl').Where(
                                     { $actualKeys -contains $_ }
                                 )
-                                $actualKeys | Should -Be $expectedKeyOrder -Because 'the keys must always be ordered OldAcl, NewAcl, MatrixFileAcl'
+                                $actualKeys | Should-BeCollection $expectedKeyOrder -Because 'the keys must always be ordered OldAcl, NewAcl, MatrixFileAcl'
                             })
                     }
                 }
@@ -2119,7 +2110,7 @@ Describe 'when Action is' {
                     .$testScript @testParams
 
                     $Actual = (Get-Acl -Path "$($testParams.Path)\FolderA").Access
-                    $Actual.IsInherited | Should -Not -Contain $false -Because 'IsInedited needs to be True on all Ace'
+                    $Actual.IsInherited | Should-NotContainCollection $false -Because 'IsInedited needs to be True on all Ace'
                 }
                 Context 'are registered in a Warning object when' {
                     It 'DetailedLog is False only the folder name is saved' {
@@ -2149,12 +2140,12 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclInheritedFolders.Type
                         @(
                             ($testParams.Path + '\FolderA')
                             ($testParams.Path + '\FolderB')
                         ).ForEach( {
-                                $Actual.Value | Should -Contain $_
+                                $Actual.Value | Should-ContainCollection $_
                             })
 
                     }
@@ -2186,16 +2177,16 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclInheritedFolders.Type
                         @(
                             ($testParams.Path + '\FolderA')
                             ($testParams.Path + '\FolderB')
                         ).ForEach( {
-                                $Actual.Value.Keys | Should -Contain $_
+                                $Actual.Value.Keys | Should-ContainCollection $_
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
-                                $_.Value | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
+                                $_.Value | Should-BeTruthy -Because 'an ACL is expected'
                             })
                     }
                 }
@@ -2224,12 +2215,12 @@ Describe 'when Action is' {
                     Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
-                    (Get-Acl -Path $testFolderPath).Owner | Should -Be "$env:USERDOMAIN\$env:USERNAME"
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be "$env:USERDOMAIN\$env:USERNAME"
 
                     .$testScript @testParams
                     #Set-Location -Path $TestDrive
 
-                    (Get-Acl -Path $testFolderPath).Owner | Should -Be 'BUILTIN\Administrators'
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be 'BUILTIN\Administrators'
                 }
                 It 'the admin has no access to the folder' {
                     $testParams = @{
@@ -2256,16 +2247,14 @@ Describe 'when Action is' {
                     Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
-                    (Get-Acl -Path $testFolderPath).Owner |
-                    Should -Be "$env:USERDOMAIN\$testUser"
-                    (Get-Acl -Path $testFolderPath).Access |
-                    Should -BeNullOrEmpty
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be "$env:USERDOMAIN\$testUser"
+                    (Get-Acl -Path $testFolderPath).Access | Should-BeFalsy
 
                     .$testScript @testParams
                     #Set-Location -Path $TestDrive
 
-                    (Get-Acl -Path $testFolderPath).Owner | Should -Be 'BUILTIN\Administrators'
-                    (Get-Acl -Path $testFolderPath).Access | Should -Not -BeNullOrEmpty
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be 'BUILTIN\Administrators'
+                    (Get-Acl -Path $testFolderPath).Access | Should-BeTruthy
                 }
                 It 'the admin has no access to the parent folder' {
                     $testParams = @{
@@ -2293,18 +2282,16 @@ Describe 'when Action is' {
                     Set-Acl -Path $testFolder -AclObject $testAcl
                     #endregion
 
-                    (Get-Acl -Path $testFolderPath).Owner | Should -Be "$env:USERDOMAIN\$testUser"
-                    (Get-Acl -Path $testFolderPath).Access | Should -BeNullOrEmpty
-                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
-                    Should -Not -Contain "$env:USERDOMAIN\$testUser"
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be "$env:USERDOMAIN\$testUser"
+                    (Get-Acl -Path $testFolderPath).Access | Should-BeFalsy
+                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference | Should-NotContainCollection "$env:USERDOMAIN\$testUser"
 
                     .$testScript @testParams
                     #Set-Location -Path $TestDrive
 
-                    (Get-Acl -Path $testFolderPath).Owner | Should -Be 'BUILTIN\Administrators'
-                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should -Be 'BUILTIN\Administrators'
-                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference |
-                    Should -Contain "$env:USERDOMAIN\$testUser"
+                    (Get-Acl -Path $testFolderPath).Owner | Should-Be 'BUILTIN\Administrators'
+                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Owner | Should-Be 'BUILTIN\Administrators'
+                    (Get-Acl -Path "$($testParams.Path)\Reports\Fruits\Kiwi").Access.IdentityReference | Should-ContainCollection "$env:USERDOMAIN\$testUser"
                 }
             }
         }
@@ -2340,8 +2327,7 @@ Describe 'when Action is' {
                 #endregion
 
                 #region Sanity check: the file really carries an explicit ACL
-                (Get-Acl -LiteralPath $testFile).Access.IsInherited |
-                Should -Contain $false -Because 'the file must carry explicit ACEs for this test to be meaningful'
+                (Get-Acl -LiteralPath $testFile).Access.IsInherited | Should-ContainCollection $false -Because 'the file must carry explicit ACEs for this test to be meaningful'
                 #endregion
 
                 .$testScript -Path $testParentFolder -Action 'Fix' -JobThrottleLimit 2 -Matrix (& $newMatrix)
@@ -2349,15 +2335,11 @@ Describe 'when Action is' {
                 #region The file is reset to inherit only, with the wrong ACE removed
                 $actual = (Get-Acl -LiteralPath $testFile).Access
 
-                $actual.IsInherited |
-                Should -Not -Contain $false -Because 'a corrected file only carries inherited ACEs'
-                $actual.IdentityReference.Value |
-                Should -Not -Contain "$env:USERDOMAIN\$testUser2" -Because 'the incorrect explicit ACE must be removed'
-                $actual.IdentityReference.Value |
-                Should -Contain "$env:USERDOMAIN\$testUser" -Because 'the file must inherit the correct group ACE from the parent folder'
+                $actual.IsInherited | Should-NotContainCollection $false -Because 'a corrected file only carries inherited ACEs'
+                $actual.IdentityReference.Value | Should-NotContainCollection "$env:USERDOMAIN\$testUser2" -Because 'the incorrect explicit ACE must be removed'
+                $actual.IdentityReference.Value | Should-ContainCollection "$env:USERDOMAIN\$testUser" -Because 'the file must inherit the correct group ACE from the parent folder'
 
-                (Get-Acl -LiteralPath $testFile).Owner |
-                Should -Be 'BUILTIN\Administrators' -Because 'the owner is reset to the built-in administrators'
+                (Get-Acl -LiteralPath $testFile).Owner | Should-Be 'BUILTIN\Administrators' -Because 'the owner is reset to the built-in administrators'
                 #endregion
             }
             It 'deeply nested files 3 and 4 levels deep are corrected on disk' {
@@ -2402,8 +2384,7 @@ Describe 'when Action is' {
 
                 #region Sanity check: both files really carry an explicit ACL
                 $testFiles.ForEach( {
-                        (Get-Acl -LiteralPath $_).Access.IsInherited |
-                        Should -Contain $false -Because "file '$_' must carry explicit ACEs for this test to be meaningful"
+                        (Get-Acl -LiteralPath $_).Access.IsInherited | Should-ContainCollection $false -Because "file '$_' must carry explicit ACEs for this test to be meaningful"
                     })
                 #endregion
 
@@ -2413,15 +2394,11 @@ Describe 'when Action is' {
                 $testFiles.ForEach( {
                         $actual = (Get-Acl -LiteralPath $_).Access
 
-                        $actual.IsInherited |
-                        Should -Not -Contain $false -Because "the corrected file '$_' only carries inherited ACEs"
-                        $actual.IdentityReference.Value |
-                        Should -Not -Contain "$env:USERDOMAIN\$testUser2" -Because "the incorrect explicit ACE must be removed from '$_'"
-                        $actual.IdentityReference.Value |
-                        Should -Contain "$env:USERDOMAIN\$testUser" -Because "the file '$_' must inherit the correct group ACE"
+                        $actual.IsInherited | Should-NotContainCollection $false -Because "the corrected file '$_' only carries inherited ACEs"
+                        $actual.IdentityReference.Value | Should-NotContainCollection "$env:USERDOMAIN\$testUser2" -Because "the incorrect explicit ACE must be removed from '$_'"
+                        $actual.IdentityReference.Value | Should-ContainCollection "$env:USERDOMAIN\$testUser" -Because "the file '$_' must inherit the correct group ACE"
 
-                        (Get-Acl -LiteralPath $_).Owner |
-                        Should -Be 'BUILTIN\Administrators' -Because "the owner of '$_' is reset to the built-in administrators"
+                        (Get-Acl -LiteralPath $_).Owner | Should-Be 'BUILTIN\Administrators' -Because "the owner of '$_' is reset to the built-in administrators"
                     })
                 #endregion
             }
@@ -2441,14 +2418,14 @@ Describe 'when Action is' {
 
                 $testPermissions = {
                     $Actual = (Get-Acl -Path $testParams.Path).Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser"
 
                     $Actual = (Get-Acl -Path "$($testParams.Path)\FolderB").Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser2"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser2"
                 }
 
                 .$testScript @testParams
@@ -2495,7 +2472,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should -BeNullOrEmpty
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
             }
         }
     }
@@ -2517,10 +2494,10 @@ Describe 'when Action is' {
                 Value       = $testParams.Path
             }
 
-            $Actual.Type | Should -Be $Expected.Type
-            $Actual.Name | Should -Be $Expected.Name
-            $Actual.Description | Should -Be $Expected.Description
-            $Actual.Value | Should -Be $Expected.Value
+            $Actual.Type | Should-Be $Expected.Type
+            $Actual.Name | Should-Be $Expected.Name
+            $Actual.Description | Should-Be $Expected.Description
+            $Actual.Value | Should-Be $Expected.Value
         }
         Context 'folders in the matrix that are missing' {
             It 'are not created' {
@@ -2538,8 +2515,8 @@ Describe 'when Action is' {
 
                 .$testScript @testParams
 
-                $testParams.Path + '\' + $testParams.Matrix[1].Path | Should -Not -Exist
-                $testParams.Path + '\' + $testParams.Matrix[2].Path | Should -Not -Exist
+                Test-Path -LiteralPath ($testParams.Path + '\' + $testParams.Matrix[1].Path) | Should-BeFalse
+                Test-Path -LiteralPath ($testParams.Path + '\' + $testParams.Matrix[2].Path) | Should-BeFalse
             }
             It 'are registered in a Warning object' {
                 $testParams = @{
@@ -2556,10 +2533,10 @@ Describe 'when Action is' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -Like '*child folder*'
 
-                $Actual.Type | Should -Be 'Warning'
-                $Actual.Name | Should -Be 'Child folder missing'
-                $Actual.Value[0] | Should -Be "$($testParams.Path)\FolderA"
-                $Actual.Value[1] | Should -Be "$($testParams.Path)\FolderB\FolderC"
+                $Actual.Type | Should-Be 'Warning'
+                $Actual.Name | Should-Be 'Child folder missing'
+                $Actual.Value[0] | Should-Be "$($testParams.Path)\FolderA"
+                $Actual.Value[1] | Should-Be "$($testParams.Path)\FolderB\FolderC"
             }
             It 'are not checked when they are set to ignore' {
                 $testParams = @{
@@ -2576,8 +2553,7 @@ Describe 'when Action is' {
 
                 .$testScript @testParams | Where-Object {
                     ($_.Name -like '*child folder*') -and
-                    ($_.Value -contains ($testParams.Path + '\FolderA')) } |
-                Should -BeNullOrEmpty
+                    ($_.Value -contains ($testParams.Path + '\FolderA')) } | Should-BeFalsy
 
                 $testParams = @{
                     Path             = $testParentFolder
@@ -2592,8 +2568,7 @@ Describe 'when Action is' {
                 #Set-Location -Path $TestDrive
                 .$testScript @testParams | Where-Object {
                     ($_.Name -like '*child folder*') -and
-                    ($_.Value -contains ($testParams.Path + '\FolderA')) } |
-                Should -Not -BeNullOrEmpty
+                    ($_.Value -contains ($testParams.Path + '\FolderA')) } | Should-BeTruthy
             }
         }
         Context 'incorrect folder permissions' {
@@ -2633,14 +2608,14 @@ Describe 'when Action is' {
                         $Expected = $Expected[$i].Access |
                         Sort-Object IdentityReference | ConvertTo-Json
 
-                        $Actual | Should -BeExactly $Expected
+                        $Actual | Should-Be $Expected
 
                         $Actual = $Actual[$i].Owner |
                         Sort-Object IdentityReference
                         $Expected = $Expected[$i].Owner |
                         Sort-Object IdentityReference
 
-                        $Actual | Should -BeExactly $Expected
+                        $Actual | Should-Be $Expected
                     }
                 }
                 Context 'are registered in a Warning object when' {
@@ -2660,12 +2635,12 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclNonInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclNonInheritedFolders.Type
                         @(
                             ($testParams.Path),
                             ($testParams.Path + '\FolderA')
                         ).ForEach( {
-                                $Actual.Value | Should -Contain $_
+                                $Actual.Value | Should-ContainCollection $_
                             })
 
                     }
@@ -2686,19 +2661,19 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclNonInheritedFolders.Type
-                        $Actual.Value.Count | Should -BeExactly 2 -Because 'two folders have an incorrect ACL'
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclNonInheritedFolders.Type
+                        $Actual.Value.Count | Should-Be 2 -Because 'two folders have an incorrect ACL'
 
                         @(
                             ($testParams.Path),
                             ($testParams.Path + '\FolderA')
                         ).ForEach( {
-                                $Actual.Value.Keys | Should -Contain $_ -Because 'the folder FullName is expected'
+                                $Actual.Value.Keys | Should-ContainCollection $_ -Because 'the folder FullName is expected'
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
                                 foreach ($v in @('OldAcl', 'NewAcl')) {
-                                    $_.Value.$v | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
+                                    $_.Value.$v | Should-BeTruthy -Because 'an ACL is expected'
                                 }
                             })
 
@@ -2747,14 +2722,14 @@ Describe 'when Action is' {
                         $Expected = $Expected[$i].Access |
                         Sort-Object IdentityReference | ConvertTo-Json
 
-                        $Actual | Should -BeExactly $Expected
+                        $Actual | Should-Be $Expected
 
                         $Actual = $Actual[$i].Owner |
                         Sort-Object IdentityReference
                         $Expected = $Expected[$i].Owner |
                         Sort-Object IdentityReference
 
-                        $Actual | Should -BeExactly $Expected
+                        $Actual | Should-Be $Expected
                     }
                 }
                 Context 'are registered in a Warning object when' {
@@ -2785,12 +2760,12 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclInheritedFolders.Type
                         @(
                             ($testParams.Path + '\FolderA')
                             ($testParams.Path + '\FolderB')
                         ).ForEach( {
-                                $Actual.Value | Should -Contain $_
+                                $Actual.Value | Should-ContainCollection $_
                             })
                     }
                     It 'DetailedLog is True the folder name, the old ACL and the new ACL are saved' {
@@ -2821,16 +2796,16 @@ Describe 'when Action is' {
                         $Actual = .$testScript @testParams |
                         Where-Object Name -EQ $ExpectedIncorrectAclInheritedFolders.Name
 
-                        $Actual.Type | Should -Be $ExpectedIncorrectAclInheritedFolders.Type
+                        $Actual.Type | Should-Be $ExpectedIncorrectAclInheritedFolders.Type
                         @(
                             ($testParams.Path + '\FolderA')
                             ($testParams.Path + '\FolderB')
                         ).ForEach( {
-                                $Actual.Value.Keys | Should -Contain $_
+                                $Actual.Value.Keys | Should-ContainCollection $_
                             })
 
                         $Actual.Value.GetEnumerator().ForEach( {
-                                $_.Value | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
+                                $_.Value | Should-BeTruthy -Because 'an ACL is expected'
                             })
                     }
                 }
@@ -2859,7 +2834,7 @@ Describe 'when Action is' {
                     ($testParams.Path + '\FolderB')
                     ($testParams.Path + '\FolderC')
                 ).ForEach( {
-                        $actual.Value | Should -Not -Contain $_
+                        $actual.Value | Should-NotContainCollection $_
                     })
             }
         }
@@ -2903,13 +2878,13 @@ Describe 'when Action is' {
                     Sort-Object IdentityReference | ConvertTo-Json
                     $b = $Expected[$i].Owner |
                     Sort-Object IdentityReference | ConvertTo-Json
-                    $a | Should -BeExactly $b
+                    $a | Should-Be $b
 
                     $a = $Actual[$i].Access |
                     Sort-Object IdentityReference | ConvertTo-Json
                     $b = $Expected[$i].Access |
                     Sort-Object IdentityReference | ConvertTo-Json
-                    $a | Should -BeExactly $b
+                    $a | Should-Be $b
                 }
             }
             Context 'are registered in a Warning object when' {
@@ -2946,7 +2921,7 @@ Describe 'when Action is' {
                     $Actual = .$testScript @testParams |
                     Where-Object Name -EQ $Expected.Name
 
-                    $testFile.FullName | Should -Be $actual.Value
+                    $testFile.FullName | Should-Be $actual.Value
                 }
                 It 'DetailedLog is True the file name and the the old ACL are saved' {
                     $testParams = @{
@@ -2983,17 +2958,17 @@ Describe 'when Action is' {
 
                     $Actual = .$testScript @testParams | Where-Object Name -EQ $Expected.Name
 
-                    $Actual.Type | Should -Be $Expected.Type
-                    $Actual.Value.Count | Should -BeExactly 1 -Because 'one file is not having inheritance set'
+                    $Actual.Type | Should-Be $Expected.Type
+                    $Actual.Value.Count | Should-Be 1 -Because 'one file is not having inheritance set'
 
                     @(
                         $testFile.FullName
                     ).ForEach( {
-                            $Actual.Value.Keys | Should -Contain $_ -Because 'the file FullName is expected'
+                            $Actual.Value.Keys | Should-ContainCollection $_ -Because 'the file FullName is expected'
                         })
 
                     $Actual.Value.GetEnumerator().ForEach( {
-                            $_.Value | Should -Not -BeNullOrEmpty -Because 'an ACL is expected'
+                            $_.Value | Should-BeTruthy -Because 'an ACL is expected'
                         })
                 }
                 It 'DetailedLog is True MatrixAdObjects lists the display name and requested permission' {
@@ -3039,8 +3014,8 @@ Describe 'when Action is' {
                     $Actual = .$testScript @testParams | Where-Object Name -EQ $Expected.Name
 
                     $entry = $Actual.Value[$testFile.FullName]
-                    $entry.MatrixFileAcl | Should -BeOfType [string]
-                    $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read" `
+                    $entry.MatrixFileAcl | Should-HaveType ([string])
+                    $entry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser2  Read" `
                         -Because 'the SID resolves to a DOMAIN\name and R means Read'
                 }
             }
@@ -3060,14 +3035,14 @@ Describe 'when Action is' {
 
                 $testPermissions = {
                     $Actual = (Get-Acl -Path $testParams.Path).Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser"
 
                     $Actual = (Get-Acl -Path "$($testParams.Path)\FolderB").Access
-                    $Actual.Count | Should -BeExactly 2
-                    $Actual[0].IdentityReference | Should -Be 'BUILTIN\Administrators'
-                    $Actual[1].IdentityReference | Should -Be "$env:USERDOMAIN\$testUser2"
+                    $Actual.Count | Should-Be 2
+                    $Actual[0].IdentityReference | Should-Be 'BUILTIN\Administrators'
+                    $Actual[1].IdentityReference | Should-Be "$env:USERDOMAIN\$testUser2"
                 }
 
                 .$testScript @testParams
@@ -3129,7 +3104,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should -BeNullOrEmpty
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
 
                 $testParams = @{
                     Path             = $testParentFolder
@@ -3142,7 +3117,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should -BeNullOrEmpty
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
             }
         }
     }
@@ -3187,11 +3162,10 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                     catch { $false }
                 })
 
-            $samAcl | Should -Not -BeNullOrEmpty
-            $sidAcl | Should -Not -BeNullOrEmpty
-            $samAcl.Count | Should -Be $sidAcl.Count
-            ($samAcl.FileSystemRights | Sort-Object) -join ',' |
-            Should -Be (($sidAcl.FileSystemRights | Sort-Object) -join ',')
+            $samAcl | Should-BeTruthy
+            $sidAcl | Should-BeTruthy
+            $samAcl.Count | Should-Be $sidAcl.Count
+            ($samAcl.FileSystemRights | Sort-Object) -join ',' | Should-Be (($sidAcl.FileSystemRights | Sort-Object) -join ',')
         }
 
         It 'accepts a mixed ACL with SIDs and SamAccountNames' {
@@ -3214,8 +3188,8 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $samEntry = $access | Where-Object {
                 $_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2"
             }
-            $sidEntry | Should -Not -BeNullOrEmpty
-            $samEntry | Should -Not -BeNullOrEmpty
+            $sidEntry | Should-BeTruthy
+            $samEntry | Should-BeTruthy
         }
 
         It 'works without an AdNames property at all' {
@@ -3227,7 +3201,7 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
 
             (Get-Acl $compatPath).Access | Where-Object {
                 $_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser"
-            } | Should -Not -BeNullOrEmpty
+            } | Should-BeTruthy
         }
     }
 
@@ -3254,15 +3228,15 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                 }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual | Should -Not -BeNullOrEmpty
+            $actual | Should-BeTruthy
 
             $parentEntry = $actual.Value[$fixPath]
-            $parentEntry.MatrixFileAcl | Should -BeOfType [string]
-            $parentEntry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List" `
+            $parentEntry.MatrixFileAcl | Should-HaveType ([string])
+            $parentEntry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser  List" `
                 -Because 'the SID translates to a DOMAIN\name display key and L means List'
 
             $childEntry = $actual.Value["$fixPath\FolderA"]
-            $childEntry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
+            $childEntry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser2  Read"
         }
 
         It 'omits MatrixFileAcl when AdNames is missing' {
@@ -3270,12 +3244,12 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
                 [PSCustomObject]@{ Path = 'Path'; ACL = @{ $testUserSid = 'L' }; Parent = $true }
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
-            $actual.Value[$fixPath].Contains('MatrixFileAcl') | Should -BeFalse `
+            $actual.Value[$fixPath].Contains('MatrixFileAcl') | Should-BeFalse `
                 -Because 'no AdNames was supplied so the field should not appear'
 
             # OldAcl/NewAcl still populated as before
-            $actual.Value[$fixPath].NewAcl | Should -Not -BeNullOrEmpty
-            $actual.Value[$fixPath].OldAcl | Should -Not -BeNullOrEmpty
+            $actual.Value[$fixPath].NewAcl | Should-BeTruthy
+            $actual.Value[$fixPath].OldAcl | Should-BeTruthy
         }
 
         It 'preserves the SID as the key when translation fails' {
@@ -3298,11 +3272,11 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.MatrixFileAcl | Should -Contain $fakeSid `
+            $entry.MatrixFileAcl | Should-ContainCollection $fakeSid `
                 -Because 'a SID that cannot be translated must remain as its raw SID string; it has no requested permission so no type is appended'
 
             # Real SID side still works
-            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser  List"
         }
 
         It 'maps multiple matrix entries on the same folder' {
@@ -3319,9 +3293,9 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             ) | Where-Object Name -EQ $ExpectedIncorrectAclNonInheritedFolders.Name
 
             $entry = $actual.Value[$fixPath]
-            $entry.MatrixFileAcl.Count | Should -Be 2
-            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
-            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser2  Read"
+            $entry.MatrixFileAcl.Count | Should-Be 2
+            $entry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser2  Read"
         }
 
         It 'splits OldAcl and NewAcl AccessToString into one array element per ACE' {
@@ -3337,13 +3311,13 @@ Describe 'when ACL keys are SIDs (cross-domain support)' {
             $entry = $actual.Value[$fixPath]
             # OldAcl/NewAcl are string arrays (one ACE per element) so the detail
             # JSON is readable instead of one string full of embedded '\n' escapes.
-            @($entry.NewAcl).Count | Should -BeGreaterThan 0
-            foreach ($line in $entry.NewAcl) { $line | Should -BeOfType [string] }
-            foreach ($line in $entry.OldAcl) { $line | Should -BeOfType [string] }
+            @($entry.NewAcl).Count | Should-BeGreaterThan 0
+            foreach ($line in $entry.NewAcl) { $line | Should-HaveType ([string]) }
+            foreach ($line in $entry.OldAcl) { $line | Should-HaveType ([string]) }
             # No element still contains an embedded newline
-            foreach ($line in $entry.NewAcl) { $line | Should -Not -Match "`n" }
+            foreach ($line in $entry.NewAcl) { $line | Should-NotMatchString "`n" }
             # The requested permission is surfaced in MatrixFileAcl, not NewAcl/OldAcl
-            $entry.MatrixFileAcl | Should -Contain "$env:USERDOMAIN\$testUser  List"
+            $entry.MatrixFileAcl | Should-ContainCollection "$env:USERDOMAIN\$testUser  List"
         }
     }
 }
@@ -3396,48 +3370,48 @@ Describe 'Write (W) permission inheritance' {
 
     Context 'the W folder itself' {
         It 'has its explicit ACL protected (inheritance from above disabled)' {
-            (Get-Acl -LiteralPath $wRoot).AreAccessRulesProtected | Should -BeTrue
+            (Get-Acl -LiteralPath $wRoot).AreAccessRulesProtected | Should-BeTrue
         }
         It 'grants the user create rights on the folder object (this-folder-only, not inherited)' {
             $ace = Get-UserAceHC -Path $wRoot | Where-Object {
                 (-not $_.IsInherited) -and ($_.InheritanceFlags -eq $noInherit)
             }
-            $ace | Should -Not -BeNullOrEmpty `
+            $ace | Should-BeTruthy `
                 -Because 'the this-folder-only Write rule must actually apply to the folder, not InheritOnly into the void'
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedThisFolderRights
-            $ace.PropagationFlags | Should -Be ([System.Security.AccessControl.PropagationFlags]::None)
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedThisFolderRights
+            $ace.PropagationFlags | Should-Be ([System.Security.AccessControl.PropagationFlags]::None)
         }
         It 'carries a separate inheritable rule for descendants' {
             $ace = Get-UserAceHC -Path $wRoot | Where-Object {
                 (-not $_.IsInherited) -and ($_.InheritanceFlags -eq $ciOi)
             }
-            $ace | Should -Not -BeNullOrEmpty
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedFolderRights
+            $ace | Should-BeTruthy
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedFolderRights
         }
     }
 
     Context 'a file directly in the W folder' {
         It 'inherits the Write permission' {
             $ace = Get-UserAceHC -Path $fileInParent
-            @($ace).Count | Should -Be 1
-            $ace.IsInherited | Should -BeTrue
-            $ace.FileSystemRights | Should -Be $expectedFileRights
-            $ace.InheritanceFlags | Should -Be $noInherit `
+            @($ace).Count | Should-Be 1
+            $ace.IsInherited | Should-BeTrue
+            $ace.FileSystemRights | Should-Be $expectedFileRights
+            $ace.InheritanceFlags | Should-Be $noInherit `
                 -Because 'a file is a leaf and cannot pass inheritance on'
         }
     }
 
     Context 'a child folder (not in the matrix)' {
         It 'is not protected, so it keeps inheriting from the W parent' {
-            (Get-Acl -LiteralPath $childFolder).AreAccessRulesProtected | Should -BeFalse
+            (Get-Acl -LiteralPath $childFolder).AreAccessRulesProtected | Should-BeFalse
         }
         It 'inherits the Write rule with container and object inheritance' {
             $ace = Get-UserAceHC -Path $childFolder | Where-Object IsInherited
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedFolderRights
-            $ace.InheritanceFlags | Should -Be $ciOi `
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedFolderRights
+            $ace.InheritanceFlags | Should-Be $ciOi `
                 -Because 'the rule must keep flowing to deeper levels'
         }
     }
@@ -3445,29 +3419,29 @@ Describe 'Write (W) permission inheritance' {
     Context 'a file inside the child folder' {
         It 'inherits the Write permission' {
             $ace = Get-UserAceHC -Path $fileInChild | Where-Object IsInherited
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedFileRights
-            $ace.InheritanceFlags | Should -Be $noInherit
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedFileRights
+            $ace.InheritanceFlags | Should-Be $noInherit
         }
     }
 
     Context 'a grand-child folder (deep inheritance)' {
         It 'is not protected' {
-            (Get-Acl -LiteralPath $grandChildFolder).AreAccessRulesProtected | Should -BeFalse
+            (Get-Acl -LiteralPath $grandChildFolder).AreAccessRulesProtected | Should-BeFalse
         }
         It 'inherits the Write rule two levels down' {
             $ace = Get-UserAceHC -Path $grandChildFolder | Where-Object IsInherited
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedFolderRights
-            $ace.InheritanceFlags | Should -Be $ciOi
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedFolderRights
+            $ace.InheritanceFlags | Should-Be $ciOi
         }
     }
 
     Context 'a file inside the grand-child folder (deep inheritance)' {
         It 'inherits the Write permission' {
             $ace = Get-UserAceHC -Path $fileInGrandChild | Where-Object IsInherited
-            @($ace).Count | Should -Be 1
-            $ace.FileSystemRights | Should -Be $expectedFileRights
+            @($ace).Count | Should-Be 1
+            $ace.FileSystemRights | Should-Be $expectedFileRights
         }
     }
 
@@ -3485,10 +3459,8 @@ Describe 'Write (W) permission inheritance' {
                 'file in the grand-child folder' { $fileInGrandChild }
             }
             $rights = (Get-UserAceHC -Path $path | Where-Object IsInherited).FileSystemRights
-            ($rights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions) |
-                Should -Be 0 -Because 'permissions are owned by the matrix; users must not re-permission items'
-            ($rights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership) |
-                Should -Be 0
+            ($rights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions) | Should-Be 0 -Because 'permissions are owned by the matrix; users must not re-permission items'
+            ($rights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership) | Should-Be 0
         }
     }
 
@@ -3501,9 +3473,8 @@ Describe 'Write (W) permission inheritance' {
             $adminAce = (Get-Acl -LiteralPath $path).Access | Where-Object {
                 $_.IdentityReference.Value -eq 'BUILTIN\Administrators'
             }
-            $adminAce | Should -Not -BeNullOrEmpty
-            ($adminAce.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl) |
-                Should -Be ([System.Security.AccessControl.FileSystemRights]::FullControl)
+            $adminAce | Should-BeTruthy
+            ($adminAce.FileSystemRights -band [System.Security.AccessControl.FileSystemRights]::FullControl) | Should-Be ([System.Security.AccessControl.FileSystemRights]::FullControl)
         }
     }
 
@@ -3515,7 +3486,7 @@ Describe 'Write (W) permission inheritance' {
                 ($_.Name -eq 'Non inherited folder incorrect permissions') -or
                 ($_.Name -eq 'Inherited permissions incorrect')
             }
-            $actual | Should -BeNullOrEmpty `
+            $actual | Should-BeFalsy `
                 -Because 'a tree that purely inherits W from its parent must validate cleanly, including propagation handling'
         }
     }
@@ -3575,8 +3546,7 @@ Describe 'Test-AclEqualHC parallel runspace edge cases' {
         $rule = New-RuleHC -Propagation 'None'
         $referenceSet = New-ReferenceSetHC -Rules @($rule)
 
-        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce @($rule) |
-            Should -BeTrue
+        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce @($rule) | Should-BeTrue
     }
 
     It 'returns false when the disk genuinely has an extra, unrelated ACE (control)' {
@@ -3590,8 +3560,7 @@ Describe 'Test-AclEqualHC parallel runspace edge cases' {
             [System.Security.AccessControl.PropagationFlags]::None,
             [System.Security.AccessControl.AccessControlType]::Allow)
 
-        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce @($reference, $extra) |
-            Should -BeFalse
+        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce @($reference, $extra) | Should-BeFalse
     }
 
     It 'treats an ACL whose only duplication is propagation-blind as equal' {
@@ -3604,7 +3573,7 @@ Describe 'Test-AclEqualHC parallel runspace edge cases' {
         # The reference set is built exactly as the runspace builds it: both rules
         # are added, but the HashSet collapses them into a single fingerprint.
         $referenceSet = New-ReferenceSetHC -Rules @($aceNone, $aceInheritOnly)
-        $referenceSet.Count | Should -Be 1 `
+        $referenceSet.Count | Should-Be 1 `
             -Because 'the two reference ACEs collide under the propagation-blind fingerprint'
 
         # The on-disk ACL faithfully holds both ACEs, so its raw count is 2.
@@ -3619,8 +3588,7 @@ Describe 'Test-AclEqualHC parallel runspace edge cases' {
         # it green by replacing the count guard with a set-equality comparison
         # (e.g. compare $ReferenceSet against a HashSet built from $DifferenceAce).
         # Excluded from normal runs via the 'KnownDefect' tag until then.
-        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce $difference |
-            Should -BeTrue
+        Test-AclEqualHC -ReferenceSet $referenceSet -DifferenceAce $difference | Should-BeTrue
     }
 }
 
@@ -3674,8 +3642,8 @@ Describe 'Get-FolderContentHC guards non-directory paths' {
         $filePath = Join-Path (Get-PSDrive TestDrive).Root 'DATO_DK2.CMD'
         Set-Content -LiteralPath $filePath -Value 'echo hi'
 
-        Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($filePath)) | Should -BeNullOrEmpty
-        $testedInheritedFilesAndFolders.ContainsKey($filePath) | Should -BeFalse
+        Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($filePath)) | Should-BeFalsy
+        $testedInheritedFilesAndFolders.ContainsKey($filePath) | Should-BeFalse
     }
 
     It 'does not throw when the path does not exist' {
@@ -3728,18 +3696,16 @@ Describe 'an inherit-only folder that has a permissioned child' {
         $inheritedWarning = $Actual |
         Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
 
-        $inheritedWarning | Should -Not -BeNullOrEmpty
-        $inheritedWarning.Value | Should -Contain $testParams.Path
-        $inheritedWarning.Value | Should -Contain $folderA
+        $inheritedWarning | Should-BeTruthy
+        $inheritedWarning.Value | Should-ContainCollection $testParams.Path
+        $inheritedWarning.Value | Should-ContainCollection $folderA
 
         foreach ($wrongFolder in @($testParams.Path, $folderA)) {
             $aclAfter = Get-Acl -LiteralPath $wrongFolder
 
-            $aclAfter.AreAccessRulesProtected |
-            Should -BeFalse -Because "Fix must restore inheritance on '$wrongFolder'"
+            $aclAfter.AreAccessRulesProtected | Should-BeFalse -Because "Fix must restore inheritance on '$wrongFolder'"
 
-            $aclAfter.Access.Where({ -not $_.IsInherited }) |
-            Should -BeNullOrEmpty -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
+            $aclAfter.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
         }
     }
 
@@ -3802,23 +3768,19 @@ Describe 'an inherit-only folder that has a permissioned child' {
         $inheritedWarning = $Actual |
         Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
 
-        $inheritedWarning | Should -Not -BeNullOrEmpty
-        $inheritedWarning.Value | Should -Contain $fileInFolderA
-        $inheritedWarning.Value | Should -Contain $folderB
-        $inheritedWarning.Value | Should -Contain $fileInFolderB
-        $inheritedWarning.Value | Should -Not -Contain $testParams.Path
+        $inheritedWarning | Should-BeTruthy
+        $inheritedWarning.Value | Should-ContainCollection $fileInFolderA
+        $inheritedWarning.Value | Should-ContainCollection $folderB
+        $inheritedWarning.Value | Should-ContainCollection $fileInFolderB
+        $inheritedWarning.Value | Should-NotContainCollection $testParams.Path
 
-        (Get-Acl -LiteralPath $testParams.Path).AreAccessRulesProtected |
-        Should -BeTrue -Because 'an ignored Path must be left untouched'
+        (Get-Acl -LiteralPath $testParams.Path).AreAccessRulesProtected | Should-BeTrue -Because 'an ignored Path must be left untouched'
 
-        (Get-Acl -LiteralPath $fileInFolderA).AreAccessRulesProtected |
-        Should -BeFalse -Because 'permissioned child folders still seed inheritance checking under an ignored Path'
+        (Get-Acl -LiteralPath $fileInFolderA).AreAccessRulesProtected | Should-BeFalse -Because 'permissioned child folders still seed inheritance checking under an ignored Path'
 
-        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected |
-        Should -BeFalse -Because 'mentioned inherit-only child folders still seed inheritance checking under an ignored Path'
+        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected | Should-BeFalse -Because 'mentioned inherit-only child folders still seed inheritance checking under an ignored Path'
 
-        (Get-Acl -LiteralPath $fileInFolderB).AreAccessRulesProtected |
-        Should -BeFalse -Because 'mentioned inherit-only child folders walk their descendants under an ignored Path'
+        (Get-Acl -LiteralPath $fileInFolderB).AreAccessRulesProtected | Should-BeFalse -Because 'mentioned inherit-only child folders walk their descendants under an ignored Path'
     }
 
     It 'strips explicit permissions from folder A and restores inheritance (Fix)' {
@@ -3881,8 +3843,7 @@ Describe 'an inherit-only folder that has a permissioned child' {
         #endregion
 
         #region Sanity check: folder A really starts protected (not inheriting)
-        (Get-Acl -LiteralPath $folderA).AreAccessRulesProtected |
-        Should -BeTrue -Because 'the test must start from a folder A that does not inherit'
+        (Get-Acl -LiteralPath $folderA).AreAccessRulesProtected | Should-BeTrue -Because 'the test must start from a folder A that does not inherit'
         #endregion
 
         $Actual = .$testScript @testParams
@@ -3891,24 +3852,21 @@ Describe 'an inherit-only folder that has a permissioned child' {
         $inheritedWarning = $Actual |
         Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
 
-        $inheritedWarning | Should -Not -BeNullOrEmpty `
+        $inheritedWarning | Should-BeTruthy `
             -Because 'folder A had explicit permissions where it should inherit'
-        $inheritedWarning.Value | Should -Contain $folderA
+        $inheritedWarning.Value | Should-ContainCollection $folderA
         #endregion
 
         #region Folder A now inherits again and carries no explicit ACE
         $aclAfter = Get-Acl -LiteralPath $folderA
 
-        $aclAfter.AreAccessRulesProtected |
-        Should -BeFalse -Because 'Fix must restore inheritance on folder A'
+        $aclAfter.AreAccessRulesProtected | Should-BeFalse -Because 'Fix must restore inheritance on folder A'
 
-        $aclAfter.Access.Where({ -not $_.IsInherited }) |
-        Should -BeNullOrEmpty -Because 'folder A cannot have explicit permissions'
+        $aclAfter.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because 'folder A cannot have explicit permissions'
         #endregion
 
         #region The permissioned child folder B keeps its own explicit ACL
-        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected |
-        Should -BeTrue -Because 'folder A\B has W in the matrix and must stay protected'
+        (Get-Acl -LiteralPath $folderB).AreAccessRulesProtected | Should-BeTrue -Because 'folder A\B has W in the matrix and must stay protected'
         #endregion
     }
 
@@ -3979,16 +3937,14 @@ Describe 'an inherit-only folder that has a permissioned child' {
         $inheritedWarning = $Actual |
         Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
 
-        $inheritedWarning | Should -Not -BeNullOrEmpty
-        $inheritedWarning.Value | Should -Contain $folderA
+        $inheritedWarning | Should-BeTruthy
+        $inheritedWarning.Value | Should-ContainCollection $folderA
 
         $aclAfter = Get-Acl -LiteralPath $folderA
 
-        $aclAfter.AreAccessRulesProtected |
-        Should -BeFalse -Because 'defaults must never turn folder A into an explicit ACL'
+        $aclAfter.AreAccessRulesProtected | Should-BeFalse -Because 'defaults must never turn folder A into an explicit ACL'
 
-        $aclAfter.Access.Where({ -not $_.IsInherited }) |
-        Should -BeNullOrEmpty -Because 'folder A cannot have explicit permissions, even the default one'
+        $aclAfter.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because 'folder A cannot have explicit permissions, even the default one'
         #endregion
 
         #region The default group reaches folder A only through inheritance
@@ -3997,20 +3953,17 @@ Describe 'an inherit-only folder that has a permissioned child' {
                 ($_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2")
             })
 
-        $inheritedDefault |
-        Should -Not -BeNullOrEmpty -Because 'the default group is inherited from the parent, not set explicitly'
+        $inheritedDefault | Should-BeTruthy -Because 'the default group is inherited from the parent, not set explicitly'
         #endregion
 
         #region The permissioned child folder B still carries the default explicitly
         $aclB = Get-Acl -LiteralPath $folderB
-        $aclB.AreAccessRulesProtected |
-        Should -BeTrue -Because 'FolderB has permissions in the matrix and stays protected'
+        $aclB.AreAccessRulesProtected | Should-BeTrue -Because 'FolderB has permissions in the matrix and stays protected'
 
         $aclB.Access.Where({
                 (-not $_.IsInherited) -and
                 ($_.IdentityReference.Value -eq "$env:USERDOMAIN\$testUser2")
-            }) |
-        Should -Not -BeNullOrEmpty -Because 'ApplyDefaultPermissions merged the default into FolderB explicitly'
+            }) | Should-BeTruthy -Because 'ApplyDefaultPermissions merged the default into FolderB explicitly'
         #endregion
     }
 
@@ -4093,8 +4046,7 @@ Describe 'an inherit-only folder that has a permissioned child' {
 
         #region Sanity check: all three folders really start protected
         foreach ($wrongFolder in @($folderA, $folderB, $folderC)) {
-            (Get-Acl -LiteralPath $wrongFolder).AreAccessRulesProtected |
-            Should -BeTrue -Because 'each sibling must start from a non-inheriting state'
+            (Get-Acl -LiteralPath $wrongFolder).AreAccessRulesProtected | Should-BeTrue -Because 'each sibling must start from a non-inheriting state'
         }
         #endregion
 
@@ -4104,32 +4056,28 @@ Describe 'an inherit-only folder that has a permissioned child' {
         $inheritedWarning = $Actual |
         Where-Object { $_.Name -eq 'Inherited permissions incorrect' }
 
-        $inheritedWarning | Should -Not -BeNullOrEmpty
-        $inheritedWarning.Value | Should -Contain $folderA
-        $inheritedWarning.Value | Should -Contain $folderB
-        $inheritedWarning.Value | Should -Contain $folderC
+        $inheritedWarning | Should-BeTruthy
+        $inheritedWarning.Value | Should-ContainCollection $folderA
+        $inheritedWarning.Value | Should-ContainCollection $folderB
+        $inheritedWarning.Value | Should-ContainCollection $folderC
         #endregion
 
         #region EVERY sibling now inherits again and carries no explicit ACE
         foreach ($wrongFolder in @($folderA, $folderB, $folderC)) {
             $aclAfter = Get-Acl -LiteralPath $wrongFolder
 
-            $aclAfter.AreAccessRulesProtected |
-            Should -BeFalse -Because "Fix must restore inheritance on '$wrongFolder', not only the first sibling"
+            $aclAfter.AreAccessRulesProtected | Should-BeFalse -Because "Fix must restore inheritance on '$wrongFolder', not only the first sibling"
 
-            $aclAfter.Access.Where({ -not $_.IsInherited }) |
-            Should -BeNullOrEmpty -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
+            $aclAfter.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because "'$wrongFolder' cannot keep explicit permissions after Fix"
         }
         #endregion
 
         #region The wrongly-permissioned FILE is reset to inherited-only too
         $aclFileAfter = Get-Acl -LiteralPath $wrongFile
 
-        $aclFileAfter.AreAccessRulesProtected |
-        Should -BeFalse -Because 'Fix must restore inheritance on the file as well'
+        $aclFileAfter.AreAccessRulesProtected | Should-BeFalse -Because 'Fix must restore inheritance on the file as well'
 
-        $aclFileAfter.Access.Where({ -not $_.IsInherited }) |
-        Should -BeNullOrEmpty -Because 'the file cannot keep explicit permissions after Fix'
+        $aclFileAfter.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because 'the file cannot keep explicit permissions after Fix'
         #endregion
     }
 }

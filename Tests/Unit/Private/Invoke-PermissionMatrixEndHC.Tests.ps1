@@ -212,7 +212,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Build-MatrixEmailHtmlHC -Times 1
+            Should-Invoke Build-MatrixEmailHtmlHC -Times 1
         }
 
         It 'skips Build-MatrixEmailHtmlHC when FileResults is empty' {
@@ -220,7 +220,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Build-MatrixEmailHtmlHC -Times 0
+            Should-Invoke Build-MatrixEmailHtmlHC -Times 0
         }
 
         It 'always calls Get-MailBodyHtmlHC' {
@@ -228,7 +228,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Get-MailBodyHtmlHC -Times 1
+            Should-Invoke Get-MailBodyHtmlHC -Times 1
         }
 
         It 'passes exported files and the planned mail log path to Get-MailBodyHtmlHC' {
@@ -237,7 +237,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Get-MailBodyHtmlHC -Times 1 -ParameterFilter {
+            Should-Invoke Get-MailBodyHtmlHC -Times 1 -ParameterFilter {
                 $ExportedFiles.Permissions -eq 'TestDrive:\Permissions.xlsx' -and
                 $BrowserViewFilePath -like '*Mail - Test Subject.html'
             }
@@ -252,9 +252,9 @@ param(
             $htmlWarnings = $systemErrors.Where({
                     $_.Name -eq 'HTML Generation' -and $_.Type -eq 'Warning'
                 })
-            $htmlWarnings.Count | Should -Be 1
+            $htmlWarnings.Count | Should-Be 1
 
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
 
         It 'sends mail when SendMail config is present' {
@@ -262,7 +262,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
      
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
     }
 
@@ -273,7 +273,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Export-FilesHC -Times 0
+            Should-Invoke Export-FilesHC -Times 0
         }
 
         It 'skips Export-FilesHC when AllMatrices is empty' {
@@ -281,7 +281,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Export-FilesHC -Times 0
+            Should-Invoke Export-FilesHC -Times 0
         }
 
         It 'calls Export-FilesHC on the happy path' {
@@ -289,7 +289,7 @@ param(
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Export-FilesHC -Times 1
+            Should-Invoke Export-FilesHC -Times 1
         }
 
         It 'invokes the ServiceNow script only when both Excel path AND credentials are set' {
@@ -326,7 +326,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $marker | Should -Be $true
+            Test-Path $marker | Should-BeTrue
         }
 
         It 'skips the ServiceNow script when CredentialsFilePath is missing' {
@@ -354,7 +354,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $marker | Should -Be $false
+            Test-Path $marker | Should-BeFalse
         }
 
         It 'records a Warning when Export-FilesHC throws' {
@@ -363,7 +363,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({ $_.Name -eq 'Exports' }).Count | Should -Be 1
+            $systemErrors.Where({ $_.Name -eq 'Exports' }).Count | Should-Be 1
         }
         It 'does not update ServiceNow when Export-FilesHC threw' {
             Mock Export-FilesHC { throw 'export boom' }
@@ -380,7 +380,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $marker | Should -BeFalse
+            Test-Path $marker | Should-BeFalse
         }
     }
 
@@ -418,7 +418,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $capture | Should -BeTrue
+            Test-Path $capture | Should-BeTrue
         }
 
         It 'does not upload when no site is configured' {
@@ -426,7 +426,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $capture | Should -BeFalse
+            Test-Path $capture | Should-BeFalse
         }
 
         It 'does not upload when no overview html was exported' {
@@ -446,7 +446,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $capture | Should -BeFalse
+            Test-Path $capture | Should-BeFalse
         }
 
         It 'does not upload when there are no matrices to report on' {
@@ -454,7 +454,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $capture | Should -BeFalse
+            Test-Path $capture | Should-BeFalse
         }
 
         It 'passes the exported html file and the configured site settings' {
@@ -466,12 +466,12 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $sent = Get-Content $capture -Raw | ConvertFrom-Json
 
-            $sent.FilePath | Should -BeExactly 'TestDrive:\overview.html'
-            $sent.SiteUrl | Should -BeExactly 'https://contoso.sharepoint.com/sites/IT'
-            $sent.DocumentLibraryName | Should -BeExactly 'Documents'
-            $sent.ClientId | Should -BeExactly 'client-id-1'
-            $sent.TenantId | Should -BeExactly 'tenant-id-1'
-            $sent.CertificateThumbprint | Should -BeExactly 'THUMBPRINT1'
+            $sent.FilePath | Should-BeString 'TestDrive:\overview.html' -CaseSensitive
+            $sent.SiteUrl | Should-BeString 'https://contoso.sharepoint.com/sites/IT' -CaseSensitive
+            $sent.DocumentLibraryName | Should-BeString 'Documents' -CaseSensitive
+            $sent.ClientId | Should-BeString 'client-id-1' -CaseSensitive
+            $sent.TenantId | Should-BeString 'tenant-id-1' -CaseSensitive
+            $sent.CertificateThumbprint | Should-BeString 'THUMBPRINT1' -CaseSensitive
         }
 
         It 'forwards the file path produced by Export-FilesHC, not the configured one' {
@@ -495,7 +495,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $sent = Get-Content $capture -Raw | ConvertFrom-Json
 
-            $sent.FilePath | Should -BeExactly 'TestDrive:\actual-overview.html'
+            $sent.FilePath | Should-BeString 'TestDrive:\actual-overview.html' -CaseSensitive
         }
 
         It 'omits FolderPath and FileName when they are not configured' {
@@ -509,13 +509,13 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             # Without this the assertions below pass on a $null when the upload
             # never ran, which is a false green.
-            Test-Path $capture | Should -BeTrue
+            Test-Path $capture | Should-BeTrue
 
             $sentNames = (Get-Content $capture -Raw |
                 ConvertFrom-Json).PSObject.Properties.Name
 
-            $sentNames | Should -Not -Contain 'FolderPath'
-            $sentNames | Should -Not -Contain 'FileName'
+            $sentNames | Should-NotContainCollection 'FolderPath'
+            $sentNames | Should-NotContainCollection 'FileName'
         }
 
         It 'passes FolderPath and FileName when they are configured' {
@@ -530,8 +530,8 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $sent = Get-Content $capture -Raw | ConvertFrom-Json
 
-            $sent.FolderPath | Should -BeExactly 'Reports/Permission matrix'
-            $sent.FileName | Should -BeExactly 'Permission matrix overview.html'
+            $sent.FolderPath | Should-BeString 'Reports/Permission matrix' -CaseSensitive
+            $sent.FileName | Should-BeString 'Permission matrix overview.html' -CaseSensitive
         }
 
         It 'sends only parameters that UploadToSharePoint.ps1 declares' {
@@ -549,8 +549,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             # Without this the assertion below passes on a $null when the upload
             # never ran, which is a false green.
-            Test-Path $capture |
-            Should -BeTrue -Because 'the upload must have run for this assertion to mean anything'
+            Test-Path $capture | Should-BeTrue -Because 'the upload must have run for this assertion to mean anything'
 
             $sentNames = (Get-Content $capture -Raw |
                 ConvertFrom-Json).PSObject.Properties.Name
@@ -560,7 +559,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $unknown = $sentNames | Where-Object { $_ -notin $declared }
 
-            $unknown | Should -BeNullOrEmpty -Because "EndHC must not splat parameters the script does not accept, found: $($unknown -join ', ')"
+            $unknown | Should-BeFalsy -Because "EndHC must not splat parameters the script does not accept, found: $($unknown -join ', ')"
         }
 
         It 'sends every mandatory parameter of UploadToSharePoint.ps1' {
@@ -585,7 +584,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             $missing = $mandatory | Where-Object { $_ -notin $sentNames }
 
-            $missing | Should -BeNullOrEmpty -Because "EndHC must supply every mandatory parameter, missing: $($missing -join ', ')"
+            $missing | Should-BeFalsy -Because "EndHC must supply every mandatory parameter, missing: $($missing -join ', ')"
         }
 
         It 'records a Warning and still sends the mail when the upload throws' {
@@ -600,14 +599,14 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             # The stub records its arguments before throwing, so this proves the
             # warning came from the upload and not from something earlier in the
             # export phase that the same catch block also covers.
-            Test-Path $capture | Should -BeTrue
+            Test-Path $capture | Should-BeTrue
 
             # A SharePoint outage must not cost us the notification mail.
             $systemErrors.Where({
                     $_.Name -eq 'SharePoint' -and $_.Type -eq 'Warning'
-                }).Count | Should -Be 1
+                }).Count | Should-Be 1
 
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
 
         It 'does not upload when Export-FilesHC threw' {
@@ -619,7 +618,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Test-Path $capture | Should -BeFalse
+            Test-Path $capture | Should-BeFalse
         }
     }
 
@@ -630,7 +629,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            (Get-ChildItem -Path $logRoot -Directory).Count | Should -BeGreaterThan 0
+            (Get-ChildItem -Path $logRoot -Directory).Count | Should-BeGreaterThan 0
         }
 
         It 'skips dated log folder creation when FoundMatrices is false and no email is sent' {
@@ -643,7 +642,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should -Be 0
+            (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should-Be 0
         }
 
         It 'creates a dated log folder when FoundMatrices is false but errors occurred (email triggers it)' {
@@ -660,7 +659,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should -Be 1
+            (Get-ChildItem -Path $logRoot -Directory -ErrorAction Ignore).Count | Should-Be 1
         }
 
         It 'falls back to TEMP\PermissionMatrixLogs when configured folder cannot be created' {
@@ -670,7 +669,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
             $fallbackWarning = $systemErrors.Where({ $_.Name -eq 'Log Folder Fallback' })
-            $fallbackWarning.Count | Should -Be 1
+            $fallbackWarning.Count | Should-Be 1
         }
     }
 
@@ -687,7 +686,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
         $jsonFiles = Get-ChildItem -Path $logRoot -Recurse -Filter '*.json' -ErrorAction Ignore
         # Only the check WithValue should produce a JSON file
-        $jsonFiles.Count | Should -Be 1
+        $jsonFiles.Count | Should-Be 1
     }
 
     Context 'Phase 4: Send email' {
@@ -696,7 +695,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
     
         It 'skips mail when SendMail config is missing' {
@@ -704,7 +703,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Send-MailKitMessageHC -Times 0
+            Should-Invoke Send-MailKitMessageHC -Times 0
         }
 
         It 'skips mail when SendMail is configured but FoundMatrices is false and no errors occurred' {
@@ -714,7 +713,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0
+            Should-Invoke Send-MailKitMessageHC -Times 0
         }
     
         It 'sends mail when FoundMatrices is false but a system error occurred' {
@@ -728,7 +727,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
 
         It 'does not send mail when FoundMatrices is false and no errors occurred' {
@@ -736,7 +735,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0
+            Should-Invoke Send-MailKitMessageHC -Times 0
         }
 
         It 'saves the mail body to log folder when log folder exists' {
@@ -745,7 +744,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Save-MailBodyToLogHC -Times 1
+            Should-Invoke Save-MailBodyToLogHC -Times 1
         }
 
         It 'records a Warning when Send-MailKitMessageHC throws' {
@@ -754,7 +753,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should -Be 1
+            $systemErrors.Where({ $_.Name -eq 'Email Failed' }).Count | Should-Be 1
         }
     }
     
@@ -764,7 +763,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafeHC -Times 1
+            Should-Invoke Write-EventLogSafeHC -Times 1
         }
     
         It 'skips event log when SaveInEventLog.Save is false' {
@@ -772,7 +771,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafeHC -Times 0
+            Should-Invoke Write-EventLogSafeHC -Times 0
         }
     
         It 'falls back to default ScriptName when not set' {
@@ -782,7 +781,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Write-EventLogSafeHC -ParameterFilter {
+            Should-Invoke Write-EventLogSafeHC -ParameterFilter {
                 $ScriptName -eq 'Permission Matrix'
             }
         }
@@ -799,7 +798,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Remove-OldLogsHC -Times 1
+            Should-Invoke Remove-OldLogsHC -Times 1
         }
     
         It 'skips cleanup when DeleteLogsAfterDays is 0' {
@@ -807,7 +806,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Remove-OldLogsHC -Times 0
+            Should-Invoke Remove-OldLogsHC -Times 0
         }
     
         It 'does not throw when phase 5 itself fails (final catch is silent)' {
@@ -828,10 +827,10 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
     
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
-            Should -Invoke Get-MailBodyHtmlHC -Times 1
-            Should -Invoke Export-FilesHC -Times 1
-            Should -Invoke Send-MailKitMessageHC -Times 1
-            Should -Invoke Write-EventLogSafeHC -Times 1
+            Should-Invoke Get-MailBodyHtmlHC -Times 1
+            Should-Invoke Export-FilesHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Write-EventLogSafeHC -Times 1
         }
     
         It 'continues through later phases when earlier phases fail' {
@@ -841,7 +840,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
     
             # Email is still attempted
-            Should -Invoke Send-MailKitMessageHC -Times 1
+            Should-Invoke Send-MailKitMessageHC -Times 1
         }
     }
 }

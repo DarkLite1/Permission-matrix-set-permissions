@@ -102,9 +102,9 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings -DefaultsMailTo @('amy@example.com')
 
-        @($result) | Should -HaveCount 2
-        $result | Should -Contain 'bob@example.com'
-        $result | Should -Contain 'amy@example.com'
+        @($result) | Should-BeCollection -Count 2
+        $result | Should-ContainCollection 'bob@example.com'
+        $result | Should-ContainCollection 'amy@example.com'
     }
 
     It 'trims surrounding whitespace from addresses' {
@@ -112,7 +112,7 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings
 
-        $result | Should -Be 'bob@example.com'
+        $result | Should-Be 'bob@example.com'
     }
 
     It 'drops empty and whitespace-only entries' {
@@ -120,7 +120,7 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings
 
-        $result | Should -Be 'amy@example.com'
+        $result | Should-Be 'amy@example.com'
     }
 
     It 'ignores a null entry in the list instead of throwing' {
@@ -128,7 +128,7 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings
 
-        $result | Should -Be 'amy@example.com'
+        $result | Should-Be 'amy@example.com'
     }
 
     It 'removes duplicates and returns the list sorted' {
@@ -136,9 +136,9 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings
 
-        @($result) | Should -HaveCount 2
-        $result[0] | Should -Be 'amy@example.com'
-        $result[1] | Should -Be 'zoe@example.com'
+        @($result) | Should-BeCollection -Count 2
+        $result[0] | Should-Be 'amy@example.com'
+        $result[1] | Should-Be 'zoe@example.com'
     }
 
     It 'returns nothing when there are no recipients' {
@@ -146,7 +146,7 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings
 
-        $result | Should -BeNullOrEmpty
+        $result | Should-BeFalsy
     }
 
     It 'works when only the defaults file recipients are supplied' {
@@ -154,7 +154,7 @@ Describe 'Get-MailRecipientListHC' {
 
         $result = Get-MailRecipientListHC -SendMailSettings $settings -DefaultsMailTo 'amy@example.com'
 
-        $result | Should -Be 'amy@example.com'
+        $result | Should-Be 'amy@example.com'
     }
 }
 
@@ -176,14 +176,14 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $zeroCounter -MatrixCount 1
 
-            $result | Should -Be '1 matrix, 1 System Error'
+            $result | Should-Be '1 matrix, 1 System Error'
         }
 
         It 'pluralises matrix and system errors' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 3) `
                 -Counter $zeroCounter -MatrixCount 2
 
-            $result | Should -Be '2 matrixes, 3 System Errors'
+            $result | Should-Be '2 matrixes, 3 System Errors'
         }
 
         It 'ignores counter errors and warnings when system errors exist' {
@@ -192,14 +192,14 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 1) `
                 -Counter $counter -MatrixCount 1
 
-            $result | Should -Be '1 matrix, 1 System Error'
+            $result | Should-Be '1 matrix, 1 System Error'
         }
 
         It 'appends the custom subject' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 2) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'Nightly run'
 
-            $result | Should -Be '1 matrix, 2 System Errors, Nightly run'
+            $result | Should-Be '1 matrix, 2 System Errors, Nightly run'
         }
     }
 
@@ -208,28 +208,28 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1
 
-            $result | Should -Be '1 matrix'
+            $result | Should-Be '1 matrix'
         }
 
         It 'pluralises the matrix count' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 3
 
-            $result | Should -Be '3 matrixes'
+            $result | Should-Be '3 matrixes'
         }
 
         It 'pluralises a zero matrix count' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 0
 
-            $result | Should -Be '0 matrixes'
+            $result | Should-Be '0 matrixes'
         }
 
         It 'appends the custom subject' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $zeroCounter -MatrixCount 1 -CustomSubject 'All good'
 
-            $result | Should -Be '1 matrix, All good'
+            $result | Should-Be '1 matrix, All good'
         }
 
         It 'builds the subject for <Errors> error(s) and <Warnings> warning(s): <Expected>' -TestCases @(
@@ -247,7 +247,7 @@ Describe 'Get-MailSubjectHC' {
             $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
                 -Counter $counter -MatrixCount 1
 
-            $result | Should -Be $Expected
+            $result | Should-Be $Expected
         }
     }
 }
@@ -259,7 +259,7 @@ Describe 'Save-MailBodyToLogHC' {
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
 
-        $result | Should -Be $expected
+        $result | Should-Be $expected
     }
 
     It 'writes the body to a Mail - <subject>.html file and returns its path' {
@@ -267,9 +267,9 @@ Describe 'Save-MailBodyToLogHC' {
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
 
-        $result | Should -Be (Join-Path $TestDrive 'Mail - Daily report.html')
-        $result | Should -Exist
-        Get-Content -LiteralPath $result -Raw | Should -BeLike '*<html><body>Hello</body></html>*'
+        $result | Should-Be (Join-Path $TestDrive 'Mail - Daily report.html')
+        Test-Path -LiteralPath $result | Should-BeTrue
+        Get-Content -LiteralPath $result -Raw | Should-BeLikeString '*<html><body>Hello</body></html>*'
     }
 
     It 'replaces characters that are invalid in a file name with a space' {
@@ -280,7 +280,7 @@ Describe 'Save-MailBodyToLogHC' {
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $TestDrive
 
-        [System.IO.Path]::GetFileName($result) | Should -Be 'Mail - report name.html'
+        [System.IO.Path]::GetFileName($result) | Should-Be 'Mail - report name.html'
     }
 
     It 'returns nothing when the log folder does not exist' {
@@ -289,7 +289,7 @@ Describe 'Save-MailBodyToLogHC' {
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $missing
 
-        $result | Should -BeNullOrEmpty
+        $result | Should-BeFalsy
     }
 
     It 'returns nothing when the log folder path is a file, not a directory' {
@@ -299,7 +299,7 @@ Describe 'Save-MailBodyToLogHC' {
 
         $result = Save-MailBodyToLogHC -MailParams $params -LogFolder $filePath
 
-        $result | Should -BeNullOrEmpty
+        $result | Should-BeFalsy
     }
 }
 
@@ -420,32 +420,32 @@ Describe 'Send-MailKitMessageHC' {
     It 'loads the MimeKit and MailKit assemblies' {
         Send-MailKitMessageHC @params
 
-        Should -Invoke Add-Type -Exactly -Times 2
-        Should -Invoke Add-Type -Times 1 -ParameterFilter { $Path -eq 'X:\MimeKit.dll' }
-        Should -Invoke Add-Type -Times 1 -ParameterFilter { $Path -eq 'X:\MailKit.dll' }
+        Should-Invoke Add-Type -Exactly -Times 2
+        Should-Invoke Add-Type -Times 1 -ParameterFilter { $Path -eq 'X:\MimeKit.dll' }
+        Should-Invoke Add-Type -Times 1 -ParameterFilter { $Path -eq 'X:\MailKit.dll' }
     }
 
     It 'connects to the SMTP server with the configured server, port and connection type' {
         Send-MailKitMessageHC @params -SmtpConnectionType 'StartTls'
 
-        $script:LastSmtpClient.ConnectArgs.Server | Should -Be 'smtp.example.com'
-        $script:LastSmtpClient.ConnectArgs.Port | Should -Be 587
-        $script:LastSmtpClient.ConnectArgs.Options.ToString() | Should -Be 'StartTls'
+        $script:LastSmtpClient.ConnectArgs.Server | Should-Be 'smtp.example.com'
+        $script:LastSmtpClient.ConnectArgs.Port | Should-Be 587
+        $script:LastSmtpClient.ConnectArgs.Options.ToString() | Should-Be 'StartTls'
     }
 
     It 'defaults the connection type to None' {
         Send-MailKitMessageHC @params
 
-        $script:LastSmtpClient.ConnectArgs.Options.ToString() | Should -Be 'None'
+        $script:LastSmtpClient.ConnectArgs.Options.ToString() | Should-Be 'None'
     }
 
     It 'sends the message exactly once and then disconnects and disposes' {
         Send-MailKitMessageHC @params
 
-        $script:LastSmtpClient.SendCount | Should -Be 1
-        $script:LastSmtpClient.SentMessage | Should -Be $script:LastMessage
-        $script:LastSmtpClient.Disconnected | Should -BeTrue
-        $script:LastSmtpClient.Disposed | Should -BeTrue
+        $script:LastSmtpClient.SendCount | Should-Be 1
+        $script:LastSmtpClient.SentMessage | Should-Be $script:LastMessage
+        $script:LastSmtpClient.Disconnected | Should-BeTrue
+        $script:LastSmtpClient.Disposed | Should-BeTrue
     }
 
     It 'authenticates when a credential is supplied' {
@@ -453,33 +453,33 @@ Describe 'Send-MailKitMessageHC' {
 
         Send-MailKitMessageHC @params -Credential $cred
 
-        $script:LastSmtpClient.AuthArgs.UserName | Should -Be 'svc-user'
-        $script:LastSmtpClient.AuthArgs.Password | Should -Be 'secret-pw'
+        $script:LastSmtpClient.AuthArgs.UserName | Should-Be 'svc-user'
+        $script:LastSmtpClient.AuthArgs.Password | Should-Be 'secret-pw'
     }
 
     It 'does not authenticate when no credential is supplied' {
         Send-MailKitMessageHC @params
 
-        $script:LastSmtpClient.AuthArgs | Should -BeNullOrEmpty
+        $script:LastSmtpClient.AuthArgs | Should-BeFalsy
     }
 
     It 'sets the sender, recipients, subject and body on the message' {
         Send-MailKitMessageHC @params
 
-        $script:LastMessage.Subject | Should -Be 'Test subject'
+        $script:LastMessage.Subject | Should-Be 'Test subject'
 
-        $script:LastMessage.From.Items[0].Address | Should -Be 'from@example.com'
-        $script:LastMessage.From.Items[0].Name | Should -Be 'Sender Name'
+        $script:LastMessage.From.Items[0].Address | Should-Be 'from@example.com'
+        $script:LastMessage.From.Items[0].Name | Should-Be 'Sender Name'
 
-        $script:LastMessage.To.Items.Address | Should -Contain 'a@example.com'
-        $script:LastMessage.To.Items.Address | Should -Contain 'b@example.com'
-        $script:LastMessage.Bcc.Items.Address | Should -Contain 'c@example.com'
+        $script:LastMessage.To.Items.Address | Should-ContainCollection 'a@example.com'
+        $script:LastMessage.To.Items.Address | Should-ContainCollection 'b@example.com'
+        $script:LastMessage.Bcc.Items.Address | Should-ContainCollection 'c@example.com'
 
         # No attachments here, so the body is the HTML TextPart itself,
         # not a multipart container.
-        $script:LastMessage.Body.Kind | Should -Be 'TextPart'
-        $script:LastMessage.Body.Text | Should -Be '<p>hi</p>'
-        $script:LastMessage.Body.Subtype | Should -Be 'html'
+        $script:LastMessage.Body.Kind | Should-Be 'TextPart'
+        $script:LastMessage.Body.Text | Should-Be '<p>hi</p>'
+        $script:LastMessage.Body.Subtype | Should-Be 'html'
     }
 
     It 'sets the X-Priority header to <Expected> for priority <Priority>' -TestCases @(
@@ -492,16 +492,16 @@ Describe 'Send-MailKitMessageHC' {
         Send-MailKitMessageHC @params -Priority $Priority
 
         $header = $script:LastMessage.Headers.Items | Where-Object { $_.Name -eq 'X-Priority' }
-        $header.Value | Should -Be $Expected
+        $header.Value | Should-Be $Expected
     }
 
     Context 'parameter validation' {
         It 'rejects an invalid priority' {
-            { Send-MailKitMessageHC @params -Priority 'Urgent' } | Should -Throw
+            { Send-MailKitMessageHC @params -Priority 'Urgent' } | Should-Throw
         }
 
         It 'rejects an invalid connection type' {
-            { Send-MailKitMessageHC @params -SmtpConnectionType 'Bogus' } | Should -Throw
+            { Send-MailKitMessageHC @params -SmtpConnectionType 'Bogus' } | Should-Throw
         }
     }
 
@@ -510,23 +510,20 @@ Describe 'Send-MailKitMessageHC' {
             Mock Add-Type { throw 'Could not load file or assembly.' } `
                 -ParameterFilter { $Path -eq 'X:\MimeKit.dll' }
 
-            { Send-MailKitMessageHC @params } |
-            Should -Throw -ExpectedMessage '*MimeKit*X:\MimeKit.dll*'
+            { Send-MailKitMessageHC @params } | Should-Throw -ExceptionMessage '*MimeKit*X:\MimeKit.dll*'
         }
 
         It 'throws a clear, assembly-specific error when MailKit fails to load' {
             Mock Add-Type { throw 'Bad image format.' } `
                 -ParameterFilter { $Path -eq 'X:\MailKit.dll' }
 
-            { Send-MailKitMessageHC @params } |
-            Should -Throw -ExpectedMessage '*MailKit*X:\MailKit.dll*'
+            { Send-MailKitMessageHC @params } | Should-Throw -ExceptionMessage '*MailKit*X:\MailKit.dll*'
         }
 
         It 'throws a clear error when an assembly path is only whitespace' {
             $params.MimeKitAssemblyPath = '   '
 
-            { Send-MailKitMessageHC @params } |
-            Should -Throw -ExpectedMessage '*MimeKit*not set*'
+            { Send-MailKitMessageHC @params } | Should-Throw -ExceptionMessage '*MimeKit*not set*'
         }
     }
 
@@ -539,18 +536,18 @@ Describe 'Send-MailKitMessageHC' {
             Send-MailKitMessageHC @params -Attachments @($existing, $missing)
 
             # Body container holds the HTML body part plus one attachment part.
-            $script:LastMessage.Body.Parts | Should -HaveCount 2
+            $script:LastMessage.Body.Parts | Should-BeCollection -Count 2
 
             $attachment = $script:LastMessage.Body.Parts | Where-Object { $_.Kind -eq 'MimePart' }
-            $attachment.FileName | Should -Be 'note.txt'
-            $attachment.ContentTransferEncoding.ToString() | Should -Be 'Base64'
+            $attachment.FileName | Should-Be 'note.txt'
+            $attachment.ContentTransferEncoding.ToString() | Should-Be 'Base64'
         }
 
         It 'uses the HTML body part directly as the message body when there are no attachments' {
             Send-MailKitMessageHC @params
 
-            $script:LastMessage.Body.Kind | Should -Be 'TextPart'
-            $script:LastMessage.Body.Text | Should -Be '<p>hi</p>'
+            $script:LastMessage.Body.Kind | Should-Be 'TextPart'
+            $script:LastMessage.Body.Text | Should-Be '<p>hi</p>'
         }
 
         It 'disposes the attachment stream after sending' {
@@ -562,7 +559,7 @@ Describe 'Send-MailKitMessageHC' {
             # The fake MimeContent holds the real FileStream the function opened;
             # a disposed FileStream reports CanRead = $false.
             $attachment = $script:LastMessage.Body.Parts | Where-Object { $_.Kind -eq 'MimePart' }
-            $attachment.Content.Stream.CanRead | Should -BeFalse
+            $attachment.Content.Stream.CanRead | Should-BeFalse
         }
     }
 }

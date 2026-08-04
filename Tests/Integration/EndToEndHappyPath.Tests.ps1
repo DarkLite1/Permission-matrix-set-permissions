@@ -184,14 +184,14 @@ Describe 'Permission Matrix - End to End' {
         # Assert: no fatal errors logged.
         # -------------------------------------------------------------------
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
         # -------------------------------------------------------------------
         # Assert: mail was sent exactly once.
         # -------------------------------------------------------------------
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
 
         # -------------------------------------------------------------------
         # Assert: the matrix's Permissions sheet rows resulted in real ACLs
@@ -208,10 +208,8 @@ Describe 'Permission Matrix - End to End' {
         $financeFolder = Join-Path $rootFolder 'Finance'
         $docsFolder = Join-Path $rootFolder 'Finance\Docs'
 
-        Test-Path -LiteralPath $financeFolder -PathType Container |
-        Should -BeTrue -Because 'Action=New should have created Finance'
-        Test-Path -LiteralPath $docsFolder -PathType Container |
-        Should -BeTrue -Because 'Action=New should have created Finance\Docs'
+        Test-Path -LiteralPath $financeFolder -PathType Container | Should-BeTrue -Because 'Action=New should have created Finance'
+        Test-Path -LiteralPath $docsFolder -PathType Container | Should-BeTrue -Because 'Action=New should have created Finance\Docs'
 
         # -------------------------------------------------------------------
         # Regression: newly created folders must keep the exact casing from
@@ -221,11 +219,9 @@ Describe 'Permission Matrix - End to End' {
         # real on-disk name instead.
         # -------------------------------------------------------------------
         $onDiskFinance = (Get-ChildItem -LiteralPath $rootFolder -Directory).Where({ $_.Name -eq 'Finance' }).Name
-        $onDiskFinance |
-        Should -BeExactly 'Finance' -Because 'the folder casing from the matrix must be preserved'
+        $onDiskFinance | Should-BeString 'Finance' -CaseSensitive -Because 'the folder casing from the matrix must be preserved'
         $onDiskDocs = (Get-ChildItem -LiteralPath $financeFolder -Directory).Where({ $_.Name -eq 'Docs' }).Name
-        $onDiskDocs |
-        Should -BeExactly 'Docs' -Because 'the folder casing from the matrix must be preserved'
+        $onDiskDocs | Should-BeString 'Docs' -CaseSensitive -Because 'the folder casing from the matrix must be preserved'
 
         $financeAcl = (Get-Acl -LiteralPath $financeFolder).Access
         $docsAcl = (Get-Acl -LiteralPath $docsFolder).Access
@@ -234,15 +230,11 @@ Describe 'Permission Matrix - End to End' {
         $bobNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")).Value
         $mikeNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupMike")).Value
 
-        $financeAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $bobNT"
-        $financeAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $mikeNT"
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count | Should-BeGreaterThan 0 -Because "Finance should have an ACE for $bobNT"
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count | Should-BeGreaterThan 0 -Because "Finance should have an ACE for $mikeNT"
 
-        $docsAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT"
-        $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT"
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count | Should-BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT"
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count | Should-BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT"
     }
 
     It 'creates a no-permission folder as inherit-only under Action=New (no defaults, no cut)' -Skip:(-not $E2EPrereqsMet) {
@@ -317,7 +309,7 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrors)
 
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
@@ -325,28 +317,23 @@ Describe 'Permission Matrix - End to End' {
         $inheritOnlyFolder = Join-Path $rootFolder 'InheritOnly'
 
         # The no-permission folder must be created ...
-        Test-Path -LiteralPath $inheritOnlyFolder -PathType Container |
-        Should -BeTrue -Because 'Action=New must create inherit-only folders too'
+        Test-Path -LiteralPath $inheritOnlyFolder -PathType Container | Should-BeTrue -Because 'Action=New must create inherit-only folders too'
 
         $defaultNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupDefault")).Value
 
         # ... and must keep inheritance (not protected) ...
         $inheritOnlySecurity = Get-Acl -LiteralPath $inheritOnlyFolder
-        $inheritOnlySecurity.AreAccessRulesProtected |
-        Should -BeFalse -Because 'a folder without permissions must keep inheriting (inheritance not cut)'
+        $inheritOnlySecurity.AreAccessRulesProtected | Should-BeFalse -Because 'a folder without permissions must keep inheriting (inheritance not cut)'
 
         # ... and must NOT have the default group applied explicitly.
         $inheritOnlyExplicit = $inheritOnlySecurity.Access.Where({ -not $_.IsInherited })
-        $inheritOnlyExplicit.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count |
-        Should -Be 0 -Because 'defaults must not be applied to a no-permission folder'
+        $inheritOnlyExplicit.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count | Should-Be 0 -Because 'defaults must not be applied to a no-permission folder'
 
         # The folder WITH permissions still gets the default merged and its
         # inheritance protected, so the guard is scoped to empty folders only.
         $financeSecurity = Get-Acl -LiteralPath $financeFolder
-        $financeSecurity.AreAccessRulesProtected |
-        Should -BeTrue -Because 'a folder with explicit permissions has protected (non-inherited) ACLs'
-        $financeSecurity.Access.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count |
-        Should -BeGreaterThan 0 -Because 'defaults are still applied to folders that have permissions'
+        $financeSecurity.AreAccessRulesProtected | Should-BeTrue -Because 'a folder with explicit permissions has protected (non-inherited) ACLs'
+        $financeSecurity.Access.Where({ $_.IdentityReference.Value -eq $defaultNT }).Count | Should-BeGreaterThan 0 -Because 'defaults are still applied to folders that have permissions'
     }
 
     It 'corrects a TOP-LEVEL inherit-only folder under Action=Fix (full flow regression)' -Skip:(-not $E2EPrereqsMet) {
@@ -424,8 +411,7 @@ Describe 'Permission Matrix - End to End' {
         )
         Set-Acl -LiteralPath $commonFolder -AclObject $wrongAcl
 
-        (Get-Acl -LiteralPath $commonFolder).AreAccessRulesProtected |
-        Should -BeTrue -Because 'the test must start from a Common folder that does not inherit'
+        (Get-Acl -LiteralPath $commonFolder).AreAccessRulesProtected | Should-BeTrue -Because 'the test must start from a Common folder that does not inherit'
 
         $configFixture = New-JsonFixture
         $configFixture.Matrix.FolderPath = $matrixDir
@@ -461,7 +447,7 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrors)
 
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
@@ -470,28 +456,23 @@ Describe 'Permission Matrix - End to End' {
         #region Common is now inherit-only: inheritance restored, no explicit ACE
         $commonSecurity = Get-Acl -LiteralPath $commonFolder
 
-        $commonSecurity.AreAccessRulesProtected |
-        Should -BeFalse -Because 'Fix must reset a top-level inherit-only folder back to inheriting'
+        $commonSecurity.AreAccessRulesProtected | Should-BeFalse -Because 'Fix must reset a top-level inherit-only folder back to inheriting'
 
-        $commonSecurity.Access.Where({ -not $_.IsInherited }) |
-        Should -BeNullOrEmpty -Because 'Common cannot keep any explicit permissions'
+        $commonSecurity.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because 'Common cannot keep any explicit permissions'
 
         # It should now inherit the root's List grant for Bob (proof the root
         # walk actually reached and re-based Common).
         $commonSecurity.Access.Where({
                 $_.IsInherited -and ($_.IdentityReference.Value -eq $bobNT)
-            }) |
-        Should -Not -BeNullOrEmpty -Because 'Common inherits the root ACL after the fix'
+            }) | Should-BeTruthy -Because 'Common inherits the root ACL after the fix'
         #endregion
 
         #region The permissioned child keeps its own protected ACL
         $exchangeSecurity = Get-Acl -LiteralPath $exchangeFolder
-        $exchangeSecurity.AreAccessRulesProtected |
-        Should -BeTrue -Because 'Common\Exchange has Write in the matrix and stays protected'
+        $exchangeSecurity.AreAccessRulesProtected | Should-BeTrue -Because 'Common\Exchange has Write in the matrix and stays protected'
         $exchangeSecurity.Access.Where({
                 (-not $_.IsInherited) -and ($_.IdentityReference.Value -eq $bobNT)
-            }) |
-        Should -Not -BeNullOrEmpty -Because 'Common\Exchange carries its explicit Write ACE for Bob'
+            }) | Should-BeTruthy -Because 'Common\Exchange carries its explicit Write ACE for Bob'
         #endregion
     }
 
@@ -578,19 +559,17 @@ Describe 'Permission Matrix - End to End' {
         # errors, a missing mail send, or ACLs that never landed on disk.
         # -------------------------------------------------------------------
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "expected no fatal errors under parallel execution but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
 
         $financeFolder = Join-Path $rootFolder 'Finance'
         $docsFolder = Join-Path $rootFolder 'Finance\Docs'
 
-        Test-Path -LiteralPath $financeFolder -PathType Container |
-        Should -BeTrue -Because 'Action=New should have created Finance under parallel execution'
-        Test-Path -LiteralPath $docsFolder -PathType Container |
-        Should -BeTrue -Because 'Action=New should have created Finance\Docs under parallel execution'
+        Test-Path -LiteralPath $financeFolder -PathType Container | Should-BeTrue -Because 'Action=New should have created Finance under parallel execution'
+        Test-Path -LiteralPath $docsFolder -PathType Container | Should-BeTrue -Because 'Action=New should have created Finance\Docs under parallel execution'
 
         $financeAcl = (Get-Acl -LiteralPath $financeFolder).Access
         $docsAcl = (Get-Acl -LiteralPath $docsFolder).Access
@@ -598,15 +577,11 @@ Describe 'Permission Matrix - End to End' {
         $bobNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupBob")).Value
         $mikeNT = (New-Object System.Security.Principal.NTAccount("$env:COMPUTERNAME\$TestGroupMike")).Value
 
-        $financeAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $bobNT under parallel execution"
-        $financeAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance should have an ACE for $mikeNT under parallel execution"
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count | Should-BeGreaterThan 0 -Because "Finance should have an ACE for $bobNT under parallel execution"
+        $financeAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count | Should-BeGreaterThan 0 -Because "Finance should have an ACE for $mikeNT under parallel execution"
 
-        $docsAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT under parallel execution"
-        $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count |
-        Should -BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT under parallel execution"
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $bobNT }).Count | Should-BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $bobNT under parallel execution"
+        $docsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT }).Count | Should-BeGreaterThan 0 -Because "Finance\Docs should have an ACE for $mikeNT under parallel execution"
     }
 
     It 'fixes incorrect permissions on files and folders, then Check confirms all correct' -Skip:(-not $E2EPrereqsMet) {
@@ -686,16 +661,13 @@ Describe 'Permission Matrix - End to End' {
 
         # --- Verify corruption landed (sanity check) ----------------------
         $preFixFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
-        $preFixFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value -and $_.FileSystemRights -match 'FullControl' }).Count |
-        Should -BeGreaterThan 0 -Because 'sanity: Mike should have FullControl on Finance before Fix'
+        $preFixFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value -and $_.FileSystemRights -match 'FullControl' }).Count | Should-BeGreaterThan 0 -Because 'sanity: Mike should have FullControl on Finance before Fix'
 
         $preFixDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
-        $preFixDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
-        Should -Be 0 -Because 'sanity: Bob should have no ACE on Finance\Docs before Fix'
+        $preFixDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count | Should-Be 0 -Because 'sanity: Bob should have no ACE on Finance\Docs before Fix'
 
         $preFixFileAcl = Get-Acl -LiteralPath $reportFile
-        $preFixFileAcl.AreAccessRulesProtected |
-        Should -BeTrue -Because 'sanity: report.txt should have explicit (protected) ACL before Fix'
+        $preFixFileAcl.AreAccessRulesProtected | Should-BeTrue -Because 'sanity: report.txt should have explicit (protected) ACL before Fix'
 
         # --- Build Excel fixtures and JSON config -------------------------
         $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
@@ -755,11 +727,11 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrors)
 
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "Fix run should have no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly -Because (
             'Fix run should send exactly one mail'
         )
 
@@ -767,27 +739,21 @@ Describe 'Permission Matrix - End to End' {
         $fixedFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
         $fixedDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
 
-        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance'
-        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance'
+        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count | Should-BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance'
+        $fixedFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count | Should-BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance'
 
         # Mike must no longer have FullControl — the matrix says R
         $fixedFinanceAcl.Where({
                 $_.IdentityReference.Value -eq $mikeNT.Value -and
                 $_.FileSystemRights -match 'FullControl'
-            }).Count |
-        Should -Be 0 -Because 'Fix should have corrected Mike from FullControl to R on Finance'
+            }).Count | Should-Be 0 -Because 'Fix should have corrected Mike from FullControl to R on Finance'
 
-        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance\Docs'
-        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance\Docs'
+        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count | Should-BeGreaterThan 0 -Because 'Fix should have applied an ACE for Bob on Finance\Docs'
+        $fixedDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count | Should-BeGreaterThan 0 -Because 'Fix should have applied an ACE for Mike on Finance\Docs'
 
         # --- Verify Fix restored inheritance on the file ------------------
         $fixedFileAcl = Get-Acl -LiteralPath $reportFile
-        $fixedFileAcl.AreAccessRulesProtected |
-        Should -BeFalse -Because 'Fix should have removed explicit ACL protection on report.txt (restored inheritance)'
+        $fixedFileAcl.AreAccessRulesProtected | Should-BeFalse -Because 'Fix should have removed explicit ACL protection on report.txt (restored inheritance)'
 
         # ===================================================================
         # PHASE 3: Run with Action=Check — should report all correct
@@ -824,11 +790,11 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrorsCheck)
 
         $fatalsCheck = $systemErrorsCheck.Where({ $_.Type -eq 'FatalError' })
-        $fatalsCheck.Count | Should -Be 0 -Because (
+        $fatalsCheck.Count | Should-Be 0 -Because (
             "Check run should have no fatal errors but got: $($fatalsCheck | ForEach-Object { $_.Message } | Out-String)"
         )
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 2 -Exactly -Because (
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 2 -Exactly -Because (
             'Check run should send a second mail (two total: Fix + Check)'
         )
 
@@ -836,19 +802,14 @@ Describe 'Permission Matrix - End to End' {
         $checkFinanceAcl = (Get-Acl -LiteralPath $financeFolder).Access
         $checkDocsAcl = (Get-Acl -LiteralPath $docsFolder).Access
 
-        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
-        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
+        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count | Should-BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
+        $checkFinanceAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count | Should-BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance'
 
-        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
-        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count |
-        Should -BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
+        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $bobNT.Value }).Count | Should-BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
+        $checkDocsAcl.Where({ $_.IdentityReference.Value -eq $mikeNT.Value }).Count | Should-BeGreaterThan 0 -Because 'ACLs should still be intact after Check on Finance\Docs'
 
         $checkFileAcl = Get-Acl -LiteralPath $reportFile
-        $checkFileAcl.AreAccessRulesProtected |
-        Should -BeFalse -Because 'report.txt should still have inherited ACL after Check'
+        $checkFileAcl.AreAccessRulesProtected | Should-BeFalse -Because 'report.txt should still have inherited ACL after Check'
     }
 
     It 'fixes a fully corrupted matrix tree, then a second Fix run is clean' -Skip:(-not $E2EPrereqsMet) {
@@ -987,14 +948,10 @@ Describe 'Permission Matrix - End to End' {
         }
 
         # Sanity: the tree really starts in a bad state.
-        (Get-Acl -LiteralPath $inheritOnlyFolder).AreAccessRulesProtected |
-        Should -BeTrue -Because 'sanity: inherit-only folder starts protected and wrong'
-        (Get-Acl -LiteralPath $docsFile).AreAccessRulesProtected |
-        Should -BeTrue -Because 'sanity: file starts protected and wrong'
-        Test-HasFullControlAce -Access (Get-Acl -LiteralPath $rootFolder).Access -Identity $mikeNT |
-        Should -BeTrue -Because 'sanity: root starts with wrong Mike FullControl'
-        (Get-Acl -LiteralPath $ignoredFolder).AreAccessRulesProtected |
-        Should -BeTrue -Because 'sanity: ignored folder starts protected and wrong'
+        (Get-Acl -LiteralPath $inheritOnlyFolder).AreAccessRulesProtected | Should-BeTrue -Because 'sanity: inherit-only folder starts protected and wrong'
+        (Get-Acl -LiteralPath $docsFile).AreAccessRulesProtected | Should-BeTrue -Because 'sanity: file starts protected and wrong'
+        Test-HasFullControlAce -Access (Get-Acl -LiteralPath $rootFolder).Access -Identity $mikeNT | Should-BeTrue -Because 'sanity: root starts with wrong Mike FullControl'
+        (Get-Acl -LiteralPath $ignoredFolder).AreAccessRulesProtected | Should-BeTrue -Because 'sanity: ignored folder starts protected and wrong'
 
         $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
         New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
@@ -1074,47 +1031,37 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrorsFirst)
 
         $fatalsFirst = $systemErrorsFirst.Where({ $_.Type -eq 'FatalError' })
-        $fatalsFirst.Count | Should -Be 0 -Because (
+        $fatalsFirst.Count | Should-Be 0 -Because (
             "first Fix run should have no fatal errors but got: $($fatalsFirst | ForEach-Object { $_.Message } | Out-String)"
         )
 
-        $script:fullFixMailSubjects.Count |
-        Should -Be 1 -Because 'first Fix run should send one mail'
-        $script:fullFixMailSubjects[0] |
-        Should -Match 'warning' -Because 'first Fix run should report the deliberately corrupted ACLs'
+        $script:fullFixMailSubjects.Count | Should-Be 1 -Because 'first Fix run should send one mail'
+        $script:fullFixMailSubjects[0] | Should-MatchString 'warning' -Because 'first Fix run should report the deliberately corrupted ACLs'
 
         foreach ($folder in @($rootFolder, $financeFolder, $docsFolder, $trailingSlashFolder)) {
             $acl = Get-Acl -LiteralPath $folder
-            $acl.AreAccessRulesProtected |
-            Should -BeTrue -Because "'$folder' is matrix-defined and should have protected explicit ACLs after Fix"
-            Test-HasFullControlAce -Access $acl.Access -Identity $mikeNT |
-            Should -BeFalse -Because "'$folder' should no longer carry wrong Mike FullControl after Fix"
+            $acl.AreAccessRulesProtected | Should-BeTrue -Because "'$folder' is matrix-defined and should have protected explicit ACLs after Fix"
+            Test-HasFullControlAce -Access $acl.Access -Identity $mikeNT | Should-BeFalse -Because "'$folder' should no longer carry wrong Mike FullControl after Fix"
         }
 
         foreach ($folder in @($inheritOnlyFolder, $inheritOnlyNestedFolder, $inheritOnlyDeepFolder, $inheritOnlySiblingFolder)) {
             $acl = Get-Acl -LiteralPath $folder
-            $acl.AreAccessRulesProtected |
-            Should -BeFalse -Because "'$folder' is inherit-only and should inherit after Fix"
-            $acl.Access.Where({ -not $_.IsInherited }) |
-            Should -BeNullOrEmpty -Because "'$folder' should not keep explicit ACEs after Fix"
+            $acl.AreAccessRulesProtected | Should-BeFalse -Because "'$folder' is inherit-only and should inherit after Fix"
+            $acl.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because "'$folder' should not keep explicit ACEs after Fix"
         }
 
         foreach ($file in @($rootFile, $financeFile, $docsFile, $trailingSlashFile, $inheritOnlyFile, $nestedFile, $deepFile, $siblingFile)) {
             $acl = Get-Acl -LiteralPath $file
-            $acl.AreAccessRulesProtected |
-            Should -BeFalse -Because "'$file' should inherit after Fix"
-            $acl.Access.Where({ -not $_.IsInherited }) |
-            Should -BeNullOrEmpty -Because "'$file' should not keep explicit ACEs after Fix"
+            $acl.AreAccessRulesProtected | Should-BeFalse -Because "'$file' should inherit after Fix"
+            $acl.Access.Where({ -not $_.IsInherited }) | Should-BeFalsy -Because "'$file' should not keep explicit ACEs after Fix"
         }
 
         foreach ($ignoredItem in @($ignoredFolder, $ignoredChildFolder, $ignoredFile)) {
             $acl = Get-Acl -LiteralPath $ignoredItem
             $expectedIgnoredIdentity = if (Test-Path -LiteralPath $ignoredItem -PathType Leaf) { $bobNT } else { $mikeNT }
 
-            $acl.AreAccessRulesProtected |
-            Should -BeTrue -Because "'$ignoredItem' is under an ignored matrix row and must remain untouched"
-            Test-HasFullControlAce -Access $acl.Access -Identity $expectedIgnoredIdentity |
-            Should -BeTrue -Because "'$ignoredItem' must keep its deliberately wrong ACL because ignored rows are not managed"
+            $acl.AreAccessRulesProtected | Should-BeTrue -Because "'$ignoredItem' is under an ignored matrix row and must remain untouched"
+            Test-HasFullControlAce -Access $acl.Access -Identity $expectedIgnoredIdentity | Should-BeTrue -Because "'$ignoredItem' must keep its deliberately wrong ACL because ignored rows are not managed"
         }
 
         $detailFilesBeforeSecondFix = @(
@@ -1133,12 +1080,11 @@ Describe 'Permission Matrix - End to End' {
             -SystemErrors ([ref]$systemErrorsSecond)
 
         $fatalsSecond = $systemErrorsSecond.Where({ $_.Type -eq 'FatalError' })
-        $fatalsSecond.Count | Should -Be 0 -Because (
+        $fatalsSecond.Count | Should-Be 0 -Because (
             "second Fix run should have no fatal errors but got: $($fatalsSecond | ForEach-Object { $_.Message } | Out-String)"
         )
 
-        $script:fullFixMailSubjects.Count |
-        Should -Be 2 -Because 'second Fix run should send a second mail'
+        $script:fullFixMailSubjects.Count | Should-Be 2 -Because 'second Fix run should send a second mail'
 
         $newDetailFiles = @(
             Get-ChildItem -LiteralPath $logsDir -Recurse -Filter '*.json' -File |
@@ -1151,8 +1097,7 @@ Describe 'Permission Matrix - End to End' {
             }
         ) -join "`n"
 
-        $newDetailText |
-        Should -Not -Match 'Non inherited folder incorrect permissions|Inherited permissions incorrect' -Because (
+        $newDetailText | Should-NotMatchString 'Non inherited folder incorrect permissions|Inherited permissions incorrect' -Because (
             'a second Fix run after convergence must not report any remaining permission corrections'
         )
     }

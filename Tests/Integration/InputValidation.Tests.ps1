@@ -69,7 +69,7 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             $updated.$Property = $null
 
-            (Invoke-WithConfig $updated) | Should -Be 1
+            (Invoke-WithConfig $updated) | Should-Be 1
 
             # When Settings is null, the configured log folder is unreachable —
             # the script falls back to a temp folder for logging.
@@ -93,7 +93,7 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             $updated.MaxConcurrent.$Property = $null
 
-            (Invoke-WithConfig $updated) | Should -Be 1
+            (Invoke-WithConfig $updated) | Should-Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -108,7 +108,7 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             $updated.Matrix.$Property = $null
 
-            (Invoke-WithConfig $updated) | Should -Be 1
+            (Invoke-WithConfig $updated) | Should-Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -123,7 +123,7 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             Set-NestedPropertyHC -Object $updated -Path $Property -Value $Value
 
-            (Invoke-WithConfig $updated) | Should -Be 1
+            (Invoke-WithConfig $updated) | Should-Be 1
 
             Assert-LogContainsSystemErrorHC `
                 -LogFolderPath $TestInput.Settings.SaveLogFiles.Where.Folder `
@@ -136,7 +136,7 @@ Describe 'Input Validation Tests' {
             $updated = Copy-ObjectHC $TestInput
             $updated.Settings.SaveLogFiles.Where.Folder = 'x:\nope'
 
-            (Invoke-WithConfig $updated) | Should -Be 1
+            (Invoke-WithConfig $updated) | Should-Be 1
 
             $fallback = Join-Path $env:TEMP 'PermissionMatrixLogs'
 

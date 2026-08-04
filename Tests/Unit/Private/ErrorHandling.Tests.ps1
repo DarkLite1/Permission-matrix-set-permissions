@@ -18,7 +18,7 @@ Describe 'Add-ErrorHC' {
         Add-ErrorHC -Type 'FatalError' -Name 'Test' -Message 'Boom' `
             -Category 'Matrix' -SystemErrors ([ref]$script:errors)
 
-        $script:errors.Count | Should -Be 1
+        $script:errors.Count | Should-Be 1
     }
 
     It 'populates all provided fields' {
@@ -31,12 +31,12 @@ Describe 'Add-ErrorHC' {
             -SystemErrors ([ref]$script:errors)
 
         $e = $script:errors[0]
-        $e.Type | Should -Be 'Warning'
-        $e.Name | Should -Be 'N1'
-        $e.Message | Should -Be 'M1'
-        $e.Description | Should -Be 'D1'
-        $e.Category | Should -Be 'Permissions'
-        $e.DateTime | Should -BeOfType [datetime]
+        $e.Type | Should-Be 'Warning'
+        $e.Name | Should-Be 'N1'
+        $e.Message | Should-Be 'M1'
+        $e.Description | Should-Be 'D1'
+        $e.Category | Should-Be 'Permissions'
+        $e.DateTime | Should-HaveType ([datetime])
     }
 
     It 'defaults Description to an empty string when omitted' {
@@ -47,7 +47,7 @@ Describe 'Add-ErrorHC' {
             -Category 'JsonSchema' `
             -SystemErrors ([ref]$script:errors)
 
-        $script:errors[0].Description | Should -Be ''
+        $script:errors[0].Description | Should-Be ''
     }
 
     It 'appends without clearing existing entries' {
@@ -64,7 +64,7 @@ Describe 'Add-ErrorHC' {
             -Category 'C' `
             -SystemErrors ([ref]$script:errors)
 
-        $script:errors.Count | Should -Be 2
+        $script:errors.Count | Should-Be 2
     }
 
     It 'throws when a mandatory parameter is missing' {
@@ -77,7 +77,7 @@ Describe 'Add-ErrorHC' {
             SystemErrors = ([ref]$script:errors)
             Type         = $null
         }
-        { Add-ErrorHC @params } | Should -Throw
+        { Add-ErrorHC @params } | Should-Throw
     }
 }
 
@@ -92,7 +92,7 @@ Describe 'Category wrapper functions' {
             -Name 'N' `
             -Message 'M' `
             -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should -Be 'Matrix'
+        $script:errors[0].Category | Should-Be 'Matrix'
     }
 
     It 'Add-PermissionsErrorHC sets Category to Permissions' {
@@ -101,7 +101,7 @@ Describe 'Category wrapper functions' {
             -Name 'N' `
             -Message 'M' `
             -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should -Be 'Permissions'
+        $script:errors[0].Category | Should-Be 'Permissions'
     }
 
     It 'Add-RuntimeErrorHC sets Category to RuntimeSettings' {
@@ -110,7 +110,7 @@ Describe 'Category wrapper functions' {
             -Name 'N' `
             -Message 'M' `
             -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should -Be 'RuntimeSettings'
+        $script:errors[0].Category | Should-Be 'RuntimeSettings'
     }
 
     It 'Add-JsonSchemaErrorHC sets Category to JsonSchema' {
@@ -119,7 +119,7 @@ Describe 'Category wrapper functions' {
             -Name 'N' `
             -Message 'M' `
             -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should -Be 'JsonSchema'
+        $script:errors[0].Category | Should-Be 'JsonSchema'
     }
 
     It 'forwards Description through the wrapper' {
@@ -129,17 +129,17 @@ Describe 'Category wrapper functions' {
             -Message 'M' `
             -Description 'forwarded' `
             -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Description | Should -Be 'forwarded'
+        $script:errors[0].Description | Should-Be 'forwarded'
     }
 }
 
 Describe 'Test-ItemHasFatalErrorHC' {
     It 'returns false for null CheckList' {
-        Test-ItemHasFatalErrorHC -CheckList $null | Should -BeFalse
+        Test-ItemHasFatalErrorHC -CheckList $null | Should-BeFalse
     }
 
     It 'returns false for empty CheckList' {
-        Test-ItemHasFatalErrorHC -CheckList @() | Should -BeFalse
+        Test-ItemHasFatalErrorHC -CheckList @() | Should-BeFalse
     }
 
     It 'returns false when no FatalError is present' {
@@ -147,7 +147,7 @@ Describe 'Test-ItemHasFatalErrorHC' {
             [PSCustomObject]@{ Type = 'Warning' }
             [PSCustomObject]@{ Type = 'Info' }
         )
-        Test-ItemHasFatalErrorHC -CheckList $list | Should -BeFalse
+        Test-ItemHasFatalErrorHC -CheckList $list | Should-BeFalse
     }
 
     It 'returns true when a FatalError is present' {
@@ -155,7 +155,7 @@ Describe 'Test-ItemHasFatalErrorHC' {
             [PSCustomObject]@{ Type = 'Warning' }
             [PSCustomObject]@{ Type = 'FatalError' }
         )
-        Test-ItemHasFatalErrorHC -CheckList $list | Should -BeTrue
+        Test-ItemHasFatalErrorHC -CheckList $list | Should-BeTrue
     }
 }
 
@@ -165,14 +165,14 @@ Describe 'New-CounterObjectHC' {
     }
 
     It 'initializes top-level totals to 0' {
-        $script:counter.TotalErrors | Should -Be 0
-        $script:counter.TotalWarnings | Should -Be 0
+        $script:counter.TotalErrors | Should-Be 0
+        $script:counter.TotalWarnings | Should-Be 0
     }
 
     It 'creates all four buckets with zeroed Errors and Warnings' {
         foreach ($bucket in 'FormData', 'Permissions', 'Settings', 'File') {
-            $script:counter.$bucket.Errors | Should -Be 0
-            $script:counter.$bucket.Warnings | Should -Be 0
+            $script:counter.$bucket.Errors | Should-Be 0
+            $script:counter.$bucket.Warnings | Should-Be 0
         }
     }
 }
@@ -189,8 +189,8 @@ Describe 'Update-MatrixCounterHC' {
             -Context $context `
             -SystemErrors ([ref]$script:errors)
 
-        $result.TotalErrors | Should -Be 0
-        $result.TotalWarnings | Should -Be 0
+        $result.TotalErrors | Should-Be 0
+        $result.TotalWarnings | Should-Be 0
     }
 
     It 'counts file-, sheet-, and matrix-level checks into the right buckets' {
@@ -216,10 +216,10 @@ Describe 'Update-MatrixCounterHC' {
 
         $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
 
-        $result.File.Errors | Should -Be 1
-        $result.FormData.Warnings | Should -Be 1
-        $result.Permissions.Errors | Should -Be 1
-        $result.Settings.Warnings | Should -Be 2
+        $result.File.Errors | Should-Be 1
+        $result.FormData.Warnings | Should-Be 1
+        $result.Permissions.Errors | Should-Be 1
+        $result.Settings.Warnings | Should-Be 2
     }
 
     It 'includes system-level errors and warnings in totals' {
@@ -231,8 +231,8 @@ Describe 'Update-MatrixCounterHC' {
 
         $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
 
-        $result.TotalErrors | Should -Be 1
-        $result.TotalWarnings | Should -Be 2
+        $result.TotalErrors | Should-Be 1
+        $result.TotalWarnings | Should-Be 2
     }
 
     It 'sums every bucket plus system errors into the grand totals' {
@@ -274,8 +274,8 @@ Describe 'Update-MatrixCounterHC' {
             -Context $context `
             -SystemErrors ([ref]$script:errors)
 
-        $result.TotalErrors | Should -Be 3
-        $result.TotalWarnings | Should -Be 1
+        $result.TotalErrors | Should-Be 3
+        $result.TotalWarnings | Should-Be 1
     }
 
     It 'assigns the counter back onto the Context' {
@@ -288,6 +288,6 @@ Describe 'Update-MatrixCounterHC' {
             -Context $context `
             -SystemErrors ([ref]$script:errors) | Out-Null
 
-        $context.Counter | Should -Not -BeNullOrEmpty
+        $context.Counter | Should-BeTruthy
     }
 }

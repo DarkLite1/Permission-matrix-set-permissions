@@ -52,22 +52,22 @@ Describe 'Build-AuditReportMailHC' {
     Context 'recipients' {
         It 'resolves To from MatrixResponsible, split and trimmed' {
             $r = Build-AuditReportMailHC @commonParams
-            $r.To | Should -Be @('alice@example.com', 'bob@example.com')
+            $r.To | Should-BeCollection @('alice@example.com', 'bob@example.com')
         }
 
         It 'merges configured Bcc with extra Bcc addresses uniquely' {
             $r = Build-AuditReportMailHC @commonParams `
                 -Bcc @('admin@example.com', 'audit@example.com')
 
-            $r.Bcc | Should -Contain 'admin@example.com'
-            $r.Bcc | Should -Contain 'audit@example.com'
-            @($r.Bcc | Where-Object { $_ -eq 'admin@example.com' }).Count | Should -Be 1
+            $r.Bcc | Should-ContainCollection 'admin@example.com'
+            $r.Bcc | Should-ContainCollection 'audit@example.com'
+            @($r.Bcc | Where-Object { $_ -eq 'admin@example.com' }).Count | Should-Be 1
         }
 
         It 'carries From and FromDisplayName from the mail settings' {
             $r = Build-AuditReportMailHC @commonParams
-            $r.From | Should -Be 'no-reply@example.com'
-            $r.FromDisplayName | Should -Be 'Audit'
+            $r.From | Should-Be 'no-reply@example.com'
+            $r.FromDisplayName | Should-Be 'Audit'
         }
     }
 
@@ -75,12 +75,12 @@ Describe 'Build-AuditReportMailHC' {
         It 'counts unique users across direct users and group members' {
             $r = Build-AuditReportMailHC @commonParams
             # jdoe + asmith + bjones = 3
-            $r.Subject | Should -Be 'BEL-MTX-FIN: 3 users, 1 groups'
+            $r.Subject | Should-Be 'BEL-MTX-FIN: 3 users, 1 groups'
         }
 
         It 'returns zero counts for an empty AccessList' {
             $r = Build-AuditReportMailHC @commonParams -AccessList @()
-            $r.Subject | Should -Be 'BEL-MTX-FIN: 0 users, 0 groups'
+            $r.Subject | Should-Be 'BEL-MTX-FIN: 0 users, 0 groups'
         }
 
         It 'counts each group only once' {
@@ -90,7 +90,7 @@ Describe 'Build-AuditReportMailHC' {
                 [pscustomobject]@{ Type = 'group'; Name = 'B'; MemberSamAccountName = 'm3' }
             )
             $r = Build-AuditReportMailHC @commonParams -AccessList $list
-            $r.Subject | Should -Be 'BEL-MTX-FIN: 3 users, 2 groups'
+            $r.Subject | Should-Be 'BEL-MTX-FIN: 3 users, 2 groups'
         }
     }
 
@@ -98,14 +98,14 @@ Describe 'Build-AuditReportMailHC' {
         It 'replaces tokens in the body from the configured template' {
             $r = Build-AuditReportMailHC @commonParams
 
-            $r.Body | Should -BeLike '*Matrix BEL-MTX-FIN owned by alice@example.com, bob@example.com*'
-            $r.Body | Should -BeLike '*Review at https://portal/req.*'
+            $r.Body | Should-BeLikeString '*Matrix BEL-MTX-FIN owned by alice@example.com, bob@example.com*'
+            $r.Body | Should-BeLikeString '*Review at https://portal/req.*'
         }
 
         It 'leaves no unresolved {{tokens}} in subject or body' {
             $r = Build-AuditReportMailHC @commonParams
-            $r.Body | Should -Not -BeLike '*{{*'
-            $r.Subject | Should -Not -BeLike '*{{*'
+            $r.Body | Should-NotBeLikeString '*{{*'
+            $r.Subject | Should-NotBeLikeString '*{{*'
         }
 
         It 'does not treat a value containing $ as a regex substitution' {
@@ -115,14 +115,14 @@ Describe 'Build-AuditReportMailHC' {
             $settings.Body = 'Path: {{MatrixFolderPath}}'
 
             $r = Build-AuditReportMailHC @commonParams -FormData $fd -MailSettings $settings
-            $r.Body | Should -Be 'Path: \\srv\share$\Finance'
+            $r.Body | Should-Be 'Path: \\srv\share$\Finance'
         }
     }
 
     Context 'attachment' {
         It 'attaches the supplied Excel log file' {
             $r = Build-AuditReportMailHC @commonParams
-            $r.Attachments | Should -Be 'C:\log\BEL-MTX-FIN.xlsx'
+            $r.Attachments | Should-Be 'C:\log\BEL-MTX-FIN.xlsx'
         }
     }
 }

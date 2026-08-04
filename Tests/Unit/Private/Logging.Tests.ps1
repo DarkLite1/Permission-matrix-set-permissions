@@ -23,7 +23,7 @@ Describe 'Remove-OldLogsHC' {
     It 'returns silently when the folder does not exist' {
         { Remove-OldLogsHC -LogFolder 'TestDrive:\DoesNotExist' -RetentionDays 30 `
                 -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
-        $script:errors.Count | Should -Be 0
+        $script:errors.Count | Should-Be 0
     }
 
     It 'deletes files older than the retention window' {
@@ -39,8 +39,8 @@ Describe 'Remove-OldLogsHC' {
         Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
-        Test-Path $old | Should -BeFalse
-        Test-Path $new | Should -BeTrue
+        Test-Path $old | Should-BeFalse
+        Test-Path $new | Should-BeTrue
     }
 
     It 'keeps files newer than the retention window' {
@@ -54,7 +54,7 @@ Describe 'Remove-OldLogsHC' {
         Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
-        Test-Path $recent | Should -BeTrue
+        Test-Path $recent | Should-BeTrue
     }
 
     It 'removes empty sub-folders left behind after file deletion' {
@@ -69,8 +69,8 @@ Describe 'Remove-OldLogsHC' {
         Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
-        Test-Path $old | Should -BeFalse
-        Test-Path $sub | Should -BeFalse
+        Test-Path $old | Should-BeFalse
+        Test-Path $sub | Should-BeFalse
     }
 
     It 'leaves non-empty sub-folders intact' {
@@ -85,7 +85,7 @@ Describe 'Remove-OldLogsHC' {
         Remove-OldLogsHC -LogFolder $folder -RetentionDays 30 `
             -SystemErrors ([ref]$script:errors)
 
-        Test-Path $sub | Should -BeTrue
+        Test-Path $sub | Should-BeTrue
     }
 }
 
@@ -100,13 +100,13 @@ Describe 'Remove-FileHC' {
 
         Remove-FileHC -FilePath $file -SystemErrors ([ref]$script:errors)
 
-        Test-Path $file | Should -BeFalse
+        Test-Path $file | Should-BeFalse
     }
 
     It 'returns silently when the file does not exist' {
         { Remove-FileHC -FilePath (Join-Path $TestDrive 'nope.txt') `
                 -SystemErrors ([ref]$script:errors) } | Should -Not -Throw
-        $script:errors.Count | Should -Be 0
+        $script:errors.Count | Should-Be 0
     }
 
     It 'returns silently when given a directory path (PathType Leaf)' {
@@ -115,7 +115,7 @@ Describe 'Remove-FileHC' {
 
         { Remove-FileHC -FilePath $dir -SystemErrors ([ref]$script:errors) } |
         Should -Not -Throw
-        Test-Path $dir | Should -BeTrue
+        Test-Path $dir | Should-BeTrue
     }
 
     It 'records a warning when deletion fails and SystemErrors is supplied' {
@@ -128,8 +128,8 @@ Describe 'Remove-FileHC' {
 
         Remove-FileHC -FilePath $file -SystemErrors ([ref]$script:errors)
 
-        $script:errors.Count | Should -Be 1
-        $script:errors[0].Name | Should -Be 'Failed to remove file'
+        $script:errors.Count | Should-Be 1
+        $script:errors[0].Name | Should-Be 'Failed to remove file'
     }
 
     It 'falls back to Write-Warning when no SystemErrors ref is given' {
@@ -159,9 +159,9 @@ Describe 'Out-LogFileHC' {
         $paths = Out-LogFileHC -DataToExport $script:data `
             -PartialPath $partial -FileExtensions '.csv'
 
-        $paths | Should -Be "$partial.csv"
-        Test-Path "$partial.csv" | Should -BeTrue
-        (Get-Content "$partial.csv" -Raw) | Should -Match ';'
+        $paths | Should-Be "$partial.csv"
+        Test-Path "$partial.csv" | Should-BeTrue
+        (Get-Content "$partial.csv" -Raw) | Should-MatchString ';'
     }
 
     It 'creates a JSON file with all rows' {
@@ -171,8 +171,8 @@ Describe 'Out-LogFileHC' {
             -PartialPath $partial -FileExtensions '.json' | Out-Null
 
         $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
-        $obj.Count | Should -Be 2
-        $obj[0].Name | Should -Be 'Alice'
+        $obj.Count | Should-Be 2
+        $obj[0].Name | Should-Be 'Alice'
     }
 
     It 'creates a TXT file' {
@@ -181,8 +181,8 @@ Describe 'Out-LogFileHC' {
         Out-LogFileHC -DataToExport $script:data `
             -PartialPath $partial -FileExtensions '.txt' | Out-Null
 
-        Test-Path "$partial.txt" | Should -BeTrue
-        (Get-Content "$partial.txt" -Raw) | Should -Match 'Alice'
+        Test-Path "$partial.txt" | Should-BeTrue
+        (Get-Content "$partial.txt" -Raw) | Should-MatchString 'Alice'
     }
 
     It 'creates an XLSX file' {
@@ -191,8 +191,8 @@ Describe 'Out-LogFileHC' {
         $paths = Out-LogFileHC -DataToExport $script:data `
             -PartialPath $partial -FileExtensions '.xlsx'
 
-        $paths | Should -Be "$partial.xlsx"
-        Test-Path "$partial.xlsx" | Should -BeTrue
+        $paths | Should-Be "$partial.xlsx"
+        Test-Path "$partial.xlsx" | Should-BeTrue
     }
 
     It 'creates multiple files when several extensions are given' {
@@ -201,9 +201,9 @@ Describe 'Out-LogFileHC' {
         $paths = Out-LogFileHC -DataToExport $script:data `
             -PartialPath $partial -FileExtensions '.csv', '.json'
 
-        $paths.Count | Should -Be 2
-        Test-Path "$partial.csv" | Should -BeTrue
-        Test-Path "$partial.json" | Should -BeTrue
+        $paths.Count | Should-Be 2
+        Test-Path "$partial.csv" | Should-BeTrue
+        Test-Path "$partial.json" | Should-BeTrue
     }
 
     It 'de-duplicates repeated extensions' {
@@ -212,7 +212,7 @@ Describe 'Out-LogFileHC' {
         $paths = Out-LogFileHC -DataToExport $script:data `
             -PartialPath $partial -FileExtensions '.csv', '.csv'
 
-        @($paths).Count | Should -Be 1
+        @($paths).Count | Should-Be 1
     }
 
     It 'warns and skips an unsupported extension instead of throwing' {
@@ -222,7 +222,7 @@ Describe 'Out-LogFileHC' {
             -PartialPath $partial -FileExtensions '.xyz' `
             -WarningAction SilentlyContinue
 
-        @($paths).Count | Should -Be 0
+        @($paths).Count | Should-Be 0
     }
 
     It 'appends rows to an existing JSON file' {
@@ -234,12 +234,12 @@ Describe 'Out-LogFileHC' {
             -PartialPath $partial -FileExtensions '.json' -Append | Out-Null
 
         $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
-        $obj.Count | Should -Be 3
-        ($obj.Name) | Should -Contain 'Carol'
+        $obj.Count | Should-Be 3
+        ($obj.Name) | Should-ContainCollection 'Carol'
         # Newly appended rows must come after the existing ones (chronological order)
-        $obj[0].Name | Should -Be 'Alice'
-        $obj[1].Name | Should -Be 'Bob'
-        $obj[2].Name | Should -Be 'Carol'
+        $obj[0].Name | Should-Be 'Alice'
+        $obj[1].Name | Should-Be 'Bob'
+        $obj[2].Name | Should-Be 'Carol'
     }
 
     It 'converts ErrorRecord properties to their message text in JSON' {
@@ -251,7 +251,7 @@ Describe 'Out-LogFileHC' {
             -PartialPath $partial -FileExtensions '.json' | Out-Null
 
         $obj = Get-Content "$partial.json" -Raw | ConvertFrom-Json
-        $obj.Error | Should -Be 'boom'
+        $obj.Error | Should-Be 'boom'
     }
 
     It 'does not mutate the caller''s input objects when converting ErrorRecords' {
@@ -263,7 +263,7 @@ Describe 'Out-LogFileHC' {
             -PartialPath $partial -FileExtensions '.json' | Out-Null
 
         # The original object must still hold the ErrorRecord, not a string.
-        $row.Error | Should -BeOfType [System.Management.Automation.ErrorRecord]
+        $row.Error | Should-HaveType ([System.Management.Automation.ErrorRecord])
     }
 }
 
@@ -297,7 +297,7 @@ Describe 'Write-EventsToEventLogHC' {
         Write-EventsToEventLogHC -Source 'PesterFakeSource' `
             -LogName 'Application' -Events $events
 
-        Should -Invoke Write-EventLog -Times 2 -Exactly
+        Should-Invoke Write-EventLog -Times 2 -Exactly
     }
 
     It 'defaults EntryType to Information and EventID to 4 when missing' {
@@ -311,7 +311,7 @@ Describe 'Write-EventsToEventLogHC' {
         Write-EventsToEventLogHC -Source 'PesterFakeSource' `
             -LogName 'Application' -Events $events
 
-        Should -InvokeVerifiable
+        Should-Invoke -Verifiable
     }
 
     It 're-throws a wrapped error when Write-EventLog fails' {
@@ -321,8 +321,7 @@ Describe 'Write-EventsToEventLogHC' {
         $events = @([PSCustomObject]@{ EntryType = 'Information'; EventID = 4; Message = 'x' })
 
         { Write-EventsToEventLogHC -Source 'PesterFakeSource' `
-                -LogName 'Application' -Events $events } |
-        Should -Throw '*Failed writing events*'
+                -LogName 'Application' -Events $events } | Should-Throw '*Failed writing events*'
     }
 }
 
@@ -342,7 +341,7 @@ Describe 'Write-EventLogSafeHC' {
         Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
-        Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
+        Should-Invoke Write-EventsToEventLogHC -Times 0 -Exactly
     }
 
     It 'returns without writing when LogName is blank' {
@@ -355,7 +354,7 @@ Describe 'Write-EventLogSafeHC' {
         Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
-        Should -Invoke Write-EventsToEventLogHC -Times 0 -Exactly
+        Should-Invoke Write-EventsToEventLogHC -Times 0 -Exactly
     }
 
     It 'appends a System error entry plus a script-ended entry, then writes' {
@@ -371,10 +370,10 @@ Describe 'Write-EventLogSafeHC' {
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         # 1 error entry + 1 "Script ended" entry
-        $script:eventData.Count | Should -Be 2
-        $script:eventData[0].EntryType | Should -Be 'Error'
-        $script:eventData[1].Message | Should -Be 'Script ended'
-        Should -Invoke Write-EventsToEventLogHC -Times 1 -Exactly
+        $script:eventData.Count | Should-Be 2
+        $script:eventData[0].EntryType | Should-Be 'Error'
+        $script:eventData[1].Message | Should-Be 'Script ended'
+        Should-Invoke Write-EventsToEventLogHC -Times 1 -Exactly
     }
 
     It 'truncates messages longer than the 31000 char limit' {
@@ -395,8 +394,8 @@ Describe 'Write-EventLogSafeHC' {
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
         $longEntry = $script:eventData | Where-Object { $_.EventID -eq '1' }
-        $longEntry.Message | Should -Match 'TRUNCATED'
-        $longEntry.Message.Length | Should -BeLessThan 31100
+        $longEntry.Message | Should-MatchString 'TRUNCATED'
+        $longEntry.Message.Length | Should-BeLessThan 31100
     }
 
     It 'records a warning when the underlying write throws' {
@@ -409,8 +408,8 @@ Describe 'Write-EventLogSafeHC' {
         Write-EventLogSafeHC -EventLogData $script:eventData -ScriptName 'S' `
             -Settings $settings -SystemErrors ([ref]$script:errors)
 
-        $script:errors.Count | Should -Be 1
-        $script:errors[0].Name | Should -Be 'Failed to write to event log'
+        $script:errors.Count | Should-Be 1
+        $script:errors[0].Name | Should-Be 'Failed to write to event log'
     }
 }
 
@@ -427,8 +426,8 @@ Describe 'Write-SystemErrorLogHC' {
         Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
             -MailParams ([ref]$script:mailParams)
 
-        Should -Invoke Out-LogFileHC -Times 0 -Exactly
-        $script:mailParams.ContainsKey('Attachments') | Should -BeFalse
+        Should-Invoke Out-LogFileHC -Times 0 -Exactly
+        $script:mailParams.ContainsKey('Attachments') | Should-BeFalse
     }
 
     It 'returns silently when the log folder is missing' {
@@ -441,7 +440,7 @@ Describe 'Write-SystemErrorLogHC' {
             -LogFolder (Join-Path $TestDrive 'missing') `
             -MailParams ([ref]$script:mailParams)
 
-        Should -Invoke Out-LogFileHC -Times 0 -Exactly
+        Should-Invoke Out-LogFileHC -Times 0 -Exactly
     }
 
     It 'writes a JSON log and attaches it to the mail params' {
@@ -453,7 +452,7 @@ Describe 'Write-SystemErrorLogHC' {
         Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
             -MailParams ([ref]$script:mailParams)
 
-        $script:mailParams['Attachments'] | Should -Contain "$TestDrive\SystemErrors.json"
+        $script:mailParams['Attachments'] | Should-ContainCollection "$TestDrive\SystemErrors.json"
     }
 
     It 'appends to existing attachments rather than overwriting' {
@@ -467,8 +466,8 @@ Describe 'Write-SystemErrorLogHC' {
         Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
             -MailParams ([ref]$script:mailParams)
 
-        $script:mailParams['Attachments'].Count | Should -Be 2
-        $script:mailParams['Attachments'] | Should -Contain 'existing.txt'
+        $script:mailParams['Attachments'].Count | Should-Be 2
+        $script:mailParams['Attachments'] | Should-ContainCollection 'existing.txt'
     }
 
     It 'does not add Attachments when nothing was written' {
@@ -480,6 +479,6 @@ Describe 'Write-SystemErrorLogHC' {
         Write-SystemErrorLogHC -SystemErrors $errs -LogFolder $TestDrive `
             -MailParams ([ref]$script:mailParams)
 
-        $script:mailParams.ContainsKey('Attachments') | Should -BeFalse
+        $script:mailParams.ContainsKey('Attachments') | Should-BeFalse
     }
 }

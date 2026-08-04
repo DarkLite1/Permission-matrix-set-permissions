@@ -184,9 +184,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context.Config.Matrix.FolderPath | Should -Not -BeNullOrEmpty
-            $context.Config.Settings.ScriptName | Should -Be 'Test (Brecht)'
-            $systemErrors.Count | Should -Be 0
+            $context.Config.Matrix.FolderPath | Should-BeTruthy
+            $context.Config.Settings.ScriptName | Should-Be 'Test (Brecht)'
+            $systemErrors.Count | Should-Be 0
         }
 
         It 'records FatalError and returns null when JSON file is missing' {
@@ -194,8 +194,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -BeNullOrEmpty
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            $context | Should-BeFalsy
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-BeGreaterThan 0
         }
 
         It 'records FatalError when JSON is malformed' {
@@ -205,8 +205,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -BeNullOrEmpty
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
+            $context | Should-BeFalsy
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-BeGreaterThan 0
         }
     }
 
@@ -221,8 +221,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-BeGreaterThan 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'continues to next phase when validation passes' {
@@ -230,8 +230,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -Not -BeNullOrEmpty
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
+            $context | Should-BeTruthy
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-Be 0
         }
     }
 
@@ -249,8 +249,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $systemErrors.Where({
                     $_.Type -eq 'FatalError' -and $_.Message -like "*$Key*"
-                }).Count | Should -BeGreaterThan 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+                }).Count | Should-BeGreaterThan 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'continues when all ScriptPath entries exist' {
@@ -258,8 +258,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -Not -BeNullOrEmpty
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
+            $context | Should-BeTruthy
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-Be 0
         }
     }
 
@@ -270,10 +270,10 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context.FoundMatrices | Should -Be $false
-            $systemErrors.Count | Should -Be 0
-            Should -Invoke Import-MatrixDefaultsFileHC -Times 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+            $context.FoundMatrices | Should-BeFalse
+            $systemErrors.Count | Should-Be 0
+            Should-Invoke Import-MatrixDefaultsFileHC -Times 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
         It 'sets FoundMatrices=true when at least one .xlsx exists' {
@@ -282,7 +282,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context.FoundMatrices | Should -Be $true
+            $context.FoundMatrices | Should-BeTrue
         }
 
         It 'records FatalError when Matrix.FolderPath does not exist' {
@@ -291,8 +291,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
-            $context.FoundMatrices | Should -Be $false
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-BeGreaterThan 0
+            $context.FoundMatrices | Should-BeFalse
         }
     }
 
@@ -310,9 +310,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context.Defaults | Should -Not -BeNullOrEmpty
-            $context.Defaults.DefaultAcl.Count | Should -Be 1
-            $context.Defaults.MailTo | Should -Contain 'test@example.com'
+            $context.Defaults | Should-BeTruthy
+            $context.Defaults.DefaultAcl.Count | Should-Be 1
+            $context.Defaults.MailTo | Should-ContainCollection 'test@example.com'
         }
 
         It 'halts when Import-MatrixDefaultsFileHC reports a FatalError' {
@@ -325,8 +325,8 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -BeGreaterThan 0
-            Should -Invoke Invoke-WithOptionalParallelismHC -Times 0
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-BeGreaterThan 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
     }
 
@@ -342,7 +342,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
  
             $archivePath = Join-Path $context.Config.Matrix.FolderPath 'Archive'
-            Test-Path -LiteralPath $archivePath -PathType Container | Should -BeTrue
+            Test-Path -LiteralPath $archivePath -PathType Container | Should-BeTrue
         }
 
         It 'skips archive creation when Matrix.Archive=false' {
@@ -355,7 +355,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
  
             $archivePath = Join-Path $context.Config.Matrix.FolderPath 'Archive'
-            Test-Path -LiteralPath $archivePath -PathType Container | Should -BeFalse
+            Test-Path -LiteralPath $archivePath -PathType Container | Should-BeFalse
         }
     }
 
@@ -381,7 +381,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context.FileResults.Count | Should -Be 2
+            $context.FileResults.Count | Should-Be 2
         }
 
         It 'passes throttle from MaxConcurrent.FoldersPerMatrix' {
@@ -390,7 +390,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 5 }
+            Should-Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 5 }
         }
 
         It 'defaults throttle to 4 when MaxConcurrent.FoldersPerMatrix is missing' {
@@ -399,7 +399,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 4 }
+            Should-Invoke Invoke-WithOptionalParallelismHC -ParameterFilter { $ThrottleLimit -eq 4 }
         }
     }
 
@@ -422,7 +422,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
-            $context | Should -Not -BeNullOrEmpty
+            $context | Should-BeTruthy
         }
 
         It 'rewrites ACL entries to use SIDs instead of names' {
@@ -442,9 +442,9 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
             $folder = $context.AllMatrices[0].Matrix[0]
-            $folder.ACL.Keys | Should -Contain 'S-1-5-21-AAA'
-            $folder.ACL.Keys | Should -Not -Contain 'groupA'
-            $folder.AdNames['S-1-5-21-AAA'] | Should -Be 'groupA'
+            $folder.ACL.Keys | Should-ContainCollection 'S-1-5-21-AAA'
+            $folder.ACL.Keys | Should-NotContainCollection 'groupA'
+            $folder.AdNames['S-1-5-21-AAA'] | Should-Be 'groupA'
         }
 
         It 'isolates per-matrix AD failures (broken matrix does not poison the others)' {
@@ -480,12 +480,12 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             # Clean matrix got its ACL rewritten to SIDs
             $clean = $context.AllMatrices | Where-Object { $_.Setting.Formatted.Path -eq 'C:\Clean' }
-            $clean.Matrix[0].ACL.Keys | Should -Contain 'S-1-5-21-BBB'
+            $clean.Matrix[0].ACL.Keys | Should-ContainCollection 'S-1-5-21-BBB'
 
             # Broken matrix was skipped — ACL keys remain unchanged (still name, not SID)
             $broken = $context.AllMatrices | Where-Object { $_.Setting.Formatted.Path -eq 'C:\Broken' }
-            $broken.Matrix[0].ACL.Keys | Should -Contain 'groupA'
-            $broken.Matrix[0].ACL.Keys | Should -Not -Contain 'S-1-5-21-AAA'
+            $broken.Matrix[0].ACL.Keys | Should-ContainCollection 'groupA'
+            $broken.Matrix[0].ACL.Keys | Should-NotContainCollection 'S-1-5-21-AAA'
         }
     }
 
@@ -512,7 +512,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             @($context.FileResults.Check).Where({
                     $_.Type -eq 'FatalError' -and $_.Name -eq 'Empty default ACL'
-                }).Count | Should -BeGreaterThan 0
+                }).Count | Should-BeGreaterThan 0
         }
 
         It 'records Information on the file when defaults present but none of its rows use ApplyDefaultPermissions' {
@@ -530,7 +530,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
             @($context.FileResults.Check).Where({
                     $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
-                }).Count | Should -BeGreaterThan 0
+                }).Count | Should-BeGreaterThan 0
         }
 
         It 'evaluates each matrix file independently (one uses defaults, the other does not)' {
@@ -558,10 +558,10 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             $fileA = $context.FileResults | Where-Object { $_.Item.Name -eq 'A.xlsx' }
             $fileB = $context.FileResults | Where-Object { $_.Item.Name -eq 'B.xlsx' }
 
-            @($fileA.Check).Where({ $_.Name -eq 'Unused defaults' }).Count | Should -Be 0
+            @($fileA.Check).Where({ $_.Name -eq 'Unused defaults' }).Count | Should-Be 0
             @($fileB.Check).Where({
                     $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
-                }).Count | Should -BeGreaterThan 0
+                }).Count | Should-BeGreaterThan 0
         }
 
         It 'skips broken rows (FatalError on the row) when evaluating the guard' {
@@ -594,7 +594,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
                 {
                     $_.Type -eq 'Information' -and $_.Name -eq 'Unused defaults'
                 }
-            ).Count | Should -BeGreaterThan 0
+            ).Count | Should-BeGreaterThan 0
         }
     }
 }
@@ -686,36 +686,33 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
             -SystemErrors ([ref]$systemErrors)
 
         #region No fatal errors and the matrix was built
-        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count |
-        Should -Be 0 -Because 'the fixture is valid and defaults do not conflict'
+        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-Be 0 -Because 'the fixture is valid and defaults do not conflict'
 
-        $context.AllMatrices.Count | Should -Be 1
+        $context.AllMatrices.Count | Should-Be 1
         $matrix = $context.AllMatrices[0].Matrix
         #endregion
 
         #region The inherit-only folder carries no ACL and no default
         $inheritOnly = $matrix | Where-Object { $_.Path -eq 'InheritOnly' }
 
-        $inheritOnly | Should -Not -BeNullOrEmpty `
+        $inheritOnly | Should-BeTruthy `
             -Because 'the empty-permission folder must still be present in the matrix'
-        $inheritOnly.Ignore | Should -BeFalse `
+        $inheritOnly.Ignore | Should-BeFalse `
             -Because 'a blank row is inherit-only, not ignored'
-        $inheritOnly.ACL.Count | Should -Be 0 `
+        $inheritOnly.ACL.Count | Should-Be 0 `
             -Because 'the orchestrator must not merge the default ACL into an inherit-only folder'
 
         # AdNames is only added when a folder had ACL entries to rewrite.
-        $inheritOnly.PSObject.Properties.Match('AdNames').Count |
-        Should -Be 0 -Because 'no AD objects were resolved for an empty folder'
+        $inheritOnly.PSObject.Properties.Match('AdNames').Count | Should-Be 0 -Because 'no AD objects were resolved for an empty folder'
         #endregion
 
         #region The permissioned folder DID receive the default (contrast)
         $finance = $matrix | Where-Object { $_.Path -eq 'Finance' }
 
-        $finance | Should -Not -BeNullOrEmpty
-        $finance.ACL.Keys | Should -Contain $sidDefault `
+        $finance | Should-BeTruthy
+        $finance.ACL.Keys | Should-ContainCollection $sidDefault `
             -Because 'ApplyDefaultPermissions=TRUE merges the default into folders that have permissions'
-        $finance.AdNames[$sidDefault] |
-        Should -Be 'DefaultGroup' -Because 'the merged default is tracked in the AdNames map'
+        $finance.AdNames[$sidDefault] | Should-Be 'DefaultGroup' -Because 'the merged default is tracked in the AdNames map'
         #endregion
     }
 
@@ -781,7 +778,7 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
             -ScriptPath $scriptPath `
             -SystemErrors ([ref]$systemErrors)
 
-        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should -Be 0
+        $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-Be 0
         $matrix = $context.AllMatrices[0].Matrix
 
         #region A Parent=$true root entry exists, carrying the Path-row ACL
@@ -789,20 +786,20 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
             $_.PSObject.Properties.Match('Parent').Count -and $_.Parent
         }
 
-        $parent | Should -Not -BeNullOrEmpty `
+        $parent | Should-BeTruthy `
             -Because 'the Path row must become a Parent=$true entry that seeds the root inheritance walk'
-        @($parent).Count | Should -Be 1 -Because 'there is exactly one root folder'
-        @($parent.AdNames.Values) | Should -Contain 'Bob' `
+        @($parent).Count | Should-Be 1 -Because 'there is exactly one root folder'
+        @($parent.AdNames.Values) | Should-ContainCollection 'Bob' `
             -Because 'the Path row grants List to the first header group'
-        @($parent.AdNames.Values) | Should -Contain 'Mike' `
+        @($parent.AdNames.Values) | Should-ContainCollection 'Mike' `
             -Because 'the Path row grants List to the second header group'
-        @($parent.AdNames.Values) | Should -Contain 'DefaultGroup' `
+        @($parent.AdNames.Values) | Should-ContainCollection 'DefaultGroup' `
             -Because 'the root has permissions, so ApplyDefaultPermissions merges the default into it too'
         #endregion
 
         #region The top-level inherit-only folder is still empty (unchanged)
         $inheritOnly = $matrix | Where-Object { $_.Path -eq 'InheritOnly' }
-        $inheritOnly.ACL.Count | Should -Be 0 `
+        $inheritOnly.ACL.Count | Should-Be 0 `
             -Because 'the root entry seeds the walk but must not add an ACL to the empty folder'
         #endregion
     }

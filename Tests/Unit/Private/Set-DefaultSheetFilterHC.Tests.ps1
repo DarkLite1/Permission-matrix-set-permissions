@@ -85,8 +85,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                 -WorksheetName 'AccessList' `
                 -ColumnName 'MemberEnabled' -VisibleValue 'TRUE'
 
-            Get-HiddenState -Path $path -WorksheetName 'AccessList' |
-            Should -Be @($false, $true, $true)
+            Get-HiddenState -Path $path -WorksheetName 'AccessList' | Should-BeCollection @($false, $true, $true)
         }
 
         It 'keeps blank cells visible with -IncludeBlank' {
@@ -96,8 +95,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                 -WorksheetName 'AccessList' `
                 -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
 
-            Get-HiddenState -Path $path -WorksheetName 'AccessList' |
-            Should -Be @($false, $true, $false)
+            Get-HiddenState -Path $path -WorksheetName 'AccessList' | Should-BeCollection @($false, $true, $false)
         }
 
         It 'matches a boolean cell against the string value' {
@@ -108,7 +106,7 @@ Describe 'Set-DefaultSheetFilterHC' {
             $package = Open-ExcelPackage -Path $path
             try {
                 $sheet = $package.Workbook.Worksheets['AccessList']
-                $sheet.Cells[2, 6].Value | Should -BeOfType [bool]
+                $sheet.Cells[2, 6].Value | Should-HaveType ([bool])
             }
             finally {
                 Close-ExcelPackage -ExcelPackage $package -NoSave
@@ -118,8 +116,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                 -WorksheetName 'AccessList' `
                 -ColumnName 'MemberEnabled' -VisibleValue 'TRUE'
 
-            (Get-HiddenState -Path $path -WorksheetName 'AccessList')[0] |
-            Should -BeFalse
+            (Get-HiddenState -Path $path -WorksheetName 'AccessList')[0] | Should-BeFalse
         }
 
         It 'leaves the row data intact' {
@@ -129,8 +126,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                 -WorksheetName 'AccessList' `
                 -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
 
-            @(Import-Excel -Path $path -WorksheetName 'AccessList').Count |
-            Should -Be 3
+            @(Import-Excel -Path $path -WorksheetName 'AccessList').Count | Should-Be 3
         }
     }
 
@@ -144,8 +140,8 @@ Describe 'Set-DefaultSheetFilterHC' {
 
             $xml = Get-TableXml -Path $path -WorksheetName 'AccessList'
 
-            $xml | Should -Match '<filterColumn colId="5"'
-            $xml | Should -Match '<filter val="TRUE"'
+            $xml | Should-MatchString '<filterColumn colId="5"'
+            $xml | Should-MatchString '<filter val="TRUE"'
         }
 
         It 'sets the blank attribute only with -IncludeBlank' {
@@ -160,11 +156,9 @@ Describe 'Set-DefaultSheetFilterHC' {
                 -WorksheetName 'AccessList' `
                 -ColumnName 'MemberEnabled' -VisibleValue 'TRUE'
 
-            Get-TableXml -Path $with -WorksheetName 'AccessList' |
-            Should -Match 'blank="1"'
+            Get-TableXml -Path $with -WorksheetName 'AccessList' | Should-MatchString 'blank="1"'
 
-            Get-TableXml -Path $without -WorksheetName 'AccessList' |
-            Should -Not -Match 'blank='
+            Get-TableXml -Path $without -WorksheetName 'AccessList' | Should-NotMatchString 'blank='
         }
 
         It 'does not stack criteria when applied twice' {
@@ -180,7 +174,7 @@ Describe 'Set-DefaultSheetFilterHC' {
 
             $xml = Get-TableXml -Path $path -WorksheetName 'AccessList'
 
-            ([regex]::Matches($xml, '<filterColumn')).Count | Should -Be 1
+            ([regex]::Matches($xml, '<filterColumn')).Count | Should-Be 1
         }
     }
 
@@ -194,8 +188,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                     -ColumnName 'MemberEnabled' -VisibleValue 'TRUE'
             } | Should -Not -Throw
 
-            (Get-HiddenState -Path $path -WorksheetName 'AccessList')[1] |
-            Should -BeTrue
+            (Get-HiddenState -Path $path -WorksheetName 'AccessList')[1] | Should-BeTrue
         }
 
         It 'skips a worksheet without the requested column' {
@@ -207,8 +200,7 @@ Describe 'Set-DefaultSheetFilterHC' {
                     -ColumnName 'DoesNotExist' -VisibleValue 'TRUE'
             } | Should -Not -Throw
 
-            Get-HiddenState -Path $path -WorksheetName 'AccessList' |
-            Should -Be @($false, $false, $false)
+            Get-HiddenState -Path $path -WorksheetName 'AccessList' | Should-BeCollection @($false, $false, $false)
         }
 
         It 'skips a header-only worksheet' {
@@ -241,7 +233,7 @@ Describe 'Set-DefaultSheetFilterHC' {
             {
                 Set-DefaultSheetFilterHC -Path $path `
                     -WorksheetName 'AccessList' -ColumnName 'MemberEnabled'
-            } | Should -Throw -ExpectedMessage "*column 'MemberEnabled'*"
+            } | Should-Throw -ExceptionMessage "*column 'MemberEnabled'*"
         }
     }
 }

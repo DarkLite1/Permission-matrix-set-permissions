@@ -69,8 +69,7 @@ BeforeAll {
 
 Describe 'Get-JobDurationCacheKeyHC' {
     It 'builds a lowercase pipe-joined triplet' {
-        Get-JobDurationCacheKeyHC -ComputerName 'SERVER01' -Path '\\SERVER01\Share' -Action 'Fix' |
-            Should -BeExactly 'server01|\\server01\share|fix'
+        Get-JobDurationCacheKeyHC -ComputerName 'SERVER01' -Path '\\SERVER01\Share' -Action 'Fix' | Should-BeString 'server01|\\server01\share|fix' -CaseSensitive
     }
 
     It 'treats a trailing <Separator> as the same job' -TestCases @(
@@ -82,12 +81,11 @@ Describe 'Get-JobDurationCacheKeyHC' {
         $withSeparator = Get-JobDurationCacheKeyHC -ComputerName 'server01' -Path $Path -Action 'Fix'
         $without = Get-JobDurationCacheKeyHC -ComputerName 'server01' -Path '\\server01\share' -Action 'Fix'
 
-        $withSeparator | Should -BeExactly $without
+        $withSeparator | Should-BeString $without -CaseSensitive
     }
 
     It 'ignores surrounding whitespace' {
-        Get-JobDurationCacheKeyHC -ComputerName '  server01 ' -Path ' \\server01\share ' -Action ' Fix ' |
-            Should -BeExactly 'server01|\\server01\share|fix'
+        Get-JobDurationCacheKeyHC -ComputerName '  server01 ' -Path ' \\server01\share ' -Action ' Fix ' | Should-BeString 'server01|\\server01\share|fix' -CaseSensitive
     }
 
     It 'distinguishes jobs that differ only by <Field>' -TestCases @(
@@ -102,7 +100,7 @@ Describe 'Get-JobDurationCacheKeyHC' {
         $baseline = Get-JobDurationCacheKeyHC -ComputerName 'server01' -Path '\\server01\share' -Action 'Fix'
         $variant = Get-JobDurationCacheKeyHC -ComputerName $ComputerName -Path $Path -Action $Action
 
-        $variant | Should -Not -BeExactly $baseline
+        $variant | Should-NotBeString $baseline -CaseSensitive
     }
 
     It 'tolerates null input without throwing' {
@@ -122,20 +120,20 @@ Describe 'Get-JobDurationCacheHC' {
 
             $cache = Get-JobDurationCacheHC -LogFolder $LogFolder
 
-            $cache | Should -BeOfType [hashtable]
-            $cache.Count | Should -Be 0
+            $cache | Should-HaveType ([hashtable])
+            $cache.Count | Should-Be 0
         }
 
         It 'returns empty when the log folder does not exist' {
             $cache = Get-JobDurationCacheHC -LogFolder (Join-Path $TestDrive 'no-such-folder')
 
-            $cache.Count | Should -Be 0
+            $cache.Count | Should-Be 0
         }
 
         It 'returns empty on the first ever run, when no cache file exists yet' {
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache.Count | Should -Be 0
+            $cache.Count | Should-Be 0
         }
     }
 
@@ -166,20 +164,19 @@ Describe 'Get-JobDurationCacheHC' {
         It 'reads every entry' {
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache.Count | Should -Be 2
+            $cache.Count | Should-Be 2
         }
 
         It 'preserves fractional seconds' {
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache['server01|\\server01\share|fix'] | Should -Be 1465.32
+            $cache['server01|\\server01\share|fix'] | Should-Be 1465.32
         }
 
         It 'returns a value usable as a sort key' {
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache['server01|\\server01\share|fix'] |
-                Should -BeGreaterThan $cache['server02|\\server02\other|fix']
+            $cache['server01|\\server01\share|fix'] | Should-BeGreaterThan $cache['server02|\\server02\other|fix']
         }
     }
 
@@ -212,8 +209,8 @@ Describe 'Get-JobDurationCacheHC' {
 
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache | Should -BeOfType [hashtable]
-            $cache.Count | Should -Be 0
+            $cache | Should-HaveType ([hashtable])
+            $cache.Count | Should-Be 0
         }
 
         It 'keeps the good entries when one record is malformed' {
@@ -233,9 +230,9 @@ Describe 'Get-JobDurationCacheHC' {
 
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache.Count | Should -Be 2
-            $cache.ContainsKey('good|path|fix') | Should -BeTrue
-            $cache.ContainsKey('bad|path|fix') | Should -BeFalse
+            $cache.Count | Should-Be 2
+            $cache.ContainsKey('good|path|fix') | Should-BeTrue
+            $cache.ContainsKey('bad|path|fix') | Should-BeFalse
         }
 
         It 'rejects a <Description> duration' -TestCases @(
@@ -253,7 +250,7 @@ Describe 'Get-JobDurationCacheHC' {
 
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache.Count | Should -Be 0
+            $cache.Count | Should-Be 0
         }
     }
 }
@@ -263,8 +260,7 @@ Describe 'Get-JobDurationEstimateHC' {
         $cache = @{ 'server01|\\server01\share|fix' = 1465.32 }
 
         Get-JobDurationEstimateHC -Cache $cache -ComputerName 'server01' `
-            -Path '\\server01\share' -Action 'Fix' |
-            Should -Be 1465.32
+            -Path '\\server01\share' -Action 'Fix' | Should-Be 1465.32
     }
 
     It 'sorts an unknown job first by returning MaxValue' {
@@ -274,8 +270,7 @@ Describe 'Get-JobDurationEstimateHC' {
         $cache = @{ 'other|path|fix' = 10 }
 
         Get-JobDurationEstimateHC -Cache $cache -ComputerName 'server01' `
-            -Path '\\server01\share' -Action 'Fix' |
-            Should -Be ([double]::MaxValue)
+            -Path '\\server01\share' -Action 'Fix' | Should-Be ([double]::MaxValue)
     }
 
     It 'returns MaxValue for <Description>, so a first run keeps its original order' -TestCases @(
@@ -285,16 +280,14 @@ Describe 'Get-JobDurationEstimateHC' {
         param($Cache)
 
         Get-JobDurationEstimateHC -Cache $Cache -ComputerName 'server01' `
-            -Path '\\server01\share' -Action 'Fix' |
-            Should -Be ([double]::MaxValue)
+            -Path '\\server01\share' -Action 'Fix' | Should-Be ([double]::MaxValue)
     }
 
     It 'matches a cached job regardless of casing or trailing separator' {
         $cache = @{ 'server01|\\server01\share|fix' = 42 }
 
         Get-JobDurationEstimateHC -Cache $cache -ComputerName 'SERVER01' `
-            -Path '\\SERVER01\Share\' -Action 'FIX' |
-            Should -Be 42
+            -Path '\\SERVER01\Share\' -Action 'FIX' | Should-Be 42
     }
 }
 
@@ -320,13 +313,13 @@ Describe 'Save-JobDurationCacheHC' {
             { Save-JobDurationCacheHC -LogFolder $missing -Matrices @((New-MatrixItem)) } |
                 Should -Not -Throw
 
-            Test-Path $missing | Should -BeFalse
+            Test-Path $missing | Should-BeFalse
         }
 
         It 'writes nothing when there are no matrices' {
             Save-JobDurationCacheHC -LogFolder $TestDrive -Matrices @()
 
-            Test-Path (Join-Path $TestDrive 'JobDurations.json') | Should -BeFalse
+            Test-Path (Join-Path $TestDrive 'JobDurations.json') | Should-BeFalse
         }
 
         It 'writes nothing when no job completed with a duration' {
@@ -335,7 +328,7 @@ Describe 'Save-JobDurationCacheHC' {
             Save-JobDurationCacheHC -LogFolder $TestDrive `
                 -Matrices @((New-MatrixItem -Seconds $null))
 
-            Test-Path (Join-Path $TestDrive 'JobDurations.json') | Should -BeFalse
+            Test-Path (Join-Path $TestDrive 'JobDurations.json') | Should-BeFalse
         }
     }
 
@@ -346,9 +339,9 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Version | Should -Be 1
-            $json.Updated | Should -Not -BeNullOrEmpty
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
+            $json.Version | Should-Be 1
+            $json.Updated | Should-BeTruthy
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 250
         }
 
         It 'records one entry per job, not per matrix file' {
@@ -362,7 +355,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            @($json.Jobs.PSObject.Properties).Count | Should -Be 3
+            @($json.Jobs.PSObject.Properties).Count | Should-Be 3
         }
 
         It 'stores the WHOLE duration, not the seconds component' {
@@ -377,12 +370,10 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds |
-                Should -Be 1465
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 1465
 
             # 1465s is 24m25s, so the component value would be 25.
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds |
-                Should -Not -Be 25
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-NotBe 25
         }
 
         It 'rounds the duration to two decimals' {
@@ -392,7 +383,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 123.46
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 123.46
         }
 
         It 'stores a round-trippable UTC timestamp' {
@@ -416,13 +407,13 @@ Describe 'Save-JobDurationCacheHC' {
 
             $names = @((Get-CacheFileContent -LogFolder $TestDrive).Jobs.PSObject.Properties.Name)
 
-            $names[0] | Should -BeLike 'alpha*'
+            $names[0] | Should-BeLikeString 'alpha*'
         }
 
         It 'leaves no temporary file behind' {
             Save-JobDurationCacheHC -LogFolder $TestDrive -Matrices @((New-MatrixItem))
 
-            @(Get-ChildItem -Path $TestDrive -Filter '*.tmp').Count | Should -Be 0
+            @(Get-ChildItem -Path $TestDrive -Filter '*.tmp').Count | Should-Be 0
         }
     }
 
@@ -450,7 +441,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 250
         }
 
         It 'keeps a job that did not run this time' {
@@ -461,7 +452,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'absent|\\absent\share|fix'.TotalSeconds | Should -Be 777
+            $json.Jobs.'absent|\\absent\share|fix'.TotalSeconds | Should-Be 777
         }
 
         It 'does not overwrite a remembered duration when the job failed' {
@@ -476,7 +467,7 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 999
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 999
         }
 
         It 'prunes entries not seen within the retention window' {
@@ -487,9 +478,9 @@ Describe 'Save-JobDurationCacheHC' {
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
             # Two days old, so it falls outside a one-day window.
-            $json.Jobs.PSObject.Properties.Name | Should -Not -Contain 'absent|\\absent\share|fix'
+            $json.Jobs.PSObject.Properties.Name | Should-NotContainCollection 'absent|\\absent\share|fix'
             # Refreshed this run, so it stays.
-            $json.Jobs.PSObject.Properties.Name | Should -Contain 'server01|\\server01\share\folder|fix'
+            $json.Jobs.PSObject.Properties.Name | Should-ContainCollection 'server01|\\server01\share\folder|fix'
         }
 
         It 'starts fresh when the existing file cannot be parsed' {
@@ -501,8 +492,8 @@ Describe 'Save-JobDurationCacheHC' {
 
             $json = Get-CacheFileContent -LogFolder $TestDrive
 
-            @($json.Jobs.PSObject.Properties).Count | Should -Be 1
-            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should -Be 250
+            @($json.Jobs.PSObject.Properties).Count | Should-Be 1
+            $json.Jobs.'server01|\\server01\share\folder|fix'.TotalSeconds | Should-Be 250
         }
     }
 
@@ -517,10 +508,10 @@ Describe 'Save-JobDurationCacheHC' {
 
             $cache = Get-JobDurationCacheHC -LogFolder $TestDrive
 
-            $cache.Count | Should -Be 2
+            $cache.Count | Should-Be 2
 
             Get-JobDurationEstimateHC -Cache $cache -ComputerName 'busy' `
-                -Path '\\busy\share' -Action 'Fix' | Should -Be 1465
+                -Path '\\busy\share' -Action 'Fix' | Should-Be 1465
         }
 
         It 'orders the expensive job first, which is the whole point' {
@@ -543,8 +534,8 @@ Describe 'Save-JobDurationCacheHC' {
                 } -Descending
             )
 
-            $sorted[0] | Should -BeExactly '\\srv\huge'
-            $sorted[-1] | Should -BeExactly '\\srv\small'
+            $sorted[0] | Should-BeString '\\srv\huge' -CaseSensitive
+            $sorted[-1] | Should-BeString '\\srv\small' -CaseSensitive
         }
 
         It 'puts an unknown job ahead of every known one' {
@@ -564,7 +555,7 @@ Describe 'Save-JobDurationCacheHC' {
                 } -Descending
             )
 
-            $sorted[0] | Should -BeExactly '\\srv\brand-new'
+            $sorted[0] | Should-BeString '\\srv\brand-new' -CaseSensitive
         }
     }
 }

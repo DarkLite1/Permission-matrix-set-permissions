@@ -101,10 +101,10 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixBeginHC -Times 1 -Exactly
-            Should -Invoke Invoke-PermissionMatrixProcessHC -Times 1 -Exactly
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
-            Should -Invoke Add-ErrorHC -Times 0 -Exactly
+            Should-Invoke Invoke-PermissionMatrixBeginHC -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixProcessHC -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
+            Should-Invoke Add-ErrorHC -Times 0 -Exactly
         }
 
         It 'passes the Process stage output on to the End stage' {
@@ -119,7 +119,7 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly -ParameterFilter {
                 $Context.Marker -eq 'processed'
             }
         }
@@ -132,8 +132,8 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixProcessHC -Times 0 -Exactly
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixProcessHC -Times 0 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
         }
     }
 
@@ -148,11 +148,11 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixProcessHC -Times 0 -Exactly
+            Should-Invoke Invoke-PermissionMatrixProcessHC -Times 0 -Exactly
 
             $aborted = $m.Check.Where({ $_.Name -eq 'Run aborted' })
-            $aborted.Count | Should -Be 1
-            $aborted[0].Type | Should -Be 'FatalError'
+            $aborted.Count | Should-Be 1
+            $aborted[0].Type | Should-Be 'FatalError'
         }
 
         It 'does not add a second fatal error to a matrix that already has one' {
@@ -165,8 +165,8 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            $m.Check.Where({ $_.Name -eq 'Run aborted' }).Count | Should -Be 0
-            $m.Check.Count | Should -Be 1
+            $m.Check.Where({ $_.Name -eq 'Run aborted' }).Count | Should-Be 0
+            $m.Check.Count | Should-Be 1
         }
 
         It 'still runs the End stage after a system-level fatal error' {
@@ -178,7 +178,7 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
         }
     }
 
@@ -191,11 +191,11 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Add-ErrorHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Add-ErrorHC -Times 1 -Exactly -ParameterFilter {
                 $Name -eq 'Unhandled orchestrator failure'
             }
             # No context was created, so the End stage must not run.
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
         }
 
         It 'still runs the End stage when the Process stage throws (best-effort reporting)' {
@@ -206,9 +206,9 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Add-ErrorHC -Times 1 -Exactly
+            Should-Invoke Add-ErrorHC -Times 1 -Exactly
             # The context from Begin survives, so End still runs.
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 1 -Exactly
         }
 
         It 'does not run the End stage when no context was created' {
@@ -219,7 +219,7 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
         }
     }
 
@@ -233,8 +233,8 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Write-Error -Times 1 -Exactly
-            Should -Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
+            Should-Invoke Write-Error -Times 1 -Exactly
+            Should-Invoke Invoke-PermissionMatrixEndHC -Times 0 -Exactly
         }
 
         It 'reports every system error, not just the first' {
@@ -247,7 +247,7 @@ Describe 'Invoke-PermissionMatrix' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Write-Error -Times 2 -Exactly
+            Should-Invoke Write-Error -Times 2 -Exactly
         }
     }
 }

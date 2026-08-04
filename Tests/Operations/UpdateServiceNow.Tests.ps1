@@ -174,9 +174,9 @@ Describe 'UpdateServiceNow.ps1' {
         It 'rejects a MaxRetries below 1' {
             $params.MaxRetries = 0
 
-            { & $ScriptPath @params } | Should -Throw
+            { & $ScriptPath @params } | Should-Throw
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 0
+            Should-Invoke New-ServiceNowSession -Exactly -Times 0
         }
     }
 
@@ -184,17 +184,15 @@ Describe 'UpdateServiceNow.ps1' {
         It 'throws when the credentials file does not exist' {
             $params.CredentialsFilePath = Join-Path $TestDrive 'missing.json'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*ServiceNow credentials file*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*ServiceNow credentials file*'
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 0
+            Should-Invoke New-ServiceNowSession -Exactly -Times 0
         }
 
         It 'throws when the requested environment is not in the file' {
             $params.Environment = 'Dev'   # file only contains 'Prod'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage "*Failed to find environment 'Dev'*"
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage "*Failed to find environment 'Dev'*"
         }
 
         It 'throws when the <Property> property is missing for the environment' -TestCases @(
@@ -210,8 +208,7 @@ Describe 'UpdateServiceNow.ps1' {
             $environment.Remove($Property)
             New-SnowCredsFile -Path $params.CredentialsFilePath -Environment $environment
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage "*Property '$Property' not found*"
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage "*Property '$Property' not found*"
         }
     }
 
@@ -219,8 +216,7 @@ Describe 'UpdateServiceNow.ps1' {
         It 'throws a clear error when the Excel file cannot be read' {
             $params.FormDataExcelFilePath = Join-Path $TestDrive 'no-such-file.xlsx'
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Failed to import records to upload*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Failed to import records to upload*'
         }
 
         It 'does nothing when there are no records to upload' {
@@ -230,10 +226,10 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 0
-            Should -Invoke Get-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowSession -Exactly -Times 0
+            Should-Invoke Get-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -241,8 +237,8 @@ Describe 'UpdateServiceNow.ps1' {
         It 'creates a session using the configured Uri' {
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 1
-            Should -Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowSession -Exactly -Times 1
+            Should-Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
                 $Url -eq 'https://prod.example.service-now.com'
             }
         }
@@ -256,7 +252,7 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowSession -Exactly -Times 1 -ParameterFilter {
                 $Url -eq 'https://env.example.service-now.com'
             }
         }
@@ -266,18 +262,16 @@ Describe 'UpdateServiceNow.ps1' {
             $environment.Uri = 'ENV:SNOW_MISSING_VAR'
             New-SnowCredsFile -Path $params.CredentialsFilePath -Environment $environment
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage "*Environment variable 'SNOW_MISSING_VAR' not found*"
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage "*Environment variable 'SNOW_MISSING_VAR' not found*"
         }
 
         It 'throws a clear error when the session cannot be created' {
             Mock New-ServiceNowSession { throw 'connection refused' }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Failed to create a ServiceNow session*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Failed to create a ServiceNow session*'
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -285,7 +279,7 @@ Describe 'UpdateServiceNow.ps1' {
         It 'reads the target table for comparison' {
             & $ScriptPath @params
 
-            Should -Invoke Get-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Get-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
         }
@@ -313,7 +307,7 @@ Describe 'UpdateServiceNow.ps1' {
             & $ScriptPath @params
 
             # Three fetches (2 + 2 + 1) proves the table is read a chunk at a time.
-            Should -Invoke Get-ServiceNowRecord -Exactly -Times 3
+            Should-Invoke Get-ServiceNowRecord -Exactly -Times 3
         }
 
         It 'retries a failed chunk read and then aborts (a partial read is fatal)' {
@@ -324,14 +318,13 @@ Describe 'UpdateServiceNow.ps1' {
             $params.MaxRetries = 2
             Mock Get-ServiceNowRecord { throw 'network down' }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*Failed to retrieve records*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*Failed to retrieve records*'
 
-            Should -Invoke Get-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke Start-Sleep -Exactly -Times 1
+            Should-Invoke Get-ServiceNowRecord -Exactly -Times 2
+            Should-Invoke Start-Sleep -Exactly -Times 1
             # Nothing is written when the table can't be read.
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -340,10 +333,10 @@ Describe 'UpdateServiceNow.ps1' {
             # Default Get returns nothing -> the table is empty.
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2 -ParameterFilter {
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 2 -ParameterFilter {
                 $Table -eq 'u_bnl_roles'
             }
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
 
             # TODO: assert the created payload carries u_active = TRUE. New rows
             # are piped into New-ServiceNowRecord, so the assertion depends on the
@@ -363,8 +356,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -381,9 +374,9 @@ Describe 'UpdateServiceNow.ps1' {
 
             # Only the inactive match (rec-1) is reactivated; nothing is created
             # and nothing is deactivated.
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-1' -and $Values.u_active -eq $true
             }
         }
@@ -401,9 +394,9 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-stale' -and $Values.u_active -eq $false
             }
         }
@@ -419,8 +412,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
     }
 
@@ -444,8 +437,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-old' -and $Values.u_active -eq $false
             }
         }
@@ -478,8 +471,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 0
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 0
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 0
         }
 
         It 'cleans up a stored value corrupted with a trailing .0' {
@@ -508,8 +501,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-dirty' -and $Values.u_active -eq $false
             }
         }
@@ -531,8 +524,8 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2   # one failure + one success
-            Should -Invoke Start-Sleep -Exactly -Times 1
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 2   # one failure + one success
+            Should-Invoke Start-Sleep -Exactly -Times 1
         }
 
         It 'throws CRITICAL FAILURE after exhausting MaxRetries on creation' {
@@ -542,11 +535,10 @@ Describe 'UpdateServiceNow.ps1' {
             $params.MaxRetries = 2
             Mock New-ServiceNowRecord { throw 'persistent create error' }
 
-            { & $ScriptPath @params } |
-                Should -Throw -ExpectedMessage '*CRITICAL FAILURE*'
+            { & $ScriptPath @params } | Should-Throw -ExceptionMessage '*CRITICAL FAILURE*'
 
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke Start-Sleep -Exactly -Times 1   # only between attempts, not after the final throw
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 2
+            Should-Invoke Start-Sleep -Exactly -Times 1   # only between attempts, not after the final throw
         }
 
         It 'treats a failed deactivation as non-fatal and continues' {
@@ -561,9 +553,9 @@ Describe 'UpdateServiceNow.ps1' {
 
             # Deactivation is retried up to MaxRetries (3 attempts, 2 sleeps) then
             # abandoned with a warning - the creates still happen.
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 3
-            Should -Invoke Start-Sleep -Exactly -Times 2
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 2
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 3
+            Should-Invoke Start-Sleep -Exactly -Times 2
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 2
         }
 
         It 'treats a failed reactivation as non-fatal and continues' {
@@ -577,9 +569,9 @@ Describe 'UpdateServiceNow.ps1' {
 
             { & $ScriptPath @params } | Should -Not -Throw
 
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 3
-            Should -Invoke Start-Sleep -Exactly -Times 2
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 3
+            Should-Invoke Start-Sleep -Exactly -Times 2
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 1
         }
     }
 
@@ -604,14 +596,14 @@ Describe 'UpdateServiceNow.ps1' {
 
             & $ScriptPath @params
 
-            Should -Invoke New-ServiceNowSession -Exactly -Times 1
-            Should -Invoke Get-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke New-ServiceNowRecord -Exactly -Times 1
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 2
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke New-ServiceNowSession -Exactly -Times 1
+            Should-Invoke Get-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke New-ServiceNowRecord -Exactly -Times 1
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 2
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-2' -and $Values.u_active -eq $true
             }
-            Should -Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
+            Should-Invoke Update-ServiceNowRecord -Exactly -Times 1 -ParameterFilter {
                 $ID -eq 'rec-st' -and $Values.u_active -eq $false
             }
         }

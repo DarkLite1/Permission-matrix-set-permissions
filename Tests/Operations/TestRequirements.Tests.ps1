@@ -37,8 +37,7 @@ AfterAll {
 
 Describe 'the mandatory parameters are' {
     It '<_>' -TestCases @('Path', 'Flag') {
-        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory |
-        Should -BeTrue
+        (Get-Command $testScript).Parameters[$_].Attributes.Mandatory | Should-BeTrue
     }
 }
 Describe 'return a FatalError object when' {
@@ -55,7 +54,7 @@ Describe 'return a FatalError object when' {
         $actual = .$testScript -Path 'NotExistingNotImportant' -Flag $true
 
         $actual | ConvertTo-Json |
-        Should -BeExactly ($expected | ConvertTo-Json)
+        Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
     }
     It 'the minimal version for PowerShell is not installed' {
         $expected = [PSCustomObject]@{
@@ -71,7 +70,7 @@ Describe 'return a FatalError object when' {
         }
 
         $actual | Where-Object { $_.Name -eq $expected.Name } | ConvertTo-Json |
-        Should -BeExactly ($expected | ConvertTo-Json)
+        Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
     }
     It '.NET 4.6.2 or later is not installed' {
         Mock -CommandName Get-ItemPropertyValue -MockWith {
@@ -89,7 +88,7 @@ Describe 'return a FatalError object when' {
         Where-Object { $_.Name -eq $expected.Name }
 
         $actual | ConvertTo-Json |
-        Should -BeExactly ($expected | ConvertTo-Json)
+    Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
     }
 }
 Describe 'when the smb share permissions are' {
@@ -145,7 +144,7 @@ Describe 'when the smb share permissions are' {
                 }
             }
             It 'with no other permissions' {
-                $actual | Should -HaveCount 2
+                $actual | Should-BeCollection -Count 2
             }
         }
         Context 'return an object of type' {
@@ -165,7 +164,7 @@ Describe 'when the smb share permissions are' {
                 (
                     $Result | Where-Object Name -EQ $expected.Name | ConvertTo-Json
                 ) |
-                Should -BeExactly ($expected | ConvertTo-Json)
+                Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
             }
         }
     }
@@ -205,11 +204,11 @@ Describe 'when the smb share permissions are' {
             $actual = .$testScript -Path $testSmbShare[1].Path -Flag $false
         }
         It 'do nothing' {
-            Should -Not -Invoke Revoke-SmbShareAccess -Scope Context
-            Should -Not -Invoke Grant-SmbShareAccess -Scope Context
+            Should-NotInvoke Revoke-SmbShareAccess -Scope Context
+            Should-NotInvoke Grant-SmbShareAccess -Scope Context
         }
         It 'return no object' {
-            $actual | Should -BeNullOrEmpty
+            $actual | Should-BeFalsy
         }
     }
     Context 'not set, because there is no smb share for the folder' {
@@ -218,7 +217,7 @@ Describe 'when the smb share permissions are' {
 
             $actual = .$testScript -Path $testFolder.FullName -Flag $true
 
-            $actual | Should -BeNullOrEmpty
+            $actual | Should-BeFalsy
         }
     }
 }
@@ -249,7 +248,7 @@ Describe 'set Access Based Enumeration' {
             (
                 $actual | Where-Object Name -EQ $expected.Name | ConvertTo-Json
             ) |
-            Should -BeExactly ($expected | ConvertTo-Json)
+            Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
         }
     }
     Context 'when Flag is FALSE' {
@@ -278,7 +277,7 @@ Describe 'set Access Based Enumeration' {
             (
                 $actual | Where-Object Name -EQ $expected.Name | ConvertTo-Json
             ) |
-            Should -BeExactly ($expected | ConvertTo-Json)
+            Should-BeString -CaseSensitive ($expected | ConvertTo-Json)
         }
     }
 }

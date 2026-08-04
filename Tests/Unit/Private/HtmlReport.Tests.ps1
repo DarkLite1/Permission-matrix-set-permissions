@@ -37,14 +37,14 @@ Describe 'New-OverviewHtmlHC' {
         It 'returns a non-empty string' {
             $html = New-OverviewHtmlHC -FormData @( New-FormDataRow )
 
-            $html | Should -Not -BeNullOrEmpty
-            $html | Should -BeOfType [string]
+            $html | Should-BeTruthy
+            $html | Should-HaveType ([string])
         }
 
         It 'includes the page title heading' {
             $html = New-OverviewHtmlHC -FormData @( New-FormDataRow )
 
-            $html | Should -Match '<h1>Matrix files overview</h1>'
+            $html | Should-MatchString '<h1>Matrix files overview</h1>'
         }
 
         It 'includes the table header row with all columns' {
@@ -52,15 +52,15 @@ Describe 'New-OverviewHtmlHC' {
 
             'Category', 'Subcategory', 'Folder', 'Link to the matrix', 'Responsible' |
             ForEach-Object {
-                $html | Should -Match "<th>$_</th>"
+                $html | Should-MatchString "<th>$_</th>"
             }
         }
 
         It 'wraps the rows in a <tbody>' {
             $html = New-OverviewHtmlHC -FormData @( New-FormDataRow )
 
-            $html | Should -Match '<tbody>'
-            $html | Should -Match '</tbody>'
+            $html | Should-MatchString '<tbody>'
+            $html | Should-MatchString '</tbody>'
         }
     }
 
@@ -76,7 +76,7 @@ Describe 'New-OverviewHtmlHC' {
 
             # Count <tr> occurrences inside <tbody>...</tbody>
             $tbody = [regex]::Match($html, '(?s)<tbody>(.*?)</tbody>').Groups[1].Value
-            ([regex]::Matches($tbody, '<tr>')).Count | Should -Be 3
+            ([regex]::Matches($tbody, '<tr>')).Count | Should-Be 3
         }
 
         It 'renders the data values into the row cells' {
@@ -87,9 +87,9 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match '<td>Finance</td>'
-            $html | Should -Match '<td>Payroll</td>'
-            $html | Should -Match 'payroll\.xlsx'
+            $html | Should-MatchString '<td>Finance</td>'
+            $html | Should-MatchString '<td>Payroll</td>'
+            $html | Should-MatchString 'payroll\.xlsx'
         }
 
         It 'links the matrix file as an anchor' {
@@ -101,7 +101,7 @@ Describe 'New-OverviewHtmlHC' {
 
             # The anchor carries target/rel attributes; the href is the raw
             # file path and the link text is the (encoded) file name.
-            $html | Should -Match '<a href="C:\\Share\\My-Matrix\.xlsx" target=''_blank'' rel=''noopener noreferrer'' >My-Matrix\.xlsx</a>'
+            $html | Should-MatchString '<a href="C:\\Share\\My-Matrix\.xlsx" target=''_blank'' rel=''noopener noreferrer'' >My-Matrix\.xlsx</a>'
         }
 
         It 'links the folder as an anchor' {
@@ -109,7 +109,7 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match '<a href="\\\\srv01\\teamA" target=''_blank'' rel=''noopener noreferrer'' >'
+            $html | Should-MatchString '<a href="\\\\srv01\\teamA" target=''_blank'' rel=''noopener noreferrer'' >'
         }
     }
 
@@ -132,9 +132,9 @@ Describe 'New-OverviewHtmlHC' {
                 'b-x-f1.xlsx' = $html.IndexOf('b-x-f1.xlsx')
             }
 
-            $positions['a-y-f1.xlsx'] | Should -BeLessThan $positions['a-y-f2.xlsx']
-            $positions['a-y-f2.xlsx'] | Should -BeLessThan $positions['a-z-f1.xlsx']
-            $positions['a-z-f1.xlsx'] | Should -BeLessThan $positions['b-x-f1.xlsx']
+            $positions['a-y-f1.xlsx'] | Should-BeLessThan $positions['a-y-f2.xlsx']
+            $positions['a-y-f2.xlsx'] | Should-BeLessThan $positions['a-z-f1.xlsx']
+            $positions['a-z-f1.xlsx'] | Should-BeLessThan $positions['b-x-f1.xlsx']
         }
     }
 
@@ -144,7 +144,7 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match '<a href="mailto:bob@example\.com">bob@example\.com</a>'
+            $html | Should-MatchString '<a href="mailto:bob@example\.com">bob@example\.com</a>'
         }
 
         It 'renders one link per email when comma-separated' {
@@ -152,8 +152,8 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match 'mailto:alice@x\.com'
-            $html | Should -Match 'mailto:bob@x\.com'
+            $html | Should-MatchString 'mailto:alice@x\.com'
+            $html | Should-MatchString 'mailto:bob@x\.com'
         }
 
         It 'trims whitespace around emails before building the mailto link' {
@@ -161,9 +161,9 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match '<a href="mailto:bob@x\.com">bob@x\.com</a>'
-            $html | Should -Not -Match 'mailto: bob'
-            $html | Should -Not -Match 'mailto:%20bob'
+            $html | Should-MatchString '<a href="mailto:bob@x\.com">bob@x\.com</a>'
+            $html | Should-NotMatchString 'mailto: bob'
+            $html | Should-NotMatchString 'mailto:%20bob'
         }
     }
 
@@ -173,8 +173,8 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Match '<td>R&amp;D</td>'
-            $html | Should -Not -Match '<td>R&D</td>'
+            $html | Should-MatchString '<td>R&amp;D</td>'
+            $html | Should-NotMatchString '<td>R&D</td>'
         }
 
         It 'encodes angle brackets to prevent tag injection' {
@@ -182,8 +182,8 @@ Describe 'New-OverviewHtmlHC' {
 
             $html = New-OverviewHtmlHC -FormData @($row)
 
-            $html | Should -Not -Match '<td><script>alert\(1\)</script></td>'
-            $html | Should -Match '&lt;script&gt;'
+            $html | Should-NotMatchString '<td><script>alert\(1\)</script></td>'
+            $html | Should-MatchString '&lt;script&gt;'
         }
     }
 
@@ -191,13 +191,13 @@ Describe 'New-OverviewHtmlHC' {
         It 'returns a valid HTML page when FormData is empty' {
             $html = New-OverviewHtmlHC -FormData @()
 
-            $html | Should -Match '<h1>Matrix files overview</h1>'
-            $html | Should -Match '<tbody>'
-            $html | Should -Match '</tbody>'
+            $html | Should-MatchString '<h1>Matrix files overview</h1>'
+            $html | Should-MatchString '<tbody>'
+            $html | Should-MatchString '</tbody>'
 
             # No data rows
             $tbody = [regex]::Match($html, '(?s)<tbody>(.*?)</tbody>').Groups[1].Value
-            ([regex]::Matches($tbody, '<tr>')).Count | Should -Be 0
+            ([regex]::Matches($tbody, '<tr>')).Count | Should-Be 0
         }
     }
 }
@@ -222,8 +222,8 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00')
-        $html | Should -Match 'href="file://C:/data/matrix\.xlsx"'
-        $html | Should -Match 'Matrix file'
+        $html | Should-MatchString 'href="file://C:/data/matrix\.xlsx"'
+        $html | Should-MatchString 'Matrix file'
     }
 
     It 'renders the defaults file when a path is supplied' {
@@ -231,8 +231,8 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr -DefaultsFilePath 'C:\d\defaults.json' `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00')
-        $html | Should -Match 'Defaults file'
-        $html | Should -Match 'defaults\.json'
+        $html | Should-MatchString 'Defaults file'
+        $html | Should-MatchString 'defaults\.json'
     }
 
     It 'skips the defaults file row when no path is supplied' {
@@ -240,7 +240,7 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr -DefaultsFilePath '' `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00')
-        $html | Should -Not -Match 'Defaults file'
+        $html | Should-NotMatchString 'Defaults file'
     }
 
     It 'formats start and end times with seconds precision' {
@@ -248,8 +248,8 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr `
             -ScriptStartTime (Get-Date '2024-03-22 14:05:09') `
             -ScriptEndTime (Get-Date '2024-03-22 14:06:11')
-        $html | Should -Match '22/03/2024 14:05:09'
-        $html | Should -Match '22/03/2024 14:06:11'
+        $html | Should-MatchString '22/03/2024 14:05:09'
+        $html | Should-MatchString '22/03/2024 14:06:11'
     }
 
     It 'strips the "Last change:" prefix from the last-change value' {
@@ -257,8 +257,8 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00')
-        $html | Should -Match 'Last change'
-        $html | Should -Match 'Brecht'
+        $html | Should-MatchString 'Last change'
+        $html | Should-MatchString 'Brecht'
     }
 }
 
@@ -289,10 +289,10 @@ Describe 'Build-MatrixDetailCardHC' {
 
     It 'renders a compact (header-only) card for a clean matrix row' {
         $html = Build-MatrixDetailCardHC -MatrixItem (New-DetailMatrix)
-        $html | Should -Match 'SRV01'
+        $html | Should-MatchString 'SRV01'
         # No check rows for a clean card
-        $html | Should -Not -Match 'WARNING'
-        $html | Should -Not -Match 'ERROR'
+        $html | Should-NotMatchString 'WARNING'
+        $html | Should-NotMatchString 'ERROR'
     }
 
     It 'renders check rows in full mode when the row has checks' {
@@ -300,16 +300,16 @@ Describe 'Build-MatrixDetailCardHC' {
             [pscustomobject]@{ Type = 'Warning'; Name = 'TestCheck'; Description = 'A test description' }
         )
         $html = Build-MatrixDetailCardHC -MatrixItem $item
-        $html | Should -Match 'TestCheck'
-        $html | Should -Match 'A test description'
-        $html | Should -Match 'WARNING'
+        $html | Should-MatchString 'TestCheck'
+        $html | Should-MatchString 'A test description'
+        $html | Should-MatchString 'WARNING'
     }
 
     It 'shortens a long ID in the visible cell but keeps the full ID in the tooltip' {
         $item = New-DetailMatrix -ID '1234567890ABCDEF'
         $html = Build-MatrixDetailCardHC -MatrixItem $item
-        $html | Should -Match '123\.\.\.DEF'
-        $html | Should -Match 'title="1234567890ABCDEF"'
+        $html | Should-MatchString '123\.\.\.DEF'
+        $html | Should-MatchString 'title="1234567890ABCDEF"'
     }
 
     It 'links a check name to its JSON file when JsonFileName is present' {
@@ -317,21 +317,21 @@ Describe 'Build-MatrixDetailCardHC' {
             [pscustomobject]@{ Type = 'FatalError'; Name = 'JCheck'; Description = 'd'; JsonFileName = 'C:\j\check.json' }
         )
         $html = Build-MatrixDetailCardHC -MatrixItem $item
-        $html | Should -Match "href='C:\\j\\check\.json'"
-        $html | Should -Match '>JCheck</a>'
+        $html | Should-MatchString "href='C:\\j\\check\.json'"
+        $html | Should-MatchString '>JCheck</a>'
     }
 
     It 'marks a clean row as Skipped (grey) when the file has a fatal error' {
         $html = Build-MatrixDetailCardHC -MatrixItem (New-DetailMatrix) -FileHasFatalError $true
-        $html | Should -Match '#6b7280'
-        $html | Should -Match '>Skipped</span>'
-        $html | Should -Not -Match '#16a34a'
+        $html | Should-MatchString '#6b7280'
+        $html | Should-MatchString '>Skipped</span>'
+        $html | Should-NotMatchString '#16a34a'
     }
 
     It 'keeps a clean row green when the file has no fatal error' {
         $html = Build-MatrixDetailCardHC -MatrixItem (New-DetailMatrix)
-        $html | Should -Match '#16a34a'
-        $html | Should -Not -Match '>Skipped</span>'
+        $html | Should-MatchString '#16a34a'
+        $html | Should-NotMatchString '>Skipped</span>'
     }
 
     It 'keeps a row with its own warning as a warning even when the file errored' {
@@ -339,19 +339,19 @@ Describe 'Build-MatrixDetailCardHC' {
             [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
         )
         $html = Build-MatrixDetailCardHC -MatrixItem $item -FileHasFatalError $true
-        $html | Should -Match 'WARNING'
-        $html | Should -Not -Match '>Skipped</span>'
+        $html | Should-MatchString 'WARNING'
+        $html | Should-NotMatchString '>Skipped</span>'
     }
 }
 
 Describe 'New-HtmlSectionHC' {
     It 'returns empty when there are no checks and no title' {
-        New-HtmlSectionHC -Title '' -Checks @() | Should -Be ''
+        New-HtmlSectionHC -Title '' -Checks @() | Should-Be ''
     }
 
     It 'renders an encoded section title heading' {
         $html = New-HtmlSectionHC -Title 'R&D Section' -Checks @()
-        $html | Should -Match 'R&amp;D Section'
+        $html | Should-MatchString 'R&amp;D Section'
     }
 
     It 'renders one file-level check row per check' {
@@ -360,8 +360,8 @@ Describe 'New-HtmlSectionHC' {
             [pscustomobject]@{ Type = 'FatalError'; Name = 'c2'; Description = 'd2' }
         )
         $html = New-HtmlSectionHC -Title 'Sec' -Checks $checks
-        $html | Should -Match 'c1'
-        $html | Should -Match 'c2'
+        $html | Should-MatchString 'c1'
+        $html | Should-MatchString 'c2'
     }
 }
 
@@ -369,16 +369,16 @@ Describe 'New-HtmlCheckRowHC' {
     It 'renders a row with the prob-type class for the check type' {
         $check = [pscustomobject]@{ Type = 'FatalError'; Name = 'n'; Description = 'd' }
         $html = New-HtmlCheckRowHC -CheckItem $check
-        $html | Should -Match "class='probTypeError'"
-        $html | Should -Match '>n</td>'
-        $html | Should -Match '>d</td>'
+        $html | Should-MatchString "class='probTypeError'"
+        $html | Should-MatchString '>n</td>'
+        $html | Should-MatchString '>d</td>'
     }
 
     It 'HTML-encodes the name and description' {
         $check = [pscustomobject]@{ Type = 'Warning'; Name = 'a&b'; Description = '<x>' }
         $html = New-HtmlCheckRowHC -CheckItem $check
-        $html | Should -Match 'a&amp;b'
-        $html | Should -Match '&lt;x&gt;'
+        $html | Should-MatchString 'a&amp;b'
+        $html | Should-MatchString '&lt;x&gt;'
     }
 }
 
@@ -393,13 +393,13 @@ Describe 'New-SettingsCardHtmlHC' {
             JobTime = [pscustomobject]@{ Duration = $null }
         }
         $html = New-SettingsCardHtmlHC -MatrixItem $item
-        $html | Should -Match 'SRV-DELEGATE'
+        $html | Should-MatchString 'SRV-DELEGATE'
     }
 }
 
 Describe 'New-SettingsOverviewHtmlHC' {
     It 'is a no-op that returns empty string in the modern layout' {
-        New-SettingsOverviewHtmlHC -MatrixRows @() -Html @{} | Should -Be ''
+        New-SettingsOverviewHtmlHC -MatrixRows @() -Html @{} | Should-Be ''
     }
 }
 
@@ -436,7 +436,7 @@ Describe 'Write-MatrixExecutionReportHC' {
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00') `
             -LogFolder $logFolder
 
-        Test-Path -LiteralPath (Join-Path $logFolder '00 - Execution Report.html') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $logFolder '00 - Execution Report.html') | Should-BeTrue
     }
 
     It 'writes a valid HTML document with the filename in the title' {
@@ -446,8 +446,8 @@ Describe 'Write-MatrixExecutionReportHC' {
             -LogFolder $logFolder
 
         $content = Get-Content -LiteralPath (Join-Path $logFolder '00 - Execution Report.html') -Raw
-        $content | Should -Match '<!DOCTYPE html>'
-        $content | Should -Match '<title>Execution Report - Report\.xlsx</title>'
+        $content | Should-MatchString '<!DOCTYPE html>'
+        $content | Should-MatchString '<title>Execution Report - Report\.xlsx</title>'
     }
 
     It 'includes a Settings section and the matrix detail card' {
@@ -457,8 +457,8 @@ Describe 'Write-MatrixExecutionReportHC' {
             -LogFolder $logFolder
 
         $content = Get-Content -LiteralPath (Join-Path $logFolder '00 - Execution Report.html') -Raw
-        $content | Should -Match 'Settings \(1\)'
-        $content | Should -Match 'SRV01'
+        $content | Should-MatchString 'Settings \(1\)'
+        $content | Should-MatchString 'SRV01'
     }
 
     It 'returns null when the log folder does not exist' {
@@ -467,7 +467,7 @@ Describe 'Write-MatrixExecutionReportHC' {
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:05:00') `
             -LogFolder $missing
-        $result | Should -BeNullOrEmpty
+        $result | Should-BeFalsy
     }
 }
 
@@ -497,7 +497,7 @@ Describe 'Write-MatrixSettingLogHC' {
         Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $logFolder
 
         $expected = Join-Path $logFolder 'ID 42 - Settings.html'
-        Test-Path -LiteralPath $expected | Should -BeTrue
+        Test-Path -LiteralPath $expected | Should-BeTrue
     }
 
     It 'writes a valid HTML document with the matrix ID in the title' {
@@ -506,9 +506,9 @@ Describe 'Write-MatrixSettingLogHC' {
         $path = Join-Path $logFolder 'ID 42 - Settings.html'
         $content = Get-Content -LiteralPath $path -Raw
 
-        $content | Should -Match '<!DOCTYPE html>'
+        $content | Should-MatchString '<!DOCTYPE html>'
         # The heading uses an em-dash entity, not a hyphen.
-        $content | Should -Match '<h1>Settings Log &mdash; ID 42</h1>'
+        $content | Should-MatchString '<h1>Settings Log &mdash; ID 42</h1>'
     }
 
     It 'renders the check detail card for the matrix' {
@@ -517,8 +517,8 @@ Describe 'Write-MatrixSettingLogHC' {
         $path = Join-Path $logFolder 'ID 42 - Settings.html'
         $content = Get-Content -LiteralPath $path -Raw
 
-        $content | Should -Match 'TestCheck'
-        $content | Should -Match 'A test description'
+        $content | Should-MatchString 'TestCheck'
+        $content | Should-MatchString 'A test description'
     }
 
     It 'returns null when the log folder does not exist' {
@@ -526,6 +526,6 @@ Describe 'Write-MatrixSettingLogHC' {
 
         $result = Write-MatrixSettingLogHC -Matrix $matrix -Html $html -LogFolder $missing
 
-        $result | Should -BeNullOrEmpty
+        $result | Should-BeFalsy
     }
 }

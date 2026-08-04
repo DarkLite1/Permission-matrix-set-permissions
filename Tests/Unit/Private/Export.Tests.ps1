@@ -70,10 +70,10 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
+            Should-Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
                 $Path -eq 'TestDrive:\Permissions.xlsx'
             }
-            $result.Permissions | Should -Be 'TestDrive:\Permissions.xlsx'
+            $result.Permissions | Should-Be 'TestDrive:\Permissions.xlsx'
         }
 
         It 'does not use the flat single-sheet Permissions writer' {
@@ -85,7 +85,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Export-PermissionsFileHC -Times 0
+            Should-Invoke Export-PermissionsFileHC -Times 0
         }
 
         It 'skips the permissions file when PermissionsExcelFile is null' {
@@ -97,8 +97,8 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 0
-            $result.Permissions | Should -BeNullOrEmpty
+            Should-Invoke Export-ConsolidatedPermissionsFileHC -Times 0
+            $result.Permissions | Should-BeFalsy
         }
 
         It 'passes the consolidated sheets from Build-ConsolidatedExportDataHC to the writer' {
@@ -110,7 +110,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
+            Should-Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
                 $GroupManagers.Count -eq 1 -and
                 $GroupManagers[0].MatrixFileName -eq 'X.xlsx' -and
                 $AccessList.Count -eq 1 -and
@@ -131,7 +131,7 @@ Describe 'Export-FilesHC' {
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings `
                 -FileResults $fileResults -AdObjectDetails $adDetails | Out-Null
 
-            Should -Invoke Build-ConsolidatedExportDataHC -Times 1 -ParameterFilter {
+            Should-Invoke Build-ConsolidatedExportDataHC -Times 1 -ParameterFilter {
                 $FileResults.Count -eq 1 -and $AdObjectDetails.Count -eq 1
             }
         }
@@ -147,10 +147,10 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke Export-ServiceNowFormDataHC -Times 1 -ParameterFilter {
+            Should-Invoke Export-ServiceNowFormDataHC -Times 1 -ParameterFilter {
                 $Path -eq 'TestDrive:\ServiceNow.xlsx'
             }
-            $result.FormData | Should -Be 'TestDrive:\ServiceNow.xlsx'
+            $result.FormData | Should-Be 'TestDrive:\ServiceNow.xlsx'
         }
 
         It 'skips the FormData file when ServiceNowFormDataExcelFile is null' {
@@ -162,7 +162,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Export-ServiceNowFormDataHC -Times 0
+            Should-Invoke Export-ServiceNowFormDataHC -Times 0
         }
     }
 
@@ -176,11 +176,11 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            Should -Invoke New-OverviewHtmlHC -Times 1
-            Should -Invoke Export-OverviewHtmlHC -Times 1 -ParameterFilter {
+            Should-Invoke New-OverviewHtmlHC -Times 1
+            Should-Invoke Export-OverviewHtmlHC -Times 1 -ParameterFilter {
                 $Path -eq 'TestDrive:\Overview.html'
             }
-            $result.OverviewHtml | Should -Be 'TestDrive:\Overview.html'
+            $result.OverviewHtml | Should-Be 'TestDrive:\Overview.html'
         }
 
         It 'passes FormData rows (not ImportedMatrix) to New-OverviewHtmlHC' {
@@ -192,7 +192,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke New-OverviewHtmlHC -Times 1 -ParameterFilter {
+            Should-Invoke New-OverviewHtmlHC -Times 1 -ParameterFilter {
                 # Verify the rows came from FakeExportData.FormData (which has
                 # MatrixFileName='X.xlsx'), not from $FakeMatrices (which has
                 # only an Id property).
@@ -211,7 +211,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Export-OverviewHtmlHC -Times 1 -ParameterFilter {
+            Should-Invoke Export-OverviewHtmlHC -Times 1 -ParameterFilter {
                 $Html -eq '<html>custom-overview-content</html>'
             }
         }
@@ -225,8 +225,8 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke New-OverviewHtmlHC -Times 0
-            Should -Invoke Export-OverviewHtmlHC -Times 0
+            Should-Invoke New-OverviewHtmlHC -Times 0
+            Should-Invoke Export-OverviewHtmlHC -Times 0
         }
     }
 
@@ -240,9 +240,9 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            $result.Keys | Should -Contain 'Permissions'
-            $result.Keys | Should -Contain 'FormData'
-            $result.Keys | Should -Contain 'OverviewHtml'
+            $result.Keys | Should-ContainCollection 'Permissions'
+            $result.Keys | Should-ContainCollection 'FormData'
+            $result.Keys | Should-ContainCollection 'OverviewHtml'
         }
 
         It 'calls Build-ExportDataHC exactly once regardless of which exports are configured' {
@@ -254,7 +254,7 @@ Describe 'Export-FilesHC' {
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
 
-            Should -Invoke Build-ExportDataHC -Times 1
+            Should-Invoke Build-ExportDataHC -Times 1
         }
 
         It 'produces all three artifacts when all settings are configured' {
@@ -266,9 +266,9 @@ Describe 'Export-FilesHC' {
 
             $result = Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings
 
-            $result.Permissions | Should -Not -BeNullOrEmpty
-            $result.FormData | Should -Not -BeNullOrEmpty
-            $result.OverviewHtml | Should -Not -BeNullOrEmpty
+            $result.Permissions | Should-BeTruthy
+            $result.FormData | Should-BeTruthy
+            $result.OverviewHtml | Should-BeTruthy
         }
     }
 }
@@ -354,11 +354,11 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions.Count | Should -Be 1
-            $res.Permissions[0].MatrixFile | Should -Be 'Team.xlsx'
-            $res.Permissions[0].Computer | Should -Be 'SRV9'
-            $res.Permissions[0].Path | Should -Be 'D:\data'
-            $res.Permissions[0].Action | Should -Be 'Fix'
+            $res.Permissions.Count | Should-Be 1
+            $res.Permissions[0].MatrixFile | Should-Be 'Team.xlsx'
+            $res.Permissions[0].Computer | Should-Be 'SRV9'
+            $res.Permissions[0].Path | Should-Be 'D:\data'
+            $res.Permissions[0].Action | Should-Be 'Fix'
         }
 
         It 'counts FatalError checks into Errors and Warning checks into Warnings' {
@@ -373,8 +373,8 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions[0].Errors | Should -Be 2
-            $res.Permissions[0].Warnings | Should -Be 1
+            $res.Permissions[0].Errors | Should-Be 2
+            $res.Permissions[0].Warnings | Should-Be 1
         }
 
         It 'reports zero Errors and Warnings when a matrix has no checks' {
@@ -382,8 +382,8 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions[0].Errors | Should -Be 0
-            $res.Permissions[0].Warnings | Should -Be 0
+            $res.Permissions[0].Errors | Should-Be 0
+            $res.Permissions[0].Warnings | Should-Be 0
         }
 
         It 'produces one permissions row per matrix object sharing a file' {
@@ -396,8 +396,8 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions.Count | Should -Be 3
-            $res.Permissions.Computer | Should -Be @('PC1', 'PC2', 'PC3')
+            $res.Permissions.Count | Should-Be 3
+            $res.Permissions.Computer | Should-BeCollection @('PC1', 'PC2', 'PC3')
         }
     }
 
@@ -413,9 +413,9 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions.Count | Should -Be 3
-            ($res.Permissions | Where-Object MatrixFile -EQ 'One.xlsx').Count | Should -Be 1
-            ($res.Permissions | Where-Object MatrixFile -EQ 'Two.xlsx').Count | Should -Be 2
+            $res.Permissions.Count | Should-Be 3
+            ($res.Permissions | Where-Object MatrixFile -EQ 'One.xlsx').Count | Should-Be 1
+            ($res.Permissions | Where-Object MatrixFile -EQ 'Two.xlsx').Count | Should-Be 2
         }
 
         It 'emits one FormData row per file' {
@@ -430,7 +430,7 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.FormData.Count | Should -Be 2
+            $res.FormData.Count | Should-Be 2
         }
     }
 
@@ -446,9 +446,9 @@ Describe 'Build-ExportDataHC' {
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
             # Two permissions rows (one per settings row) but a single FormData row
-            $res.Permissions.Count | Should -Be 2
-            $res.FormData.Count | Should -Be 1
-            $res.FormData[0].Value | Should -Be 'alice'
+            $res.Permissions.Count | Should-Be 2
+            $res.FormData.Count | Should-Be 1
+            $res.FormData[0].Value | Should-Be 'alice'
         }
     }
 
@@ -460,9 +460,9 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.FormData.Count | Should -Be 1
-            $res.FormData[0].Field | Should -Be 'Owner'
-            $res.FormData[0].Value | Should -Be 'alice'
+            $res.FormData.Count | Should-Be 1
+            $res.FormData[0].Field | Should-Be 'Owner'
+            $res.FormData[0].Value | Should-Be 'alice'
         }
 
         It 'adds no FormData rows when the file has no formatted FormData' {
@@ -471,7 +471,7 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.FormData.Count | Should -Be 0
+            $res.FormData.Count | Should-Be 0
         }
 
         It 'adds no FormData rows when the file has no FormData sheet entry' {
@@ -480,7 +480,7 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.FormData.Count | Should -Be 0
+            $res.FormData.Count | Should-Be 0
         }
     }
 
@@ -491,15 +491,15 @@ Describe 'Build-ExportDataHC' {
 
             $res = Build-ExportDataHC -ImportedMatrix $imported
 
-            $res.Permissions.Count | Should -Be 0
-            $res.FormData.Count | Should -Be 0
+            $res.Permissions.Count | Should-Be 0
+            $res.FormData.Count | Should-Be 0
         }
 
         It 'always returns an object exposing Permissions and FormData properties' {
             $res = Build-ExportDataHC -ImportedMatrix @( New-MatrixObject )
 
-            $res.PSObject.Properties.Name | Should -Contain 'Permissions'
-            $res.PSObject.Properties.Name | Should -Contain 'FormData'
+            $res.PSObject.Properties.Name | Should-ContainCollection 'Permissions'
+            $res.PSObject.Properties.Name | Should-ContainCollection 'FormData'
         }
     }
 }
@@ -553,11 +553,11 @@ Describe 'Build-ConsolidatedExportDataHC' {
 
         $res = Build-ConsolidatedExportDataHC -FileResults @($fr) -AdObjectDetails @()
 
-        $res.GroupManagers.Count | Should -Be 1
-        $res.GroupManagers[0].MatrixFileName | Should -Be 'Team.xlsx'
-        $res.GroupManagers[0].GroupName | Should -Be 'grp-Team.xlsx'
-        $res.GroupManagers[0].PSObject.Properties.Name | Should -Contain 'MemberEnabled'
-        $res.GroupManagers[0].MemberEnabled | Should -Be $false
+        $res.GroupManagers.Count | Should-Be 1
+        $res.GroupManagers[0].MatrixFileName | Should-Be 'Team.xlsx'
+        $res.GroupManagers[0].GroupName | Should-Be 'grp-Team.xlsx'
+        $res.GroupManagers[0].PSObject.Properties.Name | Should-ContainCollection 'MemberEnabled'
+        $res.GroupManagers[0].MemberEnabled | Should-BeFalse
     }
 
     It 'aggregates AccessList and AdObjects rows across files' {
@@ -566,10 +566,10 @@ Describe 'Build-ConsolidatedExportDataHC' {
             (New-FileResult -FileName 'Two.xlsx')
         ) -AdObjectDetails @()
 
-        $res.AccessList.Count | Should -Be 2
-        $res.AdObjects.Count | Should -Be 2
-        $res.AccessList.SamAccountName | Should -Contain 'acc-One.xlsx'
-        $res.AccessList.SamAccountName | Should -Contain 'acc-Two.xlsx'
+        $res.AccessList.Count | Should-Be 2
+        $res.AdObjects.Count | Should-Be 2
+        $res.AccessList.SamAccountName | Should-ContainCollection 'acc-One.xlsx'
+        $res.AccessList.SamAccountName | Should-ContainCollection 'acc-Two.xlsx'
     }
 
     It 'adds a MatrixFileName column to AccessList and keeps MemberEnabled' {
@@ -577,9 +577,9 @@ Describe 'Build-ConsolidatedExportDataHC' {
             (New-FileResult -FileName 'Team.xlsx')
         ) -AdObjectDetails @()
 
-        $res.AccessList[0].MatrixFileName | Should -Be 'Team.xlsx'
-        $res.AccessList[0].SamAccountName | Should -Be 'acc-Team.xlsx'
-        $res.AccessList[0].PSObject.Properties.Name | Should -Contain 'MemberEnabled'
+        $res.AccessList[0].MatrixFileName | Should-Be 'Team.xlsx'
+        $res.AccessList[0].SamAccountName | Should-Be 'acc-Team.xlsx'
+        $res.AccessList[0].PSObject.Properties.Name | Should-ContainCollection 'MemberEnabled'
     }
 
     It 'emits one FormData row per file that has formatted FormData' {
@@ -590,7 +590,7 @@ Describe 'Build-ConsolidatedExportDataHC' {
                 -FormDataFormatted ([pscustomobject]@{ MatrixFileName = 'Two.xlsx' }))
         ) -AdObjectDetails @()
 
-        $res.FormData.Count | Should -Be 2
+        $res.FormData.Count | Should-Be 2
     }
 
     It 'skips FormData for files without formatted FormData' {
@@ -598,7 +598,7 @@ Describe 'Build-ConsolidatedExportDataHC' {
             (New-FileResult -FileName 'One.xlsx' -FormDataFormatted $null)
         ) -AdObjectDetails @()
 
-        $res.FormData.Count | Should -Be 0
+        $res.FormData.Count | Should-Be 0
     }
 
     It 'caches the per-file rows and reuses them on a second pass' {
@@ -608,15 +608,15 @@ Describe 'Build-ConsolidatedExportDataHC' {
         Build-ConsolidatedExportDataHC -FileResults @($fr) -AdObjectDetails @() | Out-Null
 
         # Built once on the first pass, reused from the cache on the second
-        Should -Invoke Build-MatrixLogSheetRowsHC -Times 1 -Exactly
-        $fr.PSObject.Properties.Name | Should -Contain 'LogSheets'
+        Should-Invoke Build-MatrixLogSheetRowsHC -Times 1 -Exactly
+        $fr.PSObject.Properties.Name | Should-ContainCollection 'LogSheets'
     }
 
     It 'always returns AccessList, GroupManagers, AdObjects and FormData properties' {
         $res = Build-ConsolidatedExportDataHC -FileResults @() -AdObjectDetails @()
 
         foreach ($p in 'AccessList', 'GroupManagers', 'AdObjects', 'FormData') {
-            $res.PSObject.Properties.Name | Should -Contain $p
+            $res.PSObject.Properties.Name | Should-ContainCollection $p
         }
     }
 }
@@ -660,7 +660,7 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
 
             $names = Get-WorksheetNames -Path $path
             foreach ($n in 'AccessList', 'GroupManagers', 'AdObjects', 'FormData') {
-                $names | Should -Contain $n
+                $names | Should-ContainCollection $n
             }
         }
 
@@ -669,8 +669,7 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
 
             Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
 
-            Get-Header -Path $path -WorksheetName 'GroupManagers' |
-            Should -Be @(
+            Get-Header -Path $path -WorksheetName 'GroupManagers' | Should-BeCollection @(
                 'MatrixFileName', 'GroupName', 'ManagerName',
                 'ManagerType', 'ManagerMemberName', 'MemberEnabled'
             )
@@ -681,8 +680,7 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
 
             Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
 
-            Get-Header -Path $path -WorksheetName 'AccessList' |
-            Should -Be @(
+            Get-Header -Path $path -WorksheetName 'AccessList' | Should-BeCollection @(
                 'MatrixFileName', 'SamAccountName', 'Name', 'Type',
                 'MemberName', 'MemberSamAccountName', 'MemberEnabled'
             )
@@ -717,17 +715,17 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
                 [pscustomobject]@{ MatrixFileName = 'A.xlsx'; MatrixResponsible = 'a@b.com' }
             ) | Out-Null
 
-            @(Import-Excel -Path $path -WorksheetName 'AccessList').Count | Should -Be 1
+            @(Import-Excel -Path $path -WorksheetName 'AccessList').Count | Should-Be 1
 
             $gm = @(Import-Excel -Path $path -WorksheetName 'GroupManagers')
-            $gm.Count | Should -Be 1
-            $gm[0].MatrixFileName | Should -Be 'A.xlsx'
+            $gm.Count | Should-Be 1
+            $gm[0].MatrixFileName | Should-Be 'A.xlsx'
 
-            @(Import-Excel -Path $path -WorksheetName 'AdObjects').Count | Should -Be 1
+            @(Import-Excel -Path $path -WorksheetName 'AdObjects').Count | Should-Be 1
 
             $fd = @(Import-Excel -Path $path -WorksheetName 'FormData')
-            $fd.Count | Should -Be 1
-            $fd[0].MatrixResponsible | Should -Be 'a@b.com'
+            $fd.Count | Should-Be 1
+            $fd[0].MatrixResponsible | Should-Be 'a@b.com'
         }
     }
 
@@ -741,8 +739,8 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
             Export-ConsolidatedPermissionsFileHC -Path $path | Out-Null
 
             $names = Get-WorksheetNames -Path $path
-            $names | Should -Not -Contain 'StaleSheet'
-            $names | Should -Contain 'AccessList'
+            $names | Should-NotContainCollection 'StaleSheet'
+            $names | Should-ContainCollection 'AccessList'
         }
     }
 }
@@ -756,7 +754,7 @@ Describe 'Export-PermissionsFileHC' {
 
         Export-PermissionsFileHC -Rows $rows -Path $path | Out-Null
 
-        Should -Invoke Export-Excel -Times 1 -ParameterFilter {
+        Should-Invoke Export-Excel -Times 1 -ParameterFilter {
             $Path -eq $path -and $WorksheetName -eq 'Permissions' -and $AutoSize -eq $true
         }
     }
@@ -767,7 +765,7 @@ Describe 'Export-PermissionsFileHC' {
         $path = Join-Path $TestDrive 'perm.xlsx'
         $result = Export-PermissionsFileHC -Rows @([pscustomobject]@{ A = 1 }) -Path $path
 
-        $result | Should -Be $path
+        $result | Should-Be $path
     }
 
     It 'forwards the supplied rows to Export-Excel' {
@@ -790,9 +788,9 @@ Describe 'Export-PermissionsFileHC' {
 
         Export-PermissionsFileHC -Rows $rows -Path $path | Out-Null
 
-        $script:capturedRows.Count | Should -Be 2
-        $script:capturedRows[0].Computer | Should -Be 'PC1'
-        $script:capturedRows[1].Computer | Should -Be 'PC2'
+        $script:capturedRows.Count | Should-Be 2
+        $script:capturedRows[0].Computer | Should-Be 'PC1'
+        $script:capturedRows[1].Computer | Should-Be 'PC2'
     }
 
     It 'wraps a failure from Export-Excel in a descriptive terminating error' {
@@ -800,8 +798,7 @@ Describe 'Export-PermissionsFileHC' {
 
         $path = Join-Path $TestDrive 'perm.xlsx'
 
-        { Export-PermissionsFileHC -Rows @([pscustomobject]@{ A = 1 }) -Path $path } |
-        Should -Throw -ExpectedMessage '*Failed exporting Permissions Excel file*disk full*'
+        { Export-PermissionsFileHC -Rows @([pscustomobject]@{ A = 1 }) -Path $path } | Should-Throw -ExceptionMessage '*Failed exporting Permissions Excel file*disk full*'
     }
 }
 
@@ -814,7 +811,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
-        Should -Invoke Export-Excel -Times 1 -ParameterFilter {
+        Should-Invoke Export-Excel -Times 1 -ParameterFilter {
             $Path -eq $path -and $WorksheetName -eq 'FormData' -and $AutoSize -eq $true
         }
     }
@@ -827,7 +824,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
-        Should -Invoke Export-Excel -Times 1 -ParameterFilter {
+        Should-Invoke Export-Excel -Times 1 -ParameterFilter {
             $Path -eq $path -and $WorksheetName -eq 'ServiceNowData' -and $AutoSize -eq $true
         }
     }
@@ -838,7 +835,7 @@ Describe 'Export-ServiceNowFormDataHC' {
         $path = Join-Path $TestDrive 'form.xlsx'
         $result = Export-ServiceNowFormDataHC -FormDataRows @([pscustomobject]@{ F = 1 }) -ServiceNowDataRows @([pscustomobject]@{ S = 1 }) -Path $path
 
-        $result | Should -Be $path
+        $result | Should-Be $path
     }
 
     It 'forwards the supplied rows to Export-Excel for sheet "FormData"' {
@@ -858,8 +855,8 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
-        $script:capturedRows.Count | Should -Be 2
-        $script:capturedRows[1].Field | Should -Be 'Team'
+        $script:capturedRows.Count | Should-Be 2
+        $script:capturedRows[1].Field | Should-Be 'Team'
     }
 
     It 'forwards the supplied rows to Export-Excel for sheet "ServiceNowData"' {
@@ -879,8 +876,8 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         Export-ServiceNowFormDataHC -FormDataRows $rows -ServiceNowDataRows $rows -Path $path | Out-Null
 
-        $script:capturedRows.Count | Should -Be 2
-        $script:capturedRows[1].Field | Should -Be 'Team'
+        $script:capturedRows.Count | Should-Be 2
+        $script:capturedRows[1].Field | Should-Be 'Team'
     }
 
     It 'wraps a failure from Export-Excel in a descriptive terminating error' {
@@ -888,8 +885,7 @@ Describe 'Export-ServiceNowFormDataHC' {
 
         $path = Join-Path $TestDrive 'form.xlsx'
 
-        { Export-ServiceNowFormDataHC -FormDataRows @([pscustomobject]@{ F = 1 }) -ServiceNowDataRows @([pscustomobject]@{ S = 1 }) -Path $path } |
-        Should -Throw -ExpectedMessage '*Failed exporting ServiceNow FormData Excel*locked file*'
+        { Export-ServiceNowFormDataHC -FormDataRows @([pscustomobject]@{ F = 1 }) -ServiceNowDataRows @([pscustomobject]@{ S = 1 }) -Path $path } | Should-Throw -ExceptionMessage '*Failed exporting ServiceNow FormData Excel*locked file*'
     }
 }
 
@@ -900,8 +896,8 @@ Describe 'Export-OverviewHtmlHC' {
 
         Export-OverviewHtmlHC -Html $html -Path $path | Out-Null
 
-        Test-Path -LiteralPath $path | Should -BeTrue
-        (Get-Content -LiteralPath $path -Raw) | Should -Match 'test'
+        Test-Path -LiteralPath $path | Should-BeTrue
+        (Get-Content -LiteralPath $path -Raw) | Should-MatchString 'test'
     }
 
     It 'returns the path it was given' {
@@ -909,7 +905,7 @@ Describe 'Export-OverviewHtmlHC' {
 
         $result = Export-OverviewHtmlHC -Html '<html></html>' -Path $path
 
-        $result | Should -Be $path
+        $result | Should-Be $path
     }
 
     It 'overwrites an existing file rather than appending' {
@@ -919,8 +915,8 @@ Describe 'Export-OverviewHtmlHC' {
         Export-OverviewHtmlHC -Html '<html>NEW</html>' -Path $path | Out-Null
 
         $content = Get-Content -LiteralPath $path -Raw
-        $content | Should -Match 'NEW'
-        $content | Should -Not -Match 'OLD CONTENT'
+        $content | Should-MatchString 'NEW'
+        $content | Should-NotMatchString 'OLD CONTENT'
     }
 
     It 'wraps a write failure in a descriptive terminating error' {
@@ -930,8 +926,7 @@ Describe 'Export-OverviewHtmlHC' {
         # message varies by platform and PowerShell version.
         $badPath = Join-Path $TestDrive 'no-such-dir\overview.html'
 
-        { Export-OverviewHtmlHC -Html '<html></html>' -Path $badPath } |
-        Should -Throw -ExpectedMessage '*Failed exporting Overview HTML file*'
+        { Export-OverviewHtmlHC -Html '<html></html>' -Path $badPath } | Should-Throw -ExceptionMessage '*Failed exporting Overview HTML file*'
     }
 }
 
@@ -1061,8 +1056,8 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 -SourceFilePath $source -LogFolder $logFolder
 
             $expected = Join-Path $logFolder 'TestMatrix.xlsx'
-            $result | Should -Be $expected
-            Test-Path -LiteralPath $expected | Should -BeTrue
+            $result | Should-Be $expected
+            Test-Path -LiteralPath $expected | Should-BeTrue
         }
 
         It 'leaves the original source file in place' {
@@ -1072,11 +1067,10 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             Copy-MatrixFileToLogFolderHC `
                 -SourceFilePath $source -LogFolder $logFolder | Out-Null
 
-            Test-Path -LiteralPath $source | Should -BeTrue
+            Test-Path -LiteralPath $source | Should-BeTrue
 
             # The original must not gain the extra worksheets
-            Get-WorksheetHeader -Path $source -WorksheetName 'AccessList' |
-            Should -BeNullOrEmpty
+            Get-WorksheetHeader -Path $source -WorksheetName 'AccessList' | Should-BeFalsy
         }
 
         It 'overwrites a pre-existing file with the same name in the log folder' {
@@ -1090,8 +1084,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 -SourceFilePath $source -LogFolder $logFolder
 
             # The stale text file was replaced by a real workbook
-            Get-WorksheetHeader -Path $result -WorksheetName 'Permissions' |
-            Should -Not -BeNullOrEmpty
+            Get-WorksheetHeader -Path $result -WorksheetName 'Permissions' | Should-BeTruthy
         }
 
         It 'removes the read-only attribute so the copy can be extended' {
@@ -1103,11 +1096,10 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             $result = Copy-MatrixFileToLogFolderHC `
                 -SourceFilePath $source -LogFolder $logFolder
 
-            (Get-Item -LiteralPath $result).IsReadOnly | Should -BeFalse
+            (Get-Item -LiteralPath $result).IsReadOnly | Should-BeFalse
 
             # Appending the worksheets succeeded despite the read-only source
-            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' |
-            Should -Not -BeNullOrEmpty
+            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' | Should-BeTruthy
         }
 
         It 'throws a descriptive terminating error when the source file does not exist' {
@@ -1117,8 +1109,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 Copy-MatrixFileToLogFolderHC `
                     -SourceFilePath (Join-Path $TestDrive 'missing.xlsx') `
                     -LogFolder $logFolder
-            } |
-            Should -Throw -ExpectedMessage '*Failed copying matrix file*not found*'
+            } | Should-Throw -ExceptionMessage '*Failed copying matrix file*not found*'
         }
     }
 
@@ -1134,8 +1125,8 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             $permissions = @(
                 Import-Excel -Path $result -WorksheetName 'Permissions'
             )
-            $permissions.Count | Should -Be 1
-            $permissions[0].ComputerName | Should -Be 'PC1'
+            $permissions.Count | Should-Be 1
+            $permissions[0].ComputerName | Should-Be 'PC1'
         }
 
         It 'always adds the AccessList, GroupManagers and AdObjects worksheets' {
@@ -1149,8 +1140,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 -AdObjectRows $TestAdObjectRows
 
             foreach ($sheetName in 'AccessList', 'GroupManagers', 'AdObjects') {
-                Get-WorksheetHeader -Path $result -WorksheetName $sheetName |
-                Should -Not -BeNullOrEmpty -Because "worksheet '$sheetName' must exist"
+                Get-WorksheetHeader -Path $result -WorksheetName $sheetName | Should-BeTruthy -Because "worksheet '$sheetName' must exist"
             }
         }
 
@@ -1164,11 +1154,11 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
 
             $rows = @(Import-Excel -Path $result -WorksheetName 'AccessList')
 
-            $rows.Count | Should -Be 2
-            $rows[0].MemberSamAccountName | Should -Be 'jdoe'
-            "$($rows[0].MemberEnabled)" | Should -Be 'True'
-            $rows[1].MemberSamAccountName | Should -Be 'asmith'
-            "$($rows[1].MemberEnabled)" | Should -Be 'False'
+            $rows.Count | Should-Be 2
+            $rows[0].MemberSamAccountName | Should-Be 'jdoe'
+            "$($rows[0].MemberEnabled)" | Should-Be 'True'
+            $rows[1].MemberSamAccountName | Should-Be 'asmith'
+            "$($rows[1].MemberEnabled)" | Should-Be 'False'
         }
 
         It 'writes the GroupManagers rows' {
@@ -1181,11 +1171,11 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
 
             $rows = @(Import-Excel -Path $result -WorksheetName 'GroupManagers')
 
-            $rows.Count | Should -Be 1
-            $rows[0].GroupName | Should -Be 'GRP Plant manager'
-            $rows[0].ManagerName | Should -Be 'Boss, Big'
-            $rows[0].ManagerType | Should -Be 'user'
-            "$($rows[0].MemberEnabled)" | Should -Be 'False'
+            $rows.Count | Should-Be 1
+            $rows[0].GroupName | Should-Be 'GRP Plant manager'
+            $rows[0].ManagerName | Should-Be 'Boss, Big'
+            $rows[0].ManagerType | Should-Be 'user'
+            "$($rows[0].MemberEnabled)" | Should-Be 'False'
         }
 
         It 'writes the AdObjects rows with the Enabled column' {
@@ -1198,10 +1188,10 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
 
             $rows = @(Import-Excel -Path $result -WorksheetName 'AdObjects')
 
-            $rows.Count | Should -Be 2
-            $rows[0].SamAccountName | Should -Be 'GRP Plant manager'
-            $rows[1].SamAccountName | Should -Be 'jdoe'
-            "$($rows[1].Enabled)" | Should -Be 'True'
+            $rows.Count | Should-Be 2
+            $rows[0].SamAccountName | Should-Be 'GRP Plant manager'
+            $rows[1].SamAccountName | Should-Be 'jdoe'
+            "$($rows[1].Enabled)" | Should-Be 'True'
         }
     }
 
@@ -1213,14 +1203,11 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             $result = Copy-MatrixFileToLogFolderHC `
                 -SourceFilePath $source -LogFolder $logFolder
 
-            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' |
-            Should -Be $AccessListHeaders
+            Get-WorksheetHeader -Path $result -WorksheetName 'AccessList' | Should-BeCollection $AccessListHeaders
 
-            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' |
-            Should -Be $GroupManagerHeaders
+            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' | Should-BeCollection $GroupManagerHeaders
 
-            Get-WorksheetHeader -Path $result -WorksheetName 'AdObjects' |
-            Should -Be $AdObjectHeaders
+            Get-WorksheetHeader -Path $result -WorksheetName 'AdObjects' | Should-BeCollection $AdObjectHeaders
         }
 
         It 'leaves header-only worksheets without data rows' {
@@ -1233,8 +1220,7 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
             @(
                 Import-Excel -Path $result -WorksheetName 'AccessList' `
                     -ErrorAction Ignore
-            ).Count |
-            Should -Be 0
+            ).Count | Should-Be 0
         }
 
         It 'creates header-only worksheets only for the row sets that are empty' {
@@ -1246,18 +1232,15 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 -AccessListRows $TestAccessListRows
 
             # Filled sheet has data rows
-            @(Import-Excel -Path $result -WorksheetName 'AccessList').Count |
-            Should -Be 2
+            @(Import-Excel -Path $result -WorksheetName 'AccessList').Count | Should-Be 2
 
             # Empty sheets exist with headers but no data rows
-            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' |
-            Should -Be $GroupManagerHeaders
+            Get-WorksheetHeader -Path $result -WorksheetName 'GroupManagers' | Should-BeCollection $GroupManagerHeaders
 
             @(
                 Import-Excel -Path $result -WorksheetName 'AdObjects' `
                     -ErrorAction Ignore
-            ).Count |
-            Should -Be 0
+            ).Count | Should-Be 0
         }
     }
 }

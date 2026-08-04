@@ -99,27 +99,24 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
     Context 'Get-ADObjectDetailHC - parameter contract' {
 
         It 'requires ADObjectName' {
-            (Get-Command Get-ADObjectDetailHC).Parameters['ADObjectName'].Attributes.Mandatory |
-            Should -Contain $true
+            (Get-Command Get-ADObjectDetailHC).Parameters['ADObjectName'].Attributes.Mandatory | Should-ContainCollection $true
         }
 
         It 'requires Type' {
-            (Get-Command Get-ADObjectDetailHC).Parameters['Type'].Attributes.Mandatory |
-            Should -Contain $true
+            (Get-Command Get-ADObjectDetailHC).Parameters['Type'].Attributes.Mandatory | Should-ContainCollection $true
         }
 
         It 'restricts Type to SamAccountName or DistinguishedName' {
             $validate = (Get-Command Get-ADObjectDetailHC).Parameters['Type'].Attributes |
             Where-Object { $_ -is [System.Management.Automation.ValidateSetAttribute] }
 
-            $validate.ValidValues | Should -Contain 'SamAccountName'
-            $validate.ValidValues | Should -Contain 'DistinguishedName'
-            $validate.ValidValues.Count | Should -Be 2
+            $validate.ValidValues | Should-ContainCollection 'SamAccountName'
+            $validate.ValidValues | Should-ContainCollection 'DistinguishedName'
+            $validate.ValidValues.Count | Should-Be 2
         }
 
         It 'rejects an invalid Type value' {
-            { Get-ADObjectDetailHC -ADObjectName 'x' -Type 'NotAValidType' -MaxThreads 1 } |
-            Should -Throw
+            { Get-ADObjectDetailHC -ADObjectName 'x' -Type 'NotAValidType' -MaxThreads 1 } | Should-Throw
         }
     }
 
@@ -128,38 +125,38 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         It 'resolves a real user by SamAccountName' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestUser.SamAccountName -Type SamAccountName -MaxThreads 1
 
-            $res | Should -Not -BeNullOrEmpty
-            $res[0].adObject | Should -Not -BeNullOrEmpty
-            $res[0].adObject.ObjectClass | Should -Be 'user'
-            $res[0].adObject.SamAccountName | Should -Be $TestUser.SamAccountName
-            $res[0].adObject.DistinguishedName | Should -Not -BeNullOrEmpty
+            $res | Should-BeTruthy
+            $res[0].adObject | Should-BeTruthy
+            $res[0].adObject.ObjectClass | Should-Be 'user'
+            $res[0].adObject.SamAccountName | Should-Be $TestUser.SamAccountName
+            $res[0].adObject.DistinguishedName | Should-BeTruthy
         }
 
         It 'does not populate adGroupMember for a user' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestUser.SamAccountName -Type SamAccountName -MaxThreads 1
 
-            $res[0].adGroupMember | Should -BeNullOrEmpty
+            $res[0].adGroupMember | Should-BeFalsy
         }
 
         It 'echoes the input back on the dynamic SamAccountName property' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestUser.SamAccountName -Type SamAccountName -MaxThreads 1
 
-            $res[0].SamAccountName | Should -Be $TestUser.SamAccountName
+            $res[0].SamAccountName | Should-Be $TestUser.SamAccountName
         }
 
         It 'resolves the same user by DistinguishedName' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestUser.DistinguishedName -Type DistinguishedName -MaxThreads 1
 
-            $res[0].adObject | Should -Not -BeNullOrEmpty
-            $res[0].adObject.ObjectClass | Should -Be 'user'
-            $res[0].adObject.DistinguishedName | Should -Be $TestUser.DistinguishedName
+            $res[0].adObject | Should-BeTruthy
+            $res[0].adObject.ObjectClass | Should-Be 'user'
+            $res[0].adObject.DistinguishedName | Should-Be $TestUser.DistinguishedName
         }
 
         It 'returns a null adObject for a name that does not exist' {
             $res = Get-ADObjectDetailHC -ADObjectName 'zzz-no-such-sam-acct-xyzzy' -Type SamAccountName -MaxThreads 1
 
-            $res[0].adObject | Should -BeNullOrEmpty
-            $res[0].adGroupMember | Should -BeNullOrEmpty
+            $res[0].adObject | Should-BeFalsy
+            $res[0].adGroupMember | Should-BeFalsy
         }
     }
 
@@ -168,19 +165,19 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         It 'resolves a real group and classifies it as a group' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestGroup.SamAccountName -Type SamAccountName -MaxThreads 1
 
-            $res[0].adObject | Should -Not -BeNullOrEmpty
-            $res[0].adObject.ObjectClass | Should -Be 'group'
+            $res[0].adObject | Should-BeTruthy
+            $res[0].adObject.ObjectClass | Should-Be 'group'
         }
 
         It 'expands group members with the documented shape' {
             $res = Get-ADObjectDetailHC -ADObjectName $TestGroup.SamAccountName -Type SamAccountName -MaxThreads 1
 
-            $res[0].adGroupMember | Should -Not -BeNullOrEmpty
+            $res[0].adGroupMember | Should-BeTruthy
             foreach ($m in $res[0].adGroupMember) {
-                $m.PSObject.Properties.Name | Should -Contain 'objectClass'
-                $m.PSObject.Properties.Name | Should -Contain 'Name'
-                $m.PSObject.Properties.Name | Should -Contain 'SamAccountName'
-                $m.PSObject.Properties.Name | Should -Contain 'DistinguishedName'
+                $m.PSObject.Properties.Name | Should-ContainCollection 'objectClass'
+                $m.PSObject.Properties.Name | Should-ContainCollection 'Name'
+                $m.PSObject.Properties.Name | Should-ContainCollection 'SamAccountName'
+                $m.PSObject.Properties.Name | Should-ContainCollection 'DistinguishedName'
             }
         }
 
@@ -189,11 +186,11 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
             # function short-circuits its expansion to a single synthetic entry.
             $res = Get-ADObjectDetailHC -ADObjectName 'Domain Users' -Type SamAccountName -MaxThreads 1
 
-            $res[0].adObject.ObjectClass | Should -Be 'group'
-            $res[0].adObject.Name | Should -Be 'Domain Users'
-            @($res[0].adGroupMember).Count | Should -Be 1
-            $res[0].adGroupMember[0].Name | Should -Be 'All users'
-            $res[0].adGroupMember[0].SamAccountName | Should -Be 'All users'
+            $res[0].adObject.ObjectClass | Should-Be 'group'
+            $res[0].adObject.Name | Should-Be 'Domain Users'
+            @($res[0].adGroupMember).Count | Should-Be 1
+            $res[0].adGroupMember[0].Name | Should-Be 'All users'
+            $res[0].adGroupMember[0].SamAccountName | Should-Be 'All users'
         }
     }
 
@@ -202,35 +199,35 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         It 'returns the UPN for a real user mail address' {
             $res = Get-AdUserPrincipalNameHC -Name $TestUser.Mail
 
-            $res.userPrincipalName | Should -Contain $TestUser.UserPrincipalName
-            $res.notFound.Count | Should -Be 0
+            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
+            $res.notFound.Count | Should-Be 0
         }
 
         It 'returns the UPN for a real user SamAccountName' {
             $res = Get-AdUserPrincipalNameHC -Name $TestUser.SamAccountName
 
-            $res.userPrincipalName | Should -Contain $TestUser.UserPrincipalName
+            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
         }
 
         It 'adds an unresolvable name to notFound' {
             $res = Get-AdUserPrincipalNameHC -Name $BogusName
 
-            $res.notFound | Should -Contain $BogusName
-            $res.userPrincipalName.Count | Should -Be 0
+            $res.notFound | Should-ContainCollection $BogusName
+            $res.userPrincipalName.Count | Should-Be 0
         }
 
         It 'excludes a user listed in -ExcludeSamAccountName' {
             $res = Get-AdUserPrincipalNameHC -Name $TestUser.Mail `
                 -ExcludeSamAccountName $TestUser.SamAccountName
 
-            $res.userPrincipalName | Should -Not -Contain $TestUser.UserPrincipalName
+            $res.userPrincipalName | Should-NotContainCollection $TestUser.UserPrincipalName
         }
 
         It 'resolves the matched name while still flagging an unmatched one' {
             $res = Get-AdUserPrincipalNameHC -Name @($TestUser.Mail, $BogusName)
 
-            $res.userPrincipalName | Should -Contain $TestUser.UserPrincipalName
-            $res.notFound | Should -Contain $BogusName
+            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
+            $res.notFound | Should-ContainCollection $BogusName
         }
     }
 
@@ -239,9 +236,9 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         It 'expands a group to the UPNs of its enabled, mail-enabled members' {
             $res = Get-AdUserPrincipalNameHC -Name $TestGroup.SamAccountName
 
-            $res.userPrincipalName.Count | Should -BeGreaterThan 0
+            $res.userPrincipalName.Count | Should-BeGreaterThan 0
             foreach ($upn in $TestGroupUpns) {
-                $res.userPrincipalName | Should -Contain $upn
+                $res.userPrincipalName | Should-ContainCollection $upn
             }
         }
 
@@ -250,17 +247,16 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
 
             foreach ($upn in $res.userPrincipalName) {
                 $u = Get-ADUser -Filter "UserPrincipalName -eq '$upn'" -Properties Enabled, Mail
-                $u | Should -Not -BeNullOrEmpty
-                $u.Enabled | Should -BeTrue
-                $u.Mail | Should -Not -BeNullOrEmpty
+                $u | Should-BeTruthy
+                $u.Enabled | Should-BeTrue
+                $u.Mail | Should-BeTruthy
             }
         }
 
         It 'returns a de-duplicated UPN list' {
             $res = Get-AdUserPrincipalNameHC -Name $TestGroup.SamAccountName
 
-            ($res.userPrincipalName | Sort-Object -Unique).Count |
-            Should -Be $res.userPrincipalName.Count
+            ($res.userPrincipalName | Sort-Object -Unique).Count | Should-Be $res.userPrincipalName.Count
         }
     }
 
@@ -269,9 +265,9 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         It 'returns a hashtable exposing notFound and userPrincipalName' {
             $res = Get-AdUserPrincipalNameHC -Name $BogusName
 
-            $res | Should -BeOfType [hashtable]
-            $res.Keys | Should -Contain 'notFound'
-            $res.Keys | Should -Contain 'userPrincipalName'
+            $res | Should-HaveType ([hashtable])
+            $res.Keys | Should-ContainCollection 'notFound'
+            $res.Keys | Should-ContainCollection 'userPrincipalName'
         }
     }
 }

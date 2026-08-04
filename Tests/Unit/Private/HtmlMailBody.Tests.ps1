@@ -12,15 +12,15 @@ BeforeAll {
 
 Describe 'Build-SystemErrorsBlockHC' {
     It 'returns empty string for a null or empty list' {
-        Build-SystemErrorsBlockHC -SystemErrors @() | Should -Be ''
-        Build-SystemErrorsBlockHC -SystemErrors $null | Should -Be ''
+        Build-SystemErrorsBlockHC -SystemErrors @() | Should-Be ''
+        Build-SystemErrorsBlockHC -SystemErrors $null | Should-Be ''
     }
 
     It 'ignores items that are neither FatalError nor Warning' {
         $items = @(
             [pscustomobject]@{ Type = 'Information'; Name = 'note'; Message = 'fyi' }
         )
-        Build-SystemErrorsBlockHC -SystemErrors $items | Should -Be ''
+        Build-SystemErrorsBlockHC -SystemErrors $items | Should-Be ''
     }
 
     It 'renders a System Error card for a FatalError item' {
@@ -28,10 +28,10 @@ Describe 'Build-SystemErrorsBlockHC' {
             [pscustomobject]@{ Type = 'FatalError'; Name = 'Boom'; Message = 'it broke'; Category = 'Matrix' }
         )
         $html = Build-SystemErrorsBlockHC -SystemErrors $items
-        $html | Should -Match 'System Error'
-        $html | Should -Match 'Boom'
-        $html | Should -Match 'it broke'
-        $html | Should -Match '1 Error'
+        $html | Should-MatchString 'System Error'
+        $html | Should-MatchString 'Boom'
+        $html | Should-MatchString 'it broke'
+        $html | Should-MatchString '1 Error'
     }
 
     It 'renders a System Warning card for a Warning item' {
@@ -39,8 +39,8 @@ Describe 'Build-SystemErrorsBlockHC' {
             [pscustomobject]@{ Type = 'Warning'; Name = 'Careful'; Message = 'heads up'; Category = '' }
         )
         $html = Build-SystemErrorsBlockHC -SystemErrors $items
-        $html | Should -Match 'System Warning'
-        $html | Should -Match '1 Warning'
+        $html | Should-MatchString 'System Warning'
+        $html | Should-MatchString '1 Warning'
     }
 
     It 'HTML-encodes the item name' {
@@ -48,7 +48,7 @@ Describe 'Build-SystemErrorsBlockHC' {
             [pscustomobject]@{ Type = 'FatalError'; Name = 'a&b'; Message = 'm'; Category = '' }
         )
         $html = Build-SystemErrorsBlockHC -SystemErrors $items
-        $html | Should -Match 'a&amp;b'
+        $html | Should-MatchString 'a&amp;b'
     }
 }
 
@@ -58,16 +58,16 @@ Describe 'Build-MailTopLinksBlockHC' {
     }
 
     It 'returns empty string when no browser or export links are available' {
-        Build-MailTopLinksBlockHC | Should -Be ''
+        Build-MailTopLinksBlockHC | Should-Be ''
     }
 
     It 'renders a browser-view link when the mail body log path is known' {
         $out = Build-MailTopLinksBlockHC -BrowserViewFilePath 'C:\logs\Mail - Run.html'
 
-        $out | Should -Match 'If this mail is not visible'
-        $out | Should -Match 'click here to view it in the browser'
-        $out | Should -Match "href='file://C:/logs/Mail%20-%20Run\.html'"
-        $out | Should -Match 'title="C:\\logs\\Mail - Run\.html"'
+        $out | Should-MatchString 'If this mail is not visible'
+        $out | Should-MatchString 'click here to view it in the browser'
+        $out | Should-MatchString "href='file://C:/logs/Mail%20-%20Run\.html'"
+        $out | Should-MatchString 'title="C:\\logs\\Mail - Run\.html"'
     }
 
     It 'renders export file links from the ordered dictionary returned by Export-FilesHC' {
@@ -79,13 +79,13 @@ Describe 'Build-MailTopLinksBlockHC' {
 
         $out = Build-MailTopLinksBlockHC -ExportedFiles $exportedFiles
 
-        $out | Should -Match 'Export files:'
-        $out | Should -Match 'Permissions Excel'
-        $out | Should -Match 'ServiceNow FormData Excel'
-        $out | Should -Match 'Overview HTML'
-        $out | Should -Match "href='file://C:/reports/Permissions\.xlsx'"
-        $out | Should -Match "href='file://C:/ServiceNow/FormData\.xlsx'"
-        $out | Should -Match "href='file://C:/reports/Overview\.html'"
+        $out | Should-MatchString 'Export files:'
+        $out | Should-MatchString 'Permissions Excel'
+        $out | Should-MatchString 'ServiceNow FormData Excel'
+        $out | Should-MatchString 'Overview HTML'
+        $out | Should-MatchString "href='file://C:/reports/Permissions\.xlsx'"
+        $out | Should-MatchString "href='file://C:/ServiceNow/FormData\.xlsx'"
+        $out | Should-MatchString "href='file://C:/reports/Overview\.html'"
     }
 
     It 'omits export links whose configured export path was not written' {
@@ -95,9 +95,9 @@ Describe 'Build-MailTopLinksBlockHC' {
                 OverviewHtml = ''
             })
 
-        $out | Should -Match 'Permissions Excel'
-        $out | Should -Not -Match 'ServiceNow FormData Excel'
-        $out | Should -Not -Match 'Overview HTML'
+        $out | Should-MatchString 'Permissions Excel'
+        $out | Should-NotMatchString 'ServiceNow FormData Excel'
+        $out | Should-NotMatchString 'Overview HTML'
     }
 }
 
@@ -129,69 +129,69 @@ Describe 'Build-SettingsRowHC' {
 
     It 'renders the computer name and path' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -ComputerName 'SRV99' -Path 'E:\foo')
-        $html | Should -Match 'SRV99'
-        $html | Should -Match 'E:\\foo'
+        $html | Should-MatchString 'SRV99'
+        $html | Should-MatchString 'E:\\foo'
     }
 
     It 'shows an Error pill when the row has a FatalError check' {
         $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'FatalError' })
         $html = Build-SettingsRowHC -MatrixItem $item
-        $html | Should -Match '>Error</span>'
-        $html | Should -Match '#dc2626'
+        $html | Should-MatchString '>Error</span>'
+        $html | Should-MatchString '#dc2626'
     }
 
     It 'shows a Warning pill when the row has a Warning check' {
         $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Warning' })
         $html = Build-SettingsRowHC -MatrixItem $item
-        $html | Should -Match '>Warning</span>'
-        $html | Should -Match '#d97706'
+        $html | Should-MatchString '>Warning</span>'
+        $html | Should-MatchString '#d97706'
     }
 
     It 'uses the success accent and no status pill for a clean row' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match '#16a34a'
-        $html | Should -Not -Match 'rr-srow-status'
+        $html | Should-MatchString '#16a34a'
+        $html | Should-NotMatchString 'rr-srow-status'
     }
 
     It 'shows N/A for a missing duration' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match 'N/A'
+        $html | Should-MatchString 'N/A'
     }
 
     It 'links the row to the report file path when present' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -ReportFilePath 'C:\logs\r.html')
-        $html | Should -Match "href='C:\\logs\\r\.html'"
+        $html | Should-MatchString "href='C:\\logs\\r\.html'"
     }
 
     It 'marks a clean row as Skipped (grey) when the file has a fatal error' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem) -FileHasError $true
-        $html | Should -Match '#6b7280'
-        $html | Should -Match '>Skipped</span>'
-        $html | Should -Not -Match '#16a34a'
+        $html | Should-MatchString '#6b7280'
+        $html | Should-MatchString '>Skipped</span>'
+        $html | Should-NotMatchString '#16a34a'
     }
 
     It 'keeps a row with its own error red even when the file has a fatal error' {
         $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'FatalError' })
         $html = Build-SettingsRowHC -MatrixItem $item -FileHasError $true
-        $html | Should -Match '>Error</span>'
-        $html | Should -Not -Match '>Skipped</span>'
+        $html | Should-MatchString '>Error</span>'
+        $html | Should-NotMatchString '>Skipped</span>'
     }
 
     It 'middle-aligns the Outlook row chrome with exact line heights' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
-        $html | Should -Match 'table-layout:fixed;'
-        $html | Should -Match "valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px;"
-        $html | Should -Match "valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'"
-        $html | Should -Match '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed;'
-        $html | Should -Match "valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px;"
-        $html | Should -Not -Match '<td height="6" style="font-size:0; line-height:0;">&#160;</td>'
+        $html | Should-MatchString 'table-layout:fixed;'
+        $html | Should-MatchString "valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px;"
+        $html | Should-MatchString "valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'"
+        $html | Should-MatchString '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed;'
+        $html | Should-MatchString "valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px;"
+        $html | Should-NotMatchString '<td height="6" style="font-size:0; line-height:0;">&#160;</td>'
     }
 
     It 'keeps path wrapping styles valid inside single-quoted attributes' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -Path 'E:\very\long\path')
 
-        $html | Should -Match 'font-family:Consolas, Menlo, monospace; font-size:11px;'
-        $html | Should -Match 'white-space:normal; overflow-wrap:anywhere; word-break:break-all;'
+        $html | Should-MatchString 'font-family:Consolas, Menlo, monospace; font-size:11px;'
+        $html | Should-MatchString 'white-space:normal; overflow-wrap:anywhere; word-break:break-all;'
     }
 
     It 'splits the pill into a nested-table Outlook cell and a normal browser cell' {
@@ -201,10 +201,10 @@ Describe 'Build-SettingsRowHC' {
         # Outlook cell: gated by [if mso], wraps the VML in a 3-row nested table
         # whose top(8px)/bottom(4px) spacers make it the tallest cell (drives the
         # row height) and nudge the pill down to centre; line-height:26px avoids clipping.
-        $html | Should -Match '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed'
+        $html | Should-MatchString '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed'
         # Browser cell: gated by [if !mso], keeps a normal font-size (line-height
         # 16px) so the CSS span stays perfectly centred as it was before.
-        $html | Should -Match '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed;'
+        $html | Should-MatchString '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed;'
     }
 }
 
@@ -279,7 +279,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Q3-Permissions\.xlsx'
+            $out | Should-MatchString 'Q3-Permissions\.xlsx'
         }
 
         It 'uses a file:// URL derived from Item.FullName as the title link href' {
@@ -289,7 +289,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             # ConvertTo-FileUrlHC turns the Windows path into a file:// URL with
             # forward slashes; the anchor also carries a title tooltip.
-            $out | Should -Match '<a href="file://C:/share/budget\.xlsx"'
+            $out | Should-MatchString '<a href="file://C:/share/budget\.xlsx"'
         }
 
         It 'puts the raw Windows path in the title tooltip of the header link' {
@@ -297,7 +297,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'title="C:\\share\\budget\.xlsx"'
+            $out | Should-MatchString 'title="C:\\share\\budget\.xlsx"'
         }
 
         It 'renders one file card table per file result' {
@@ -309,7 +309,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            ([regex]::Matches($out, 'width="100%" bgcolor="#ffffff"')).Count | Should -Be 3
+            ([regex]::Matches($out, 'width="100%" bgcolor="#ffffff"')).Count | Should-Be 3
         }
     }
 
@@ -322,10 +322,10 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Open execution report'
-            $out | Should -Match "href='file://C:/logs/00%20-%20Execution%20Report\.html'"
+            $out | Should-MatchString 'Open execution report'
+            $out | Should-MatchString "href='file://C:/logs/00%20-%20Execution%20Report\.html'"
             # No fallback link when a log artifact exists
-            $out | Should -Not -Match 'Open matrix file'
+            $out | Should-NotMatchString 'Open matrix file'
         }
 
         It 'renders a matrix log copy link when LogMatrixFilePath is set' {
@@ -335,10 +335,10 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Open matrix log copy'
-            $out | Should -Match "href='file://C:/logs/A\.xlsx'"
-            $out | Should -Not -Match 'Open matrix file'
-            $out | Should -Not -Match 'Open execution report'
+            $out | Should-MatchString 'Open matrix log copy'
+            $out | Should-MatchString "href='file://C:/logs/A\.xlsx'"
+            $out | Should-NotMatchString 'Open matrix file'
+            $out | Should-NotMatchString 'Open execution report'
         }
 
         It 'puts the raw Windows path in the tooltip of the matrix log copy link' {
@@ -348,7 +348,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'title="C:\\logs\\A\.xlsx"'
+            $out | Should-MatchString 'title="C:\\logs\\A\.xlsx"'
         }
 
         It 'renders both links separated by a middot when both artifacts exist' {
@@ -360,13 +360,13 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Open execution report'
-            $out | Should -Match 'Open matrix log copy'
+            $out | Should-MatchString 'Open execution report'
+            $out | Should-MatchString 'Open matrix log copy'
             # The browser variant joins the two anchors with a padded middot span
-            $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
+            $out | Should-MatchString 'Open execution report &rarr;</a><span[^>]*>&middot;</span><a'
             # The Outlook (Word) variant ignores span padding, so the middot is
             # spaced with non-breaking spaces instead
-            $out | Should -Match 'Open execution report &rarr;</a><span[^>]*>&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a'
+            $out | Should-MatchString 'Open execution report &rarr;</a><span[^>]*>&nbsp;&nbsp;&middot;&nbsp;&nbsp;</span><a'
         }
 
         It 'uses separate Outlook and browser footer spacing' {
@@ -378,12 +378,12 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match '<!--\[if mso\]>'
-            $out | Should -Match "valign='middle' style='padding:6px 16px 6px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;"
-            $out | Should -Match "<p style='margin:0; mso-line-height-rule:exactly; line-height:16px;'>"
-            $out | Should -Match '<!--\[if !mso\]><!-->'
-            $out | Should -Match 'padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:#6b7280;'
-            $out | Should -Match '<td height="16" style="font-size:0; line-height:16px; mso-line-height-rule:exactly;">&#160;</td>'
+            $out | Should-MatchString '<!--\[if mso\]>'
+            $out | Should-MatchString "valign='middle' style='padding:6px 16px 6px 16px; text-align:center; font-size:12px; line-height:16px; mso-line-height-rule:exactly; color:#6b7280;"
+            $out | Should-MatchString "<p style='margin:0; mso-line-height-rule:exactly; line-height:16px;'>"
+            $out | Should-MatchString '<!--\[if !mso\]><!-->'
+            $out | Should-MatchString 'padding:4px 16px 12px 16px; text-align:center; font-size:12px; line-height:16px; color:#6b7280;'
+            $out | Should-MatchString '<td height="16" style="font-size:0; line-height:16px; mso-line-height-rule:exactly;">&#160;</td>'
         }
 
         It 'falls back to the source matrix file link when no log artifacts exist' {
@@ -391,12 +391,12 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Open matrix file'
+            $out | Should-MatchString 'Open matrix file'
             # The fallback footer anchor uses single-quoted href, unlike
             # the double-quoted header link to the same file URL
-            $out | Should -Match "href='file://C:/share/A\.xlsx'"
-            $out | Should -Not -Match 'Open execution report'
-            $out | Should -Not -Match 'Open matrix log copy'
+            $out | Should-MatchString "href='file://C:/share/A\.xlsx'"
+            $out | Should-NotMatchString 'Open execution report'
+            $out | Should-NotMatchString 'Open matrix log copy'
         }
     }
 
@@ -406,7 +406,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'alice@example\.com'
+            $out | Should-MatchString 'alice@example\.com'
         }
 
         It 'omits the user but keeps the date when LastModifiedBy is empty' {
@@ -415,8 +415,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
             # Format-LastChangeHC drops the user and renders date-only.
-            $out | Should -Match 'Last change: 15/01/2024 09:30'
-            $out | Should -Not -Match 'Last change: Unknown'
+            $out | Should-MatchString 'Last change: 15/01/2024 09:30'
+            $out | Should-NotMatchString 'Last change: Unknown'
         }
 
         It 'formats Modified as dd/MM/yyyy HH:mm' {
@@ -427,8 +427,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
             # The layout uses minute precision, not seconds.
-            $out | Should -Match '22/03/2024 14:05'
-            $out | Should -Not -Match '22/03/2024 14:05:09'
+            $out | Should-MatchString '22/03/2024 14:05'
+            $out | Should-NotMatchString '22/03/2024 14:05:09'
         }
 
         It 'shows only the user when Modified is not a datetime' {
@@ -438,8 +438,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults @($fr) -Html $html
 
-            $out | Should -Match 'Last change: User'
-            $out | Should -Not -Match 'Last change: User &middot;'
+            $out | Should-MatchString 'Last change: User'
+            $out | Should-NotMatchString 'Last change: User &middot;'
         }
 
         It 'HTML-encodes the filename' {
@@ -447,22 +447,22 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'a&amp;b&lt;c&gt;\.xlsx'
-            $out | Should -Not -Match '<c>'
+            $out | Should-MatchString 'a&amp;b&lt;c&gt;\.xlsx'
+            $out | Should-NotMatchString '<c>'
         }
     }
 
     Context 'header status' {
         It 'shows a success header for a file with no issues' {
             $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
-            $out | Should -Match '✓'
-            $out | Should -Match 'Success'
+            $out | Should-MatchString '✓'
+            $out | Should-MatchString 'Success'
         }
 
         It 'reserves enough header space for the status label in Outlook' {
             $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
 
-            $out | Should -Match "valign='middle' align='right' width='112' style='padding:14px 12px 14px 6px; white-space:nowrap; width:112px;'"
+            $out | Should-MatchString "valign='middle' align='right' width='112' style='padding:14px 12px 14px 6px; white-space:nowrap; width:112px;'"
         }
 
         It 'shows a warning header when a matrix row has a Warning' {
@@ -472,23 +472,23 @@ Describe 'Build-MatrixEmailHtmlHC' {
                 )
             )
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
-            $out | Should -Match '⚠'
-            $out | Should -Match '1 Warning'
+            $out | Should-MatchString '⚠'
+            $out | Should-MatchString '1 Warning'
         }
 
         It 'shows an error header when a file-level check is a FatalError' {
             $files = @( New-FileResult -Check @([pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }) )
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
-            $out | Should -Match '✖'
-            $out | Should -Match '1 Error'
+            $out | Should-MatchString '✖'
+            $out | Should-MatchString '1 Error'
         }
 
         It 'renders the Outlook header without a VML roundrect wrapper' {
             $out = Build-MatrixEmailHtmlHC -FileResults @( New-FileResult ) -Html $html
 
-            $out | Should -Not -Match 'v:roundrect'
-            $out | Should -Not -Match 'v-text-anchor:top'
-            $out | Should -Match "valign='middle' width='34'"
+            $out | Should-NotMatchString 'v:roundrect'
+            $out | Should-NotMatchString 'v-text-anchor:top'
+            $out | Should-MatchString "valign='middle' width='34'"
         }
     }
 
@@ -503,14 +503,14 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'Settings \(2\)'
-            $out | Should -Match 'SRV01'
-            $out | Should -Match 'SRV02'
+            $out | Should-MatchString 'Settings \(2\)'
+            $out | Should-MatchString 'SRV01'
+            $out | Should-MatchString 'SRV02'
             # The section label is wrapped in a margin-zero paragraph so Outlook
             # doesn't add ~12px of extra space between the title and the rows
-            $out | Should -Match "<p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>Settings \(2\)</p>"
-            ([regex]::Matches($out, 'bgcolor="#ffffff" height="4" style="font-size:0; line-height:4px; mso-line-height-rule:exactly; background-color:#ffffff;">&#160;</td>')).Count | Should -Be 1
-            $out | Should -Not -Match 'height="6" style="font-size:0; line-height:0;">&#160;</td>'
+            $out | Should-MatchString "<p style='margin:0; mso-line-height-rule:exactly; line-height:14px;'>Settings \(2\)</p>"
+            ([regex]::Matches($out, 'bgcolor="#ffffff" height="4" style="font-size:0; line-height:4px; mso-line-height-rule:exactly; background-color:#ffffff;">&#160;</td>')).Count | Should-Be 1
+            $out | Should-NotMatchString 'height="6" style="font-size:0; line-height:0;">&#160;</td>'
         }
 
         It 'shows the empty-state message when there are no matrices and no issues' {
@@ -518,7 +518,7 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'No settings rows were processed for this file\.'
+            $out | Should-MatchString 'No settings rows were processed for this file\.'
         }
 
         It 'renders a File Issues section when a file-level check exists' {
@@ -530,8 +530,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match 'File Issues \(1\)'
-            $out | Should -Match 'fileCheck'
+            $out | Should-MatchString 'File Issues \(1\)'
+            $out | Should-MatchString 'fileCheck'
         }
 
         It 'renders settings rows as Skipped when the file has a file-level error' {
@@ -545,8 +545,8 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            $out | Should -Match '>Skipped</span>'
-            $out | Should -Match '#6b7280'
+            $out | Should-MatchString '>Skipped</span>'
+            $out | Should-MatchString '#6b7280'
         }
     }
 }
@@ -560,22 +560,22 @@ Describe 'Get-MailBodyHtmlHC' {
         $settings = [pscustomobject]@{ ScriptName = 'My Script'; SendMail = [pscustomobject]@{ Body = '' } }
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
-        $out | Should -Match '<!DOCTYPE html>'
-        $out | Should -Match '</html>'
+        $out | Should-MatchString '<!DOCTYPE html>'
+        $out | Should-MatchString '</html>'
     }
 
     It 'renders the script name in an encoded h1' {
         $settings = [pscustomobject]@{ ScriptName = 'R&D Run'; SendMail = [pscustomobject]@{ Body = '' } }
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
-        $out | Should -Match '<h1>R&amp;D Run</h1>'
+        $out | Should-MatchString '<h1>R&amp;D Run</h1>'
     }
 
     It 'falls back to a default script name when none is supplied' {
         $settings = [pscustomobject]@{ ScriptName = ''; SendMail = [pscustomobject]@{ Body = '' } }
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
-        $out | Should -Match '<h1>Permission Matrix</h1>'
+        $out | Should-MatchString '<h1>Permission Matrix</h1>'
     }
 
     It 'renders a footer with Started, Ended and Duration when a start time is given' {
@@ -583,10 +583,10 @@ Describe 'Get-MailBodyHtmlHC' {
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
             -ScriptEndTime (Get-Date '2024-01-01 08:30:00')
-        $out | Should -Match 'Started'
-        $out | Should -Match 'Ended'
-        $out | Should -Match 'Duration'
-        $out | Should -Match '00:30:00'
+        $out | Should-MatchString 'Started'
+        $out | Should-MatchString 'Ended'
+        $out | Should-MatchString 'Duration'
+        $out | Should-MatchString '00:30:00'
     }
 
     It 'includes the MatrixTables fragment passed via the Html hashtable' {
@@ -594,7 +594,7 @@ Describe 'Get-MailBodyHtmlHC' {
         $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
-        $out | Should -Match 'MATRIX_TABLES_MARKER'
+        $out | Should-MatchString 'MATRIX_TABLES_MARKER'
     }
 
     It 'renders system error cards from a [ref] SystemErrors entry' {
@@ -604,8 +604,8 @@ Describe 'Get-MailBodyHtmlHC' {
         $settings = [pscustomobject]@{ ScriptName = 'S'; SendMail = [pscustomobject]@{ Body = '' } }
         $out = Get-MailBodyHtmlHC -Settings $settings -Html $html `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
-        $out | Should -Match 'SysBoom'
-        $out | Should -Match 'System Error'
+        $out | Should-MatchString 'SysBoom'
+        $out | Should-MatchString 'System Error'
     }
 
     It 'includes browser-view and export links when supplied' {
@@ -615,8 +615,8 @@ Describe 'Get-MailBodyHtmlHC' {
             -ExportedFiles ([ordered]@{ Permissions = 'C:\reports\Permissions.xlsx' }) `
             -ScriptStartTime (Get-Date '2024-01-01 08:00:00')
 
-        $out | Should -Match 'click here to view it in the browser'
-        $out | Should -Match 'Permissions Excel'
+        $out | Should-MatchString 'click here to view it in the browser'
+        $out | Should-MatchString 'Permissions Excel'
     }
 }
 

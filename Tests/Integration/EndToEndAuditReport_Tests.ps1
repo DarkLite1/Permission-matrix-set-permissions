@@ -171,35 +171,35 @@ Describe 'Permission Matrix Audit Report - End to End' {
 
         # No fatal errors during initialization.
         $fatals = $systemErrors.Where({ $_.Type -eq 'FatalError' })
-        $fatals.Count | Should -Be 0 -Because (
+        $fatals.Count | Should-Be 0 -Because (
             "expected no fatal errors but got: $($fatals | ForEach-Object { $_.Message } | Out-String)"
         )
 
         # Exactly one mail was sent.
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
 
         # It is the owner audit mail, not an admin skip / init-failure mail.
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             ($Subject -notmatch 'skipped') -and ($Subject -notmatch 'initialization')
         } -Times 1 -Exactly -Because 'the valid matrix should mail its responsible, not the admin'
 
         # The responsible is the recipient (lenient: To may be a string or array).
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             (@($To) -join ';') -match 'owner@example\.com'
         } -Because 'the responsible should be the recipient'
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             $Subject -like 'Audit TeamA:*' -and $Body -like '*TeamA.xlsx*'
         } -Because 'the source Excel file name should be visible in the subject and body'
 
         # The per-matrix log file is attached and exists on disk.
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             $att = @($Attachments) | Where-Object { $_ } | Select-Object -First 1
             $att -and (Test-Path -LiteralPath $att)
         } -Because 'the responsible should be mailed their log file as an attachment'
 
         # The admin is BCC'd.
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             (@($Bcc) -join ';') -match 'audit-admin@example\.com'
         } -Because 'the admin should be BCC''d on the audit mail'
 
@@ -211,11 +211,9 @@ Describe 'Permission Matrix Audit Report - End to End' {
         'TeamA'
         $matrixFolder = Join-Path $logsDir 'TeamA'
 
-        Test-Path -LiteralPath (Join-Path $matrixFolder "$base.xlsx") |
-        Should -BeTrue -Because 'the date-stamped Excel log should be written'
+        Test-Path -LiteralPath (Join-Path $matrixFolder "$base.xlsx") | Should-BeTrue -Because 'the date-stamped Excel log should be written'
 
-        Test-Path -LiteralPath (Join-Path $matrixFolder "$base - Mail.html") |
-        Should -BeTrue -Because 'the rendered mail body should be saved next to the Excel log'
+        Test-Path -LiteralPath (Join-Path $matrixFolder "$base - Mail.html") | Should-BeTrue -Because 'the rendered mail body should be saved next to the Excel log'
     }
 
     It 'skips matrices with fatal errors and reports them to the admin' {
@@ -268,14 +266,14 @@ Describe 'Permission Matrix Audit Report - End to End' {
             -SystemErrors ([ref]$systemErrors)
 
         # Exactly one mail: the admin summary. No owner mails for skipped files.
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -Times 1 -Exactly
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             ($To -contains 'audit-admin@example.com') -and
             ($Subject -match 'skipped')
         } -Because 'the admin should receive the skipped-matrix summary'
 
-        Should -Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
+        Should-Invoke Send-MailKitMessageHC -ModuleName PermissionMatrix -ParameterFilter {
             ($To -contains 'TeamA@example.com') -or ($To -contains 'TeamB@example.com')
         } -Times 0 -Because 'responsibles of skipped matrices must not be mailed'
     }

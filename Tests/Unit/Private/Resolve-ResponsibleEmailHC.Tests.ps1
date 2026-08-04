@@ -27,8 +27,8 @@ Describe 'Resolve-ResponsibleEmailHC' {
         $r = InModuleScope PermissionMatrix {
             Resolve-ResponsibleEmailHC -Responsible 'a@x.com, b@y.com, a@x.com'
         }
-        $r.Emails     | Should -Be @('a@x.com', 'b@y.com')
-        $r.Unresolved | Should -BeNullOrEmpty
+        $r.Emails     | Should-BeCollection @('a@x.com', 'b@y.com')
+        $r.Unresolved | Should-BeFalsy
     }
 
     It 'resolves a user to its mail attribute' -Skip:(-not $AdAvailable) {
@@ -36,7 +36,7 @@ Describe 'Resolve-ResponsibleEmailHC' {
             [pscustomobject]@{ objectClass = 'user'; mail = 'user@x.com'; DistinguishedName = 'CN=U' }
         }
         $r = InModuleScope PermissionMatrix { Resolve-ResponsibleEmailHC -Responsible 'jdoe' }
-        $r.Emails | Should -Be @('user@x.com')
+        $r.Emails | Should-BeCollection @('user@x.com')
     }
 
     It 'resolves a group to member e-mail, recursing nested groups' -Skip:(-not $AdAvailable) {
@@ -54,8 +54,8 @@ Describe 'Resolve-ResponsibleEmailHC' {
             else { [pscustomobject]@{ EmailAddress = 'bob@x.com' } }
         }
         $r = InModuleScope PermissionMatrix { Resolve-ResponsibleEmailHC -Responsible 'Some Group' }
-        $r.Emails     | Should -Be @('alice@x.com', 'bob@x.com')
-        $r.Unresolved | Should -BeNullOrEmpty
+        $r.Emails     | Should-BeCollection @('alice@x.com', 'bob@x.com')
+        $r.Unresolved | Should-BeFalsy
     }
 
     It 'reports group members without an e-mail address' -Skip:(-not $AdAvailable) {
@@ -73,15 +73,15 @@ Describe 'Resolve-ResponsibleEmailHC' {
             else { [pscustomobject]@{ EmailAddress = $null } }
         }
         $r = InModuleScope PermissionMatrix { Resolve-ResponsibleEmailHC -Responsible 'Some Group' }
-        $r.Emails                    | Should -Be @('alice@x.com')
-        (@($r.Unresolved) -join ';') | Should -Match 'NoMail'
+        $r.Emails                    | Should-BeCollection @('alice@x.com')
+        (@($r.Unresolved) -join ';') | Should-MatchString 'NoMail'
     }
 
     It 'reports a token that cannot be found in AD' -Skip:(-not $AdAvailable) {
         Mock Get-ADObject -ModuleName PermissionMatrix { }
         $r = InModuleScope PermissionMatrix { Resolve-ResponsibleEmailHC -Responsible 'ghost' }
-        $r.Emails                    | Should -BeNullOrEmpty
-        (@($r.Unresolved) -join ';') | Should -Match 'ghost'
+        $r.Emails                    | Should-BeFalsy
+        (@($r.Unresolved) -join ';') | Should-MatchString 'ghost'
     }
 
     It 'excludes a placeholder listed directly as the responsible' {
@@ -89,8 +89,8 @@ Describe 'Resolve-ResponsibleEmailHC' {
         $r = InModuleScope PermissionMatrix {
             Resolve-ResponsibleEmailHC -Responsible 'cnorris' -ExcludeSamAccountName @('cnorris')
         }
-        $r.Emails     | Should -BeNullOrEmpty
-        $r.Unresolved | Should -BeNullOrEmpty
+        $r.Emails     | Should-BeFalsy
+        $r.Unresolved | Should-BeFalsy
     }
 
     It 'excludes placeholder group members (Matrix.AdGroupPlaceHolders)' -Skip:(-not $AdAvailable) {
@@ -110,7 +110,7 @@ Describe 'Resolve-ResponsibleEmailHC' {
         $r = InModuleScope PermissionMatrix {
             Resolve-ResponsibleEmailHC -Responsible 'Some Group' -ExcludeSamAccountName @('cnorris')
         }
-        $r.Emails     | Should -Be @('alice@x.com')
-        $r.Unresolved | Should -BeNullOrEmpty
+        $r.Emails     | Should-BeCollection @('alice@x.com')
+        $r.Unresolved | Should-BeFalsy
     }
 }

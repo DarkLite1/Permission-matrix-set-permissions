@@ -83,7 +83,7 @@ function Assert-HtmlLogContainsPatternHC {
     )
 
     $latestRunFolder = Get-LatestLogFolderHC -Root $LogFolderPath
-    $latestRunFolder | Should -Not -BeNullOrEmpty -Because "A log folder should have been created in '$LogFolderPath'"
+    $latestRunFolder | Should-BeTruthy -Because "A log folder should have been created in '$LogFolderPath'"
 
     $htmlFiles = Get-ChildItem -Path $latestRunFolder -Recurse -Filter '*.html'
     
@@ -91,7 +91,7 @@ function Assert-HtmlLogContainsPatternHC {
         $htmlFiles = $htmlFiles | Where-Object { $_.FullName -match $FileMatch }
     }
 
-    $htmlFiles.Count | Should -BeGreaterThan 0 -Because 'At least one HTML log file should have been generated'
+    $htmlFiles.Count | Should-BeGreaterThan 0 -Because 'At least one HTML log file should have been generated'
 
     $foundMatch = $false
 
@@ -107,10 +107,10 @@ function Assert-HtmlLogContainsPatternHC {
     }
 
     if ($Not) {
-        $foundMatch | Should -Be $false -Because "The HTML logs must NOT contain the pattern: $Pattern"
+        $foundMatch | Should-BeFalse -Because "The HTML logs must NOT contain the pattern: $Pattern"
     }
     else {
-        $foundMatch | Should -Be $true -Because "The HTML logs must contain the expected pattern: $Pattern"
+        $foundMatch | Should-BeTrue -Because "The HTML logs must contain the expected pattern: $Pattern"
     }
 }
 
@@ -160,7 +160,7 @@ function Compare-HashTableHC {
         Sort-Object Key |
         ConvertTo-Json
     ) |
-    Should -BeExactly (
+    Should-BeString -CaseSensitive (
         $DifferenceObject.GetEnumerator() |
         Sort-Object Key |
         ConvertTo-Json

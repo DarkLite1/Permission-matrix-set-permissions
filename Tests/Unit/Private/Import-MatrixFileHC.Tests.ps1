@@ -76,16 +76,16 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)
 
-            $result.Check | Should -BeNullOrEmpty
-            $result.ExcelInfo | Should -Not -BeNullOrEmpty
-            $result.Sheets.Settings.Raw | Should -Not -BeNullOrEmpty
-            $result.Sheets.Settings.Formatted | Should -Not -BeNullOrEmpty
-            $result.Sheets.Permissions.Raw | Should -Not -BeNullOrEmpty
-            $result.Sheets.Permissions.Formatted | Should -Not -BeNullOrEmpty
-            $result.Matrices | Should -HaveCount 1
-            $result.Matrices[0].Setting.Raw.Status | Should -Be 'Enabled'
-            $result.Matrices[0].Setting.Formatted | Should -Not -BeNullOrEmpty
-            $result.Matrices[0].ID | Should -Not -BeNullOrEmpty
+            $result.Check | Should-BeFalsy
+            $result.ExcelInfo | Should-BeTruthy
+            $result.Sheets.Settings.Raw | Should-BeTruthy
+            $result.Sheets.Settings.Formatted | Should-BeTruthy
+            $result.Sheets.Permissions.Raw | Should-BeTruthy
+            $result.Sheets.Permissions.Formatted | Should-BeTruthy
+            $result.Matrices | Should-BeCollection -Count 1
+            $result.Matrices[0].Setting.Raw.Status | Should-Be 'Enabled'
+            $result.Matrices[0].Setting.Formatted | Should-BeTruthy
+            $result.Matrices[0].ID | Should-BeTruthy
         }
 
         It 'sets each matrix FileContext back to the returned file result' {
@@ -95,7 +95,7 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)
 
-            $result.Matrices[0].FileContext | Should -Be $result
+            $result.Matrices[0].FileContext | Should-Be $result
         }
 
         It 'creates one matrix per enabled setting when several are enabled' {
@@ -105,8 +105,8 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)
 
-            $result.Matrices | Should -HaveCount 3
-            $result.Check | Should -BeNullOrEmpty
+            $result.Matrices | Should-BeCollection -Count 3
+            $result.Check | Should-BeFalsy
         }
     }
 
@@ -118,14 +118,14 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)
 
-            $result.Matrices | Should -BeNullOrEmpty
-            $result.Check | Should -HaveCount 1
-            $result.Check[0].Type | Should -Be 'FatalError'
-            $result.Check[0].Name | Should -Be 'No enabled matrix settings'
+            $result.Matrices | Should-BeFalsy
+            $result.Check | Should-BeCollection -Count 1
+            $result.Check[0].Type | Should-Be 'FatalError'
+            $result.Check[0].Name | Should-Be 'No enabled matrix settings'
 
             # Settings were read; the early return happens before Permissions.
-            $result.Sheets.Settings.Raw | Should -Not -BeNullOrEmpty
-            $result.Sheets.Permissions.Raw | Should -BeNullOrEmpty
+            $result.Sheets.Settings.Raw | Should-BeTruthy
+            $result.Sheets.Permissions.Raw | Should-BeFalsy
         }
     }
 
@@ -137,8 +137,8 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)   # both export paths unset
 
-            $result.Sheets.FormData.Raw | Should -BeNullOrEmpty
-            $result.Sheets.FormData.Formatted | Should -BeNullOrEmpty
+            $result.Sheets.FormData.Raw | Should-BeFalsy
+            $result.Sheets.FormData.Formatted | Should-BeFalsy
         }
 
         It 'imports and formats FormData when an export is configured' {
@@ -148,13 +148,13 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext -OverviewHtmlFile 'C:\reports\Overview.html')
 
-            $result.Sheets.FormData.Raw | Should -Not -BeNullOrEmpty
+            $result.Sheets.FormData.Raw | Should-BeTruthy
             # No "missing sheet" FatalError, because the sheet exists.
             ($result.Sheets.FormData.Check | Where-Object Name -EQ "Worksheet 'FormData' not found") |
-                Should -BeNullOrEmpty
+                Should-BeFalsy
             # Assumes the fixture's default FormData passes the real Test-FormDataHC.
-            $result.Sheets.FormData.Formatted | Should -Not -BeNullOrEmpty
-            $result.Matrices | Should -HaveCount 1
+            $result.Sheets.FormData.Formatted | Should-BeTruthy
+            $result.Matrices | Should-BeCollection -Count 1
         }
 
         It 'records a FatalError when the FormData sheet is missing but an export is configured' {
@@ -171,12 +171,12 @@ Describe 'Import-MatrixFileHC' {
                 -Context (New-TestContext -ServiceNowFormDataExcelFile 'C:\snow\FormData.xlsx')
 
             $formDataCheck = $result.Sheets.FormData.Check | Where-Object Name -EQ "Worksheet 'FormData' not found"
-            $formDataCheck | Should -Not -BeNullOrEmpty
-            $formDataCheck.Type | Should -Be 'FatalError'
+            $formDataCheck | Should-BeTruthy
+            $formDataCheck.Type | Should-Be 'FatalError'
 
             # The missing FormData sheet is handled in its own catch, so the rest
             # of the import continues and the matrix is still created.
-            $result.Matrices | Should -HaveCount 1
+            $result.Matrices | Should-BeCollection -Count 1
         }
 
         It 'records a FatalError when Test-FormDataHC flags the FormData' -Skip {
@@ -198,10 +198,10 @@ Describe 'Import-MatrixFileHC' {
                 -MatrixFile (Get-Item -LiteralPath $matrixPath) `
                 -Context (New-TestContext)
 
-            $result.Check | Should -HaveCount 1
-            $result.Check[0].Type | Should -Be 'FatalError'
-            $result.Check[0].Name | Should -Be 'Excel file incorrect'
-            $result.Matrices | Should -BeNullOrEmpty
+            $result.Check | Should-BeCollection -Count 1
+            $result.Check[0].Type | Should-Be 'FatalError'
+            $result.Check[0].Name | Should-Be 'Excel file incorrect'
+            $result.Matrices | Should-BeFalsy
         }
     }
 }

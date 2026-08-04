@@ -214,7 +214,7 @@ Describe 'Matrix validation (integration)' {
             $logFolder = Get-LatestLogFolderHC -Root $TestInput.Settings.SaveLogFiles.Where.Folder
             $htmlFiles = Get-ChildItem -Path $logFolder -Recurse -Filter '00 - Execution Report.html'
 
-            $htmlFiles.Count | Should -Be $ExpectedFiles
+            $htmlFiles.Count | Should-Be $ExpectedFiles
         }
     }
 }

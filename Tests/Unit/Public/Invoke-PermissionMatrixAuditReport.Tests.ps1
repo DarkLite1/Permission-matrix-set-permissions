@@ -244,7 +244,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly
         }
 
         It 'sends nothing when no matrices were found' {
@@ -257,7 +257,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly
         }
 
         It 'sends nothing when there are no file results' {
@@ -268,7 +268,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly
         }
 
         It 'mails the admin when initialization produced a FatalError' {
@@ -281,12 +281,12 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'admin@example.com' -and
                 $Subject -like '*initialization failed*'
             }
             # The per-matrix audit work must not run.
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
         }
     }
 
@@ -297,13 +297,13 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 1 -Exactly -ParameterFilter {
                 $Responsible -eq 'jdoe'
             }
-            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
                 $RecipientEmail -contains 'jdoe@example.com'
             }
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'jdoe@example.com' -and $Subject -like 'Access review*'
             }
         }
@@ -320,7 +320,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
                 $FormData.MatrixFileName -eq 'BEL-MTX-AGG-HQSouth-CS&L'
             }
         }
@@ -332,11 +332,11 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -SystemErrors ([ref]$systemErrors)
 
             # The admin is handed to the builder as the extra Bcc...
-            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
                 $Bcc -contains 'admin@example.com'
             }
             # ...and the message Bcc survives all the way to the send (not cleared).
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $Bcc -contains 'built-bcc@example.com'
             }
         }
@@ -351,11 +351,11 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly -ParameterFilter {
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly -ParameterFilter {
                 $Subject -like 'Access review*'
             }
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'admin@example.com' -and $Subject -like '*skipped*'
             }
         }
@@ -370,8 +370,8 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly
         }
 
         It 'sends no audit mail and reports the admin when the responsible resolves to no e-mail' {
@@ -384,10 +384,10 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly -ParameterFilter {
                 $Subject -like 'Access review*'
             }
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'admin@example.com' -and $Subject -like '*without an e-mail address*'
             }
         }
@@ -405,10 +405,10 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'jdoe@example.com' -and $Subject -like 'Access review*'
             }
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'admin@example.com' -and $Subject -like '*without an e-mail address*'
             }
         }
@@ -426,11 +426,11 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -SystemErrors ([ref]$systemErrors)
 
             # The Excel-derived responsible is never resolved in override mode.
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
-            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
+            Should-Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
                 $RecipientEmail -contains 'test@example.com'
             }
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'test@example.com' -and $To -notcontains 'jdoe@example.com'
             }
         }
@@ -449,11 +449,11 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -SystemErrors ([ref]$systemErrors)
 
             # No admin handed to the builder...
-            Should -Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Build-AuditReportMailHC -Times 1 -Exactly -ParameterFilter {
                 -not $Bcc
             }
             # ...and the message Bcc is cleared, so the send carries no Bcc at all.
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 -not $Bcc
             }
         }
@@ -468,8 +468,8 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
-            Should -Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
+            Should-Invoke Resolve-ResponsibleEmailHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $To -contains 'test@example.com'
             }
         }
@@ -484,7 +484,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 0 -Exactly
+            Should-Invoke Send-MailKitMessageHC -Times 0 -Exactly
         }
 
         It 'routes all matrices to the override address when several are present' {
@@ -500,7 +500,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 -ScriptPath $scriptPath `
                 -SystemErrors ([ref]$systemErrors)
 
-            Should -Invoke Send-MailKitMessageHC -Times 2 -Exactly -ParameterFilter {
+            Should-Invoke Send-MailKitMessageHC -Times 2 -Exactly -ParameterFilter {
                 $To -contains 'test@example.com'
             }
         }

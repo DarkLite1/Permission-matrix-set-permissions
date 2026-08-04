@@ -39,13 +39,13 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         It 'Warns for missing settings' {
             $M = @{ Settings = @(); Permissions = @('x') }
             $res = Test-MatrixFileHC -MatrixObject $M
-            $res.Type | Should -Contain 'Warning'
+            $res.Type | Should-ContainCollection 'Warning'
         }
 
         It 'Errors for missing permissions' {
             $M = @{ Settings = @('x'); Permissions = @() }
             $res = Test-MatrixFileHC -MatrixObject $M
-            $res.Type | Should -Contain 'FatalError'
+            $res.Type | Should-ContainCollection 'FatalError'
         }
     }
 
@@ -58,7 +58,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 # Function only returns $checks when Count -gt 0, so success => $null.
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
         }
 
@@ -84,8 +84,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -Not -BeNullOrEmpty
-                ($result.Name) | Should -Contain $Expected
+                $result | Should-BeTruthy
+                ($result.Name) | Should-ContainCollection $Expected
             }
         }
 
@@ -95,9 +95,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                @($result).Count | Should -Be 1
-                $result[0].Type | Should -Be 'FatalError'
-                $result[0].Name | Should -Be 'Missing rows'
+                @($result).Count | Should-Be 1
+                $result[0].Type | Should-Be 'FatalError'
+                $result[0].Name | Should-Be 'Missing rows'
             }
 
             It 'returns ONLY "Missing columns" for the MissingColumns fixture' {
@@ -105,9 +105,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                @($result).Count | Should -Be 1
-                $result[0].Type | Should -Be 'FatalError'
-                $result[0].Name | Should -Be 'Missing columns'
+                @($result).Count | Should-Be 1
+                $result[0].Type | Should-Be 'FatalError'
+                $result[0].Name | Should-Be 'Missing columns'
             }
         }
 
@@ -117,8 +117,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Type | Should -Be 'Warning'
+                $warn | Should-BeTruthy
+                $warn.Type | Should-Be 'Warning'
             }
 
             It 'classifies InvalidPermissionChar as a FatalError' {
@@ -126,8 +126,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $err = $result | Where-Object Name -EQ 'Invalid permission character'
-                $err | Should -Not -BeNullOrEmpty
-                $err.Type | Should -Be 'FatalError'
+                $err | Should-BeTruthy
+                $err.Type | Should-Be 'FatalError'
             }
         }
 
@@ -199,7 +199,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'flags a genuinely deepest folder with only List permissions' {
@@ -210,8 +210,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Marketing'))
             }
 
             It 'reports only the truly inaccessible folder, not the trailing-backslash parent' {
@@ -224,9 +224,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Dead'))
-                $warn.Value | Should -Not -Match 'Certificates'
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Dead'))
+                $warn.Value | Should-NotMatchString 'Certificates'
             }
 
             It 'matches parent and child paths case-insensitively' {
@@ -237,7 +237,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'handles wildcard characters in folder names' {
@@ -250,7 +250,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'flags a List-only deepest folder even when the parent row grants access' {
@@ -263,8 +263,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Marketing'))
             }
 
             It 'does not flag a blank deepest folder when the parent row grants access' {
@@ -276,7 +276,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'flags a blank deepest folder when the parent row grants no access' {
@@ -289,8 +289,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Marketing'))
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Marketing'))
             }
 
             It 'does not treat a folder with a similar name prefix as a child' {
@@ -305,8 +305,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\App'))
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\App'))
             }
 
             It 'reports the folder exactly as typed in Excel, trailing backslash included' {
@@ -317,8 +317,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Lonely\'))
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Lonely\'))
             }
 
             It 'does not flag a deepest folder marked with I (Ignore)' {
@@ -328,7 +328,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'does not flag subfolders of a folder marked with I (Ignore)' {
@@ -341,7 +341,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'still flags inaccessible folders outside an ignored subtree' {
@@ -354,9 +354,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
                 $warn = $result | Where-Object Name -EQ 'Inaccessible folders'
-                $warn | Should -Not -BeNullOrEmpty
-                $warn.Value | Should -Match ([regex]::Escape('BEL\Dead'))
-                $warn.Value | Should -Not -Match 'Temp'
+                $warn | Should-BeTruthy
+                $warn.Value | Should-MatchString ([regex]::Escape('BEL\Dead'))
+                $warn.Value | Should-NotMatchString 'Temp'
             }
 
             It 'matches ignored subtrees case-insensitively and with trailing backslashes' {
@@ -367,14 +367,13 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $result = Test-MatrixPermissionsHC -Permissions $perms
 
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
         }
 
         Context 'Error handling' {
             It 'rejects an empty array at parameter binding' {
-                { Test-MatrixPermissionsHC -Permissions @() } |
-                Should -Throw -ExpectedMessage '*empty array*'
+                { Test-MatrixPermissionsHC -Permissions @() } | Should-Throw -ExceptionMessage '*empty array*'
             }
         }
     }
@@ -398,29 +397,29 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         Context 'when FormData is missing' {
             It 'returns a Warning when FormData is $null' {
                 $result = Test-MatrixFormDataHC -FormData $null
-                $result.Type | Should -Be 'Warning'
-                $result.Name | Should -Be 'Missing FormData'
+                $result.Type | Should-Be 'Warning'
+                $result.Name | Should-Be 'Missing FormData'
             }
 
             It 'returns a Warning when FormData is an empty array' {
                 $result = Test-MatrixFormDataHC -FormData @()
-                $result.Type | Should -Be 'Warning'
-                $result.Name | Should -Be 'Missing FormData'
+                $result.Type | Should-Be 'Warning'
+                $result.Name | Should-Be 'Missing FormData'
             }
         }
 
         Context 'row count' {
             It 'returns nothing for a single fully-valid row' {
                 $result = Test-MatrixFormDataHC -FormData (New-ValidFormDataRow)
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'flags a FatalError when more than one row is supplied' {
                 $rows = @((New-ValidFormDataRow), (New-ValidFormDataRow))
                 $result = Test-MatrixFormDataHC -FormData $rows
-                $result.Type | Should -Be 'FatalError'
-                $result.Name | Should -Be 'Incorrect row count'
-                $result.Value | Should -Be 2
+                $result.Type | Should-Be 'FatalError'
+                $result.Name | Should-Be 'Incorrect row count'
+                $result.Value | Should-Be 2
             }
         }
 
@@ -435,9 +434,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                     MatrixFolderPath      = 'E:\Folder'
                 }
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Type | Should -Be 'FatalError'
-                $result.Name | Should -Be 'Missing column header'
-                $result.Value | Should -Match 'MatrixFolderDisplayName'
+                $result.Type | Should-Be 'FatalError'
+                $result.Name | Should-Be 'Missing column header'
+                $result.Value | Should-MatchString 'MatrixFolderDisplayName'
             }
 
             It 'lists every absent column in the Value' {
@@ -446,11 +445,11 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                     MatrixCategoryName = 'Default'
                 }
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Name | Should -Be 'Missing column header'
-                $result.Value | Should -Match 'MatrixSubCategoryName'
-                $result.Value | Should -Match 'MatrixResponsible'
-                $result.Value | Should -Match 'MatrixFolderDisplayName'
-                $result.Value | Should -Match 'MatrixFolderPath'
+                $result.Name | Should-Be 'Missing column header'
+                $result.Value | Should-MatchString 'MatrixSubCategoryName'
+                $result.Value | Should-MatchString 'MatrixResponsible'
+                $result.Value | Should-MatchString 'MatrixFolderDisplayName'
+                $result.Value | Should-MatchString 'MatrixFolderPath'
             }
 
             It 'flags absent columns even when the row is Disabled' {
@@ -460,8 +459,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                     MatrixCategoryName = 'Default'
                 }
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Type | Should -Be 'FatalError'
-                $result.Name | Should -Be 'Missing column header'
+                $result.Type | Should-Be 'FatalError'
+                $result.Name | Should-Be 'Missing column header'
             }
         }
 
@@ -470,17 +469,17 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $row = New-ValidFormDataRow
                 $row.MatrixResponsible = ''
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Type | Should -Be 'FatalError'
-                $result.Name | Should -Be 'Missing value'
-                $result.Value | Should -Match 'MatrixResponsible'
+                $result.Type | Should-Be 'FatalError'
+                $result.Name | Should-Be 'Missing value'
+                $result.Value | Should-MatchString 'MatrixResponsible'
             }
 
             It 'treats a whitespace-only value as blank' {
                 $row = New-ValidFormDataRow
                 $row.MatrixFolderPath = '   '
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Name | Should -Be 'Missing value'
-                $result.Value | Should -Match 'MatrixFolderPath'
+                $result.Name | Should-Be 'Missing value'
+                $result.Value | Should-MatchString 'MatrixFolderPath'
             }
 
             It 'reports every blank mandatory value at once' {
@@ -488,9 +487,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $row.MatrixResponsible = ''
                 $row.MatrixFolderPath = ''
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Name | Should -Be 'Missing value'
-                $result.Value | Should -Match 'MatrixResponsible'
-                $result.Value | Should -Match 'MatrixFolderPath'
+                $result.Name | Should-Be 'Missing value'
+                $result.Value | Should-MatchString 'MatrixResponsible'
+                $result.Value | Should-MatchString 'MatrixFolderPath'
             }
 
             It 'matches the Enabled status case-insensitively' {
@@ -500,7 +499,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $row.MatrixFormStatus = 'enabled'
                 $row.MatrixResponsible = ''
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result.Name | Should -Be 'Missing value'
+                $result.Name | Should-Be 'Missing value'
             }
         }
 
@@ -512,7 +511,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $row.MatrixFolderPath = ''
                 $row.MatrixFolderDisplayName = ''
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
 
             It 'treats a blank status as "not Enabled" and skips value checks' {
@@ -521,7 +520,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $row = New-ValidFormDataRow
                 $row.MatrixFormStatus = ''
                 $result = Test-MatrixFormDataHC -FormData $row
-                $result | Should -BeNullOrEmpty
+                $result | Should-BeFalsy
             }
         }
     }
@@ -530,7 +529,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         It 'Validates missing properties' {
             $S = @{ }
             $r = Test-MatrixSettingRowHC -SettingRow $S
-            $r.Type | Should -Contain 'FatalError'
+            $r.Type | Should-ContainCollection 'FatalError'
         }
     }
 
@@ -583,7 +582,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixture)
                 $errors = Invoke-Validation -Json $json
 
-                $errors.Count | Should -Be 0
+                $errors.Count | Should-Be 0
             }
         }
 
@@ -594,7 +593,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithMissingProperty -Property $_)
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing '$_'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing '$_'"
             }
         }
 
@@ -603,14 +602,14 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidBoolean -Path 'Settings.SaveLogFiles.Detailed')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Settings.SaveLogFiles.Detailed'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Settings.SaveLogFiles.Detailed'"
             }
 
             It 'flags non-boolean Settings.SaveInEventLog.Save' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidBoolean -Path 'Settings.SaveInEventLog.Save')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Settings.SaveInEventLog.Save'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Settings.SaveInEventLog.Save'"
             }
 
             It 'flags missing Settings.SaveLogFiles.Where.Folder' {
@@ -619,14 +618,14 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Matrix.DefaultsFile = $script:ValidDefaults
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Settings.SaveLogFiles.Where.Folder'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Settings.SaveLogFiles.Where.Folder'"
             }
 
             It 'flags missing Settings.ScriptName' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Settings.ScriptName' -Value '')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Settings.ScriptName'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Settings.ScriptName'"
             }
         }
 
@@ -635,7 +634,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Settings.SendMail.From' -Value '')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Settings.SendMail.From'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Settings.SendMail.From'"
             }
 
             It 'flags missing SendMail.Body' {
@@ -646,21 +645,21 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.SendMail.Body = $null
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Settings.SendMail.Body'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Settings.SendMail.Body'"
             }
 
             It 'flags non-numeric SendMail.Smtp.Port' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Settings.SendMail.Smtp.Port' -Value 'abc')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'SendMail.Smtp.Port'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'SendMail.Smtp.Port'"
             }
 
             It 'flags an invalid SendMail.Smtp.ConnectionType' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Settings.SendMail.Smtp.ConnectionType' -Value 'Carrier Pigeon')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Settings.SendMail.Smtp.ConnectionType'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Settings.SendMail.Smtp.ConnectionType'"
             }
 
             It 'accepts every valid ConnectionType <_>' -ForEach @(
@@ -669,7 +668,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Settings.SendMail.Smtp.ConnectionType' -Value $_)
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Not -Contain "Incorrect 'Settings.SendMail.Smtp.ConnectionType'"
+                Get-ErrorNames $errors | Should-NotContainCollection "Incorrect 'Settings.SendMail.Smtp.ConnectionType'"
             }
 
             It 'flags a completely missing SendMail block as mandatory' {
@@ -679,7 +678,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.Remove('SendMail') | Out-Null
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Settings.SendMail'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Settings.SendMail'"
             }
         }
 
@@ -690,7 +689,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.SaveLogFiles.Where.Folder = $script:ValidLogDir
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Matrix.FolderPath'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Matrix.FolderPath'"
             }
 
             It 'flags a non-existent Matrix.FolderPath' {
@@ -699,7 +698,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.SaveLogFiles.Where.Folder = $script:ValidLogDir
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Matrix.FolderPath'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Matrix.FolderPath'"
             }
 
             It 'flags missing Matrix.DefaultsFile' {
@@ -708,7 +707,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.SaveLogFiles.Where.Folder = $script:ValidLogDir
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'Matrix.DefaultsFile'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'Matrix.DefaultsFile'"
             }
 
             It 'flags a non-existent Matrix.DefaultsFile' {
@@ -717,21 +716,21 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Settings.SaveLogFiles.Where.Folder = $script:ValidLogDir
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Matrix.DefaultsFile'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Matrix.DefaultsFile'"
             }
 
             It 'flags a non-array Matrix.AdGroupPlaceHolders' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidArray -Path 'Matrix.AdGroupPlaceHolders')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Matrix.AdGroupPlaceHolders'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Matrix.AdGroupPlaceHolders'"
             }
 
             It 'flags a non-boolean Matrix.Archive' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidBoolean -Path 'Matrix.Archive')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Matrix.Archive'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Matrix.Archive'"
             }
         }
 
@@ -742,7 +741,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidInteger -Path "MaxConcurrent.$_")
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'MaxConcurrent.$_'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'MaxConcurrent.$_'"
             }
 
             It 'flags JobsPerComputer greater than JobsTotal' {
@@ -756,8 +755,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors |
-                    Should -Contain "Incorrect 'MaxConcurrent.JobsPerComputer'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'MaxConcurrent.JobsPerComputer'"
             }
 
             It 'accepts JobsPerComputer equal to JobsTotal' {
@@ -769,8 +767,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors |
-                    Should -Not -Contain "Incorrect 'MaxConcurrent.JobsPerComputer'"
+                Get-ErrorNames $errors | Should-NotContainCollection "Incorrect 'MaxConcurrent.JobsPerComputer'"
             }
         }
 
@@ -779,21 +776,21 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.PermissionsExcelFile' -Value 'out.csv')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Export.PermissionsExcelFile'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Export.PermissionsExcelFile'"
             }
 
             It 'flags OverviewHtmlFile not ending in .html' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.OverviewHtmlFile' -Value 'report.pdf')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Export.OverviewHtmlFile'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Export.OverviewHtmlFile'"
             }
 
             It 'flags ServiceNowFormDataExcelFile not ending in .xlsx' {
                 $json = Set-ValidPaths (New-JsonFixtureWithModifiedValue -Path 'Export.ServiceNowFormDataExcelFile' -Value 'forms.csv')
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'Export.ServiceNowFormDataExcelFile'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Export.ServiceNowFormDataExcelFile'"
             }
         }
 
@@ -807,7 +804,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.Remove('ServiceNow') | Out-Null
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain 'Incorrect configuration'
+                Get-ErrorNames $errors | Should-ContainCollection 'Incorrect configuration'
             }
 
             It 'records no ServiceNow errors when the block is present and fully populated' {
@@ -818,10 +815,10 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $errors = Invoke-Validation -Json $json
                 $names = Get-ErrorNames $errors
 
-                $names | Should -Not -Contain 'Incorrect configuration'
-                $names | Should -Not -Contain "Missing 'ServiceNow.CredentialsFilePath'"
-                $names | Should -Not -Contain "Missing 'ServiceNow.TableName'"
-                $names | Should -Not -Contain "Missing 'ServiceNow.Environment'"
+                $names | Should-NotContainCollection 'Incorrect configuration'
+                $names | Should-NotContainCollection "Missing 'ServiceNow.CredentialsFilePath'"
+                $names | Should-NotContainCollection "Missing 'ServiceNow.TableName'"
+                $names | Should-NotContainCollection "Missing 'ServiceNow.Environment'"
             }
 
             It 'flags missing ServiceNow.<_> when that property is blank' -ForEach @(
@@ -833,7 +830,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $json.ServiceNow.$_ = ''
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'ServiceNow.$_'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'ServiceNow.$_'"
             }
         }
 
@@ -873,11 +870,11 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 # stops loading.
                 $json = Set-ValidPaths (New-JsonFixture)
 
-                $json.ContainsKey('SharePoint') | Should -BeFalse
+                $json.ContainsKey('SharePoint') | Should-BeFalse
 
                 $errors = Invoke-Validation -Json $json
 
-                $errors.Count | Should -Be 0
+                $errors.Count | Should-Be 0
             }
 
             It 'records no errors when SharePoint is present but SiteUrl is empty' {
@@ -889,7 +886,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                $errors.Count | Should -Be 0
+                $errors.Count | Should-Be 0
             }
 
             It 'records no errors for a complete SharePoint block' {
@@ -899,7 +896,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                $errors.Count | Should -Be 0
+                $errors.Count | Should-Be 0
             }
 
             It 'accepts an optional FolderPath and FileName' {
@@ -912,7 +909,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                $errors.Count | Should -Be 0
+                $errors.Count | Should-Be 0
             }
 
             It 'flags a SiteUrl that does not start with https://' -ForEach @(
@@ -926,7 +923,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Incorrect 'SharePoint.SiteUrl'"
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'SharePoint.SiteUrl'"
             }
 
             It 'flags missing SharePoint.<_> when that property is blank' -ForEach @(
@@ -938,7 +935,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain "Missing 'SharePoint.$_'"
+                Get-ErrorNames $errors | Should-ContainCollection "Missing 'SharePoint.$_'"
             }
 
             It 'flags every missing property at once rather than stopping at the first' {
@@ -957,10 +954,10 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $errors = Invoke-Validation -Json $json
                 $names = Get-ErrorNames $errors
 
-                $names | Should -Contain "Missing 'SharePoint.DocumentLibraryName'"
-                $names | Should -Contain "Missing 'SharePoint.ClientId'"
-                $names | Should -Contain "Missing 'SharePoint.TenantId'"
-                $names | Should -Contain "Missing 'SharePoint.CertificateThumbprint'"
+                $names | Should-ContainCollection "Missing 'SharePoint.DocumentLibraryName'"
+                $names | Should-ContainCollection "Missing 'SharePoint.ClientId'"
+                $names | Should-ContainCollection "Missing 'SharePoint.TenantId'"
+                $names | Should-ContainCollection "Missing 'SharePoint.CertificateThumbprint'"
             }
 
             It 'flags a SharePoint upload configured without Export.OverviewHtmlFile' {
@@ -972,7 +969,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Contain 'Incorrect configuration'
+                Get-ErrorNames $errors | Should-ContainCollection 'Incorrect configuration'
             }
 
             It 'does not flag the OverviewHtmlFile dependency when SharePoint is unused' {
@@ -981,7 +978,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                Get-ErrorNames $errors | Should -Not -Contain 'Incorrect configuration'
+                Get-ErrorNames $errors | Should-NotContainCollection 'Incorrect configuration'
             }
 
             It 'raises FatalError, not Warning, for an incomplete SharePoint block' {
@@ -996,9 +993,9 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $sharePointErrors = @($errors | Where-Object { $_.Name -like "*SharePoint*" })
 
-                $sharePointErrors.Count | Should -BeGreaterThan 0
-                $sharePointErrors.Type | Should -Not -Contain 'Warning'
-                $sharePointErrors.Type | Select-Object -Unique | Should -BeExactly 'FatalError'
+                $sharePointErrors.Count | Should-BeGreaterThan 0
+                $sharePointErrors.Type | Should-NotContainCollection 'Warning'
+                $sharePointErrors.Type | Select-Object -Unique | Should-BeString 'FatalError' -CaseSensitive
             }
         }
     }

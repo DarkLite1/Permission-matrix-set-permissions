@@ -19,8 +19,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 1 `
                 -ScriptBlock { param($x) "processed-$x" }
 
-            $results | Should -HaveCount 3
-            $results | Should -Be @('processed-a', 'processed-b', 'processed-c')
+            $results | Should-BeCollection -Count 3
+            $results | Should-BeCollection @('processed-a', 'processed-b', 'processed-c')
         }
 
         It 'preserves input order in the results' {
@@ -31,7 +31,7 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 1 `
                 -ScriptBlock { param($x) $x * 10 }
 
-            $results | Should -Be @(10, 20, 30, 40, 50)
+            $results | Should-BeCollection @(10, 20, 30, 40, 50)
         }
 
         It 'passes ArgumentList items as additional scriptblock arguments' {
@@ -43,7 +43,7 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ScriptBlock { param($item, $prefix, $suffix) "$prefix-$item-$suffix" } `
                 -ArgumentList 'PRE', 'POST'
 
-            $results | Should -Be @('PRE-a-POST', 'PRE-b-POST')
+            $results | Should-BeCollection @('PRE-a-POST', 'PRE-b-POST')
         }
 
         It 'handles empty input without invoking the scriptblock' {
@@ -54,8 +54,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 1 `
                 -ScriptBlock { $script:invocationCount++ }
 
-            $script:invocationCount | Should -Be 0
-            $results | Should -BeNullOrEmpty
+            $script:invocationCount | Should-Be 0
+            $results | Should-BeFalsy
         }
 
         It 'runs sequentially when ThrottleLimit is <Throttle>' -ForEach @(
@@ -73,7 +73,7 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit $Throttle `
                 -ScriptBlock { $script:counter++ } | Out-Null
 
-            $script:counter | Should -Be 3
+            $script:counter | Should-Be 3
         }
 
         It 'works when ArgumentList is not supplied (uses the @() default)' {
@@ -84,7 +84,7 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 1 `
                 -ScriptBlock { param($x) $x.ToUpper() }
 
-            $results | Should -Be 'HELLO'
+            $results | Should-Be 'HELLO'
         }
     }
 
@@ -110,8 +110,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 4 `
                 -ScriptBlock { param($x) "processed-$x" }
 
-            $results | Should -HaveCount 4
-            ($results | Sort-Object) | Should -Be @(
+            $results | Should-BeCollection -Count 4
+            ($results | Sort-Object) | Should-BeCollection @(
                 'processed-a', 'processed-b', 'processed-c', 'processed-d'
             )
         }
@@ -123,7 +123,7 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ScriptBlock { param($item, $prefix, $suffix) "$prefix-$item-$suffix" } `
                 -ArgumentList 'PRE', 'POST'
 
-            ($results | Sort-Object) | Should -Be @('PRE-a-POST', 'PRE-b-POST')
+            ($results | Sort-Object) | Should-BeCollection @('PRE-a-POST', 'PRE-b-POST')
         }
 
         It 'returns numeric results from the scriptblock' {
@@ -134,8 +134,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 -ThrottleLimit 4 `
                 -ScriptBlock { param($x) $x * 10 }
 
-            $results | Should -HaveCount 4
-            ($results | Sort-Object) | Should -Be @(10, 20, 30, 40)
+            $results | Should-BeCollection -Count 4
+            ($results | Sort-Object) | Should-BeCollection @(10, 20, 30, 40)
         }
 
         It 'handles empty input without invoking the scriptblock' {
@@ -154,8 +154,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 $sink.Add("called-$item")
             }
 
-            $bag.Count | Should -Be 0
-            $results | Should -BeNullOrEmpty
+            $bag.Count | Should-Be 0
+            $results | Should-BeFalsy
         }
 
         It 'runs in parallel when ThrottleLimit is <Throttle>' -ForEach @(
@@ -177,8 +177,8 @@ Describe 'Invoke-WithOptionalParallelismHC' {
                 $sink.Add($item)
             } | Out-Null
 
-            $bag.Count | Should -Be 3
-            ($bag | Sort-Object) | Should -Be @(1, 2, 3)
+            $bag.Count | Should-Be 3
+            ($bag | Sort-Object) | Should-BeCollection @(1, 2, 3)
         }
     }
 }
