@@ -971,6 +971,20 @@ process {
 
         #region Create the parent folder when action is New
         try {
+            # A file at the parent path can never be a valid parent folder.
+            # Report it clearly for every action instead of the misleading
+            # 'exists already' (New) / 'missing' (Check/Fix) messages, which
+            # would otherwise bounce the user between the two actions.
+            if (Test-Path -LiteralPath $Path -PathType Leaf) {
+                return [PSCustomObject]@{
+                    DateTime    = Get-Date
+                    Type        = 'FatalError'
+                    Name        = 'Parent folder path occupied by a file'
+                    Description = "The path defined as 'Path' in the worksheet 'Settings' already exists as a file on the remote machine. Please remove or rename the file, or correct the path."
+                    Value       = $Path
+                }
+            }
+
             if ($Action -eq 'New') {
                 # Only a pre-existing path is a 'exists already' case; any other
                 # New-Item failure (access denied, invalid path, missing drive/share,

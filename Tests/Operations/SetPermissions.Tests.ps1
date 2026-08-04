@@ -1772,6 +1772,22 @@ Describe 'when Action is' {
             $Actual.Description | Should-Be $Expected.Description
             $Actual.Value | Should-Be $Expected.Value
         }
+        It 'create a FatalError object when the parent path is occupied by a file' {
+            $testParams = @{
+                Path             = $testParentFolder
+                Action           = 'New'
+                JobThrottleLimit = 2
+                Matrix           = [PSCustomObject]@{Name = 'test' }
+            }
+
+            New-Item -Path $testParams.Path -ItemType File
+
+            $Actual = .$testScript @testParams
+
+            $Actual.Type | Should-Be 'FatalError'
+            $Actual.Name | Should-Be 'Parent folder path occupied by a file'
+            $Actual.Value | Should-Be $testParams.Path
+        }
         It "report a distinct FatalError when the parent folder cannot be created for a reason other than 'exists already'" {
             $testParams = @{
                 Path             = "$testParentFolder\Sub"
