@@ -501,37 +501,30 @@ begin {
 
                             Write-Warning $errorMessage
 
+                            # The ACL could not be read at all (not access-denied,
+                            # not removed), so the item was neither checked nor
+                            # corrected. Report it under its own 'ACL could not be
+                            # read' warning instead of the inherited-incorrect
+                            # list, so the reason survives and the user knows the
+                            # path needs manual attention.
                             if ($DetailedLog) {
-                                # ACL retrieval failed here (not access-denied,
-                                # not removed), so $acl is $null. Record the
-                                # failure reason instead of an empty array,
-                                # otherwise the detail JSON reads as 'no ACL'
-                                # rather than 'ACL could not be read'.
-                                $aclText = @("ACL could not be read: $($_.Exception.Message)")
-
-                                # Key name matches the non-inherited warning: 'OldAcl'
-                                # is the current ACL found on disk. Inherited-only
-                                # items have no target ACL (goal is pure
-                                # inheritance) so there is no 'NewAcl'.
-                                # Use [ordered] so the detail JSON always emits
-                                # the keys in the same order (OldAcl, NewAcl,
-                                # MatrixFileAcl).
+                                # 'OldAcl' carries the failure reason (the detail
+                                # renderer already knows this key). Use [ordered]
+                                # so the detail JSON emits keys in a stable order.
                                 $entry = [ordered]@{
-                                    'OldAcl' = $aclText
+                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
                                 }
 
-                                # Mirror the non-inherited reporting shape: surface matrix labels
-                                # so the user can correlate ACEs to their Excel column headers.
-                                # Inherited folders inherit from a parent that did define ACL;
-                                # AdNames here comes from that parent's matrix entry.
+                                # Surface matrix labels when known so the user can
+                                # correlate the path to its Excel column headers.
                                 if ($AdNames -and $AdNames.Count -gt 0) {
                                     $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
                                 }
 
-                                $incorrectInheritedAcl[$child.FullName] = $entry
+                                $unreadableAcl[$child.FullName] = $entry
                             }
                             else {
-                                $incorrectInheritedAcl.Add($child.FullName)
+                                $unreadableAcl.Add($child.FullName)
                             }
                         }
                         continue
@@ -673,9 +666,11 @@ begin {
 
             if ($DetailedLog) {
                 $incorrectInheritedAcl = @{ }
+                $unreadableAcl = @{ }
             }
             else {
                 $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
+                $unreadableAcl = [System.Collections.Generic.List[String]]::New()
             }
             #endregion
 
@@ -749,7 +744,10 @@ begin {
         }
         catch { throw "Failed setting permissions for '$Path': $_" }
         finally {
-            $result = [PSCustomObject]@{ IncorrectInheritedAcl = $incorrectInheritedAcl }
+            $result = [PSCustomObject]@{
+                IncorrectInheritedAcl = $incorrectInheritedAcl
+                UnreadableAcl         = $unreadableAcl
+            }
             if ($CollectTestedPaths) {
                 $result | Add-Member -NotePropertyName 'TestedInheritedFilesAndFolders' -NotePropertyValue $testedInheritedFilesAndFolders
             }
@@ -908,10 +906,12 @@ process {
         if ($DetailedLog) {
             $incorrectAclNonInheritedFolders = @{ }
             $incorrectInheritedAcl = @{ }
+            $unreadableAcl = @{ }
         }
         else {
             $incorrectAclNonInheritedFolders = [System.Collections.Generic.List[String]]::New()
             $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
+            $unreadableAcl = [System.Collections.Generic.List[String]]::New()
         }
         #endregion
 
@@ -1363,6 +1363,12 @@ process {
                         }
                         else { $IncorrectInheritedAcl.Add($j) }
                     }
+                    foreach ($j in $jobResult.UnreadableAcl) {
+                        if ($DetailedLog) {
+                            foreach ($i in $j.GetEnumerator()) { $unreadableAcl[$i.Key] = $i.Value }
+                        }
+                        else { $unreadableAcl.Add($j) }
+                    }
                 }
 
                 if ($IncorrectInheritedAcl.Count -ne 0) {
@@ -1372,6 +1378,16 @@ process {
                         Name        = 'Inherited permissions incorrect'
                         Description = "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
                         Value       = if ($DetailedLog) { $IncorrectInheritedAcl } else { $IncorrectInheritedAcl.ToArray() }
+                    }
+                }
+
+                if ($unreadableAcl.Count -ne 0) {
+                    [PSCustomObject]@{
+                        DateTime    = Get-Date
+                        Type        = 'Warning'
+                        Name        = 'ACL could not be read'
+                        Description = "The permissions of these folders or files could not be read on the remote machine (for example the security descriptor is corrupt or the item is locked by another process). They were not checked or corrected and need manual attention."
+                        Value       = if ($DetailedLog) { $unreadableAcl } else { $unreadableAcl.ToArray() }
                     }
                 }
             }

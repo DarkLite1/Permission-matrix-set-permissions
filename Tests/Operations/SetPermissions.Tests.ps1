@@ -3706,7 +3706,7 @@ Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
         # still exists) cannot be triggered behaviorally: the static
         # GetAccessControl call runs first and cannot be mocked, and no real
         # filesystem operation makes it throw a non-UnauthorizedAccessException
-        # on an existing item. So guard the fix via the function source instead.
+        # on an existing item. So guard the behavior via the source instead.
         $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
             $testScript, [ref]$null, [ref]$null
         )
@@ -3722,6 +3722,7 @@ Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
         }
 
         $script:functionText = $fn.Extent.Text
+        $script:scriptText = Get-Content -LiteralPath $testScript -Raw
     }
 
     It "records the retrieval failure reason in 'OldAcl'" {
@@ -3733,6 +3734,16 @@ Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
         # `$acl.AccessToString ... }` in the failure branch, which yielded an
         # empty array because `$acl is `$null there. That literal must be gone.
         $functionText | Should-NotMatchString "'Access Denied'"
+    }
+
+    It 'routes an unreadable ACL to its own collection, not the inherited-incorrect list' {
+        $functionText | Should-MatchString '\$unreadableAcl\[\$child\.FullName\] = \$entry'
+        $functionText | Should-MatchString '\$unreadableAcl\.Add\(\$child\.FullName\)'
+    }
+
+    It "emits a distinct 'ACL could not be read' Warning object" {
+        $scriptText | Should-MatchString "Name        = 'ACL could not be read'"
+        $scriptText | Should-MatchString "Type        = 'Warning'"
     }
 }
 Describe 'an inherit-only folder that has a permissioned child' {
