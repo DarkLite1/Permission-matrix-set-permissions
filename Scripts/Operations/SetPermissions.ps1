@@ -945,14 +945,28 @@ process {
         #region Create the parent folder when action is New
         try {
             if ($Action -eq 'New') {
-                try { $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName) }
-                catch {
-                    $Error.RemoveAt(0)
+                # Only a pre-existing path is a 'exists already' case; any other
+                # New-Item failure (access denied, invalid path, missing drive/share,
+                # a path segment that is a file) must surface its real cause.
+                if (Test-Path -LiteralPath $Path) {
                     return [PSCustomObject]@{
                         DateTime    = Get-Date
                         Type        = 'FatalError'
                         Name        = 'Parent folder exists already'
                         Description = "The folder defined as 'Path' in the worksheet 'Settings' cannot be present on the remote machine when 'Action=New' is used. Please use 'Action' with value 'Check' or 'Fix' instead."
+                        Value       = $Path
+                    }
+                }
+
+                try { $missingFolders.Add((New-Item -Path $Path -ItemType Directory -EA Stop).FullName) }
+                catch {
+                    $errorMessage = $_.Exception.Message
+                    $Error.RemoveAt(0)
+                    return [PSCustomObject]@{
+                        DateTime    = Get-Date
+                        Type        = 'FatalError'
+                        Name        = 'Parent folder creation failed'
+                        Description = "The folder defined as 'Path' in the worksheet 'Settings' could not be created: $errorMessage"
                         Value       = $Path
                     }
                 }

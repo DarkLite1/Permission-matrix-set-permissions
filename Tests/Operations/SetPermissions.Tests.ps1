@@ -1772,6 +1772,24 @@ Describe 'when Action is' {
             $Actual.Description | Should-Be $Expected.Description
             $Actual.Value | Should-Be $Expected.Value
         }
+        It "report a distinct FatalError when the parent folder cannot be created for a reason other than 'exists already'" {
+            $testParams = @{
+                Path             = "$testParentFolder\Sub"
+                Action           = 'New'
+                JobThrottleLimit = 2
+                Matrix           = [PSCustomObject]@{Name = 'test' }
+            }
+
+            # A file at the parent segment makes New-Item -Directory throw an error
+            # that is NOT 'exists already' (the requested path itself does not exist).
+            New-Item -Path $testParentFolder -ItemType File
+
+            $Actual = .$testScript @testParams
+
+            $Actual.Type | Should-Be 'FatalError'
+            $Actual.Name | Should-Be 'Parent folder creation failed'
+            $Actual.Value | Should-Be $testParams.Path
+        }
         Context 'folders in the matrix that need to be created' {
             It 'are created' {
                 $testParams = @{
