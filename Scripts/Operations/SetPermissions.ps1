@@ -1124,10 +1124,10 @@ process {
 
         #region Create Missing Folders (Check/Fix Matrix)
         try {
-            $pathsToCreate = @()
+            $pathsToCreate = [System.Collections.Generic.List[String]]::New()
             foreach ($M in $Matrix) {
                 if (($M.Parent -eq $false) -and (-not (Test-Path -LiteralPath $M.Path -PathType Container))) {
-                    $pathsToCreate += $M.Path
+                    $pathsToCreate.Add($M.Path)
                 }
             }
 
@@ -1362,10 +1362,10 @@ process {
                 $extractRules = {
                     param($acl)
                     if (-not $acl) { return @() }
-                    $arr = @()
+                    $arr = [System.Collections.Generic.List[String]]::New()
                     foreach ($r in $acl.Access) {
                         # OPTIMIZATION: Extract to primitive string before sending into the runspace!
-                        $arr += "$([int]$r.FileSystemRights)|$([int]$r.AccessControlType)|$($r.IdentityReference.ToString())|$([int]$r.InheritanceFlags)"
+                        $arr.Add("$([int]$r.FileSystemRights)|$([int]$r.AccessControlType)|$($r.IdentityReference.ToString())|$([int]$r.InheritanceFlags)")
                     }
                     return $arr
                 }
