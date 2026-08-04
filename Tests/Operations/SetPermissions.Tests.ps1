@@ -2570,6 +2570,28 @@ Describe 'when Action is' {
                     ($_.Name -like '*child folder*') -and
                     ($_.Value -contains ($testParams.Path + '\FolderA')) } | Should-BeTruthy
             }
+            It 'report a FatalError instead of aborting when the path is occupied by a file when Action is <Action>' -TestCases @(
+                @{ Action = 'Check' }
+                @{ Action = 'Fix' }
+            ) {
+                $testParams = @{
+                    Path             = $testParentFolder
+                    Action           = $Action
+                    JobThrottleLimit = 2
+                    Matrix           = @(
+                        [PSCustomObject]@{Path = 'Path'; ACL = @{$env:USERNAME = 'L' }; Parent = $true }
+                        [PSCustomObject]@{Path = 'Reports'; ACL = @{ } }
+                    )
+                }
+                New-Item -Path $testParams.Path -ItemType Directory
+                $testFile = New-Item -Path (Join-Path $testParams.Path 'Reports') -ItemType File
+
+                $Actual = .$testScript @testParams |
+                Where-Object Name -EQ 'Folder path occupied by a file'
+
+                $Actual.Type | Should-Be 'FatalError'
+                $Actual.Value | Should-Be $testFile.FullName
+            }
         }
         Context 'incorrect folder permissions' {
             Context 'on non inherited folders' {

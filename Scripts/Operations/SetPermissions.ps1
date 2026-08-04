@@ -1077,6 +1077,20 @@ process {
             }
 
             foreach ($nonExistingPath in $pathsToCreate) {
+                # A file occupying the folder's path blocks New-Item -Directory
+                # (it throws instead of overwriting), so report it and move on.
+                if (Test-Path -LiteralPath $nonExistingPath -PathType Leaf) {
+                    Write-Verbose "Folder path occupied by a file '$nonExistingPath'"
+                    [PSCustomObject]@{
+                        DateTime    = Get-Date
+                        Type        = 'FatalError'
+                        Name        = 'Folder path occupied by a file'
+                        Description = "A folder defined in the worksheet 'Permissions' cannot be created because a file with the same name already exists on the remote machine. Please remove or rename the file, or correct the matrix."
+                        Value       = $nonExistingPath
+                    }
+                    continue
+                }
+
                 if ($Action -eq 'Check') {
                     Write-Verbose "Missing folder '$nonExistingPath'"
                     $missingFolders.Add($nonExistingPath)
