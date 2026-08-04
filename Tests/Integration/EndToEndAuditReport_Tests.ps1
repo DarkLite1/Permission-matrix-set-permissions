@@ -211,7 +211,13 @@ Describe 'Permission Matrix Audit Report - End to End' {
         'TeamA'
         $matrixFolder = Join-Path $logsDir 'TeamA'
 
-        Test-Path -LiteralPath (Join-Path $matrixFolder "$base.xlsx") | Should-BeTrue -Because 'the date-stamped Excel log should be written'
+        $excelLogPath = Join-Path $matrixFolder "$base.xlsx"
+        Test-Path -LiteralPath $excelLogPath | Should-BeTrue -Because 'the date-stamped Excel log should be written'
+
+        $defaultPermissions = @(Import-Excel -Path $excelLogPath -WorksheetName 'DefaultPermissions')
+        $defaultPermissions.Count | Should-Be 1 -Because 'the audit Excel log should include the defaults worksheet rows'
+        $defaultPermissions[0].SamAccountName | Should-Be 'DefaultGroup'
+        $defaultPermissions[0].Permission | Should-Be 'R'
 
         Test-Path -LiteralPath (Join-Path $matrixFolder "$base - Mail.html") | Should-BeTrue -Because 'the rendered mail body should be saved next to the Excel log'
     }

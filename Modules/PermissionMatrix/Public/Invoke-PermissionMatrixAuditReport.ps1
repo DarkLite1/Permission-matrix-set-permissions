@@ -345,7 +345,8 @@ function Invoke-PermissionMatrixAuditReport {
             -DestinationFileName "$logBaseName.xlsx" `
             -AccessListRows $logSheets.AccessList `
             -GroupManagerRows $logSheets.GroupManagers `
-            -AdObjectRows $logSheets.AdObjects
+            -AdObjectRows $logSheets.AdObjects `
+            -DefaultsAcl $context.Defaults.DefaultAcl
         #endregion
 
         #region Build and send the mail (subject + body from config, log attached)

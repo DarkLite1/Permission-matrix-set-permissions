@@ -149,7 +149,8 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 $Config = (New-AuditConfig),
                 [array]$FileResults = @(),
                 [bool]$FoundMatrices = $true,
-                $AdObjectDetails = @{}
+                $AdObjectDetails = @{},
+                $DefaultAcl = @{ 'DefaultGroup' = 'R' }
             )
 
             [PSCustomObject]@{
@@ -157,6 +158,7 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
                 FileResults     = $FileResults
                 FoundMatrices   = $FoundMatrices
                 AdObjectDetails = $AdObjectDetails
+                Defaults        = [PSCustomObject]@{ DefaultAcl = $DefaultAcl }
             }
         }
         #endregion
@@ -338,6 +340,22 @@ Describe 'Invoke-PermissionMatrixAuditReport' {
             # ...and the message Bcc survives all the way to the send (not cleared).
             Should-Invoke Send-MailKitMessageHC -Times 1 -Exactly -ParameterFilter {
                 $Bcc -contains 'built-bcc@example.com'
+            }
+        }
+
+        It 'passes the default ACL to the matrix log copy' {
+            $script:auditContext = New-AuditContext `
+                -DefaultAcl @{ 'DefaultGroup' = 'R'; 'AuditReaders' = 'L' } `
+                -FileResults @(New-AuditFileResult)
+
+            Invoke-PermissionMatrixAuditReport `
+                -ConfigurationJsonFile $configFile `
+                -ScriptPath $scriptPath `
+                -SystemErrors ([ref]$systemErrors)
+
+            Should-Invoke Copy-MatrixFileToLogFolderHC -Times 1 -Exactly -ParameterFilter {
+                $DefaultsAcl['DefaultGroup'] -eq 'R' -and
+                $DefaultsAcl['AuditReaders'] -eq 'L'
             }
         }
 
