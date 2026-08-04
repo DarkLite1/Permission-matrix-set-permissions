@@ -1,5 +1,5 @@
 #Requires -Version 7
-#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '6.0.0' }
 
 # =============================================================================
 # End-to-end test for the Permission Matrix AUDIT REPORT.

@@ -1,5 +1,5 @@
 #Requires -Version 7
-#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.0.0' }, ImportExcel
+#Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '6.0.0' }, ImportExcel
 
 <#
     Tests for Modules\PermissionMatrix\Private\Import-MatrixFileHC.ps1
