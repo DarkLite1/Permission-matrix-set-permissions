@@ -3699,6 +3699,42 @@ Describe 'Get-FolderContentHC guards non-directory paths' {
         { Get-FolderContentHC -DirectoryInfo ([System.IO.DirectoryInfo]::new($realDir)) } | Should -Not -Throw
     }
 }
+Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
+    BeforeAll {
+        # The ACL-retrieval failure branch (both the .NET GetAccessControl and
+        # the Get-Acl fallback throw a non-access-denied error on a path that
+        # still exists) cannot be triggered behaviorally: the static
+        # GetAccessControl call runs first and cannot be mocked, and no real
+        # filesystem operation makes it throw a non-UnauthorizedAccessException
+        # on an existing item. So guard the fix via the function source instead.
+        $scriptAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            $testScript, [ref]$null, [ref]$null
+        )
+
+        $fn = $scriptAst.FindAll({
+                param ($node)
+                ($node -is [System.Management.Automation.Language.FunctionDefinitionAst]) -and
+                ($node.Name -eq 'Get-FolderContentHC')
+            }, $true) | Select-Object -First 1
+
+        if (-not $fn) {
+            throw "Could not locate 'Get-FolderContentHC' in '$testScript'."
+        }
+
+        $script:functionText = $fn.Extent.Text
+    }
+
+    It "records the retrieval failure reason in 'OldAcl'" {
+        $functionText | Should-MatchString 'ACL could not be read'
+    }
+
+    It "no longer collapses a failed ACL read to an empty 'OldAcl'" {
+        # The old code reused `if (`$accessDenied) { 'Access Denied' } else {
+        # `$acl.AccessToString ... }` in the failure branch, which yielded an
+        # empty array because `$acl is `$null there. That literal must be gone.
+        $functionText | Should-NotMatchString "'Access Denied'"
+    }
+}
 Describe 'an inherit-only folder that has a permissioned child' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force

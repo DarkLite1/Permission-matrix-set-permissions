@@ -502,13 +502,12 @@ begin {
                             Write-Warning $errorMessage
 
                             if ($DetailedLog) {
-                                # Split the multi-line AccessToString into one
-                                # array element per ACE so the detail JSON stays
-                                # human-readable instead of a single string full
-                                # of embedded '\n' escapes. Sort the ACE lines so
-                                # 'OldAcl' has a stable order (aligns with the
-                                # non-inherited 'OldAcl'/'NewAcl' warning).
-                                $aclText = @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
+                                # ACL retrieval failed here (not access-denied,
+                                # not removed), so $acl is $null. Record the
+                                # failure reason instead of an empty array,
+                                # otherwise the detail JSON reads as 'no ACL'
+                                # rather than 'ACL could not be read'.
+                                $aclText = @("ACL could not be read: $($_.Exception.Message)")
 
                                 # Key name matches the non-inherited warning: 'OldAcl'
                                 # is the current ACL found on disk. Inherited-only
