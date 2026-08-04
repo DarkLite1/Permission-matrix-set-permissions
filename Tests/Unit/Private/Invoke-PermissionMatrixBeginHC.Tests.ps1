@@ -14,13 +14,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         ForEach-Object { . $_.FullName }
 
         function New-FakeScriptPath {
-            param([string]$Root = 'TestDrive:')
+            param([string]$Root = $TestDrive)
 
             return @{
-                PermissionMatrixModule = (New-Item "$Root\PermissionMatrix.psm1" -ItemType File -Force).FullName
-                SetPermissions         = (New-Item "$Root\SetPermissions.ps1" -ItemType File -Force).FullName
-                TestRequirements       = (New-Item "$Root\TestRequirements.ps1" -ItemType File -Force).FullName
-                UpdateServiceNow       = (New-Item "$Root\UpdateServiceNow.ps1" -ItemType File -Force).FullName
+                PermissionMatrixModule = (New-Item (Join-Path $Root 'PermissionMatrix.psm1') -ItemType File -Force).FullName
+                SetPermissions         = (New-Item (Join-Path $Root 'SetPermissions.ps1') -ItemType File -Force).FullName
+                TestRequirements       = (New-Item (Join-Path $Root 'TestRequirements.ps1') -ItemType File -Force).FullName
+                UpdateServiceNow       = (New-Item (Join-Path $Root 'UpdateServiceNow.ps1') -ItemType File -Force).FullName
             }
         }
 
@@ -28,13 +28,13 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             param(
                 [hashtable]$Overrides = @{},
                 [string[]]$Remove = @(),
-                [string]$Path = 'TestDrive:\Input.json'
+                [string]$Path = (Join-Path $TestDrive 'Input.json')
             )
 
             $fixture = New-JsonFixture
-            $fixture.Matrix.FolderPath = (New-Item 'TestDrive:\Matrix' -ItemType Directory -Force).FullName
-            $fixture.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path 'TestDrive:\Defaults.xlsx')
-            $fixture.Settings.SaveLogFiles.Where.Folder = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+            $fixture.Matrix.FolderPath = (New-Item (Join-Path $TestDrive 'Matrix') -ItemType Directory -Force).FullName
+            $fixture.Matrix.DefaultsFile = (New-ValidDefaultsExcelFixture -Path (Join-Path $TestDrive 'Defaults.xlsx'))
+            $fixture.Settings.SaveLogFiles.Where.Folder = (New-Item (Join-Path $TestDrive 'Logs') -ItemType Directory -Force).FullName
 
             foreach ($key in $Overrides.Keys) {
                 Set-NestedPropertyHC -Object $fixture -Path $key -Value $Overrides[$key]
@@ -141,7 +141,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             )
 
             return [pscustomobject]@{
-                FilePath   = 'TestDrive:\Defaults.xlsx'
+                FilePath   = (Join-Path $TestDrive 'Defaults.xlsx')
                 DefaultAcl = $DefaultAcl
                 MailTo     = [System.Collections.Generic.List[string]]@($MailTo)
             }
@@ -176,7 +176,6 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         Mock Import-MatrixDefaultsFileHC { return @() }
         Mock Get-DefaultAclHC { return @() }
         Mock Get-ADObjectDetailHC { return @{} }
-        Mock New-Item -ParameterFilter { $Path -like '*Archive*' } { }
     }
 
     Context 'JSON loading' {
@@ -191,7 +190,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'records FatalError and returns null when JSON file is missing' {
-            $args = New-BeginArgs -ConfigurationJsonFile 'TestDrive:\nope.json'
+            $args = New-BeginArgs -ConfigurationJsonFile (Join-Path $TestDrive 'nope.json')
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
 
@@ -200,7 +199,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'records FatalError when JSON is malformed' {
-            $bad = New-Item 'TestDrive:\Bad.json' -ItemType File -Force
+            $bad = New-Item (Join-Path $TestDrive 'Bad.json') -ItemType File -Force
             Set-Content $bad.FullName -Value '{ this is not valid json'
             $args = New-BeginArgs -ConfigurationJsonFile $bad.FullName
 
@@ -243,7 +242,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             @{ Key = 'UpdateServiceNow' }
         ) {
             $sp = New-FakeScriptPath
-            $sp[$Key] = 'TestDrive:\nope.ps1'
+            $sp[$Key] = (Join-Path $TestDrive 'nope.ps1')
             $args = New-BeginArgs -ScriptPath $sp
 
             $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
@@ -278,7 +277,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         }
 
         It 'sets FoundMatrices=true when at least one .xlsx exists' {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
             $args = New-BeginArgs
 
             $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
@@ -300,7 +299,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
     Context 'Defaults Excel file' {
         BeforeEach {
             # Defaults phase only runs when matrix files exist.
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
         }
 
         It 'loads valid defaults and stores on context' {
@@ -333,34 +332,40 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
     Context 'Archive folder creation' {
         BeforeEach {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
         }
 
         It 'creates the archive folder when Matrix.Archive=true' {
             $config = New-BeginJsonFile -Overrides @{ 'Matrix.Archive' = $true }
             $args = New-BeginArgs -ConfigurationJsonFile $config
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
-
-            Should -Invoke New-Item -ParameterFilter { $Path -like '*Archive*' }
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+ 
+            $archivePath = Join-Path $context.Config.Matrix.FolderPath 'Archive'
+            Test-Path -LiteralPath $archivePath -PathType Container | Should -BeTrue
         }
 
         It 'skips archive creation when Matrix.Archive=false' {
-            $args = New-BeginArgs
+            $matrixFolder = (New-Item (Join-Path $TestDrive 'NoArchiveMatrix') -ItemType Directory -Force).FullName
+            $config = New-BeginJsonFile `
+                -Overrides @{ 'Matrix.FolderPath' = $matrixFolder } `
+                -Path (Join-Path $TestDrive 'NoArchiveInput.json')
+            $args = New-BeginArgs -ConfigurationJsonFile $config
 
-            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
-
-            Should -Invoke New-Item -ParameterFilter { $Path -like '*Archive*' } -Times 0
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+ 
+            $archivePath = Join-Path $context.Config.Matrix.FolderPath 'Archive'
+            Test-Path -LiteralPath $archivePath -PathType Container | Should -BeFalse
         }
     }
 
     Context 'Parallel matrix import' {
         BeforeEach {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
         }
 
         It 'collects results from Invoke-WithOptionalParallelismHC into context' {
-            New-Item 'TestDrive:\Matrix\M2.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M2.xlsx') -ItemType File -Force | Out-Null
 
             Mock Invoke-WithOptionalParallelismHC {
                 return @(
@@ -400,7 +405,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
 
     Context 'AD bulk query and SID mapping' {
         BeforeEach {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
             Mock Test-AdObjectInMatrixHC { return @() }
         }
 
@@ -490,7 +495,7 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
         # evaluated per matrix file (ApplyDefaultPermissions can differ per file),
         # so the resulting check lands on that file's own Check list.
         BeforeEach {
-            New-Item 'TestDrive:\Matrix\M1.xlsx' -ItemType File -Force | Out-Null
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
             Mock Test-AdObjectInMatrixHC { return @() }
         }
 
@@ -536,11 +541,11 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Mock Invoke-WithOptionalParallelismHC {
                 return @(
                     (New-FakeFileResult -FileName 'A.xlsx' -Matrices @(
-                            New-FakeMatrixEntry -FileName 'A.xlsx' -ComputerName 'SRV01' -Path 'C:\A' -ApplyDefaultPermissions $true
-                        ))
+                        New-FakeMatrixEntry -FileName 'A.xlsx' -ComputerName 'SRV01' -Path 'C:\A' -ApplyDefaultPermissions $true
+                    ))
                     (New-FakeFileResult -FileName 'B.xlsx' -Matrices @(
-                            New-FakeMatrixEntry -FileName 'B.xlsx' -ComputerName 'SRV02' -Path 'C:\B' -ApplyDefaultPermissions $false
-                        ))
+                        New-FakeMatrixEntry -FileName 'B.xlsx' -ComputerName 'SRV02' -Path 'C:\B' -ApplyDefaultPermissions $false
+                    ))
                 )
             }
             Mock Import-MatrixDefaultsFileHC {
@@ -620,8 +625,8 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
     }
 
     It 'does not merge the default ACL into a folder without permissions' {
-        $matrixDir = (New-Item 'TestDrive:\MergeMatrix' -ItemType Directory -Force).FullName
-        $logsDir = (New-Item 'TestDrive:\MergeLogs' -ItemType Directory -Force).FullName
+        $matrixDir = (New-Item (Join-Path $TestDrive 'MergeMatrix') -ItemType Directory -Force).FullName
+        $logsDir = (New-Item (Join-Path $TestDrive 'MergeLogs') -ItemType Directory -Force).FullName
 
         #region Real defaults + matrix Excel files
         $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
@@ -637,7 +642,7 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
                 SiteName                = 'HQ'
                 SiteCode                = 'HQ'
                 ComputerName            = $env:COMPUTERNAME
-                Path                    = 'TestDrive:\Target'
+                Path                    = (Join-Path $TestDrive 'Target')
                 GroupName               = 'Team-A'
                 Action                  = 'Check'
                 ApplyDefaultPermissions = $true
@@ -722,8 +727,8 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
         # starts at the share root and every TOP-LEVEL inherit-only folder
         # (e.g. 'Common') is never visited or corrected. This test would fail
         # before the fix because no Parent entry was ever produced.
-        $matrixDir = (New-Item 'TestDrive:\ParentMatrix' -ItemType Directory -Force).FullName
-        $logsDir = (New-Item 'TestDrive:\ParentLogs' -ItemType Directory -Force).FullName
+        $matrixDir = (New-Item (Join-Path $TestDrive 'ParentMatrix') -ItemType Directory -Force).FullName
+        $logsDir = (New-Item (Join-Path $TestDrive 'ParentLogs') -ItemType Directory -Force).FullName
 
         $defaultsPath = Join-Path $matrixDir 'Defaults.xlsx'
         New-ValidDefaultsExcelFixture -Path $defaultsPath | Out-Null
@@ -738,7 +743,7 @@ Describe 'Invoke-PermissionMatrixBeginHC defaults merge (real merge loop)' {
                 SiteName                = 'HQ'
                 SiteCode                = 'HQ'
                 ComputerName            = $env:COMPUTERNAME
-                Path                    = 'TestDrive:\Target'
+                Path                    = (Join-Path $TestDrive 'Target')
                 GroupName               = 'Team-A'
                 Action                  = 'Fix'
                 ApplyDefaultPermissions = $true

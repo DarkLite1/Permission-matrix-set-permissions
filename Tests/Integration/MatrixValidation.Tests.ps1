@@ -71,6 +71,10 @@ Describe 'Matrix validation (integration)' {
         Import-Module "$moduleRoot\PermissionMatrix.psd1" -Force
 
         Mock Import-Module {
+            Microsoft.PowerShell.Core\Import-Module @PSBoundParameters
+        }
+
+        Mock Import-Module {
             Write-Verbose "Pester: Intercepted and skipped Import-Module for '$Name'"
         } -ParameterFilter { $Name -match 'PermissionMatrix' }
 
@@ -102,7 +106,7 @@ Describe 'Matrix validation (integration)' {
                 -Pattern "*$ExpectedMessage*"
         }
 
-        It "does not require SiteCode/GroupName when the words only appear in Column A" {
+        It 'does not require SiteCode/GroupName when the words only appear in Column A' {
             # Reproduces the false positive: 'SiteCode'/'GroupName' used as
             # informational labels in Column A (P1) must not make the Settings
             # values mandatory. Only AD Object Name columns (P2+) count as
