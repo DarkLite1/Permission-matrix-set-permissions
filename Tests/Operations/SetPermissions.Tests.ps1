@@ -3746,6 +3746,34 @@ Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
         $scriptText | Should-MatchString "Type        = 'Warning'"
     }
 }
+Describe 'unreadable matrix-folder and seed-folder ACLs are resilient' {
+    BeforeAll {
+        # Same rationale as the Get-FolderContentHC block: the generic
+        # (non-access-denied) ACL-read failure branch cannot be triggered
+        # behaviorally (static GetAccessControl is unmockable and no filesystem
+        # op throws a non-UnauthorizedAccessException on an existing item), so
+        # guard the behavior via the script source.
+        $script:scriptText = Get-Content -LiteralPath $testScript -Raw
+    }
+
+    It 'routes an unreadable non-inherited matrix folder to $unreadableAcl instead of aborting' {
+        $scriptText | Should-MatchString '\$unreadableAcl\[\$folder\.Path\] = \$entry'
+        $scriptText | Should-MatchString '\$unreadableAcl\.Add\(\$folder\.Path\)'
+    }
+
+    It 'guards the non-inherited protection check against a null ACL' {
+        $scriptText | Should-MatchString '\(-not \$acl\) -or \(-not \$acl\.AreAccessRulesProtected\)'
+    }
+
+    It 'skips the seed-folder check when its ACL is unreadable' {
+        $scriptText | Should-MatchString '\$unreadable = \$true'
+        $scriptText | Should-MatchString 'if \(-not \$unreadable\)'
+    }
+
+    It "emits 'ACL could not be read' outside the Action-New gate so every action reports it" {
+        $scriptText | Should-MatchString 'Populated by the non-inherited matrix loop'
+    }
+}
 Describe 'an inherit-only folder that has a permissioned child' {
     BeforeEach {
         Remove-Item 'TestDrive:\*' -Recurse -Force

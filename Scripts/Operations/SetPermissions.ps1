@@ -712,6 +712,7 @@ begin {
                 $isContainer = $true
                 $accessDenied = $false
                 $acl = $null
+                $unreadable = $false
 
                 try {
                     $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($child)
@@ -726,14 +727,41 @@ begin {
                     catch [System.UnauthorizedAccessException] {
                         $accessDenied = $true
                     }
+                    catch {
+                        if (-not (Test-Path -LiteralPath $child.FullName)) {
+                            Write-Verbose "Seed folder '$($child.FullName)' removed"
+                            $Error.RemoveAt(0)
+                        }
+                        else {
+                            Write-Warning "Failed retrieving the ACL of '$($child.FullName)': $_"
+
+                            # ACL unreadable (not access-denied): do not check or
+                            # reset it. Report under 'ACL could not be read'.
+                            if ($DetailedLog) {
+                                $entry = [ordered]@{
+                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
+                                }
+                                if ($AdNames -and $AdNames.Count -gt 0) {
+                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+                                }
+                                $unreadableAcl[$child.FullName] = $entry
+                            }
+                            else {
+                                $unreadableAcl.Add($child.FullName)
+                            }
+                        }
+                        $unreadable = $true
+                    }
                 }
 
-                if ($CollectTestedPaths) {
-                    $testedInheritedFilesAndFolders[$child.FullName] = $true
-                }
+                if (-not $unreadable) {
+                    if ($CollectTestedPaths) {
+                        $testedInheritedFilesAndFolders[$child.FullName] = $true
+                    }
 
-                if ($accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))) {
-                    & $incorrectAclInheritedOnly
+                    if ($accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))) {
+                        & $incorrectAclInheritedOnly
+                    }
                 }
             }
             #endregion
@@ -1181,11 +1209,49 @@ process {
                     catch [System.UnauthorizedAccessException] {
                         $accessDenied = $true
                     }
+                    catch {
+                        if (-not (Test-Path -LiteralPath $folder.Path)) {
+                            Write-Verbose "Matrix folder '$($folder.Path)' removed"
+                            $Error.RemoveAt(0)
+                        }
+                        else {
+                            Write-Warning "Failed retrieving the ACL of '$($folder.Path)': $_"
+
+                            # The ACL could not be read (not access-denied), so
+                            # this matrix folder was neither checked nor
+                            # corrected. Report it under the dedicated 'ACL could
+                            # not be read' warning instead of aborting the run.
+                            if ($DetailedLog) {
+                                $entry = [ordered]@{
+                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
+                                }
+
+                                $folderAdNames = $folder.AdNames
+                                if (($null -ne $folderAdNames) -and ($folderAdNames -isnot [System.Collections.IDictionary])) {
+                                    $realHash = @{}
+                                    foreach ($prop in $folderAdNames.PSObject.Properties) {
+                                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
+                                    }
+                                    $folderAdNames = $realHash
+                                }
+
+                                if ($folderAdNames -and $folderAdNames.Count -gt 0) {
+                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
+                                }
+
+                                $unreadableAcl[$folder.Path] = $entry
+                            }
+                            else {
+                                $unreadableAcl.Add($folder.Path)
+                            }
+                        }
+                        continue
+                    }
                 }
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
-                if ($accessDenied -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
+                if ($accessDenied -or (-not $acl) -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
 
                     #region Log Incorrect ACL
@@ -1380,19 +1446,23 @@ process {
                         Value       = if ($DetailedLog) { $IncorrectInheritedAcl } else { $IncorrectInheritedAcl.ToArray() }
                     }
                 }
-
-                if ($unreadableAcl.Count -ne 0) {
-                    [PSCustomObject]@{
-                        DateTime    = Get-Date
-                        Type        = 'Warning'
-                        Name        = 'ACL could not be read'
-                        Description = "The permissions of these folders or files could not be read on the remote machine (for example the security descriptor is corrupt or the item is locked by another process). They were not checked or corrected and need manual attention."
-                        Value       = if ($DetailedLog) { $unreadableAcl } else { $unreadableAcl.ToArray() }
-                    }
-                }
             }
         }
         catch { throw "Failed checking/setting the inheritance on folders and files: $_" }
+        #endregion
+
+        #region Report folders or files whose ACL could not be read
+        # Populated by the non-inherited matrix loop (any action) and the
+        # inherited walker (Check/Fix), so emit outside the Action gate above.
+        if ($unreadableAcl.Count -ne 0) {
+            [PSCustomObject]@{
+                DateTime    = Get-Date
+                Type        = 'Warning'
+                Name        = 'ACL could not be read'
+                Description = "The permissions of these folders or files could not be read on the remote machine (for example the security descriptor is corrupt or the item is locked by another process). They were not checked or corrected and need manual attention."
+                Value       = if ($DetailedLog) { $unreadableAcl } else { $unreadableAcl.ToArray() }
+            }
+        }
         #endregion
     }
     catch { throw "Failed setting the permissions: $_" }
