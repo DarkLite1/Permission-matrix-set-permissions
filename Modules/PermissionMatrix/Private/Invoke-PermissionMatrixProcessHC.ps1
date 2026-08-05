@@ -268,21 +268,32 @@ function Invoke-PermissionMatrixProcessHC {
         $safePermWorkers = foreach ($group in $compGroupsForPerms) {
             $jobQueue = [System.Collections.Concurrent.ConcurrentQueue[object]]::new()
 
+            # Estimate each job's duration ONCE and reuse it for both the
+            # ordering and the queue-cost total. Get-JobDurationEstimateHC is a
+            # cache lookup, so computing it once per job (rather than once in
+            # Sort-Object and again in the cost loop) avoids duplicate work.
+            $estimatedJobs = foreach ($S in @($group.Group)) {
+                [PSCustomObject]@{
+                    Setting  = $S
+                    Estimate = Get-JobDurationEstimateHC `
+                        -Cache $jobDurationCache `
+                        -ComputerName $S.Setting.Formatted.ComputerName `
+                        -Path $S.Setting.Formatted.Path `
+                        -Action $S.Setting.Formatted.Action
+                }
+            }
+
             # Workers drain the queue in order, so enqueueing expensive first is
             # what actually applies the ordering. Unknown jobs sort ahead of
             # everything (see Get-JobDurationEstimateHC).
-            $orderedSettings = @($group.Group) |
-            Sort-Object -Property {
-                Get-JobDurationEstimateHC `
-                    -Cache $jobDurationCache `
-                    -ComputerName $_.Setting.Formatted.ComputerName `
-                    -Path $_.Setting.Formatted.Path `
-                    -Action $_.Setting.Formatted.Action
-            } -Descending
+            $orderedJobs = @($estimatedJobs) |
+            Sort-Object -Property Estimate -Descending
 
             $queueCost = 0
 
-            foreach ($S in $orderedSettings) {
+            foreach ($orderedJob in $orderedJobs) {
+                $S = $orderedJob.Setting
+
                 $jobQueue.Enqueue(
                     [PSCustomObject]@{
                         ID           = $S.ID
@@ -296,18 +307,12 @@ function Invoke-PermissionMatrixProcessHC {
                     }
                 )
 
-                $estimate = Get-JobDurationEstimateHC `
-                    -Cache $jobDurationCache `
-                    -ComputerName $S.Setting.Formatted.ComputerName `
-                    -Path $S.Setting.Formatted.Path `
-                    -Action $S.Setting.Formatted.Action
-
                 # MaxValue means 'unknown', not 'astronomically expensive': adding
                 # it would overflow the total and make every queue holding one
                 # unknown job look identical. Count it as zero and let the
                 # QueueHasUnknown flag speak for it instead.
-                if ($estimate -ne [double]::MaxValue) {
-                    $queueCost += $estimate
+                if ($orderedJob.Estimate -ne [double]::MaxValue) {
+                    $queueCost += $orderedJob.Estimate
                 }
             }
 
