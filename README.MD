@@ -30,7 +30,7 @@ Everything begins in the **[`Scripts/Entrypoints`](Scripts/Entrypoints)**. There
 - **Driven by**: `-ConfigurationJsonFile` (uses its own audit configuration file).
 - **Typical schedule**: Monthly.
 
-3. `PermissionMatrixIssueReport.ps1` (Log Analysis)
+### 3. `PermissionMatrixIssueReport.ps1` (Log Analysis)
 
 - **What it does**: A reporting tool that reads the log folders of previous runs and builds a single Excel overview of errors, warnings, and durations. Needs no configuration file and doesn't load the main module.
 - **Driven by**: `-LogRoot` and `-OutputFile`
