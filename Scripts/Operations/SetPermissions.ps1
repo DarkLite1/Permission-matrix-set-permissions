@@ -1384,41 +1384,40 @@ process {
                     return $arr
                 }
 
+                # Fields shared by every DTO; merged with the per-folder fields
+                # below so the two loops don't repeat the common half.
+                $sharedDto = @{
+                    Action             = $Action
+                    IgnoredFolderPaths = $ignoredFolderPaths
+                    TokenPrivileges    = $tokenPrivileges
+                    DetailedLog        = $DetailedLog
+                    CollectTestedPaths = $CollectTestedPaths
+                    ScriptString       = $scriptBlockString
+                }
+
                 $safeFolders = @(
                     foreach ($folder in $foldersWithAcl) {
-                        [PSCustomObject]@{
-                            Path                = $folder.Path
-                            FolderRules         = &$extractRules $folder.InheritedFolderAcl
-                            FileRules           = &$extractRules $folder.InheritedFileAcl
-                            Action              = $Action
-                            IgnoredFolderPaths  = $ignoredFolderPaths
-                            TokenPrivileges     = $tokenPrivileges
-                            CheckSeedPath       = $false
-                            CheckInheritedOnly  = $false
-                            DetailedLog         = $DetailedLog
-                            CollectTestedPaths  = $CollectTestedPaths
-                            AdNames             = $folder.AdNames
-                            AdPermissions       = $folder.ACL
-                            ScriptString        = $scriptBlockString
-                        }
+                        [PSCustomObject]($sharedDto + @{
+                                Path               = $folder.Path
+                                FolderRules        = &$extractRules $folder.InheritedFolderAcl
+                                FileRules          = &$extractRules $folder.InheritedFileAcl
+                                CheckSeedPath      = $false
+                                CheckInheritedOnly = $false
+                                AdNames            = $folder.AdNames
+                                AdPermissions      = $folder.ACL
+                            })
                     }
 
                     foreach ($folder in $foldersWithInheritedOnlyAcl) {
-                        [PSCustomObject]@{
-                            Path                = $folder.Path
-                            FolderRules         = @()
-                            FileRules           = @()
-                            Action              = $Action
-                            IgnoredFolderPaths  = $ignoredFolderPaths
-                            TokenPrivileges     = $tokenPrivileges
-                            CheckSeedPath       = $true
-                            CheckInheritedOnly  = $true
-                            DetailedLog         = $DetailedLog
-                            CollectTestedPaths  = $CollectTestedPaths
-                            AdNames             = $null
-                            AdPermissions       = $null
-                            ScriptString        = $scriptBlockString
-                        }
+                        [PSCustomObject]($sharedDto + @{
+                                Path               = $folder.Path
+                                FolderRules        = @()
+                                FileRules          = @()
+                                CheckSeedPath      = $true
+                                CheckInheritedOnly = $true
+                                AdNames            = $null
+                                AdPermissions      = $null
+                            })
                     }
                 )
 
