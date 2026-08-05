@@ -436,10 +436,12 @@ function Invoke-PermissionMatrixBeginHC {
         Where-Object Count -GE 2
 
         foreach ($DupGroup in $duplicateMatrices) {
-            foreach ($MatrixObj in $DupGroup.Group) {
-                $conflictingFiles = ($DupGroup.Group | ForEach-Object { $_.FileContext.Item.Name }) | Select-Object -Unique
-                $fileListString = $conflictingFiles -join "', '"
+            # The conflicting file list is identical for every matrix in the
+            # group, so compute it once per group instead of per matrix.
+            $conflictingFiles = ($DupGroup.Group | ForEach-Object { $_.FileContext.Item.Name }) | Select-Object -Unique
+            $fileListString = $conflictingFiles -join "', '"
 
+            foreach ($MatrixObj in $DupGroup.Group) {
                 $MatrixObj.Check.Add(
                     [PSCustomObject]@{
                         Type        = 'FatalError'
