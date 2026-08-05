@@ -35,6 +35,384 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
+    Context 'Test-AdObjectInMatrixHC' {
+        BeforeAll {
+            # A matrix is an array of folder objects; only .ACL.Keys is read by
+            # the function under test, so the rest is left minimal on purpose.
+            function New-FakeMatrixHC {
+                param([Parameter(Mandatory)][string[]]$AdObjectName)
+
+                $acl = @{}
+                foreach ($name in $AdObjectName) { $acl[$name] = 'W' }
+
+                return @(
+                    [pscustomobject]@{
+                        Path = '\\srv\share'
+                        ACL  = $acl
+                    }
+                )
+            }
+
+            # Mirrors one element of the Get-ADObjectDetailHC output shape.
+            function New-FakeAdDetailHC {
+                param(
+                    [Parameter(Mandatory)][string]$SamAccountName,
+                    [ValidateSet('user', 'group')][string]$ObjectClass = 'group',
+                    [object[]]$Member = @(),
+                    [switch]$NotFound
+                )
+
+                $adObject = if ($NotFound) { $null }
+                else {
+                    [pscustomobject]@{
+                        DistinguishedName = "CN=$SamAccountName,DC=contoso,DC=com"
+                        SamAccountName    = $SamAccountName
+                        ObjectSid         = "S-1-5-21-1-1-1-$($SamAccountName.Length)"
+                        ObjectClass       = $ObjectClass
+                        Name              = $SamAccountName
+                    }
+                }
+
+                [pscustomobject]@{
+                    SamAccountName = $SamAccountName
+                    adObject       = $adObject
+                    adGroupMember  = $Member
+                }
+            }
+
+            # Enabled is deliberately [object] so $null (nested groups, and the
+            # synthetic 'All users' member of 'Domain Users') can be expressed.
+            function New-FakeAdMemberHC {
+                param(
+                    [Parameter(Mandatory)][string]$SamAccountName,
+                    [object]$Enabled = $true,
+                    [string]$ObjectClass = 'user'
+                )
+
+                [pscustomobject]@{
+                    objectClass       = $ObjectClass
+                    Name              = $SamAccountName
+                    SamAccountName    = $SamAccountName
+                    DistinguishedName = "CN=$SamAccountName,DC=contoso,DC=com"
+                    Enabled           = $Enabled
+                }
+            }
+
+            function Get-EmptyGroupCheckHC {
+                param([object[]]$Checks)
+
+                @($Checks | Where-Object { $_.Name -eq 'AD groups without members' })
+            }
+        }
+
+        Context 'no notice is raised' {
+            It 'when the group holds an enabled, non-placeholder member' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'when the group holds a placeholder AND a real member' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                        New-FakeAdMemberHC -SamAccountName 'bmarley'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'when the matrix references a user account instead of a group' {
+                # A user object has no adGroupMember; it must never be flagged.
+                $matrix = New-FakeMatrixHC -AdObjectName 'bmarley'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' -ObjectClass 'user'
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'when a member has a null Enabled value (nested group)' {
+                # GetMembers($true) returns $null Enabled for non-authenticable
+                # principals. These count as real members.
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'GRP-NESTED' `
+                            -Enabled $null -ObjectClass 'group'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It "when the group is 'Domain Users' with its synthetic member" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'Domain Users'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'Domain Users' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'All users' -Enabled $null
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'when the matrix has no AD objects at all' {
+                $matrix = @([pscustomobject]@{ Path = '\\srv\share'; ACL = @{} })
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject @()
+
+                $res | Should-BeCollection @()
+            }
+        }
+
+        Context 'a notice is raised' {
+            It 'when the placeholder account is the only member' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check.Count | Should-Be 1
+                $check[0].Type | Should-Be 'Information'
+                $check[0].Value | Should-MatchString 'GRP-HR'
+            }
+
+            It 'when the group has zero members' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'when adGroupMember is null rather than an empty array' {
+                # Get-ADObjectDetailHC leaves adGroupMember at $null when the
+                # group could not be expanded.
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    [pscustomobject]@{
+                        SamAccountName = 'GRP-HR'
+                        adObject       = [pscustomobject]@{
+                            SamAccountName = 'GRP-HR'
+                            ObjectClass    = 'group'
+                            ObjectSid      = 'S-1-5-21-1-1-1-1'
+                        }
+                        adGroupMember  = $null
+                    }
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'when every member is a disabled account' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley' -Enabled $false
+                        New-FakeAdMemberHC -SamAccountName 'jsmith' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'when members are only placeholders and disabled accounts' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                        New-FakeAdMemberHC -SamAccountName 'bmarley' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'when no ExcludedSamAccountName is supplied at all' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'when ExcludedSamAccountName is passed as $null' {
+                # Matrix.ExcludedSamAccountName is optional in the JSON.
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName $null
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+        }
+
+        Context 'placeholder matching' {
+            It 'is case insensitive' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'CNorris'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+
+            It 'honours several placeholder accounts' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                        New-FakeAdMemberHC -SamAccountName 'svc-placeholder'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris', 'svc-placeholder')
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+            }
+        }
+
+        Context 'reporting shape' {
+            It 'collects every empty group into a single check' {
+                $matrix = New-FakeMatrixHC -AdObjectName @(
+                    'GRP-HR', 'GRP-FIN', 'GRP-IT'
+                )
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                    )
+                    New-FakeAdDetailHC -SamAccountName 'GRP-FIN' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-IT' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check.Count | Should-Be 1
+                $check[0].Value | Should-MatchString 'GRP-HR'
+                $check[0].Value | Should-MatchString 'GRP-FIN'
+                $check[0].Value | Should-NotMatchString 'GRP-IT'
+            }
+
+            It 'reports the same group only once when granted on several folders' {
+                $matrix = @(
+                    [pscustomobject]@{ Path = '\\srv\a'; ACL = @{ 'GRP-HR' = 'W' } }
+                    [pscustomobject]@{ Path = '\\srv\b'; ACL = @{ 'GRP-HR' = 'R' } }
+                )
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check.Count | Should-Be 1
+                ([regex]::Matches($check[0].Value, 'GRP-HR')).Count | Should-Be 1
+            }
+
+            It 'mentions the placeholder configuration in the description' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check[0].Description | Should-MatchString 'ExcludedSamAccountName'
+                $check[0].Description | Should-MatchString 'no effective members'
+            }
+        }
+
+        Context 'interaction with the unknown AD object check' {
+            It 'still reports unknown AD objects as a FatalError' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-GHOST'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-GHOST' -NotFound)
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $fatal = @(
+                    $res | Where-Object { $_.Name -eq 'Unknown AD Objects in Matrix' }
+                )
+                $fatal.Count | Should-Be 1
+                $fatal[0].Type | Should-Be 'FatalError'
+            }
+
+            It 'does not also flag an unresolvable object as an empty group' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-GHOST'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-GHOST' -NotFound)
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-EmptyGroupCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'reports both findings when the matrix mixes the two cases' {
+                $matrix = New-FakeMatrixHC -AdObjectName @('GRP-GHOST', 'GRP-HR')
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-GHOST' -NotFound
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                @($res).Count | Should-Be 2
+                $res.Type | Should-ContainCollection 'FatalError'
+                $res.Type | Should-ContainCollection 'Information'
+            }
+        }
+    }
+
     Context 'Test-MatrixFileHC' {
         It 'Warns for missing settings' {
             $M = @{ Settings = @(); Permissions = @('x') }
@@ -991,7 +1369,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $errors = Invoke-Validation -Json $json
 
-                $sharePointErrors = @($errors | Where-Object { $_.Name -like "*SharePoint*" })
+                $sharePointErrors = @($errors | Where-Object { $_.Name -like '*SharePoint*' })
 
                 $sharePointErrors.Count | Should-BeGreaterThan 0
                 $sharePointErrors.Type | Should-NotContainCollection 'Warning'

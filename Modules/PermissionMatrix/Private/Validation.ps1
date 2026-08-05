@@ -511,7 +511,8 @@ function Test-AdObjectInMatrixHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][array]$Matrix,
-        [Parameter(Mandatory)]$ADObject
+        [Parameter(Mandatory)]$ADObject,
+        [string[]]$ExcludedSamAccountName = @()
     )
 
     $checks = @()
@@ -520,10 +521,26 @@ function Test-AdObjectInMatrixHC {
 
     if (-not $matrixAdObjects) { return $checks }
 
+    #region Index the resolved AD details once for O(1) lookups
+    $detailLookup = @{}
+
+    foreach ($detail in $ADObject) {
+        if ($detail.SamAccountName) {
+            $detailLookup[[string]$detail.SamAccountName] = $detail
+        }
+    }
+    #endregion
+
+    #region Placeholder accounts, case-insensitive
+    $placeHolders = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]@($ExcludedSamAccountName | Where-Object { $_ }),
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    #endregion
+
+    #region Unknown AD objects (fatal)
     $missingAdObjects = $matrixAdObjects | Where-Object {
-        $name = $_
-        $match = $ADObject | Where-Object { $_.SamAccountName -eq $name }
-        $null -eq $match.adObject
+        $null -eq $detailLookup[[string]$_].adObject
     }
 
     if ($missingAdObjects) {
@@ -533,6 +550,50 @@ function Test-AdObjectInMatrixHC {
             -Description 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.' `
             -Value "Not existing AD Objects: $($missingAdObjects -join ', ')"
     }
+    #endregion
+
+    #region Groups without effective members (warning)
+    <#
+     A group grants access to nobody when, after discarding the placeholder
+     accounts from 'Matrix.ExcludedSamAccountName' and the disabled accounts,
+     no members are left. This covers three cases in one check:
+     - the group is completely empty
+     - the group only holds the placeholder account(s)
+     - the group only holds disabled accounts
+     Members with an Enabled value of $null (nested groups, and the synthetic
+     'All users' member of 'Domain Users') are counted as real members.
+    #>
+    $emptyGroups = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($name in $matrixAdObjects) {
+        $detail = $detailLookup[[string]$name]
+
+        # Already reported above as an unknown AD object
+        if (-not $detail.adObject) { continue }
+
+        if ($detail.adObject.ObjectClass -ne 'group') { continue }
+
+        $effectiveMembers = @(
+            $detail.adGroupMember | Where-Object {
+                $_ -and
+                (-not $placeHolders.Contains([string]$_.SamAccountName)) -and
+                ($_.Enabled -ne $false)
+            }
+        )
+
+        if ($effectiveMembers.Count -eq 0) {
+            $emptyGroups.Add($name)
+        }
+    }
+
+    if ($emptyGroups.Count -gt 0) {
+        $checks += New-ValidationCheckHC `
+            -Type 'Information' `
+            -Name 'AD groups without members' `
+            -Description "One or more AD groups in the matrix have no effective members: they are empty, they only contain the placeholder account(s) defined in 'Matrix.ExcludedSamAccountName', or they only contain disabled accounts. No one has access to the folders granted to these groups." `
+            -Value "Empty groups: $($emptyGroups -join ', ')"
+    }
+    #endregion
 
     return $checks
 }

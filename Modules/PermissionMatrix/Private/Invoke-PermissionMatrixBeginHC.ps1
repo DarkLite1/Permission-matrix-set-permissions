@@ -522,7 +522,8 @@ function Invoke-PermissionMatrixBeginHC {
 
                 $adObjectCheck = Test-AdObjectInMatrixHC `
                     -Matrix $matrixObj.Matrix `
-                    -ADObject $adObjectDetails
+                    -ADObject $adObjectDetails `
+                    -ExcludedSamAccountName @($Context.Config.Matrix.ExcludedSamAccountName)
 
                 if ($adObjectCheck) {
                     $matrixObj.Check.AddRange(
