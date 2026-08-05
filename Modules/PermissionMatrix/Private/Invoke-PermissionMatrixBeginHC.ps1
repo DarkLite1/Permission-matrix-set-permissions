@@ -270,11 +270,8 @@ function Invoke-PermissionMatrixBeginHC {
                             $m.Check.AddRange([pscustomobject[]]@($rowErrors))
                         }
 
-                        $isFileBroken = Test-ItemHasFatalErrorHC `
-                            -CheckList (
-                            @($fileResult.Check) +
-                            @($fileResult.Sheets.Permissions.Check)
-                        )
+                        $isFileBroken = Test-FileHasFatalErrorHC `
+                            -File $fileResult
                         $isRowBroken = Test-ItemHasFatalErrorHC `
                             -CheckList $m.Check
 
@@ -514,11 +511,8 @@ function Invoke-PermissionMatrixBeginHC {
 
             #region Rewrite ACLs in all matrices to use SIDs instead of names
             foreach ($matrixObj in $Context.AllMatrices) {
-                $isFileBroken = Test-ItemHasFatalErrorHC `
-                    -CheckList (
-                    @($matrixObj.FileContext.Check) +
-                    @($matrixObj.FileContext.Sheets.Permissions.Check)
-                )
+                $isFileBroken = Test-FileHasFatalErrorHC `
+                    -File $matrixObj.FileContext
                 $isRowBroken = Test-ItemHasFatalErrorHC `
                     -CheckList $matrixObj.Check
 
@@ -575,10 +569,7 @@ function Invoke-PermissionMatrixBeginHC {
             # A structurally broken file can't be evaluated reliably and is
             # already reported through its existing fatal checks.
             if (
-                Test-ItemHasFatalErrorHC -CheckList (
-                    @($fileResult.Check) +
-                    @($fileResult.Sheets.Permissions.Check)
-                )
+                Test-FileHasFatalErrorHC -File $fileResult
             ) {
                 continue
             }

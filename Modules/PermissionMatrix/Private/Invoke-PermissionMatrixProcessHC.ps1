@@ -72,9 +72,7 @@ function Invoke-PermissionMatrixProcessHC {
             # permission application. FormData sheet errors do NOT, because they
             # only affect the ServiceNow export, not the NTFS permissions.
             if (
-                Test-ItemHasFatalErrorHC -CheckList (
-                    @($file.Check) + @($file.Sheets.Permissions.Check)
-                )
+                Test-FileHasFatalErrorHC -File $file
             ) {
                 continue
             }

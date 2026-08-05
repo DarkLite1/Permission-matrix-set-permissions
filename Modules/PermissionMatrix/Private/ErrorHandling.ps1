@@ -454,6 +454,32 @@ function Test-ItemHasFatalErrorHC {
     return ($CheckList.Type -contains 'FatalError')
 }
 
+function Test-FileHasFatalErrorHC {
+    <#
+    .SYNOPSIS
+        Checks whether a matrix file is fatally broken for permission handling.
+
+    .DESCRIPTION
+        A file blocks permission application when it has a fatal file-level
+        error OR a fatal error on its Permissions sheet. FormData sheet errors
+        are deliberately ignored here: they only affect the ServiceNow export,
+        not the NTFS permissions.
+
+    .PARAMETER File
+        A file result object exposing a 'Check' list and a
+        'Sheets.Permissions.Check' list.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$File
+    )
+
+    return Test-ItemHasFatalErrorHC -CheckList (
+        @($File.Check) + @($File.Sheets.Permissions.Check)
+    )
+}
+
 function New-CounterObjectHC {
     <#
     .SYNOPSIS
