@@ -101,6 +101,71 @@ function Remove-OldLogsHC {
     }
 }
 
+function Write-CheckDetailJsonHC {
+    <#
+    .SYNOPSIS
+        Writes a single check object to its detailed JSON log file.
+
+    .DESCRIPTION
+        Stamps the check with 'JsonFileName' and 'JsonFilePath', then, when the
+        check carries a 'Value', serializes a copy (excluding those two link
+        properties) to disk as JSON. ErrorRecord/Exception values are rendered
+        to their string form first to avoid serialization depth failures.
+
+        When the check has no 'Value', or when serialization fails, the
+        'JsonFileName'/'JsonFilePath' properties are set back to $null so
+        downstream reporting does not link to a file that was never written. A
+        serialization failure is also appended to the check's 'Description'.
+
+        The passed-in check object is mutated in place.
+
+    .PARAMETER Check
+        The check object (file-level or matrix-level) to serialize.
+
+    .PARAMETER JsonFileName
+        The file name to use for the detail JSON (e.g. 'File - Detail 1.json').
+
+    .PARAMETER LogFolder
+        The folder in which to write the detail JSON file.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [object]$Check,
+        [Parameter(Mandatory)] [string]$JsonFileName,
+        [Parameter(Mandatory)] [string]$LogFolder
+    )
+
+    $Check | Add-Member -NotePropertyMembers @{
+        JsonFileName = $JsonFileName
+        JsonFilePath = Join-Path -Path $LogFolder -ChildPath $JsonFileName
+    } -Force
+
+    if (-not $Check.Value) {
+        $Check.JsonFileName = $null
+        $Check.JsonFilePath = $null
+        return
+    }
+
+    try {
+        $cForJson = $Check | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
+
+        if (
+            $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
+            $cForJson.Value -is [Exception]
+        ) {
+            $cForJson.Value = ($cForJson.Value | Out-String).Trim()
+        }
+
+        $cForJson | ConvertTo-Json -Depth 10 |
+        Out-File -FilePath $Check.JsonFilePath -Encoding UTF8 -Force
+    }
+    catch {
+        $Check.Description += "[Detailed JSON log failed to generate: $($_)]"
+        $Check.JsonFileName = $null
+        $Check.JsonFilePath = $null
+    }
+}
+
 function Out-LogFileHC {
     <#
     .SYNOPSIS

@@ -260,37 +260,11 @@ function Invoke-PermissionMatrixEndHC {
 
                     foreach ($fc in $fileResult.Check) {
                         $checkIndex++
-                        $checkFileName = "File - Detail $checkIndex.json"
 
-                        $fc | Add-Member -NotePropertyMembers @{
-                            JsonFileName = $checkFileName
-                            JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName
-                        } -Force
-
-                        if ($fc.Value) {
-                            try {
-                                $cForJson = $fc | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
-
-                                if (
-                                    $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
-                                    $cForJson.Value -is [Exception]
-                                ) {
-                                    $cForJson.Value = ($cForJson.Value | Out-String).Trim()
-                                }
-
-                                $cForJson | ConvertTo-Json -Depth 10 |
-                                Out-File -FilePath $fc.JsonFilePath -Encoding UTF8 -Force
-                            }
-                            catch {
-                                $fc.Description += "[Detailed JSON log failed to generate: $($_)]"
-                                $fc.JsonFileName = $null
-                                $fc.JsonFilePath = $null
-                            }
-                        }
-                        else {
-                            $fc.JsonFileName = $null
-                            $fc.JsonFilePath = $null
-                        }
+                        Write-CheckDetailJsonHC `
+                            -Check $fc `
+                            -JsonFileName "File - Detail $checkIndex.json" `
+                            -LogFolder $fileLogFolder.FullName
                     }
                     #endregion
 
@@ -300,37 +274,11 @@ function Invoke-PermissionMatrixEndHC {
                     foreach ($m in $fileResult.Matrices) {
                         foreach ($c in $m.Check) {
                             $checkIndex++
-                            $checkFileName = "ID $($m.ID) - Detail $checkIndex.json"
 
-                            $c | Add-Member -NotePropertyMembers @{
-                                JsonFileName = $checkFileName
-                                JsonFilePath = Join-Path -Path $fileLogFolder.FullName -ChildPath $checkFileName
-                            } -Force
-
-                            if ($c.Value) {
-                                try {
-                                    $cForJson = $c | Select-Object -ExcludeProperty JsonFilePath, JsonFileName
-
-                                    if (
-                                        $cForJson.Value -is [System.Management.Automation.ErrorRecord] -or
-                                        $cForJson.Value -is [Exception]
-                                    ) {
-                                        $cForJson.Value = ($cForJson.Value | Out-String).Trim()
-                                    }
-
-                                    $cForJson | ConvertTo-Json -Depth 10 |
-                                    Out-File -FilePath $c.JsonFilePath -Encoding UTF8 -Force
-                                }
-                                catch {
-                                    $c.Description += "[Detailed JSON log failed to generate: $($_)]"
-                                    $c.JsonFileName = $null
-                                    $c.JsonFilePath = $null
-                                }
-                            }
-                            else {
-                                $c.JsonFileName = $null
-                                $c.JsonFilePath = $null
-                            }
+                            Write-CheckDetailJsonHC `
+                                -Check $c `
+                                -JsonFileName "ID $($m.ID) - Detail $checkIndex.json" `
+                                -LogFolder $fileLogFolder.FullName
                         }
                     }
                     #endregion
