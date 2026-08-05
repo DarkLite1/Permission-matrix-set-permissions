@@ -363,7 +363,7 @@ function Invoke-PermissionMatrixProcessHC {
                 $sessionOption = New-PSSessionOption `
                     -MaximumReceivedObjectSize ([Int32]::MaxValue)
 
-                $innerResults = @()
+                $innerResults = [System.Collections.Generic.List[object]]::new()
 
                 # Retry policy for TRANSIENT WinRM transport aborts only
                 # (Win32 995 ERROR_OPERATION_ABORTED, "The I/O operation has
@@ -481,7 +481,7 @@ function Invoke-PermissionMatrixProcessHC {
                         break
                     }
 
-                    $innerResults += $jobResult
+                    $innerResults.Add($jobResult)
                 }
                 return $innerResults
             }
