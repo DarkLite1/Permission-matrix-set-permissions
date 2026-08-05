@@ -203,12 +203,22 @@ function Invoke-PermissionMatrixProcessHC {
                 }
             }
 
+            # Index matrices by ComputerName so each computer's requirement
+            # result applies in O(1) instead of rescanning $validMatrices.
+            $matricesByComputer = @{}
+            foreach ($m in $validMatrices) {
+                $cn = $m.Setting.Formatted.ComputerName
+                if (-not $matricesByComputer.ContainsKey($cn)) {
+                    $matricesByComputer[$cn] =
+                    [System.Collections.Generic.List[object]]::new()
+                }
+                $matricesByComputer[$cn].Add($m)
+            }
+
             # Main Thread Application: Add results back to the live objects
             foreach ($output in $reqResults) {
                 if ($output.Result) {
-                    $targetMatrices = $validMatrices.Where(
-                        { $_.Setting.Formatted.ComputerName -eq $output.ComputerName }
-                    )
+                    $targetMatrices = $matricesByComputer[$output.ComputerName]
 
                     foreach ($m in $targetMatrices) {
                         $structured = @($output.Result | 
@@ -486,12 +496,17 @@ function Invoke-PermissionMatrixProcessHC {
                 return $innerResults
             }
 
+            # Index matrices by ID so each result applies in O(1) instead of
+            # rescanning $matricesToExecute for every returned job.
+            $matrixById = @{}
+            foreach ($m in $matricesToExecute) {
+                $matrixById[$m.ID] = $m
+            }
+
             # Main Thread Application: Add Job Times and Results back to Live Objects
             foreach ($resArray in $permResults) {
                 foreach ($res in $resArray) {
-                    $liveMatrix = $matricesToExecute.Where(
-                        { $_.ID -eq $res.ID }, 'First'
-                    ) | Select-Object -First 1
+                    $liveMatrix = $matrixById[$res.ID]
                     if ($liveMatrix) {
                         if ($res.Result) {
                             $structured = @($res.Result | ConvertTo-StructuredObjectHC)
