@@ -213,6 +213,28 @@ begin {
     }
     #endregion
 
+    #region Function New-UnreadableAclEntryHC (Main Thread)
+    function New-UnreadableAclEntryHC {
+        # Build the DetailedLog entry for a path whose ACL could not be read.
+        # 'OldAcl' carries the failure reason; MatrixFileAcl is added only when
+        # the matrix labels are known so the user can map it to the Excel columns.
+        param(
+            [Parameter(Mandatory)]
+            [String]$Reason,
+            $AdNames,
+            $AdPermissions
+        )
+
+        $entry = [ordered]@{
+            'OldAcl' = @("ACL could not be read: $Reason")
+        }
+        if ($AdNames -and $AdNames.Count -gt 0) {
+            $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+        }
+        $entry
+    }
+    #endregion
+
     #region Function Test-AclEqualHC (Main Thread)
     function Test-AclEqualHC {
         [OutputType([Boolean])]
@@ -359,6 +381,27 @@ begin {
             }
 
             , @($items | Sort-Object)
+        }
+        #endregion
+
+        #region Function New-UnreadableAclEntryHC (Parallel Thread)
+        # Duplicated from the main-thread definition because this scriptblock is
+        # rehydrated in a fresh runspace that cannot see the parent's functions.
+        function New-UnreadableAclEntryHC {
+            param(
+                [Parameter(Mandatory)]
+                [String]$Reason,
+                $AdNames,
+                $AdPermissions
+            )
+
+            $entry = [ordered]@{
+                'OldAcl' = @("ACL could not be read: $Reason")
+            }
+            if ($AdNames -and $AdNames.Count -gt 0) {
+                $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+            }
+            $entry
         }
         #endregion
 
@@ -533,20 +576,7 @@ begin {
                             # list, so the reason survives and the user knows the
                             # path needs manual attention.
                             if ($DetailedLog) {
-                                # 'OldAcl' carries the failure reason (the detail
-                                # renderer already knows this key). Use [ordered]
-                                # so the detail JSON emits keys in a stable order.
-                                $entry = [ordered]@{
-                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
-                                }
-
-                                # Surface matrix labels when known so the user can
-                                # correlate the path to its Excel column headers.
-                                if ($AdNames -and $AdNames.Count -gt 0) {
-                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
-                                }
-
-                                $unreadableAcl[$child.FullName] = $entry
+                                $unreadableAcl[$child.FullName] = New-UnreadableAclEntryHC -Reason $_.Exception.Message -AdNames $AdNames -AdPermissions $AdPermissions
                             }
                             else {
                                 $unreadableAcl.Add($child.FullName)
@@ -763,13 +793,7 @@ begin {
                             # ACL unreadable (not access-denied): do not check or
                             # reset it. Report under 'ACL could not be read'.
                             if ($DetailedLog) {
-                                $entry = [ordered]@{
-                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
-                                }
-                                if ($AdNames -and $AdNames.Count -gt 0) {
-                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
-                                }
-                                $unreadableAcl[$child.FullName] = $entry
+                                $unreadableAcl[$child.FullName] = New-UnreadableAclEntryHC -Reason $_.Exception.Message -AdNames $AdNames -AdPermissions $AdPermissions
                             }
                             else {
                                 $unreadableAcl.Add($child.FullName)
@@ -1249,17 +1273,8 @@ process {
                             # corrected. Report it under the dedicated 'ACL could
                             # not be read' warning instead of aborting the run.
                             if ($DetailedLog) {
-                                $entry = [ordered]@{
-                                    'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
-                                }
-
                                 $folderAdNames = ConvertTo-HashtableHC -InputObject $folder.AdNames
-
-                                if ($folderAdNames -and $folderAdNames.Count -gt 0) {
-                                    $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
-                                }
-
-                                $unreadableAcl[$folder.Path] = $entry
+                                $unreadableAcl[$folder.Path] = New-UnreadableAclEntryHC -Reason $_.Exception.Message -AdNames $folderAdNames -AdPermissions $folder.ACL
                             }
                             else {
                                 $unreadableAcl.Add($folder.Path)

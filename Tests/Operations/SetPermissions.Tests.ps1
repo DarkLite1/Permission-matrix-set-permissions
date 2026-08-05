@@ -3753,7 +3753,7 @@ Describe 'Get-FolderContentHC records the reason when an ACL cannot be read' {
     }
 
     It 'routes an unreadable ACL to its own collection, not the inherited-incorrect list' {
-        $functionText | Should-MatchString '\$unreadableAcl\[\$child\.FullName\] = \$entry'
+        $functionText | Should-MatchString '\$unreadableAcl\[\$child\.FullName\] = New-UnreadableAclEntryHC'
         $functionText | Should-MatchString '\$unreadableAcl\.Add\(\$child\.FullName\)'
     }
 
@@ -3773,7 +3773,7 @@ Describe 'unreadable matrix-folder and seed-folder ACLs are resilient' {
     }
 
     It 'routes an unreadable non-inherited matrix folder to $unreadableAcl instead of aborting' {
-        $scriptText | Should-MatchString '\$unreadableAcl\[\$folder\.Path\] = \$entry'
+        $scriptText | Should-MatchString '\$unreadableAcl\[\$folder\.Path\] = New-UnreadableAclEntryHC'
         $scriptText | Should-MatchString '\$unreadableAcl\.Add\(\$folder\.Path\)'
     }
 
