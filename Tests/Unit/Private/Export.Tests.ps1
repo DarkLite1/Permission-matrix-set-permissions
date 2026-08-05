@@ -135,6 +135,22 @@ Describe 'Export-FilesHC' {
                 $FileResults.Count -eq 1 -and $AdObjectDetails.Count -eq 1
             }
         }
+
+        It 'forwards ExcludedSamAccountName to the consolidated writer' {
+            # The placeholder filter is disabled when this never arrives
+            $settings = [pscustomobject]@{
+                PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
+                ServiceNowFormDataExcelFile = $null
+                OverviewHtmlFile            = $null
+            }
+
+            Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings `
+                -ExcludedSamAccountName 'cnorris' | Out-Null
+
+            Should-Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
+                $ExcludedSamAccountName -contains 'cnorris'
+            }
+        }
     }
 
     Context 'ServiceNow FormData export' {
@@ -1241,6 +1257,169 @@ Describe 'Copy-MatrixFileToLogFolderHC' {
                 Import-Excel -Path $result -WorksheetName 'AdObjects' `
                     -ErrorAction Ignore
             ).Count | Should-Be 0
+        }
+    }
+}
+
+Describe 'Get-PlaceHolderFilterValueHC' {
+    BeforeAll {
+        $script:AccessListRows = @(
+            [pscustomobject]@{
+                MemberName = 'John'; MemberSamAccountName = 'jdoe'
+            }
+            [pscustomobject]@{
+                MemberName = 'Chuck Norris'; MemberSamAccountName = 'cnorris'
+            }
+            [pscustomobject]@{
+                MemberName = $null; MemberSamAccountName = $null
+            }
+        )
+    }
+
+    Context 'no placeholder configured' {
+        It 'returns nothing when the list is empty' {
+            @(
+                Get-PlaceHolderFilterValueHC -AccessListRow $AccessListRows
+            ).Count | Should-Be 0
+        }
+
+        It 'returns nothing when the list is $null' {
+            @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName $null `
+                    -AccessListRow $AccessListRows
+            ).Count | Should-Be 0
+        }
+
+        It 'ignores blank entries in the list' {
+            @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName @('', $null) `
+                    -AccessListRow $AccessListRows
+            ).Count | Should-Be 0
+        }
+    }
+
+    Context 'resolving the display name' {
+        It 'returns the SamAccountName and its display name' {
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' `
+                    -AccessListRow $AccessListRows
+            )
+
+            $res | Should-ContainCollection 'cnorris'
+            $res | Should-ContainCollection 'Chuck Norris'
+            $res.Count | Should-Be 2
+        }
+
+        It 'matches the SamAccountName case insensitively' {
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'CNORRIS' `
+                    -AccessListRow $AccessListRows
+            )
+
+            $res | Should-ContainCollection 'Chuck Norris'
+        }
+
+        It 'returns only the SamAccountName when it is not in the rows' {
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'svc-placeholder' `
+                    -AccessListRow $AccessListRows
+            )
+
+            $res | Should-BeCollection @('svc-placeholder')
+        }
+
+        It 'resolves several placeholders' {
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris', 'jdoe' `
+                    -AccessListRow $AccessListRows
+            )
+
+            $res | Should-ContainCollection 'Chuck Norris'
+            $res | Should-ContainCollection 'John'
+            $res.Count | Should-Be 4
+        }
+
+        It 'never returns the display name of a non-placeholder member' {
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' `
+                    -AccessListRow $AccessListRows
+            )
+
+            $res | Should-NotContainCollection 'John'
+        }
+    }
+
+    Context 'rows that carry no member' {
+        It 'skips rows without a SamAccountName' {
+            $rows = @(
+                [pscustomobject]@{
+                    MemberName = 'Ghost'; MemberSamAccountName = $null
+                }
+            )
+
+            @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+            ) | Should-BeCollection @('cnorris')
+        }
+
+        It 'skips a placeholder row without a display name' {
+            $rows = @(
+                [pscustomobject]@{
+                    MemberName = $null; MemberSamAccountName = 'cnorris'
+                }
+            )
+
+            @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+            ) | Should-BeCollection @('cnorris')
+        }
+
+        It 'copes with no rows at all' {
+            @(
+                Get-PlaceHolderFilterValueHC -ExcludedSamAccountName 'cnorris'
+            ) | Should-BeCollection @('cnorris')
+        }
+
+        It 'copes with a $null entry among the rows' {
+            {
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' `
+                    -AccessListRow @($null, $AccessListRows[1])
+            } | Should -Not -Throw
+        }
+    }
+
+    Context 'a display name that doubles as a SamAccountName' {
+        It 'does not chain one resolution into the next' {
+            # 'Chuck Norris' is added as a value to hide, but must never be
+            # treated as a placeholder SamAccountName on a later row
+            $rows = @(
+                [pscustomobject]@{
+                    MemberName = 'Chuck Norris'
+                    MemberSamAccountName = 'cnorris'
+                }
+                [pscustomobject]@{
+                    MemberName = 'Someone Else'
+                    MemberSamAccountName = 'Chuck Norris'
+                }
+            )
+
+            $res = @(
+                Get-PlaceHolderFilterValueHC `
+                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+            )
+
+            $res | Should-NotContainCollection 'Someone Else'
+            $res.Count | Should-Be 2
         }
     }
 }

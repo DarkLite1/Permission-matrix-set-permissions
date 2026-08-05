@@ -332,7 +332,8 @@ function Invoke-PermissionMatrixEndHC {
                                 -AccessListRows $logSheets.AccessList `
                                 -GroupManagerRows $logSheets.GroupManagers `
                                 -AdObjectRows $logSheets.AdObjects `
-                                -DefaultsAcl $Context.Defaults.DefaultAcl
+                                -DefaultsAcl $Context.Defaults.DefaultAcl `
+                                -ExcludedSamAccountName @($Context.Config.Matrix.ExcludedSamAccountName)
 
                             # Used by the 'Open matrix Excel file' footer
                             # link in the summary email

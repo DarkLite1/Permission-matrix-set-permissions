@@ -185,6 +185,7 @@ function Export-FilesHC {
             -GroupManagers $consolidated.GroupManagers `
             -AdObjects $consolidated.AdObjects `
             -FormData $consolidated.FormData `
+            -ExcludedSamAccountName $ExcludedSamAccountName `
             -Path $ExportSettings.PermissionsExcelFile
     }
 
@@ -393,6 +394,64 @@ function Build-ConsolidatedExportDataHC {
     }
 }
 
+function Get-PlaceHolderFilterValueHC {
+    <#
+    .SYNOPSIS
+        Builds the value list used to filter the placeholder accounts out of
+        the matrix Excel log file.
+
+    .DESCRIPTION
+        Placeholder accounts are configured as SamAccountNames
+        ('Matrix.ExcludedSamAccountName', or 'Matrix.AdGroupPlaceHolders' in
+        the audit report configuration). The 'AccessList' worksheet holds a
+        'MemberSamAccountName' column and can be matched directly, but
+        'GroupManagers' only carries the display name of a manager group
+        member in 'ManagerMemberName'.
+
+        The 'AccessList' rows already pair both spellings of every member, so
+        this walks them once to translate each placeholder SamAccountName into
+        its display name and returns both. A value that occurs in neither
+        column is never matched, so the combined list can be handed to
+        Set-DefaultSheetFilterHC for both worksheets at once.
+    #>
+    [CmdletBinding()]
+    [OutputType([string[]])]
+    param(
+        [string[]]$ExcludedSamAccountName = @(),
+        [array]$AccessListRow = @()
+    )
+
+    $samAccountName = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]@($ExcludedSamAccountName | Where-Object { $_ }),
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+
+    if ($samAccountName.Count -eq 0) { return @() }
+
+    # Kept separate from the lookup set so a resolved display name can never
+    # be treated as a placeholder SamAccountName on a later row
+    $result = [System.Collections.Generic.HashSet[string]]::new(
+        $samAccountName,
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+
+    foreach ($row in $AccessListRow) {
+        if (-not $row) { continue }
+
+        $sam = [string]$row.MemberSamAccountName
+
+        if ((-not $sam) -or (-not $samAccountName.Contains($sam.Trim()))) {
+            continue
+        }
+
+        $name = [string]$row.MemberName
+
+        if ($name -and $name.Trim()) { $null = $result.Add($name.Trim()) }
+    }
+
+    return [string[]]$result
+}
+
 function Export-ConsolidatedPermissionsFileHC {
     <#
     .SYNOPSIS
@@ -430,6 +489,7 @@ function Export-ConsolidatedPermissionsFileHC {
         [array]$GroupManagers = @(),
         [array]$AdObjects = @(),
         [array]$FormData = @(),
+        [string[]]$ExcludedSamAccountName = @(),
         [Parameter(Mandatory)][string]$Path
     )
 
@@ -497,9 +557,15 @@ function Export-ConsolidatedPermissionsFileHC {
             }
         }
 
+        $placeHolderValue = Get-PlaceHolderFilterValueHC `
+            -ExcludedSamAccountName $ExcludedSamAccountName `
+            -AccessListRow $AccessList
+
         Set-DefaultSheetFilterHC -Path $Path `
             -WorksheetName 'AccessList', 'GroupManagers' `
-            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
+            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank `
+            -ExcludeColumnName 'MemberSamAccountName', 'ManagerMemberName' `
+            -ExcludeValue $placeHolderValue
 
         return $Path
     }
@@ -570,6 +636,7 @@ function Copy-MatrixFileToLogFolderHC {
         [array]$GroupManagerRows,
         [array]$AdObjectRows,
         [hashtable]$DefaultsAcl,
+        [string[]]$ExcludedSamAccountName = @(),
         [string]$DestinationFileName
     )
 
@@ -662,9 +729,15 @@ function Copy-MatrixFileToLogFolderHC {
             }
         }
 
+        $placeHolderValue = Get-PlaceHolderFilterValueHC `
+            -ExcludedSamAccountName $ExcludedSamAccountName `
+            -AccessListRow $AccessListRows
+
         Set-DefaultSheetFilterHC -Path $destinationPath `
             -WorksheetName 'AccessList', 'GroupManagers' `
-            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank
+            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank `
+            -ExcludeColumnName 'MemberSamAccountName', 'ManagerMemberName' `
+            -ExcludeValue $placeHolderValue
 
         return $destinationPath
     }

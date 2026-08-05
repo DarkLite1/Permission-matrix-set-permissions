@@ -1,7 +1,8 @@
 function Set-DefaultSheetFilterHC {
     <#
     .SYNOPSIS
-        Pre-applies a filter on one or more worksheets of an existing workbook.
+        Pre-applies one or more filters on the worksheets of an existing
+        workbook.
 
     .DESCRIPTION
         Excel stores the filter *definition* and the *hidden row state* as two
@@ -15,8 +16,27 @@ function Set-DefaultSheetFilterHC {
         - marks the non-matching rows as hidden, so the sheet actually opens
           filtered
 
+        Two kinds of criteria are supported and they combine with AND, exactly
+        as Excel treats filters on several columns:
+
+        - An include criterion (ColumnName / VisibleValue): only the listed
+          values stay visible. Used for 'MemberEnabled'.
+        - An exclude criterion (ExcludeColumnName / ExcludeValue): the listed
+          values are hidden and everything else stays visible. Used for the
+          placeholder accounts of 'Matrix.ExcludedSamAccountName'.
+
+        Excel has no native "everything except this list" filter. The exclude
+        criterion therefore reproduces what Excel itself writes when boxes are
+        unticked by hand: an inclusion list of every *other* distinct value
+        found in that column. On a column with many distinct values this
+        produces a correspondingly large 'filters' element, which is normal
+        but worth knowing.
+
+        Columns that a worksheet does not have are skipped silently, so the
+        same call can cover sheets with different layouts.
+
         The worksheets are expected to be written by Export-Excel with
-        '-TableName', which is why the criterion goes into the table part
+        '-TableName', which is why the criteria go into the table part
         (/xl/tables/tableN.xml) and not into the worksheet's own autoFilter.
 
     .PARAMETER Path
@@ -36,7 +56,21 @@ function Set-DefaultSheetFilterHC {
     .PARAMETER IncludeBlank
         Keep rows with an empty cell visible as well. For 'MemberEnabled'
         these are the groups without members and the manager rows that hold
-        no account status, which are usually worth keeping in view.
+        no account status, which are usually worth keeping in view. Applies to
+        the exclude criteria too: a group without members has no member name
+        to match a placeholder against and should stay in view.
+
+    .PARAMETER ExcludeColumnName
+        Header text of one or more columns whose ExcludeValue entries must be
+        hidden. Columns absent from a worksheet are skipped, so passing both
+        'MemberSamAccountName' and 'ManagerMemberName' covers 'AccessList' and
+        'GroupManagers' in a single call.
+
+    .PARAMETER ExcludeValue
+        The cell values to hide in every ExcludeColumnName. Comparison is case
+        insensitive. Values that occur in none of the columns are harmless, so
+        the SamAccountNames and their display names can be passed together.
+        When empty, no exclude criterion is written at all.
 
     .EXAMPLE
         Set-DefaultSheetFilterHC -Path $Path `
@@ -45,6 +79,17 @@ function Set-DefaultSheetFilterHC {
 
         Opens the workbook with the disabled accounts hidden, while empty
         'MemberEnabled' cells stay visible.
+
+    .EXAMPLE
+        Set-DefaultSheetFilterHC -Path $Path `
+            -WorksheetName 'AccessList', 'GroupManagers' `
+            -ColumnName 'MemberEnabled' -VisibleValue 'TRUE' -IncludeBlank `
+            -ExcludeColumnName 'MemberSamAccountName', 'ManagerMemberName' `
+            -ExcludeValue 'cnorris', 'Chuck Norris'
+
+        The same, with the placeholder account hidden as well: on 'AccessList'
+        it is matched on its SamAccountName, on 'GroupManagers' on its display
+        name.
     #>
 
     [CmdletBinding()]
@@ -53,10 +98,31 @@ function Set-DefaultSheetFilterHC {
         [Parameter(Mandatory)][string[]]$WorksheetName,
         [Parameter(Mandatory)][string]$ColumnName,
         [string[]]$VisibleValue = @('TRUE'),
-        [switch]$IncludeBlank
+        [switch]$IncludeBlank,
+        [string[]]$ExcludeColumnName = @(),
+        [string[]]$ExcludeValue = @()
     )
 
     $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+
+    #region Values to hide, matched case insensitively
+    $excluded = [System.Collections.Generic.HashSet[string]]::new(
+        [string[]]@($ExcludeValue | Where-Object { $_ }),
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    #endregion
+
+    # Reads a cell the same way for the hiding pass and for the value list, so
+    # a value written into the filter XML always matches the row it came from
+    $getCellText = {
+        param($Cell)
+
+        $raw = $Cell.Value
+
+        if ($null -eq $raw) { return '' }
+
+        return ([string]$raw).Trim()
+    }
 
     try {
         $excelPackage = Open-ExcelPackage -Path $Path -ErrorAction Stop
@@ -68,95 +134,186 @@ function Set-DefaultSheetFilterHC {
                 if ((-not $sheet) -or (-not $sheet.Dimension)) { continue }
                 if ($sheet.Dimension.End.Row -le 1) { continue }
 
-                #region Locate the column by its header text
-                $columnIndex = $null
+                $lastRow = $sheet.Dimension.End.Row
+
+                #region Map every header on row 1 to its column index
+                $headerIndex = @{}
 
                 for (
                     $c = $sheet.Dimension.Start.Column
                     $c -le $sheet.Dimension.End.Column
                     $c++
                 ) {
-                    if ($sheet.Cells[1, $c].Text -eq $ColumnName) {
-                        $columnIndex = $c
-                        break
+                    $header = $sheet.Cells[1, $c].Text
+
+                    if ($header -and (-not $headerIndex.ContainsKey($header))) {
+                        $headerIndex[$header] = $c
                     }
                 }
-
-                if (-not $columnIndex) { continue }
                 #endregion
 
-                #region Hide the rows that do not match
-                for ($r = 2; $r -le $sheet.Dimension.End.Row; $r++) {
-                    $cellValue = $sheet.Cells[$r, $columnIndex].Value
+                #region Build the criteria that apply to this worksheet
+                $rules = [System.Collections.Generic.List[hashtable]]::new()
 
-                    $isVisible = if (
-                        ($null -eq $cellValue) -or
-                        ([string]$cellValue).Trim() -eq ''
+                if ($headerIndex.ContainsKey($ColumnName)) {
+                    $rules.Add(
+                        @{
+                            Column       = $headerIndex[$ColumnName]
+                            VisibleValue = [string[]]@($VisibleValue)
+                        }
+                    )
+                }
+
+                if ($excluded.Count -gt 0) {
+                    foreach (
+                        $name in @($ExcludeColumnName | Where-Object { $_ })
                     ) {
-                        $IncludeBlank.IsPresent
-                    }
-                    else {
-                        $VisibleValue -contains ([string]$cellValue).Trim()
-                    }
+                        if (-not $headerIndex.ContainsKey($name)) { continue }
 
-                    if (-not $isVisible) {
-                        $sheet.Row($r).Hidden = $true
+                        $index = $headerIndex[$name]
+
+                        # Turn "hide these" into the inclusion list Excel
+                        # understands: every other distinct value in the column
+                        $keep = [System.Collections.Generic.List[string]]::new()
+                        $seen = [System.Collections.Generic.HashSet[string]]::new(
+                            [System.StringComparer]::OrdinalIgnoreCase
+                        )
+
+                        for ($r = 2; $r -le $lastRow; $r++) {
+                            $text = & $getCellText $sheet.Cells[$r, $index]
+
+                            if ($text -eq '') { continue }
+                            if ($excluded.Contains($text)) { continue }
+                            if ($seen.Add($text)) { $keep.Add($text) }
+                        }
+
+                        $rules.Add(
+                            @{
+                                Column       = $index
+                                VisibleValue = [string[]]$keep.ToArray()
+                            }
+                        )
+                    }
+                }
+
+                if ($rules.Count -eq 0) { continue }
+
+                # CT_AutoFilter expects filterColumn children in ascending
+                # colId order
+                $rules = @(
+                    $rules | Sort-Object -Property { [int]$_.Column }
+                )
+                #endregion
+
+                #region Hide the rows that fail any criterion
+                for ($r = 2; $r -le $lastRow; $r++) {
+                    foreach ($rule in $rules) {
+                        $text = & $getCellText $sheet.Cells[$r, $rule.Column]
+
+                        $isVisible = if ($text -eq '') {
+                            $IncludeBlank.IsPresent
+                        }
+                        else {
+                            $rule.VisibleValue -contains $text
+                        }
+
+                        if (-not $isVisible) {
+                            $sheet.Row($r).Hidden = $true
+                            break
+                        }
                     }
                 }
                 #endregion
 
-                #region Write the filter criterion into the table XML
-                $table = $sheet.Tables | Where-Object {
-                    ($_.Address.Start.Column -le $columnIndex) -and
-                    ($_.Address.End.Column -ge $columnIndex)
-                } | Select-Object -First 1
+                #region Write the criteria into the table XML
+                $touchedAutoFilters = [System.Collections.Generic.List[object]]::new()
 
-                if (-not $table) { continue }
+                foreach ($rule in $rules) {
+                    $table = $sheet.Tables | Where-Object {
+                        ($_.Address.Start.Column -le $rule.Column) -and
+                        ($_.Address.End.Column -ge $rule.Column)
+                    } | Select-Object -First 1
 
-                $tableXml = $table.TableXml
-                $tableRoot = $tableXml.DocumentElement
+                    if (-not $table) { continue }
 
-                $autoFilter = $tableRoot.SelectSingleNode(
-                    "*[local-name()='autoFilter']"
-                )
+                    # Every value in the column is excluded and blanks are
+                    # hidden too: an empty 'filters' element would make Excel
+                    # report the workbook as corrupt
+                    if (
+                        ($rule.VisibleValue.Count -eq 0) -and
+                        (-not $IncludeBlank)
+                    ) {
+                        continue
+                    }
 
-                if (-not $autoFilter) {
-                    $autoFilter = $tableXml.CreateElement('autoFilter', $ns)
-                    $autoFilter.SetAttribute('ref', $table.Address.Address)
+                    $tableXml = $table.TableXml
+                    $tableRoot = $tableXml.DocumentElement
 
-                    # CT_Table requires autoFilter to be the first child
-                    $null = $tableRoot.PrependChild($autoFilter)
+                    $autoFilter = $tableRoot.SelectSingleNode(
+                        "*[local-name()='autoFilter']"
+                    )
+
+                    if (-not $autoFilter) {
+                        $autoFilter = $tableXml.CreateElement('autoFilter', $ns)
+                        $autoFilter.SetAttribute('ref', $table.Address.Address)
+
+                        # CT_Table requires autoFilter to be the first child
+                        $null = $tableRoot.PrependChild($autoFilter)
+                    }
+
+                    if (-not $touchedAutoFilters.Contains($autoFilter)) {
+                        $null = $touchedAutoFilters.Add($autoFilter)
+                    }
+
+                    $colId = (
+                        $rule.Column - $table.Address.Start.Column
+                    ).ToString()
+
+                    # Stay idempotent: a second criterion for the same column
+                    # makes Excel report the workbook as corrupt
+                    $existing = $autoFilter.SelectSingleNode(
+                        "*[local-name()='filterColumn'][@colId='$colId']"
+                    )
+
+                    if ($existing) {
+                        $null = $autoFilter.RemoveChild($existing)
+                    }
+
+                    $filterColumn = $tableXml.CreateElement('filterColumn', $ns)
+                    $filterColumn.SetAttribute('colId', $colId)
+
+                    $filters = $tableXml.CreateElement('filters', $ns)
+
+                    if ($IncludeBlank) { $filters.SetAttribute('blank', '1') }
+
+                    foreach ($value in $rule.VisibleValue) {
+                        $filter = $tableXml.CreateElement('filter', $ns)
+                        $filter.SetAttribute('val', $value)
+                        $null = $filters.AppendChild($filter)
+                    }
+
+                    $null = $filterColumn.AppendChild($filters)
+                    $null = $autoFilter.AppendChild($filterColumn)
                 }
+                #endregion
 
-                $colId = (
-                    $columnIndex - $table.Address.Start.Column
-                ).ToString()
+                #region Restore ascending colId order
+                # Re-applying a filter removes a criterion and appends the new
+                # one at the end, which can leave the children out of sequence
+                foreach ($autoFilter in $touchedAutoFilters) {
+                    $ordered = @(
+                        $autoFilter.SelectNodes(
+                            "*[local-name()='filterColumn']"
+                        ) | Sort-Object -Property {
+                            [int]$_.GetAttribute('colId')
+                        }
+                    )
 
-                # Stay idempotent: a second criterion for the same column
-                # makes Excel report the workbook as corrupt
-                $existing = $autoFilter.SelectSingleNode(
-                    "*[local-name()='filterColumn'][@colId='$colId']"
-                )
-
-                if ($existing) {
-                    $null = $autoFilter.RemoveChild($existing)
+                    foreach ($node in $ordered) {
+                        $null = $autoFilter.RemoveChild($node)
+                        $null = $autoFilter.AppendChild($node)
+                    }
                 }
-
-                $filterColumn = $tableXml.CreateElement('filterColumn', $ns)
-                $filterColumn.SetAttribute('colId', $colId)
-
-                $filters = $tableXml.CreateElement('filters', $ns)
-
-                if ($IncludeBlank) { $filters.SetAttribute('blank', '1') }
-
-                foreach ($value in $VisibleValue) {
-                    $filter = $tableXml.CreateElement('filter', $ns)
-                    $filter.SetAttribute('val', $value)
-                    $null = $filters.AppendChild($filter)
-                }
-
-                $null = $filterColumn.AppendChild($filters)
-                $null = $autoFilter.AppendChild($filterColumn)
                 #endregion
             }
         }

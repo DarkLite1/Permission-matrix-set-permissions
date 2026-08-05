@@ -346,7 +346,8 @@ function Invoke-PermissionMatrixAuditReport {
             -AccessListRows $logSheets.AccessList `
             -GroupManagerRows $logSheets.GroupManagers `
             -AdObjectRows $logSheets.AdObjects `
-            -DefaultsAcl $context.Defaults.DefaultAcl
+            -DefaultsAcl $context.Defaults.DefaultAcl `
+            -ExcludedSamAccountName $placeHolders
         #endregion
 
         #region Build and send the mail (subject + body from config, log attached)
