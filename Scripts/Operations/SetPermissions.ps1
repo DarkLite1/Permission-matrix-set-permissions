@@ -139,6 +139,25 @@ begin {
     }
     #endregion
 
+    #region Function ConvertTo-HashtableHC (Main Thread)
+    function ConvertTo-HashtableHC {
+        # Rebuild a Deserialized.PSCustomObject (from a remoting/serialization
+        # boundary) into a real hashtable so .Keys/.Count work; pass through a
+        # $null or an existing dictionary unchanged.
+        param($InputObject)
+
+        if (($null -eq $InputObject) -or ($InputObject -is [System.Collections.IDictionary])) {
+            return $InputObject
+        }
+
+        $hash = @{}
+        foreach ($prop in $InputObject.PSObject.Properties) {
+            if ($prop.MemberType -match 'NoteProperty') { $hash[$prop.Name] = $prop.Value }
+        }
+        $hash
+    }
+    #endregion
+
     #region Function ConvertTo-MatrixAdObjectHC (Main Thread)
     function ConvertTo-MatrixAdObjectHC {
         <#
@@ -282,24 +301,30 @@ begin {
 
         $ErrorActionPreference = 'Stop'
 
+        #region Function ConvertTo-HashtableHC (Parallel Thread)
+        # Duplicated from the main-thread definition because this scriptblock is
+        # rehydrated in a fresh runspace that cannot see the parent's functions.
+        function ConvertTo-HashtableHC {
+            param($InputObject)
+
+            if (($null -eq $InputObject) -or ($InputObject -is [System.Collections.IDictionary])) {
+                return $InputObject
+            }
+
+            $hash = @{}
+            foreach ($prop in $InputObject.PSObject.Properties) {
+                if ($prop.MemberType -match 'NoteProperty') { $hash[$prop.Name] = $prop.Value }
+            }
+            $hash
+        }
+        #endregion
+
         #region Normalize AdNames/AdPermissions to real hashtables
         # Defensive: when this scriptblock is invoked with data that crossed a
         # remoting/serialization boundary, a nested hashtable arrives as a
         # Deserialized.PSCustomObject. Rebuild it so .Keys/.Count work below.
-        if (($null -ne $AdNames) -and ($AdNames -isnot [System.Collections.IDictionary])) {
-            $realHash = @{}
-            foreach ($prop in $AdNames.PSObject.Properties) {
-                if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-            }
-            $AdNames = $realHash
-        }
-        if (($null -ne $AdPermissions) -and ($AdPermissions -isnot [System.Collections.IDictionary])) {
-            $realHash = @{}
-            foreach ($prop in $AdPermissions.PSObject.Properties) {
-                if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-            }
-            $AdPermissions = $realHash
-        }
+        $AdNames = ConvertTo-HashtableHC -InputObject $AdNames
+        $AdPermissions = ConvertTo-HashtableHC -InputObject $AdPermissions
         #endregion
 
         #region Function ConvertTo-MatrixAdObjectHC (Parallel Thread)
@@ -898,29 +923,17 @@ process {
                     $M | Add-Member -NotePropertyName 'Ignore' -NotePropertyValue $false
                 }
 
-                if (($null -ne $M.ACL) -and ($M.ACL -isnot [System.Collections.IDictionary])) {
-                    $realHash = @{}
-                    foreach ($prop in $M.ACL.PSObject.Properties) {
-                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-                    }
-                    $M.ACL = $realHash
+                if ($M.PSObject.Properties.Match('ACL').Count) {
+                    $M.ACL = ConvertTo-HashtableHC -InputObject $M.ACL
                 }
 
                 # PSRemoting deserializes nested hashtables to PSCustomObject.
                 # Rebuild 'AdNames' (added by the BEGIN stage via Add-Member)
                 # just like 'ACL' above, so it binds to the strictly typed
                 # [hashtable]$AdNames parameter of the inherited permissions
-                # scriptblock.
-                if (
-                    $M.PSObject.Properties.Match('AdNames').Count -and
-                    ($null -ne $M.AdNames) -and
-                    ($M.AdNames -isnot [System.Collections.IDictionary])
-                ) {
-                    $realHash = @{}
-                    foreach ($prop in $M.AdNames.PSObject.Properties) {
-                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-                    }
-                    $M.AdNames = $realHash
+                # scriptblock. Guard on the property existing so we never add it.
+                if ($M.PSObject.Properties.Match('AdNames').Count) {
+                    $M.AdNames = ConvertTo-HashtableHC -InputObject $M.AdNames
                 }
             }
         }
@@ -1240,14 +1253,7 @@ process {
                                     'OldAcl' = @("ACL could not be read: $($_.Exception.Message)")
                                 }
 
-                                $folderAdNames = $folder.AdNames
-                                if (($null -ne $folderAdNames) -and ($folderAdNames -isnot [System.Collections.IDictionary])) {
-                                    $realHash = @{}
-                                    foreach ($prop in $folderAdNames.PSObject.Properties) {
-                                        if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-                                    }
-                                    $folderAdNames = $realHash
-                                }
+                                $folderAdNames = ConvertTo-HashtableHC -InputObject $folder.AdNames
 
                                 if ($folderAdNames -and $folderAdNames.Count -gt 0) {
                                     $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
@@ -1292,14 +1298,7 @@ process {
                             # Defensive: rebuild AdNames if it crossed a
                             # serialization boundary and arrived as a
                             # Deserialized.PSCustomObject (no .Keys/.Count).
-                            $folderAdNames = $folder.AdNames
-                            if (($null -ne $folderAdNames) -and ($folderAdNames -isnot [System.Collections.IDictionary])) {
-                                $realHash = @{}
-                                foreach ($prop in $folderAdNames.PSObject.Properties) {
-                                    if ($prop.MemberType -match 'NoteProperty') { $realHash[$prop.Name] = $prop.Value }
-                                }
-                                $folderAdNames = $realHash
-                            }
+                            $folderAdNames = ConvertTo-HashtableHC -InputObject $folder.AdNames
 
                             if ($folderAdNames -and $folderAdNames.Count -gt 0) {
                                 $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $folderAdNames -Permissions $folder.ACL
