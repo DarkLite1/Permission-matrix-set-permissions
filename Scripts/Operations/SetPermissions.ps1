@@ -235,6 +235,52 @@ begin {
     }
     #endregion
 
+    #region Function Get-DirectoryAclSafeHC (Main Thread)
+    function Get-DirectoryAclSafeHC {
+        # Read a directory's ACL via the fast .NET API, falling back to Get-Acl,
+        # and report the outcome as flags so the caller owns the logging and
+        # collection routing. NOT used by the hot child-walker (kept inline there
+        # to avoid per-item call overhead on large trees).
+        param(
+            [Parameter(Mandatory)]
+            [System.IO.DirectoryInfo]$DirectoryInfo
+        )
+
+        $result = [PSCustomObject]@{
+            Acl              = $null
+            AccessDenied     = $false
+            Removed          = $false
+            UnreadableReason = $null
+        }
+
+        try {
+            $result.Acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($DirectoryInfo)
+        }
+        catch [System.UnauthorizedAccessException] {
+            $result.AccessDenied = $true
+        }
+        catch {
+            try {
+                $result.Acl = Get-Acl -LiteralPath $DirectoryInfo.FullName -ErrorAction Stop
+            }
+            catch [System.UnauthorizedAccessException] {
+                $result.AccessDenied = $true
+            }
+            catch {
+                if (-not (Test-Path -LiteralPath $DirectoryInfo.FullName)) {
+                    $result.Removed = $true
+                    $Error.RemoveAt(0)
+                }
+                else {
+                    $result.UnreadableReason = $_.Exception.Message
+                }
+            }
+        }
+
+        $result
+    }
+    #endregion
+
     #region Function Test-AclEqualHC (Main Thread)
     function Test-AclEqualHC {
         [OutputType([Boolean])]
@@ -402,6 +448,52 @@ begin {
                 $entry['MatrixFileAcl'] = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
             }
             $entry
+        }
+        #endregion
+
+        #region Function Get-DirectoryAclSafeHC (Parallel Thread)
+        # Duplicated from the main-thread definition because this scriptblock is
+        # rehydrated in a fresh runspace that cannot see the parent's functions.
+        # Used only by the seed-folder check (cold); the hot child-walker keeps
+        # its cascade inline to avoid per-item call overhead on large trees.
+        function Get-DirectoryAclSafeHC {
+            param(
+                [Parameter(Mandatory)]
+                [System.IO.DirectoryInfo]$DirectoryInfo
+            )
+
+            $result = [PSCustomObject]@{
+                Acl              = $null
+                AccessDenied     = $false
+                Removed          = $false
+                UnreadableReason = $null
+            }
+
+            try {
+                $result.Acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($DirectoryInfo)
+            }
+            catch [System.UnauthorizedAccessException] {
+                $result.AccessDenied = $true
+            }
+            catch {
+                try {
+                    $result.Acl = Get-Acl -LiteralPath $DirectoryInfo.FullName -ErrorAction Stop
+                }
+                catch [System.UnauthorizedAccessException] {
+                    $result.AccessDenied = $true
+                }
+                catch {
+                    if (-not (Test-Path -LiteralPath $DirectoryInfo.FullName)) {
+                        $result.Removed = $true
+                        $Error.RemoveAt(0)
+                    }
+                    else {
+                        $result.UnreadableReason = $_.Exception.Message
+                    }
+                }
+            }
+
+            $result
         }
         #endregion
 
@@ -769,38 +861,26 @@ begin {
                 $acl = $null
                 $unreadable = $false
 
-                try {
-                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($child)
-                }
-                catch [System.UnauthorizedAccessException] {
-                    $accessDenied = $true
-                }
-                catch {
-                    try {
-                        $acl = Get-Acl -LiteralPath $child.FullName -ErrorAction Stop
-                    }
-                    catch [System.UnauthorizedAccessException] {
-                        $accessDenied = $true
-                    }
-                    catch {
-                        if (-not (Test-Path -LiteralPath $child.FullName)) {
-                            Write-Verbose "Seed folder '$($child.FullName)' removed"
-                            $Error.RemoveAt(0)
-                        }
-                        else {
-                            Write-Warning "Failed retrieving the ACL of '$($child.FullName)': $_"
+                $aclRead = Get-DirectoryAclSafeHC -DirectoryInfo $child
+                $acl = $aclRead.Acl
+                $accessDenied = $aclRead.AccessDenied
 
-                            # ACL unreadable (not access-denied): do not check or
-                            # reset it. Report under 'ACL could not be read'.
-                            if ($DetailedLog) {
-                                $unreadableAcl[$child.FullName] = New-UnreadableAclEntryHC -Reason $_.Exception.Message -AdNames $AdNames -AdPermissions $AdPermissions
-                            }
-                            else {
-                                $unreadableAcl.Add($child.FullName)
-                            }
-                        }
-                        $unreadable = $true
+                if ($aclRead.Removed) {
+                    Write-Verbose "Seed folder '$($child.FullName)' removed"
+                    $unreadable = $true
+                }
+                elseif ($aclRead.UnreadableReason) {
+                    Write-Warning "Failed retrieving the ACL of '$($child.FullName)': $($aclRead.UnreadableReason)"
+
+                    # ACL unreadable (not access-denied): do not check or
+                    # reset it. Report under 'ACL could not be read'.
+                    if ($DetailedLog) {
+                        $unreadableAcl[$child.FullName] = New-UnreadableAclEntryHC -Reason $aclRead.UnreadableReason -AdNames $AdNames -AdPermissions $AdPermissions
                     }
+                    else {
+                        $unreadableAcl.Add($child.FullName)
+                    }
+                    $unreadable = $true
                 }
 
                 if (-not $unreadable) {
@@ -1245,43 +1325,30 @@ process {
 
                 $accessDenied = $false
                 $acl = $null
-                try {
-                    # FAST .NET API Call bypassing PowerShell provider overhead
-                    $acl = [System.IO.FileSystemAclExtensions]::GetAccessControl($dirInfo)
-                }
-                catch [System.UnauthorizedAccessException] {
-                    $accessDenied = $true
-                }
-                catch {
-                    # FALLBACK: Use classic Get-Acl if .NET method fails
-                    try {
-                        $acl = Get-Acl -LiteralPath $folder.Path -ErrorAction Stop
-                    }
-                    catch [System.UnauthorizedAccessException] {
-                        $accessDenied = $true
-                    }
-                    catch {
-                        if (-not (Test-Path -LiteralPath $folder.Path)) {
-                            Write-Verbose "Matrix folder '$($folder.Path)' removed"
-                            $Error.RemoveAt(0)
-                        }
-                        else {
-                            Write-Warning "Failed retrieving the ACL of '$($folder.Path)': $_"
 
-                            # The ACL could not be read (not access-denied), so
-                            # this matrix folder was neither checked nor
-                            # corrected. Report it under the dedicated 'ACL could
-                            # not be read' warning instead of aborting the run.
-                            if ($DetailedLog) {
-                                $folderAdNames = ConvertTo-HashtableHC -InputObject $folder.AdNames
-                                $unreadableAcl[$folder.Path] = New-UnreadableAclEntryHC -Reason $_.Exception.Message -AdNames $folderAdNames -AdPermissions $folder.ACL
-                            }
-                            else {
-                                $unreadableAcl.Add($folder.Path)
-                            }
-                        }
-                        continue
+                $aclRead = Get-DirectoryAclSafeHC -DirectoryInfo $dirInfo
+                $acl = $aclRead.Acl
+                $accessDenied = $aclRead.AccessDenied
+
+                if ($aclRead.Removed) {
+                    Write-Verbose "Matrix folder '$($folder.Path)' removed"
+                    continue
+                }
+                if ($aclRead.UnreadableReason) {
+                    Write-Warning "Failed retrieving the ACL of '$($folder.Path)': $($aclRead.UnreadableReason)"
+
+                    # The ACL could not be read (not access-denied), so this
+                    # matrix folder was neither checked nor corrected. Report it
+                    # under the dedicated 'ACL could not be read' warning instead
+                    # of aborting the run.
+                    if ($DetailedLog) {
+                        $folderAdNames = ConvertTo-HashtableHC -InputObject $folder.AdNames
+                        $unreadableAcl[$folder.Path] = New-UnreadableAclEntryHC -Reason $aclRead.UnreadableReason -AdNames $folderAdNames -AdPermissions $folder.ACL
                     }
+                    else {
+                        $unreadableAcl.Add($folder.Path)
+                    }
+                    continue
                 }
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
