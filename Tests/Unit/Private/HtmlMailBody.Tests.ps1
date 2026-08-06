@@ -156,6 +156,61 @@ Describe 'Build-SettingsRowHC' {
         $html | Should-NotMatchString 'rr-srow-status'
     }
 
+    It 'flags an info-only matrix with a blue info glyph next to the name' {
+        # A matrix-level Information check earns no pill and never reaches the
+        # file-level tally, so without the glyph the row looks perfectly clean.
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Information' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+
+        $html | Should-MatchString '&#8505;'
+        $html | Should-MatchString '#2563eb'
+        # Still a clean green row: the glyph is a hint, not a status.
+        $html | Should-MatchString '#16a34a'
+        $html | Should-NotMatchString 'rr-srow-status'
+    }
+
+    It 'shows the info glyph alongside an existing Warning pill' {
+        # BNL-MTX-STAFF-HR case: one Warning AND one Information on the same
+        # matrix. The pill shows the warning, the glyph reveals the rest.
+        $item = New-MatrixItem -Check @(
+            [pscustomobject]@{ Type = 'Warning' }
+            [pscustomobject]@{ Type = 'Information' }
+        )
+        $html = Build-SettingsRowHC -MatrixItem $item
+
+        $html | Should-MatchString '>Warning</span>'
+        $html | Should-MatchString '&#8505;'
+    }
+
+    It 'shows no info glyph when the row has only errors or warnings' {
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'FatalError' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+        $html | Should-NotMatchString '&#8505;'
+    }
+
+    It 'shows no info glyph on a row without checks' {
+        $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
+        $html | Should-NotMatchString '&#8505;'
+    }
+
+    It 'pluralizes the info glyph tooltip and counts every notice' {
+        $item = New-MatrixItem -Check @(
+            [pscustomobject]@{ Type = 'Information' }
+            [pscustomobject]@{ Type = 'Information' }
+        )
+        $html = Build-SettingsRowHC -MatrixItem $item
+        $html | Should-MatchString 'title="2 information notices on this matrix'
+    }
+
+    It 'keeps the info glyph inside the name line at the line''s own metrics' {
+        # The identifier cell drives the row height; a larger inline run would
+        # change Word's line box and skew the pill/meta centring.
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Information' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+
+        $html | Should-MatchString "font-size:13px; font-weight:400; line-height:15px; mso-line-height-rule:exactly;'>&#8505;</span></div>"
+    }
+
     It 'shows N/A for a missing duration' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
         $html | Should-MatchString 'N/A'

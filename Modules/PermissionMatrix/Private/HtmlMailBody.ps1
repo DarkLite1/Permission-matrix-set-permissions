@@ -239,6 +239,17 @@ function Build-SettingsRowHC {
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
 
+    # Notices that are neither errors nor warnings — Type 'Information', and any
+    # unknown/future type, matching how Build-FileLevelCheckRowHC decides what
+    # is "info". These live on the MATRIX (this row), not on the matrix FILE, so
+    # they never reach the file-level tallies that colour the card header, and
+    # they never earn a status pill. Before this, a matrix carrying only an
+    # info notice (e.g. 'AD groups without members') looked completely clean in
+    # the overview and the only trace of it was in the execution report.
+    $infoCount = @($MatrixItem.Check | Where-Object {
+            $_.Type -ne 'FatalError' -and $_.Type -ne 'Warning'
+        }).Count
+
     # Determine row status — a row's own error/warning wins; otherwise a
     # file-level error downgrades the row to "Skipped" (grey); only a clean row
     # in a successfully processed file stays green.
@@ -255,6 +266,38 @@ function Build-SettingsRowHC {
     }
     else {
         $accent = $Script:Theme.AccentSuccess
+    }
+
+    # Small blue "i" shown next to the computer name whenever this matrix has
+    # info-level notices — INDEPENDENT of the status pill, so it appears on
+    # green, amber and red rows alike (a row can carry both a Warning and an
+    # Information check, as in BNL-MTX-STAFF-HR).
+    #
+    # It deliberately does NOT go in the pill cell: that cell is a fixed 84px
+    # and New-PillHtmlHC sizes its Outlook VML shape from the text length
+    # ('Warning' already computes to ~85px), so a second pill there would
+    # reopen the column-alignment problems. Sitting inline after the name — the
+    # same trick HtmlReport.ps1 uses for its grey "Skipped" tag — costs no
+    # layout at all.
+    #
+    # Metrics are matched to the surrounding name line on purpose (font-size
+    # 13px, line-height 15px, mso-line-height-rule:exactly). Word grows or
+    # clips a line box around an inline run with a LARGER font-size, and the
+    # identifier cell is the cell that drives this row's height — changing it
+    # would shift the vertical centring of the pill and the meta columns. A
+    # same-size glyph leaves the line box untouched.
+    #
+    # &#8505; (U+2139) is the same glyph Build-FileLevelCheckRowHC already
+    # renders for info cards, so it is proven to show up in Outlook Classic.
+    # The colour is the theme's AccentInfo blue rather than the grey that
+    # Get-CheckThemeHC gives info cards: at this size, in a dense list, grey on
+    # a bold dark name is easy to miss.
+    $infoTag = ''
+    if ($infoCount -gt 0) {
+        $infoTitle = "$infoCount information notice" +
+        $(if ($infoCount -ne 1) { 's' }) +
+        ' on this matrix - open the execution report for details'
+        $infoTag = "&nbsp;<span title=`"$infoTitle`" style='color:$($Script:Theme.AccentInfo); font-size:13px; font-weight:400; line-height:15px; mso-line-height-rule:exactly;'>&#8505;</span>"
     }
 
     $comp = [System.Net.WebUtility]::HtmlEncode((Get-StringOrDefaultHC $MatrixItem.Setting.Formatted.ComputerName ''))
@@ -379,7 +422,7 @@ function Build-SettingsRowHC {
     <tr>
         <td valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px; color:$accent; font-size:12px; line-height:15px; mso-line-height-rule:exactly;'>&#9679;</td>
         <td valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'>
-            <div style='margin:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a></div>
+            <div style='margin:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a>$infoTag</div>
             <div style='margin:0; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMuted);'>$pathDisp</a></div>
         </td>
         <td valign='middle' align='right' class='rr-srow-meta' width='44' style='vertical-align:middle; padding:4px 0 4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap; text-align:right;'>$action</td>
