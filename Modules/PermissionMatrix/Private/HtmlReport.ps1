@@ -100,8 +100,13 @@ function Build-ExecutionDetailsBlockHC {
     # enough to mark it as a distinct section. The panel spans the full
     # outer-table width (matching the Execution Report header bar at the
     # top of the page)
+    #
+    # margin-top is 12px, not 32px: the last settings card already ends with
+    # 12px of its own bottom padding (Build-MatrixDetailCardHC wraps every card
+    # in 'padding:0 16px 12px 16px'), so 32px here added up to a 44px gap. 12+12
+    # gives 24px, the same rhythm as the gap under the header banner.
     return @"
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin-top:32px; table-layout:fixed;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin-top:12px; table-layout:fixed;">
     <tr>
         <td style='padding:0;'>
             <div style='padding:14px 18px 8px 18px; background-color:$($Script:Theme.BgAlt); border-radius:8px;'>
@@ -676,9 +681,13 @@ $responsiveCss
     <tr>
         <td align="left" valign="top" style="padding:0;">
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; max-width:900px;">
-                <!-- File header -->
+                <!-- File header. No bottom padding: whatever follows (the
+                     "File Issues" or "Settings" h2, or the fallback "no
+                     settings" paragraph) brings its own top margin, and
+                     stacking the two produced a 48px band of empty page
+                     colour under the banner. -->
                 <tr>
-                    <td style="padding:0 0 24px 0;">
+                    <td style="padding:0;">
                         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderLight); border-radius:10px; overflow:hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
                             <tr>
                                 <td bgcolor="$gradTo" style='padding:0; background-color:$gradTo; background-image: linear-gradient(135deg, $gradFrom 0%, $gradTo 100%); border-bottom:1px solid $($Script:Theme.BorderLight);'>

@@ -226,6 +226,17 @@ Describe 'Build-ExecutionDetailsBlockHC' {
         $html | Should-MatchString 'Matrix file'
     }
 
+    It 'leaves only a 12px gap above the panel' {
+        # The last settings card already contributes 12px of bottom padding, so
+        # this margin plus that padding is the whole gap. 32px here made it 44px.
+        $fr = New-FileResultForDetails
+        $html = Build-ExecutionDetailsBlockHC -FileResult $fr `
+            -ScriptStartTime (Get-Date '2024-01-01 08:00:00') `
+            -ScriptEndTime (Get-Date '2024-01-01 08:05:00')
+        $html | Should-MatchString 'margin-top:12px;'
+        $html | Should-NotMatchString 'margin-top:32px;'
+    }
+
     It 'renders the defaults file when a path is supplied' {
         $fr = New-FileResultForDetails
         $html = Build-ExecutionDetailsBlockHC -FileResult $fr -DefaultsFilePath 'C:\d\defaults.json' `
