@@ -548,7 +548,7 @@ function Test-AdObjectInMatrixHC {
             -Type 'FatalError' `
             -Name 'Unknown AD Objects in Matrix' `
             -Description 'One or more AD objects referenced in the matrix were not found in Active Directory. Please check the SamAccountName values in the Permissions sheet and ensure they exist in AD.' `
-            -Value "Not existing AD Objects: $($missingAdObjects -join ', ')"
+            -Value @($missingAdObjects | Sort-Object)
     }
     #endregion
 
@@ -560,10 +560,17 @@ function Test-AdObjectInMatrixHC {
      - the group is completely empty
      - the group only holds the placeholder account(s)
      - the group only holds disabled accounts
+     ...and the combination of the last two.
+
      Members with an Enabled value of $null (nested groups, and the synthetic
      'All users' member of 'Domain Users') are counted as real members.
+
+     The reason is reported per group because the remedy differs: an empty
+     group needs members, a placeholder-only group needs the placeholder
+     replaced, and a disabled-only group needs the accounts re-enabled or
+     swapped out.
     #>
-    $emptyGroups = [System.Collections.Generic.List[string]]::new()
+    $emptyGroups = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($name in $matrixAdObjects) {
         $detail = $detailLookup[[string]$name]
@@ -573,25 +580,91 @@ function Test-AdObjectInMatrixHC {
 
         if ($detail.adObject.ObjectClass -ne 'group') { continue }
 
+        # 'adGroupMember' is $null when the group could not be expanded
+        $members = @($detail.adGroupMember | Where-Object { $_ })
+
         $effectiveMembers = @(
-            $detail.adGroupMember | Where-Object {
-                $_ -and
+            $members | Where-Object {
                 (-not $placeHolders.Contains([string]$_.SamAccountName)) -and
                 ($_.Enabled -ne $false)
             }
         )
 
-        if ($effectiveMembers.Count -eq 0) {
-            $emptyGroups.Add($name)
+        if ($effectiveMembers.Count -ne 0) { continue }
+
+        #region Explain why the group grants access to nobody
+        $placeHolderMemberCount = @(
+            $members | Where-Object {
+                $placeHolders.Contains([string]$_.SamAccountName)
+            }
+        ).Count
+
+        $disabledMemberCount = @(
+            $members | Where-Object {
+                ($_.Enabled -eq $false) -and
+                (-not $placeHolders.Contains([string]$_.SamAccountName))
+            }
+        ).Count
+
+        $reason = if ($members.Count -eq 0) {
+            'no members'
         }
+        elseif ($disabledMemberCount -eq 0) {
+            'only placeholder accounts'
+        }
+        elseif ($placeHolderMemberCount -eq 0) {
+            'only disabled accounts'
+        }
+        else {
+            'only placeholder and disabled accounts'
+        }
+        #endregion
+
+        $emptyGroups.Add(
+            [PSCustomObject]@{
+                Name   = [string]$name
+                Reason = $reason
+            }
+        )
     }
 
     if ($emptyGroups.Count -gt 0) {
+        <#
+         Emit one entry per group, sorted, with the name padded to the widest
+         name so the reasons line up in the detail JSON. This mirrors the
+         'Inherited permissions incorrect' warning, whose OldAcl/NewAcl/
+         MatrixFileAcl arrays are sorted line-per-entry as well.
+        #>
+        $nameWidth = 0
+
+        foreach ($group in $emptyGroups) {
+            if ($group.Name.Length -gt $nameWidth) {
+                $nameWidth = $group.Name.Length
+            }
+        }
+
+        $emptyGroupLines = @(
+            $emptyGroups | Sort-Object -Property 'Name' | ForEach-Object {
+                '{0}  {1}' -f $_.Name.PadRight($nameWidth), $_.Reason
+            }
+        )
+
+        #region Resolve the configured placeholder accounts by name
+        $placeHolderNames = @($placeHolders) | Sort-Object
+
+        $placeHolderText = if ($placeHolderNames.Count -gt 0) {
+            "Placeholder accounts configured in 'Matrix.ExcludedSamAccountName': $($placeHolderNames -join ', ')."
+        }
+        else {
+            "No placeholder accounts are configured in 'Matrix.ExcludedSamAccountName'."
+        }
+        #endregion
+
         $checks += New-ValidationCheckHC `
             -Type 'Information' `
             -Name 'AD groups without members' `
-            -Description "One or more AD groups in the matrix have no effective members: they are empty, they only contain the placeholder account(s) defined in 'Matrix.ExcludedSamAccountName', or they only contain disabled accounts. No one has access to the folders granted to these groups." `
-            -Value "Empty groups: $($emptyGroups -join ', ')"
+            -Description "One or more AD groups in the matrix have no effective members: they are empty, they only contain placeholder accounts, or they only contain disabled accounts. No one has access to the folders granted to these groups. $placeHolderText" `
+            -Value $emptyGroupLines
     }
     #endregion
 

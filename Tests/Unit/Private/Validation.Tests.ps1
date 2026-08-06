@@ -103,6 +103,28 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 @($Checks | Where-Object { $_.Name -eq 'AD groups without members' })
             }
+
+            <#
+             'Value' is an array with one line per group ('<name>  <reason>',
+             the name padded so the reasons line up). Flatten it for the
+             assertions that only care whether a group is mentioned.
+            #>
+            function Get-EmptyGroupTextHC {
+                param([object]$Check)
+
+                @($Check.Value) -join "`n"
+            }
+
+            # Return the reason reported for a single group, without the padding
+            function Get-EmptyGroupReasonHC {
+                param([object]$Check, [string]$GroupName)
+
+                $line = @($Check.Value) | Where-Object {
+                    $_ -match "^$([regex]::Escape($GroupName))\s\s+"
+                }
+
+                if ($line) { ($line -split '\s\s+', 2)[1] }
+            }
         }
 
         Context 'no notice is raised' {
@@ -201,7 +223,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check.Count | Should-Be 1
                 $check[0].Type | Should-Be 'Information'
-                $check[0].Value | Should-MatchString 'GRP-HR'
+                Get-EmptyGroupTextHC $check[0] | Should-MatchString 'GRP-HR'
             }
 
             It 'when the group has zero members' {
@@ -340,9 +362,11 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check.Count | Should-Be 1
-                $check[0].Value | Should-MatchString 'GRP-HR'
-                $check[0].Value | Should-MatchString 'GRP-FIN'
-                $check[0].Value | Should-NotMatchString 'GRP-IT'
+
+                $text = Get-EmptyGroupTextHC $check[0]
+                $text | Should-MatchString 'GRP-HR'
+                $text | Should-MatchString 'GRP-FIN'
+                $text | Should-NotMatchString 'GRP-IT'
             }
 
             It 'reports the same group only once when granted on several folders' {
@@ -356,7 +380,64 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check.Count | Should-Be 1
-                ([regex]::Matches($check[0].Value, 'GRP-HR')).Count | Should-Be 1
+
+                $text = Get-EmptyGroupTextHC $check[0]
+                ([regex]::Matches($text, 'GRP-HR')).Count | Should-Be 1
+            }
+
+            It 'emits one array entry per group instead of a single joined string' {
+                # Mirrors 'Inherited permissions incorrect', whose OldAcl /
+                # NewAcl / MatrixFileAcl arrays are one entry per line.
+                $matrix = New-FakeMatrixHC -AdObjectName @('GRP-HR', 'GRP-FIN')
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-FIN' -Member @()
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                @($check[0].Value).Count | Should-Be 2
+                Get-EmptyGroupTextHC $check[0] | Should-NotMatchString ','
+            }
+
+            It 'sorts the entries by group name' {
+                $matrix = New-FakeMatrixHC -AdObjectName @(
+                    'GRP-IT', 'GRP-FIN', 'GRP-HR'
+                )
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-IT' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-FIN' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @()
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $names = @($check[0].Value) | ForEach-Object {
+                    ($_ -split '\s\s+', 2)[0]
+                }
+
+                $names | Should-BeCollection @('GRP-FIN', 'GRP-HR', 'GRP-IT')
+            }
+
+            It 'pads the group names so the reasons line up' {
+                $matrix = New-FakeMatrixHC -AdObjectName @(
+                    'GRP-HR', 'GRP-A-VERY-LONG-GROUP-NAME'
+                )
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-A-VERY-LONG-GROUP-NAME' -Member @()
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $offsets = @($check[0].Value) | ForEach-Object {
+                    $_.IndexOf('no members')
+                }
+
+                @($offsets | Select-Object -Unique).Count | Should-Be 1
             }
 
             It 'mentions the placeholder configuration in the description' {
@@ -368,6 +449,153 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check[0].Description | Should-MatchString 'ExcludedSamAccountName'
                 $check[0].Description | Should-MatchString 'no effective members'
+            }
+
+            It 'resolves the configured placeholder accounts in the description' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('svc-placeholder', 'cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check[0].Description | Should-MatchString 'cnorris, svc-placeholder'
+            }
+
+            It 'states in the description when no placeholder is configured' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                $check[0].Description |
+                Should-MatchString 'No placeholder accounts are configured'
+            }
+        }
+
+        Context 'the reported reason' {
+            It "is 'no members' when the group is empty" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'no members'
+            }
+
+            It "is 'no members' when adGroupMember is null" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    [pscustomobject]@{
+                        SamAccountName = 'GRP-HR'
+                        adObject       = [pscustomobject]@{
+                            SamAccountName = 'GRP-HR'
+                            ObjectClass    = 'group'
+                            ObjectSid      = 'S-1-5-21-1-1-1-1'
+                        }
+                        adGroupMember  = $null
+                    }
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'no members'
+            }
+
+            It "is 'only placeholder accounts' when only placeholders are left" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'only placeholder accounts'
+            }
+
+            It "is 'only disabled accounts' when every member is disabled" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley' -Enabled $false
+                        New-FakeAdMemberHC -SamAccountName 'jsmith' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'only disabled accounts'
+            }
+
+            It "is 'only placeholder and disabled accounts' for the mix" {
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris'
+                        New-FakeAdMemberHC -SamAccountName 'bmarley' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'only placeholder and disabled accounts'
+            }
+
+            It 'counts a disabled placeholder as a placeholder only' {
+                # An account that is both the placeholder AND disabled must not
+                # inflate the disabled count, or the reason would read as a mix.
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'cnorris' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'only placeholder accounts'
+            }
+
+            It 'reports a different reason per group in the same check' {
+                $matrix = New-FakeMatrixHC -AdObjectName @('GRP-HR', 'GRP-FIN')
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'GRP-FIN' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley' -Enabled $false
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = @(Get-EmptyGroupCheckHC $res)
+                Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
+                Should-Be 'no members'
+                Get-EmptyGroupReasonHC $check[0] 'GRP-FIN' |
+                Should-Be 'only disabled accounts'
             }
         }
 
