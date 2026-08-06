@@ -344,6 +344,36 @@ function Build-SettingsRowHC {
         $pillTd = "<td valign='middle' align='right' width='84' style='vertical-align:middle; padding:4px 12px 4px 4px; white-space:nowrap;'>&nbsp;</td>"
     }
 
+    # Action and Duration are two SEPARATE fixed-width cells, not two spans in
+    # one right-aligned cell. Previously both lived in a single align='right'
+    # td: the pair was flushed right as a block, so a short duration ('N/A',
+    # 3 chars) pulled the Action label ~30px to the right compared with rows
+    # showing a full '00:00:15' timestamp, and the Action column visibly
+    # jittered from row to row.
+    #
+    # Now each has its own column, so neither can be moved by the other:
+    #   - Action   : right-aligned in a 44px cell, so its right edge is fixed.
+    #   - Duration : CENTRED in a 68px cell, so 'N/A' sits in the middle of the
+    #                same column the timestamps occupy above and below it.
+    # 44 + 68 = 112px replaces the old single 104px column; the 8px comes out
+    # of the identifier cell, which wraps its path anyway.
+    #
+    # Both the presentational align attribute AND text-align are set: Outlook
+    # Classic's Word engine honours the attribute, browsers honour either. The
+    # duration cell also carries the nowrap ATTRIBUTE (Word ignores
+    # white-space:nowrap in CSS) so Word can never break '00:00:15' across two
+    # lines in the narrower cell — it shrinks the identifier column instead. In
+    # browsers the <520px media query still wins over the attribute, because a
+    # presentational hint loses to author CSS (and it carries !important).
+    #
+    # The mso-only '&nbsp;' spacer that used to separate the two spans is gone:
+    # the gap is now real cell padding (0/10px inner edges), which Word renders
+    # natively, so the spacing is identical in Outlook and the browser.
+    #
+    # Vertical metrics (padding:4px, font-size:11px, line-height:15px +
+    # mso-line-height-rule:exactly) are unchanged and identical on both cells,
+    # so the row height — and therefore the hard-won pill centring documented
+    # above — is untouched.
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed; background-color:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain); border-left:3px solid $accent; border-radius:6px;">
     <tr>
@@ -352,10 +382,8 @@ function Build-SettingsRowHC {
             <div style='margin:0; font-weight:700; color:$($Script:Theme.TextMain); font-size:13px; line-height:15px; mso-line-height-rule:exactly;'><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMain);'>$comp</a></div>
             <div style='margin:0; font-family:$($Script:Theme.MonoStack); font-size:11px; color:$($Script:Theme.TextMuted); line-height:14px; mso-line-height-rule:exactly; white-space:normal; overflow-wrap:anywhere; word-break:break-all;'$pathTitle><a href='$link' target='_blank' rel='noopener noreferrer' style='text-decoration:none; color:$($Script:Theme.TextMuted);'>$pathDisp</a></div>
         </td>
-        <td valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap;'>
-            <span style='margin-right:14px;'>$action</span><!--[if mso]>&nbsp;&nbsp;&nbsp;&nbsp;<![endif]-->
-            <span style='font-family:$($Script:Theme.MonoStack);'>$dur</span>
-        </td>
+        <td valign='middle' align='right' class='rr-srow-meta' width='44' style='vertical-align:middle; padding:4px 0 4px 10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap; text-align:right;'>$action</td>
+        <td valign='middle' align='center' nowrap='nowrap' class='rr-srow-meta rr-srow-dur' width='68' style='vertical-align:middle; padding:4px 10px 4px 8px; color:$($Script:Theme.TextLight); font-family:$($Script:Theme.MonoStack); font-size:11px; line-height:15px; mso-line-height-rule:exactly; white-space:nowrap; text-align:center;'>$dur</td>
         $pillTd
     </tr>
 </table>

@@ -109,7 +109,8 @@ Describe 'Build-SettingsRowHC' {
                 [string]$Path = 'D:\data',
                 [string]$Action = 'Apply',
                 [object[]]$Check = @(),
-                [string]$ReportFilePath = ''
+                [string]$ReportFilePath = '',
+                [timespan]$Duration
             )
             return [pscustomobject]@{
                 ID          = 1
@@ -121,7 +122,9 @@ Describe 'Build-SettingsRowHC' {
                         Action       = $Action
                     }
                 }
-                JobTime     = [pscustomobject]@{ Duration = $null }
+                JobTime     = [pscustomobject]@{
+                    Duration = if ($PSBoundParameters.ContainsKey('Duration')) { $Duration } else { $null }
+                }
                 FileContext = [pscustomobject]@{ ReportFilePath = $ReportFilePath }
             }
         }
@@ -158,6 +161,29 @@ Describe 'Build-SettingsRowHC' {
         $html | Should-MatchString 'N/A'
     }
 
+    It 'centres the duration in its own column so N/A lines up with timestamps' {
+        $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
+        $html | Should-MatchString "align='center'"
+        $html | Should-MatchString 'text-align:center;.*>N/A<'
+    }
+
+    It 'keeps the Action cell identical whether or not a duration is present' {
+        # The bug: Action and Duration shared one right-aligned cell, so a short
+        # 'N/A' shifted the Action label right. Separate fixed-width cells mean
+        # the Action markup is byte-for-byte the same in both cases.
+        $pattern = "(?s)(<td[^>]*rr-srow-meta'[^>]*>Fix</td>)"
+
+        $withDuration = Build-SettingsRowHC -MatrixItem (
+            New-MatrixItem -Action 'Fix' -Duration ([timespan]::FromSeconds(15)))
+        $withoutDuration = Build-SettingsRowHC -MatrixItem (New-MatrixItem -Action 'Fix')
+
+        $withDuration | Should-MatchString '>00:00:15<'
+        $withoutDuration | Should-MatchString '>N/A<'
+
+        ([regex]::Match($withDuration, $pattern).Value) |
+        Should-Be ([regex]::Match($withoutDuration, $pattern).Value)
+    }
+
     It 'links the row to the report file path when present' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem -ReportFilePath 'C:\logs\r.html')
         $html | Should-MatchString "href='C:\\logs\\r\.html'"
@@ -183,7 +209,8 @@ Describe 'Build-SettingsRowHC' {
         $html | Should-MatchString "valign='middle' width='20' style='vertical-align:middle; padding:4px 0 4px 12px;"
         $html | Should-MatchString "valign='middle' class='rr-srow-ident' style='vertical-align:middle; padding:4px 8px;'"
         $html | Should-MatchString '<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="rr-srow" style="border-collapse:separate; width:100%; max-width:100%; margin:0 0 4px 0; table-layout:fixed;'
-        $html | Should-MatchString "valign='middle' align='right' class='rr-srow-meta' width='104' style='vertical-align:middle; padding:4px 10px;"
+        $html | Should-MatchString "valign='middle' align='right' class='rr-srow-meta' width='44' style='vertical-align:middle; padding:4px 0 4px 10px;"
+        $html | Should-MatchString "valign='middle' align='center' nowrap='nowrap' class='rr-srow-meta rr-srow-dur' width='68' style='vertical-align:middle; padding:4px 10px 4px 8px;"
         $html | Should-NotMatchString '<td height="6" style="font-size:0; line-height:0;">&#160;</td>'
     }
 
@@ -619,4 +646,3 @@ Describe 'Get-MailBodyHtmlHC' {
         $out | Should-MatchString 'Permissions Excel'
     }
 }
-
