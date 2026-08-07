@@ -115,15 +115,29 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 @($Check.Value) -join "`n"
             }
 
-            # Return the reason reported for a single group, without the padding
+            # Return the reason reported for a single group, without the
+            # quotes or the padding
             function Get-EmptyGroupReasonHC {
                 param([object]$Check, [string]$GroupName)
 
-                $line = @($Check.Value) | Where-Object {
-                    $_ -match "^$([regex]::Escape($GroupName))\s\s+"
-                }
+                <#
+                 Lines read: 'GRP-HR ' : no members
 
-                if ($line) { ($line -split '\s\s+', 2)[1] }
+                 The name is padded to the width of the longest group name
+                 and that padding sits INSIDE the quotes, so allow trailing
+                 whitespace before the closing quote. The reason is trimmed
+                 rather than split on runs of whitespace, so a reason that
+                 ever contains a colon or double space survives intact.
+
+                 Anchoring on the quotes also removes an ambiguity the old
+                 two-space format had: a lookup for 'GRP-HR' can no longer
+                 match the line for a group named 'GRP-HR-PAYROLL'.
+                #>
+                $pattern = "^'$([regex]::Escape($GroupName))\s*'\s*:\s*(.+?)\s*$"
+
+                foreach ($line in @($Check.Value)) {
+                    if ($line -match $pattern) { return $Matches[1] }
+                }
             }
         }
 
@@ -414,11 +428,23 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
 
                 $check = @(Get-EmptyGroupCheckHC $res)
+
+                <#
+                 Lines read: 'GRP-HR ' : no members
+                 Take the quoted name and drop the padding, which sits
+                 inside the quotes.
+                #>
                 $names = @($check[0].Value) | ForEach-Object {
-                    ($_ -split '\s\s+', 2)[0]
+                    if ($_ -match "^'(.*?)\s*'\s*:") { $Matches[1] }
                 }
 
-                $names | Should-BeCollection @('GRP-FIN', 'GRP-HR', 'GRP-IT')
+                <#
+                 Compared as one joined string rather than with
+                 Should-BeCollection: that assertion checks membership in
+                 any order, so it would pass however the entries were
+                 sorted - the exact thing this test exists to catch.
+                #>
+                $names -join ', ' | Should-Be 'GRP-FIN, GRP-HR, GRP-IT'
             }
 
             It 'pads the group names so the reasons line up' {

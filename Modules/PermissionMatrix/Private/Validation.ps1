@@ -645,7 +645,7 @@ function Test-AdObjectInMatrixHC {
 
         $emptyGroupLines = @(
             $emptyGroups | Sort-Object -Property 'Name' | ForEach-Object {
-                '{0}  {1}' -f $_.Name.PadRight($nameWidth), $_.Reason
+                "'{0}' : {1}" -f $_.Name.PadRight($nameWidth), $_.Reason
             }
         )
 
