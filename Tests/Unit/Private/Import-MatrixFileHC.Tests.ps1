@@ -62,6 +62,50 @@ BeforeAll {
     }
 }
 
+Describe 'New-MatrixFileResultHC' {
+    BeforeAll {
+        $matrixFile = Get-Item (New-Item "$TestDrive\shape.xlsx" -ItemType File -Force).FullName
+    }
+
+    It 'exposes the matrix file on Item' {
+        $result = New-MatrixFileResultHC -MatrixFile $matrixFile
+
+        $result.Item.FullName | Should-Be $matrixFile.FullName
+        $result.Item.BaseName | Should-Be 'shape'
+    }
+
+    It 'initializes every check collection so entries can be added' {
+        # A null collection makes .Add() throw, which fails the test.
+        $result = New-MatrixFileResultHC -MatrixFile $matrixFile
+
+        $result.Check.Add([pscustomobject]@{ Type = 'Warning' })
+        $result.Matrices.Add([pscustomobject]@{ ID = 1 })
+        $result.Sheets.Permissions.Check.Add([pscustomobject]@{ Type = 'Warning' })
+        $result.Sheets.FormData.Check.Add([pscustomobject]@{ Type = 'Warning' })
+
+        $result.Check.Count | Should-Be 1
+        $result.Matrices.Count | Should-Be 1
+        $result.Sheets.Permissions.Check.Count | Should-Be 1
+        $result.Sheets.FormData.Check.Count | Should-Be 1
+    }
+
+    It 'allows the reporting stage to assign LogFolder and ReportFilePath' {
+        <# Regression: assigning a property that does not exist on a
+        [PSCustomObject] throws, which fails the test. Invoke-PermissionMatrixEndHC
+        writes to both of these, and its per-file loop is a single try block, so
+        an incomplete result aborts logging for every remaining file in the run. #>
+        $result = New-MatrixFileResultHC -MatrixFile $matrixFile
+
+        $result.ReportFileName | Should-Be '00 - Execution Report.html'
+
+        $result.LogFolder = 'C:\logs\shape'
+        $result.ReportFilePath = 'C:\logs\shape\report.html'
+
+        $result.LogFolder | Should-Be 'C:\logs\shape'
+        $result.ReportFilePath | Should-Be 'C:\logs\shape\report.html'
+    }
+}
+
 Describe 'Import-MatrixFileHC' {
     BeforeEach {
         Remove-Item (Join-Path $TestDrive '*') -Recurse -Force -ErrorAction Ignore

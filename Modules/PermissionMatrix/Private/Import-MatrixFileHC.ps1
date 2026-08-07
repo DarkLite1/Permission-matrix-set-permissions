@@ -1,3 +1,67 @@
+function New-MatrixFileResultHC {
+    <#
+    .SYNOPSIS
+        Creates the empty result object that carries one matrix file through
+        the pipeline.
+
+    .DESCRIPTION
+        Import-MatrixFileHC builds this shape for every matrix file it reads.
+        Invoke-PermissionMatrixBeginHC needs the identical shape for the
+        fallback it creates when a runspace throws before the import returned
+        anything, so both call this function and the two cannot drift apart.
+
+        Keeping the shapes in sync matters more than it looks: the reporting
+        stage reads .Item and .ReportFileName and assigns to .LogFolder and
+        .ReportFilePath. Assigning a property that does not exist on a
+        [PSCustomObject] throws, and the whole per-file log loop in
+        Invoke-PermissionMatrixEndHC sits inside a single try block, so one
+        incomplete result aborts log writing for every remaining file in the
+        run rather than just its own.
+
+    .PARAMETER MatrixFile
+        The matrix file this result describes.
+
+    .EXAMPLE
+        $fileResult = New-MatrixFileResultHC -MatrixFile $file
+
+        Creates an empty result object for $file, with all check collections
+        initialized and ready to receive entries.
+    #>
+
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param (
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$MatrixFile
+    )
+
+    [pscustomobject]@{
+        Item           = $MatrixFile
+        ExcelInfo      = $null
+        Check          = [System.Collections.Generic.List[pscustomobject]]::new()
+        Sheets         = @{
+            Permissions = @{
+                Raw       = $null
+                Formatted = $null
+                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
+            }
+            Settings    = @{
+                Raw       = $null
+                Formatted = $null
+            }
+            FormData    = @{
+                Raw       = $null
+                Formatted = $null
+                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
+            }
+        }
+        Matrices       = [System.Collections.Generic.List[pscustomobject]]::new()
+        LogFolder      = $null
+        ReportFileName = '00 - Execution Report.html'
+        ReportFilePath = $null
+    }
+}
+
 function Import-MatrixFileHC {
     <#
     .SYNOPSIS
@@ -64,31 +128,7 @@ function Import-MatrixFileHC {
         [pscustomobject]$Context
     )
 
-    $fileResult = [pscustomobject]@{
-        Item           = $MatrixFile
-        ExcelInfo      = $null
-        Check          = [System.Collections.Generic.List[pscustomobject]]::new()
-        Sheets         = @{
-            Permissions = @{
-                Raw       = $null
-                Formatted = $null
-                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
-            }
-            Settings    = @{
-                Raw       = $null
-                Formatted = $null
-            }
-            FormData    = @{
-                Raw       = $null
-                Formatted = $null
-                Check     = [System.Collections.Generic.List[pscustomobject]]::new()
-            }
-        }
-        Matrices       = [System.Collections.Generic.List[pscustomobject]]::new()
-        LogFolder      = $null
-        ReportFileName = '00 - Execution Report.html'
-        ReportFilePath = $null
-    }
+    $fileResult = New-MatrixFileResultHC -MatrixFile $MatrixFile
 
     $tempMatrixFile = $null
 

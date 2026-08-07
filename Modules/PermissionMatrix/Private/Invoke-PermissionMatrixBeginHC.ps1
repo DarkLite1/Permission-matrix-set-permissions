@@ -365,12 +365,11 @@ function Invoke-PermissionMatrixBeginHC {
                 #endregion
             }
             catch {
+                # Must be the exact shape Import-MatrixFileHC returns: the
+                # reporting stage reads .Item and .ReportFileName and assigns
+                # to .LogFolder and .ReportFilePath on this object.
                 if (-not $fileResult) {
-                    $fileResult = [pscustomobject]@{
-                        File     = $file
-                        Check    = [System.Collections.Generic.List[pscustomobject]]::new()
-                        Matrices = [System.Collections.Generic.List[pscustomobject]]::new()
-                    }
+                    $fileResult = New-MatrixFileResultHC -MatrixFile $file
                 }
 
                 $fileResult.Check.Add(
