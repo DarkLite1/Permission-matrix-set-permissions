@@ -1,3 +1,82 @@
+function New-AdLdapFilterHC {
+    <#
+    .SYNOPSIS
+        Builds an LDAP search filter for one Active Directory object name.
+
+    .DESCRIPTION
+        Handles the three input shapes the matrix can produce for a
+        SamAccountName ('jdoe', 'DOMAIN\jdoe' and 'jdoe@domain.com') as well
+        as distinguished names.
+
+        Every value is escaped per RFC 4515 before it is placed in the filter.
+        This is not cosmetic: an AD object named 'Finance (EU)' produces a
+        malformed filter when left unescaped, so the search throws and the
+        object is wrongly reported as missing from AD. More seriously, an
+        unescaped '*' is a wildcard, so a matrix naming 'HR_*' could resolve
+        to whichever object the directory happened to return first and hand
+        permissions to a group nobody intended.
+
+    .PARAMETER Name
+        The Active Directory object name to search for.
+
+    .PARAMETER Type
+        The format of Name: 'SamAccountName' or 'DistinguishedName'.
+
+    .EXAMPLE
+        New-AdLdapFilterHC -Name 'Finance (EU)' -Type 'SamAccountName'
+
+        Returns '(samAccountName=Finance \28EU\29)'.
+
+    .EXAMPLE
+        New-AdLdapFilterHC -Name 'DOMAIN\jdoe' -Type 'SamAccountName'
+
+        Returns '(samAccountName=jdoe)'. The NetBIOS prefix is stripped before
+        escaping, so the separator itself is not escaped away.
+    #>
+
+    [CmdletBinding()]
+    [OutputType([String])]
+    param (
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [String]$Name,
+        [Parameter(Mandatory)]
+        [ValidateSet('SamAccountName', 'DistinguishedName')]
+        [String]$Type
+    )
+
+    <# RFC 4515 escaping for an assertion value. The backslash MUST be handled
+    first, otherwise it would escape the backslashes introduced by the
+    replacements that follow and produce '\5c28' instead of '\28'. Distinguished
+    names get the same treatment: AD returns them with commas escaped as '\,',
+    which is not a valid filter escape sequence, so a manager whose name
+    contains a comma never resolved either. #>
+    $escape = {
+        param([String]$Value)
+
+        $Value -replace '\\', '\5c' -replace '\(', '\28' `
+            -replace '\)', '\29' -replace '\*', '\2a' -replace "`0", '\00'
+    }
+
+    if ($Type -eq 'DistinguishedName') {
+        return "(distinguishedName=$(& $escape $Name))"
+    }
+
+    if ($Name -match '@') {
+        $value = & $escape $Name
+        return "(|(samAccountName=$value)(userPrincipalName=$value))"
+    }
+
+    if ($Name -match '\\') {
+        # Strip the NetBIOS domain prefix on the raw value, before escaping,
+        # or the separator would already be '\5c' and never match.
+        $value = & $escape ($Name -replace '^.*\\', '')
+        return "(samAccountName=$value)"
+    }
+
+    return "(samAccountName=$(& $escape $Name))"
+}
+
 function Get-ADObjectDetailHC {
     <#
     .SYNOPSIS
@@ -66,6 +145,12 @@ function Get-ADObjectDetailHC {
     }
     $gcPath = $script:CachedGcPath
 
+    # ForEach-Object -Parallel runspaces do not inherit the module scope, so
+    # the filter builder is passed in as source and redefined inside each one.
+    # This keeps it a normal, unit-testable function instead of a copy buried
+    # in the parallel block.
+    $filterFunction = ${function:New-AdLdapFilterHC}.ToString()
+
     $ADObjectName = $ADObjectName | Sort-Object -Unique
 
     $ADObjectName | ForEach-Object -ThrottleLimit $MaxThreads -Parallel {
@@ -73,22 +158,7 @@ function Get-ADObjectDetailHC {
         $gcPath = $using:gcPath
         $name = $_
 
-        # Local helper: build the LDAP filter for a given input name.
-        # Handles bare names, DOMAIN\user, and user@domain UPNs.
-        function Get-Filter {
-            param($n, $t)
-            if ($t -eq 'DistinguishedName') {
-                return "(distinguishedName=$n)"
-            }
-            if ($n -match '@') {
-                return "(|(samAccountName=$n)(userPrincipalName=$n))"
-            }
-            if ($n -match '\\') {
-                $clean = $n -replace '^.*\\', ''
-                return "(samAccountName=$clean)"
-            }
-            return "(samAccountName=$n)"
-        }
+        ${function:New-AdLdapFilterHC} = $using:filterFunction
 
         $propertiesToLoad = @(
             'distinguishedname', 'samaccountname', 'manager',
@@ -105,7 +175,7 @@ function Get-ADObjectDetailHC {
 
             # Fast path: local-domain searcher (no path = nearest DC via DC locator)
             $searcher = [System.DirectoryServices.DirectorySearcher]::new()
-            $searcher.Filter = Get-Filter $name $propertyType
+            $searcher.Filter = New-AdLdapFilterHC -Name $name -Type $propertyType
             $null = $searcher.PropertiesToLoad.AddRange($propertiesToLoad)
             $searchResult = $searcher.FindOne()
             $searcher.Dispose()
@@ -117,7 +187,7 @@ function Get-ADObjectDetailHC {
                 Write-Verbose "Not found locally, trying GC for '$name'"
                 $root = [System.DirectoryServices.DirectoryEntry]::new($gcPath)
                 $searcher = [System.DirectoryServices.DirectorySearcher]::new($root)
-                $searcher.Filter = Get-Filter $name $propertyType
+                $searcher.Filter = New-AdLdapFilterHC -Name $name -Type $propertyType
                 $null = $searcher.PropertiesToLoad.AddRange($propertiesToLoad)
                 $searchResult = $searcher.FindOne()
             }
