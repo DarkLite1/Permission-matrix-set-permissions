@@ -136,7 +136,21 @@ function Build-MatrixDetailCardHC {
     # Determine card status
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
-    $hasChecks = ($err + $warn) -gt 0
+
+    # Notices that are neither errors nor warnings — Type 'Information', and
+    # any unknown/future type. Counted with the same rule Build-SettingsRowHC
+    # uses for the overview's small blue 'i', so the two views agree: if the
+    # overview shows an 'i' for a matrix, opening its execution report must
+    # show the matching notice cards.
+    $info = @($MatrixItem.Check | Where-Object {
+            $_.Type -ne 'FatalError' -and $_.Type -ne 'Warning'
+        }).Count
+
+    # Render the full card whenever the row carries ANY check. Info notices
+    # used to be excluded here, so a row whose only checks were informational
+    # fell through to the compact header-only card and its notices were
+    # silently dropped — visible only in the log folder's JSON detail files.
+    $hasChecks = ($err + $warn + $info) -gt 0
 
     $isSkipped = $false
     if ($err -gt 0) {

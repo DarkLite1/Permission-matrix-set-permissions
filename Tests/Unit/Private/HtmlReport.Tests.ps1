@@ -353,6 +353,65 @@ Describe 'Build-MatrixDetailCardHC' {
         $html | Should-MatchString 'WARNING'
         $html | Should-NotMatchString '>Skipped</span>'
     }
+
+    It 'renders check rows in full mode when the row has only Information checks' {
+        # Regression: these rows used to fall through to the compact
+        # header-only card, so the overview showed the small 'i' but the
+        # execution report showed nothing.
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Information'; Name = 'InfoCheck'; Description = 'An info description' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString 'InfoCheck'
+        $html | Should-MatchString 'An info description'
+        $html | Should-MatchString 'INFO'
+    }
+
+    It 'renders every Information check when the row has more than one' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Information'; Name = 'FirstInfo'; Description = 'd1' }
+            [pscustomobject]@{ Type = 'Information'; Name = 'SecondInfo'; Description = 'd2' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString 'FirstInfo'
+        $html | Should-MatchString 'SecondInfo'
+    }
+
+    It 'renders check rows in full mode for an unknown check type' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'SomethingNew'; Name = 'FutureCheck'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString 'FutureCheck'
+    }
+
+    It 'keeps an Information-only row green - info is not an issue' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Information'; Name = 'i'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString '#16a34a'
+        $html | Should-NotMatchString 'WARNING'
+        $html | Should-NotMatchString '>ERROR<'
+    }
+
+    It 'still marks an Information-only row as Skipped when the file errored' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Information'; Name = 'i'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item -FileHasFatalError $true
+        $html | Should-MatchString '>Skipped</span>'
+        $html | Should-MatchString 'INFO'
+    }
+
+    It 'links an Information check name to its JSON file' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Information'; Name = 'ICheck'; Description = 'd'; JsonFileName = 'ID 42 - Detail 1.json' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString 'ID 42 - Detail 1\.json'
+        $html | Should-MatchString '>ICheck</a>'
+    }
 }
 
 Describe 'New-HtmlSectionHC' {
