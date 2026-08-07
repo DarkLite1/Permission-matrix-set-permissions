@@ -42,10 +42,10 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
                 FileResults = $FileResults
                 ScriptPath  = $ScriptPath
                 Config      = [PSCustomObject]@{
-                    MaxConcurrent = $MaxConcurrent
-                    Settings      = [PSCustomObject]@{
-                        PSSessionConfiguration = $PSSessionConfiguration
-                        SaveLogFiles           = [PSCustomObject]@{ Detailed = $Detailed }
+                    MaxConcurrent          = $MaxConcurrent
+                    PSSessionConfiguration = $PSSessionConfiguration
+                    Settings               = [PSCustomObject]@{
+                        SaveLogFiles = [PSCustomObject]@{ Detailed = $Detailed }
                     }
                 }
             }

@@ -133,12 +133,12 @@ function Invoke-PermissionMatrixProcessHC {
         }
 
         $psSessionConfig = if (
-            [string]::IsNullOrWhiteSpace($Context.Config.Settings.PSSessionConfiguration)
+            [string]::IsNullOrWhiteSpace($Context.Config.PSSessionConfiguration)
         ) {
             'PowerShell.7'
         }
         else {
-            $Context.Config.Settings.PSSessionConfiguration
+            $Context.Config.PSSessionConfiguration
         }
         #endregion
 
