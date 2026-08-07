@@ -631,6 +631,176 @@ Describe 'Build-MatrixEmailHtmlHC' {
             $out | Should-MatchString '#6b7280'
         }
     }
+
+    Context 'card ordering' {
+        BeforeAll {
+            function Get-RenderedCardOrder {
+                param([string]$Html)
+                return @(
+                    [regex]::Matches($Html, 'text-decoration:none;">([^<]+\.xlsx)</a>') |
+                    ForEach-Object { $_.Groups[1].Value }
+                )
+            }
+
+            # These tests are about ORDER, so they compare a single joined
+            # string rather than a collection. Should-BeCollection compares
+            # membership only - it would pass no matter how the cards were
+            # arranged, making every assertion below meaningless.
+            function Get-RenderedCardOrderText {
+                param([string]$Html)
+                return ((Get-RenderedCardOrder -Html $Html) -join ' > ')
+            }
+        }
+
+        It 'sorts the cards alphabetically by matrix file name' {
+            # Regression: $Context.FileResults arrives in runspace completion
+            # order, so the cards used to appear in a different order on
+            # every run.
+            $files = @(
+                New-FileResult -Name 'NOR KYN.xlsx'
+                New-FileResult -Name 'DNK HCPT.xlsx'
+                New-FileResult -Name 'SWE CEM CR.xlsx'
+                New-FileResult -Name 'NOR CON.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out |
+            Should-Be 'DNK HCPT.xlsx > NOR CON.xlsx > NOR KYN.xlsx > SWE CEM CR.xlsx'
+        }
+
+        It 'floats error cards above warning cards above clean cards' {
+            $files = @(
+                New-FileResult -Name 'Clean.xlsx'
+                New-FileResult -Name 'Warned.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+                New-FileResult -Name 'Errored.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out |
+            Should-Be 'Errored.xlsx > Warned.xlsx > Clean.xlsx'
+        }
+
+        It 'sorts alphabetically within each severity group' {
+            $files = @(
+                New-FileResult -Name 'zClean.xlsx'
+                New-FileResult -Name 'zErr.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                )
+                New-FileResult -Name 'aClean.xlsx'
+                New-FileResult -Name 'zWarn.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+                New-FileResult -Name 'aErr.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                )
+                New-FileResult -Name 'aWarn.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out |
+            Should-Be 'aErr.xlsx > zErr.xlsx > aWarn.xlsx > zWarn.xlsx > aClean.xlsx > zClean.xlsx'
+        }
+
+        It 'does not promote a card that only has Information checks' {
+            # Info notices are not issues - they must stay in the
+            # alphabetical run with the other clean files.
+            $files = @(
+                New-FileResult -Name 'aClean.xlsx'
+                New-FileResult -Name 'zInfo.xlsx' -Matrices @(
+                    New-MatrixRow -ID 1 -Check @(
+                        [pscustomobject]@{ Type = 'Information'; Name = 'i'; Description = 'd' }
+                    )
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'aClean.xlsx > zInfo.xlsx'
+        }
+
+        It 'ranks a card by a check on one of its matrices' {
+            $files = @(
+                New-FileResult -Name 'aClean.xlsx'
+                New-FileResult -Name 'zMatrixErr.xlsx' -Matrices @(
+                    New-MatrixRow -ID 1 -Check @(
+                        [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                    )
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'zMatrixErr.xlsx > aClean.xlsx'
+        }
+
+        It 'ranks a card by a check on one of its sheets' {
+            $files = @(
+                New-FileResult -Name 'aClean.xlsx'
+                New-FileResult -Name 'zSheetWarn.xlsx' -PermissionsCheck @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'zSheetWarn.xlsx > aClean.xlsx'
+        }
+
+        It 'produces the same output regardless of the input order' {
+            $names = @('Zeta.xlsx', 'Alpha.xlsx', 'Mike.xlsx')
+
+            $forward = Build-MatrixEmailHtmlHC -Html $html -FileResults @(
+                $names | ForEach-Object { New-FileResult -Name $_ }
+            )
+            $reversed = Build-MatrixEmailHtmlHC -Html $html -FileResults @(
+                $names | Sort-Object -Descending | ForEach-Object { New-FileResult -Name $_ }
+            )
+
+            $forward | Should-Be $reversed
+        }
+
+        It 'sorts case-insensitively' {
+            $files = @(
+                New-FileResult -Name 'beta.xlsx'
+                New-FileResult -Name 'Alpha.xlsx'
+                New-FileResult -Name 'CHARLIE.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out |
+            Should-Be 'Alpha.xlsx > beta.xlsx > CHARLIE.xlsx'
+        }
+
+        It 'renders every card exactly once' {
+            $files = @(
+                New-FileResult -Name 'One.xlsx'
+                New-FileResult -Name 'Two.xlsx'
+                New-FileResult -Name 'Three.xlsx'
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            (Get-RenderedCardOrder -Html $out).Count | Should-Be 3
+        }
+
+        It 'still renders a single card' {
+            $out = Build-MatrixEmailHtmlHC -Html $html -FileResults @(
+                New-FileResult -Name 'Only.xlsx'
+            )
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'Only.xlsx'
+        }
+    }
 }
 
 Describe 'Get-MailBodyHtmlHC' {

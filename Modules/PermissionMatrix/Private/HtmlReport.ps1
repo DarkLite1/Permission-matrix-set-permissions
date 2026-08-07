@@ -419,18 +419,11 @@ function Write-MatrixExecutionReportHC {
         -LastModifiedBy $FileResult.ExcelInfo.LastModifiedBy `
         -Modified $FileResult.ExcelInfo.Modified
 
-    # Tally for header status pill
-    $allChecks = @()
-    if ($FileResult.Check) { $allChecks += $FileResult.Check }
-    if ($FileResult.Sheets.FormData.Check) { $allChecks += $FileResult.Sheets.FormData.Check }
-    if ($FileResult.Sheets.Permissions.Check) { $allChecks += $FileResult.Sheets.Permissions.Check }
-    if ($FileResult.Matrices) {
-        foreach ($m in $FileResult.Matrices) {
-            if ($m.Check) { $allChecks += $m.Check }
-        }
-    }
-    $fileErrs = @($allChecks | Where-Object Type -EQ 'FatalError').Count
-    $fileWarns = @($allChecks | Where-Object Type -EQ 'Warning').Count
+    # Tally for header status pill — shared with the email card so the report
+    # header and the overview card agree on a file's status.
+    $tally = Get-FileCheckTallyHC -FileResult $FileResult
+    $fileErrs = $tally.Errors
+    $fileWarns = $tally.Warnings
 
     if ($fileErrs -gt 0) {
         $hdrSymbol = '✖'

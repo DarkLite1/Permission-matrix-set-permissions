@@ -157,6 +157,84 @@ function Get-HtmlClassProbTypeHC {
     }
 }
 
+function Get-FileCheckTallyHC {
+    <#
+        .DESCRIPTION
+            Tally the FatalError and Warning checks a matrix file carries,
+            gathered from every place a check can live: the file itself, its
+            'FormData' and 'Permissions' sheets, and each of its matrices.
+
+            This is the tally that decides a card's header colour, glyph and
+            status pill, and it is also the sort key used to float problem
+            cards to the top of the overview — sharing one implementation
+            keeps the two in step.
+
+            Informational checks are deliberately NOT counted. They are
+            notices, not issues: they must not colour a header and they must
+            not lift a card out of the alphabetical run.
+
+        .PARAMETER FileResult
+            One element of $Context.FileResults.
+    #>
+    param([object]$FileResult)
+
+    $allChecks = @()
+
+    if ($FileResult) {
+        if ($FileResult.Check) { $allChecks += $FileResult.Check }
+        if ($FileResult.Sheets.FormData.Check) { $allChecks += $FileResult.Sheets.FormData.Check }
+        if ($FileResult.Sheets.Permissions.Check) { $allChecks += $FileResult.Sheets.Permissions.Check }
+
+        if ($FileResult.Matrices) {
+            foreach ($matrix in $FileResult.Matrices) {
+                if ($matrix.Check) { $allChecks += $matrix.Check }
+            }
+        }
+    }
+
+    return @{
+        Errors   = @($allChecks | Where-Object Type -EQ 'FatalError').Count
+        Warnings = @($allChecks | Where-Object Type -EQ 'Warning').Count
+    }
+}
+
+function Get-MatrixFileNameHC {
+    <#
+        .DESCRIPTION
+            Resolve the display name of a matrix file from a file-result
+            object. Used for the card header title AND as the sort key for
+            the overview, so the visible title and the ordering can never
+            disagree.
+
+            A file result normally carries an 'Item' (the FileInfo of the
+            .xlsx). When the runspace threw before that was set, the fallback
+            object built by the catch block carries 'File' instead — the same
+            two-step lookup Invoke-PermissionMatrixAuditReport already does.
+
+        .PARAMETER FileResult
+            One element of $Context.FileResults.
+
+        .PARAMETER Default
+            Returned when neither 'Item' nor 'File' yields a name.
+    #>
+    param(
+        [object]$FileResult,
+        [string]$Default = ''
+    )
+
+    if (-not $FileResult) { return $Default }
+
+    foreach ($propertyName in @('Item', 'File')) {
+        $container = $FileResult.PSObject.Properties[$propertyName]
+
+        if ($container -and $container.Value -and $container.Value.Name) {
+            return [string]$container.Value.Name
+        }
+    }
+
+    return $Default
+}
+
 function Format-IssueCountLabelHC {
     param([int]$Errors, [int]$Warnings)
     $parts = @()

@@ -64,6 +64,111 @@ Describe 'Get-HtmlClassProbTypeHC' {
     }
 }
 
+Describe 'Get-FileCheckTallyHC' {
+    BeforeAll {
+        function New-TallyFileResult {
+            param(
+                [object[]]$Check = @(),
+                [object[]]$FormDataCheck = @(),
+                [object[]]$PermissionsCheck = @(),
+                [object[]]$MatrixCheck = @()
+            )
+            return [pscustomobject]@{
+                Check    = $Check
+                Sheets   = [pscustomobject]@{
+                    FormData    = [pscustomobject]@{ Check = $FormDataCheck }
+                    Permissions = [pscustomobject]@{ Check = $PermissionsCheck }
+                }
+                Matrices = @([pscustomobject]@{ ID = 1; Check = $MatrixCheck })
+            }
+        }
+    }
+
+    It 'counts errors and warnings on the file itself' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult -Check @(
+                [pscustomobject]@{ Type = 'FatalError'; Name = 'e' }
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w2' }
+            ))
+        $tally.Errors | Should-Be 1
+        $tally.Warnings | Should-Be 2
+    }
+
+    It 'includes checks from the FormData and Permissions sheets' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult `
+                -FormDataCheck @([pscustomobject]@{ Type = 'FatalError'; Name = 'e' }) `
+                -PermissionsCheck @([pscustomobject]@{ Type = 'Warning'; Name = 'w' }))
+        $tally.Errors | Should-Be 1
+        $tally.Warnings | Should-Be 1
+    }
+
+    It 'includes checks from the matrices' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult -MatrixCheck @(
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+            ))
+        $tally.Warnings | Should-Be 1
+    }
+
+    It 'ignores Information checks' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult -MatrixCheck @(
+                [pscustomobject]@{ Type = 'Information'; Name = 'i1' }
+                [pscustomobject]@{ Type = 'Information'; Name = 'i2' }
+            ))
+        $tally.Errors | Should-Be 0
+        $tally.Warnings | Should-Be 0
+    }
+
+    It 'returns zeroes for a file result with no checks' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult)
+        $tally.Errors | Should-Be 0
+        $tally.Warnings | Should-Be 0
+    }
+
+    It 'returns zeroes for a null file result' {
+        $tally = Get-FileCheckTallyHC -FileResult $null
+        $tally.Errors | Should-Be 0
+        $tally.Warnings | Should-Be 0
+    }
+}
+
+Describe 'Get-MatrixFileNameHC' {
+    It 'returns the name from the Item property' {
+        $fileResult = [pscustomobject]@{
+            Item = [pscustomobject]@{ Name = 'DNK HCPT.xlsx' }
+        }
+        Get-MatrixFileNameHC -FileResult $fileResult | Should-Be 'DNK HCPT.xlsx'
+    }
+
+    It 'falls back to the File property when Item is absent' {
+        # Shape produced by the runspace catch block in Invoke-PermissionMatrixBeginHC
+        $fileResult = [pscustomobject]@{
+            File = [pscustomobject]@{ Name = 'Crashed.xlsx' }
+        }
+        Get-MatrixFileNameHC -FileResult $fileResult | Should-Be 'Crashed.xlsx'
+    }
+
+    It 'prefers Item over File when both are present' {
+        $fileResult = [pscustomobject]@{
+            Item = [pscustomobject]@{ Name = 'FromItem.xlsx' }
+            File = [pscustomobject]@{ Name = 'FromFile.xlsx' }
+        }
+        Get-MatrixFileNameHC -FileResult $fileResult | Should-Be 'FromItem.xlsx'
+    }
+
+    It 'returns the default when neither property yields a name' {
+        Get-MatrixFileNameHC -FileResult ([pscustomobject]@{}) -Default '(unknown)' |
+        Should-Be '(unknown)'
+    }
+
+    It 'returns the default for a null file result' {
+        Get-MatrixFileNameHC -FileResult $null -Default '(unknown)' | Should-Be '(unknown)'
+    }
+
+    It 'returns an empty string by default' {
+        Get-MatrixFileNameHC -FileResult ([pscustomobject]@{}) | Should-Be ''
+    }
+}
+
 Describe 'Format-IssueCountLabelHC' {
     It 'returns "Success" when there are no errors or warnings' {
         Format-IssueCountLabelHC -Errors 0 -Warnings 0 | Should-Be 'Success'
@@ -286,4 +391,3 @@ Describe 'Build-FileLevelCheckRowHC' {
         $html | Should-MatchString 'Unnamed check'
     }
 }
-

@@ -436,8 +436,11 @@ function Build-SettingsRowHC {
 function Build-MatrixFileCardHC {
     param([object]$FileContext)
 
-    # File header info
-    $fileName = [System.Net.WebUtility]::HtmlEncode($FileContext.Item.Name)
+    # File header info — resolved via the same helper the overview sorts on,
+    # so the visible title and the card's position always agree.
+    $fileName = [System.Net.WebUtility]::HtmlEncode(
+        (Get-MatrixFileNameHC -FileResult $FileContext)
+    )
 
     $lastChangeInfo = Format-LastChangeHC `
         -LastModifiedBy $FileContext.ExcelInfo.LastModifiedBy `
@@ -544,18 +547,12 @@ function Build-MatrixFileCardHC {
 <!--<![endif]-->
 "@
 
-    # Tally checks across all sources to decide header color and summary text
-    $allChecks = @()
-    if ($FileContext.Check) { $allChecks += $FileContext.Check }
-    if ($FileContext.Sheets.FormData.Check) { $allChecks += $FileContext.Sheets.FormData.Check }
-    if ($FileContext.Sheets.Permissions.Check) { $allChecks += $FileContext.Sheets.Permissions.Check }
-    if ($FileContext.Matrices) {
-        foreach ($m in $FileContext.Matrices) {
-            if ($m.Check) { $allChecks += $m.Check }
-        }
-    }
-    $fileErrs = @($allChecks | Where-Object Type -EQ 'FatalError').Count
-    $fileWarns = @($allChecks | Where-Object Type -EQ 'Warning').Count
+    # Tally checks across all sources to decide header color and summary text.
+    # Shared with the overview's sort so a card's colour and its position
+    # always tell the same story.
+    $tally = Get-FileCheckTallyHC -FileResult $FileContext
+    $fileErrs = $tally.Errors
+    $fileWarns = $tally.Warnings
 
     if ($fileErrs -gt 0) {
         $headerSymbol = '✖'
@@ -728,8 +725,44 @@ function Build-MatrixEmailHtmlHC {
         [Parameter(Mandatory)][hashtable]$Html
     )
 
+    <#
+     Order the cards so the ones needing attention are reachable without
+     scrolling: files with an ERROR first, then files with a WARNING, then
+     everything else — each of those three groups sorted alphabetically by
+     matrix file name (the same string the gradient header shows and links).
+
+     Rank 0/1/2 is computed from Get-FileCheckTallyHC, the exact tally that
+     colours the header, so the run of red cards, then amber, then green
+     matches the sequence a reader sees. Informational notices deliberately
+     do NOT promote a card: they are notices, not issues, so an info-only
+     matrix stays in the alphabetical run with the other clean files.
+
+     Sort-Object is stable and the name is the second key, so ties inside a
+     rank resolve alphabetically and the whole output is deterministic.
+     Without this, $Context.FileResults arrives in runspace COMPLETION order
+     (the files are processed by Invoke-WithOptionalParallelismHC), so the
+     cards appeared in a different, effectively random order on every run.
+
+     Sorting here rather than at the source keeps the change scoped to
+     presentation: the export sheets, the JSON detail files and the audit
+     report keep whatever order they already had. Both the mailed body and
+     the browser copy in the log folder are built from this one string, so a
+     single sort fixes both.
+    #>
+    $sortedFileResults = $FileResults | Sort-Object -Property @{
+        Expression = {
+            $tally = Get-FileCheckTallyHC -FileResult $_
+
+            if ($tally.Errors -gt 0) { 0 }
+            elseif ($tally.Warnings -gt 0) { 1 }
+            else { 2 }
+        }
+    }, @{
+        Expression = { Get-MatrixFileNameHC -FileResult $_ }
+    }
+
     $output = ''
-    foreach ($fileContext in $FileResults) {
+    foreach ($fileContext in $sortedFileResults) {
         $output += Build-MatrixFileCardHC -FileContext $fileContext
     }
     return $output
