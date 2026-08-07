@@ -105,39 +105,23 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             }
 
             <#
-             'Value' is an array with one line per group ('<name>  <reason>',
-             the name padded so the reasons line up). Flatten it for the
-             assertions that only care whether a group is mentioned.
+             'Value' is an array of objects with a Name and a Reason, one per
+             group. Flatten it to text for the assertions that only care
+             whether a group is mentioned.
             #>
             function Get-EmptyGroupTextHC {
                 param([object]$Check)
 
-                @($Check.Value) -join "`n"
+                (@($Check.Value) | ForEach-Object { "$($_.Name) $($_.Reason)" }) -join "`n"
             }
 
-            # Return the reason reported for a single group, without the
-            # quotes or the padding
+            # Return the reason reported for a single group
             function Get-EmptyGroupReasonHC {
                 param([object]$Check, [string]$GroupName)
 
-                <#
-                 Lines read: 'GRP-HR ' : no members
-
-                 The name is padded to the width of the longest group name
-                 and that padding sits INSIDE the quotes, so allow trailing
-                 whitespace before the closing quote. The reason is trimmed
-                 rather than split on runs of whitespace, so a reason that
-                 ever contains a colon or double space survives intact.
-
-                 Anchoring on the quotes also removes an ambiguity the old
-                 two-space format had: a lookup for 'GRP-HR' can no longer
-                 match the line for a group named 'GRP-HR-PAYROLL'.
-                #>
-                $pattern = "^'$([regex]::Escape($GroupName))\s*'\s*:\s*(.+?)\s*$"
-
-                foreach ($line in @($Check.Value)) {
-                    if ($line -match $pattern) { return $Matches[1] }
-                }
+                @($Check.Value) |
+                Where-Object { $_.Name -eq $GroupName } |
+                Select-Object -First 1 -ExpandProperty 'Reason'
             }
         }
 
@@ -429,14 +413,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
 
                 $check = @(Get-EmptyGroupCheckHC $res)
 
-                <#
-                 Lines read: 'GRP-HR ' : no members
-                 Take the quoted name and drop the padding, which sits
-                 inside the quotes.
-                #>
-                $names = @($check[0].Value) | ForEach-Object {
-                    if ($_ -match "^'(.*?)\s*'\s*:") { $Matches[1] }
-                }
+                $names = @($check[0].Value) | ForEach-Object { $_.Name }
 
                 <#
                  Compared as one joined string rather than with
@@ -447,7 +424,10 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $names -join ', ' | Should-Be 'GRP-FIN, GRP-HR, GRP-IT'
             }
 
-            It 'pads the group names so the reasons line up' {
+            It 'emits a Name and a Reason per group, free of formatting' {
+                # Replaces the old 'pads the group names so the reasons line
+                # up' test: alignment is a rendering concern now, and the
+                # value must carry the raw name with no padding or quotes.
                 $matrix = New-FakeMatrixHC -AdObjectName @(
                     'GRP-HR', 'GRP-A-VERY-LONG-GROUP-NAME'
                 )
@@ -459,11 +439,21 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
 
                 $check = @(Get-EmptyGroupCheckHC $res)
-                $offsets = @($check[0].Value) | ForEach-Object {
-                    $_.IndexOf('no members')
+                $entries = @($check[0].Value)
+
+                $entries.Count | Should-Be 2
+
+                foreach ($entry in $entries) {
+                    $entry.PSObject.Properties.Name |
+                    Should-ContainCollection 'Name'
+                    $entry.PSObject.Properties.Name |
+                    Should-ContainCollection 'Reason'
                 }
 
-                @($offsets | Select-Object -Unique).Count | Should-Be 1
+                # The short name is not padded out to the long one
+                $short = $entries | Where-Object { $_.Name -eq 'GRP-HR' }
+                $short.Name | Should-Be 'GRP-HR'
+                $short.Reason | Should-Be 'no members'
             }
 
             It 'mentions the placeholder configuration in the description' {

@@ -630,24 +630,23 @@ function Test-AdObjectInMatrixHC {
 
     if ($emptyGroups.Count -gt 0) {
         <#
-         Emit one entry per group, sorted, with the name padded to the widest
-         name so the reasons line up in the detail JSON. This mirrors the
-         'Inherited permissions incorrect' warning, whose OldAcl/NewAcl/
-         MatrixFileAcl arrays are sorted line-per-entry as well.
+         Emit one entry per group, sorted by name, as structured objects
+         rather than preformatted text.
+
+         These were previously rendered into strings ("'<name>' : <reason>",
+         the name padded to the widest name so the reasons lined up). That
+         put presentation into the data: the detail JSON stored padding as
+         real characters, and anything that wanted the name or the reason
+         back had to parse it out with a regex. Emitting the objects lets
+         ConvertTo-Json write proper Name/Reason fields, so the JSON is both
+         readable and queryable (Where-Object Reason -eq 'no members'), and
+         any future alignment becomes a rendering decision at the point of
+         display.
+
+         $emptyGroups already holds objects of exactly this shape, so this
+         is the list sorted, not a rebuild.
         #>
-        $nameWidth = 0
-
-        foreach ($group in $emptyGroups) {
-            if ($group.Name.Length -gt $nameWidth) {
-                $nameWidth = $group.Name.Length
-            }
-        }
-
-        $emptyGroupLines = @(
-            $emptyGroups | Sort-Object -Property 'Name' | ForEach-Object {
-                "'{0}' : {1}" -f $_.Name.PadRight($nameWidth), $_.Reason
-            }
-        )
+        $emptyGroupList = @($emptyGroups | Sort-Object -Property 'Name')
 
         #region Resolve the configured placeholder accounts by name
         $placeHolderNames = @($placeHolders) | Sort-Object
@@ -664,7 +663,7 @@ function Test-AdObjectInMatrixHC {
             -Type 'Information' `
             -Name 'AD groups without members' `
             -Description "One or more AD groups in the matrix have no effective members: they are empty, they only contain placeholder accounts, or they only contain disabled accounts. No one has access to the folders granted to these groups. $placeHolderText" `
-            -Value $emptyGroupLines
+            -Value $emptyGroupList
     }
     #endregion
 
