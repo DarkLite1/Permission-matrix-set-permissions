@@ -132,6 +132,10 @@ function Invoke-PermissionMatrixProcessHC {
             [math]::Max(1, [int]$Context.Config.MaxConcurrent.JobsPerComputer)
         }
 
+        # 'PSSessionConfiguration' is a TOP-LEVEL configuration property, not a
+        # member of 'Settings'. Example.json declares it at the top level and
+        # Test-ConfigurationStructureHC validates it there, so reading it from
+        # 'Settings' silently yielded $null and always fell back to the default.
         $psSessionConfig = if (
             [string]::IsNullOrWhiteSpace($Context.Config.PSSessionConfiguration)
         ) {

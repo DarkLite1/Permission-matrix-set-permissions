@@ -61,7 +61,11 @@ function Invoke-PermissionMatrixEndHC {
     $hasFatalErrors = Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value
     $htmlTemplates = Initialize-HtmlStructureHC
     $fullHtmlBody = ''
-    $sysErrAttachments = @()
+    <# Shared with Write-SystemErrorLogHC, which appends the SystemErrors.json
+    path to the 'Attachments' key. It MUST be a variable: passing [ref] to an
+    inline hashtable literal hands the function a throwaway that is discarded
+    the moment the call returns, silently losing the attachment. #>
+    $sysErrMailParams = @{ Attachments = @() }
     $emailLogFolder = $null
     $mailSubject = $null
 
@@ -372,7 +376,7 @@ function Invoke-PermissionMatrixEndHC {
                 Write-SystemErrorLogHC `
                     -SystemErrors $SystemErrors.Value `
                     -LogFolder $logFolder `
-                    -MailParams ([ref]@{Attachments = $sysErrAttachments }) `
+                    -MailParams ([ref]$sysErrMailParams) `
                     -JsonFileName $Context.JsonFileName `
                     -ScriptStartTime $Context.StartTime
             }
@@ -500,7 +504,7 @@ function Invoke-PermissionMatrixEndHC {
                 Subject             = $mailSubject
                 Body                = $fullHtmlBody
                 Priority            = $priority
-                Attachments         = $sysErrAttachments
+                Attachments         = $sysErrMailParams.Attachments
             }
 
             if ($sendMail.Bcc) {

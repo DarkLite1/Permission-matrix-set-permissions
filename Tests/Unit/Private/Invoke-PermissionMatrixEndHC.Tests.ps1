@@ -738,6 +738,31 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             Should-Invoke Send-MailKitMessageHC -Times 0
         }
 
+        It 'attaches the system errors JSON to the summary mail' {
+            <# Regression: Write-SystemErrorLogHC appends the JSON path to the
+            'Attachments' key of the hashtable it receives by [ref]. The call
+            site used to pass an inline literal, so the append landed on a
+            throwaway and the file was written to disk but never attached. #>
+            Mock Write-SystemErrorLogHC {
+                $MailParams.Value['Attachments'] += 'TestDrive:\SystemErrors.json'
+            }
+
+            $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
+            $ctx = New-EndContext -FoundMatrices $false -LogFolder $logRoot
+
+            $systemErrors.Add([pscustomobject]@{
+                    Type    = 'FatalError'
+                    Name    = 'Upstream Failure'
+                    Message = 'something failed before we got here'
+                })
+
+            Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+
+            Should-Invoke Send-MailKitMessageHC -Times 1 -ParameterFilter {
+                $Attachments -contains 'TestDrive:\SystemErrors.json'
+            }
+        }
+
         It 'saves the mail body to log folder when log folder exists' {
             $logRoot = (New-Item 'TestDrive:\Logs' -ItemType Directory -Force).FullName
             $ctx = New-EndContext -LogFolder $logRoot
