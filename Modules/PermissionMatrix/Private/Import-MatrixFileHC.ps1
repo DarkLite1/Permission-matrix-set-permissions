@@ -168,7 +168,15 @@ function Import-MatrixFileHC {
         )
         $fileResult.Sheets.Settings.Raw = $settingsSheet
 
-        $enabledSettings = $settingsSheet.Where({ $_.Status -eq 'Enabled' })
+        <# Compare a normalized copy of Status. Format-SettingStringsHC trims
+        every string property, but it runs further down, so selecting on the
+        raw value meant a cell containing 'Enabled ' with a trailing space
+        silently disabled the whole matrix file with no indication why.
+        The "" wrapper keeps this safe when Status is absent or not a string,
+        where .Trim() would throw. #>
+        $enabledSettings = $settingsSheet.Where(
+            { "$($_.Status)".Trim() -eq 'Enabled' }
+        )
 
         if (-not $enabledSettings) {
             $fileResult.Check.Add(
@@ -176,7 +184,7 @@ function Import-MatrixFileHC {
                     Type        = 'FatalError'
                     Name        = 'No enabled matrix settings'
                     Description = 'This matrix file does not contain any enabled matrix settings row and is skipped.'
-                    Value       = "No Settings row with `Status = Enabled'"
+                    Value       = "No Settings row with 'Status = Enabled'"
                 }
             )
 

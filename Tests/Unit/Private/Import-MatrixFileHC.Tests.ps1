@@ -154,6 +154,29 @@ Describe 'Import-MatrixFileHC' {
         }
     }
 
+    Context 'Status with surrounding whitespace' {
+        It 'treats a Status of " Enabled " as enabled' {
+            <# Regression: the enabled rows were selected from the raw sheet,
+            before Format-SettingStringsHC trimmed anything, so a stray space
+            in the Excel cell silently disabled the entire matrix file and
+            reported only 'No enabled matrix settings'. #>
+            $rows = New-MatrixSettingsFixtureRows -Scenario 'Valid'
+
+            foreach ($row in $rows) {
+                $row.Status = ' Enabled '
+            }
+
+            New-MatrixExcelFixture -Path $matrixPath -SettingsRows $rows
+
+            $result = Import-MatrixFileHC `
+                -MatrixFile (Get-Item -LiteralPath $matrixPath) `
+                -Context (New-TestContext)
+
+            $result.Check | Should-BeFalsy
+            $result.Matrices | Should-BeTruthy
+        }
+    }
+
     Context 'no enabled settings' {
         It 'records a FatalError, reads no further, and creates no matrices' {
             New-MatrixExcelFixture -Path $matrixPath -Disabled
