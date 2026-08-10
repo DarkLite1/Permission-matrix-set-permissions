@@ -185,6 +185,12 @@ function Invoke-PermissionMatrixEndHC {
     $logFolder = $Context.Config.Settings.SaveLogFiles.Where.Folder
     $tempLogFolder = Join-Path $env:TEMP 'PermissionMatrixLogs'
 
+    <# Why the log folder could not be created, captured at the point where it
+    is still known. $logFolder only becomes $null inside the catch blocks
+    below, and the branch that reports it to the user runs outside any catch,
+    so $_ is empty there and the reason was previously lost. #>
+    $logFolderFailureReason = $null
+
     # Use temp folder if no log folder is specified
     if ([string]::IsNullOrWhiteSpace($logFolder)) {
         $logFolder = $tempLogFolder
@@ -213,9 +219,15 @@ function Invoke-PermissionMatrixEndHC {
                     $null = New-Item -ItemType Directory -Path $logFolder -Force -ErrorAction Stop
                 }
             }
-            catch { $logFolder = $null }
+            catch {
+                $logFolder = $null
+                $logFolderFailureReason = $_
+            }
         }
-        else { $logFolder = $null }
+        else {
+            $logFolder = $null
+            $logFolderFailureReason = $_
+        }
     }
     #endregion
 
@@ -391,10 +403,16 @@ function Invoke-PermissionMatrixEndHC {
         }
     }
     else {
+        $reason = if ($logFolderFailureReason) {
+            " Last error: $logFolderFailureReason"
+        }
+        else { '' }
+
         Add-ErrorHC `
             -Type 'Warning' `
             -Name 'Log Folder Unavailable' `
-            -Message "No valid log folder available. Logs will not be saved to disk: $_" `
+            -Message "No valid log folder available. Logs will not be saved to disk.$reason" `
+            -Description "Tried the temporary folder '$tempLogFolder'." `
             -Category 'Logging' `
             -SystemErrors $SystemErrors
     }

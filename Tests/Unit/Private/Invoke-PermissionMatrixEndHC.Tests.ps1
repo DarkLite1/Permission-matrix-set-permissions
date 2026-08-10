@@ -671,6 +671,30 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
             $fallbackWarning = $systemErrors.Where({ $_.Name -eq 'Log Folder Fallback' })
             $fallbackWarning.Count | Should-Be 1
         }
+
+        It 'reports why no log folder is available when TEMP fails too' {
+            <# Regression: this branch runs outside any catch block, so the
+            '$_' it interpolated was always empty and the reason was lost.
+            The reason is now captured where the failure actually happens. #>
+            $originalTemp = $env:TEMP
+
+            try {
+                # Angle brackets are invalid in a Windows path, so neither the
+                # configured folder nor the TEMP fallback can be created.
+                $env:TEMP = 'C:\<invalid-temp>'
+                $ctx = New-EndContext -LogFolder 'C:\<invalid>\path' -FoundMatrices $true
+
+                Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
+            }
+            finally {
+                $env:TEMP = $originalTemp
+            }
+
+            $warning = $systemErrors.Where({ $_.Name -eq 'Log Folder Unavailable' })
+
+            $warning.Count | Should-Be 1
+            $warning[0].Message | Should-MatchString 'Last error:'
+        }
     }
 
     It 'creates JSON files only for checks with a Value property' {
