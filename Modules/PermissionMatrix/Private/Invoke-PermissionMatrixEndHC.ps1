@@ -299,12 +299,6 @@ function Invoke-PermissionMatrixEndHC {
                     }
                     #endregion
 
-                    <#
-                    start (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file | select -First 1).FullName
-
-                    (ls $context.Config.Settings.SaveLogFiles.Where.Folder -Recurse -file).FullName | ForEach-Object {start $_}
-                    #>
-
                     #region Copy matrix file with AD detail sheets
                     # Runs BEFORE Write-MatrixExecutionReportHC so the
                     # report's 'Matrix log copy' footer row can link to
@@ -381,10 +375,6 @@ function Invoke-PermissionMatrixEndHC {
             }
 
             if ($SystemErrors.Value.Count -gt 0) {
-                <#
-                ls TestDrive:\Logs\
-                #>
-
                 Write-SystemErrorLogHC `
                     -SystemErrors $SystemErrors.Value `
                     -LogFolder $logFolder `
@@ -560,10 +550,6 @@ function Invoke-PermissionMatrixEndHC {
                         -SystemErrors $SystemErrors
                 }
             }
-
-            <#
-            start (ls $emailLogFolder)[1].FullName
-            #>
 
             # Drop blank entries so splatting falls back to the function's
             # parameter defaults (e.g. SmtpConnectionType -> 'None') instead of
