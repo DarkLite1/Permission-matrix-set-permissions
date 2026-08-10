@@ -1405,6 +1405,33 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'MaxConcurrent.$_'"
             }
 
+            It 'flags MaxConcurrent.<_> set to zero' -ForEach @(
+                'JobsTotal', 'JobsPerComputer', 'FoldersPerMatrix'
+            ) {
+                <# Zero matched the numeric pattern and passed validation, then
+                reached ForEach-Object -ThrottleLimit, which rejects it. #>
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.MaxConcurrent.JobsTotal = 0
+                $json.MaxConcurrent.JobsPerComputer = 0
+                $json.MaxConcurrent.FoldersPerMatrix = 0
+
+                $errors = Invoke-Validation -Json $json
+
+                Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'MaxConcurrent.$_'"
+            }
+
+            It 'accepts MaxConcurrent values of one' {
+                # One is the smallest usable throttle and must stay valid.
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.MaxConcurrent.JobsTotal = 1
+                $json.MaxConcurrent.JobsPerComputer = 1
+                $json.MaxConcurrent.FoldersPerMatrix = 1
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should-Be 0
+            }
+
             It 'flags JobsPerComputer greater than JobsTotal' {
                 # A per-computer cap above the total is unreachable: the overall
                 # throttle stops the run before one computer could ever get

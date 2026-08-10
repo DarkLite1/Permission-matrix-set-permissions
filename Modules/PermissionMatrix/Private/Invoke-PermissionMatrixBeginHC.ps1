@@ -168,7 +168,16 @@ function Invoke-PermissionMatrixBeginHC {
         #endregion
 
         #region Import, validate and archive in Parallel
-        $throttle = $Context.Config.MaxConcurrent.FoldersPerMatrix ?? 4
+        $throttle = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.FoldersPerMatrix)
+        ) {
+            4
+        }
+        else {
+            # ?? only guards against $null, so a configured 0 used to pass
+            # through as a throttle of 0.
+            [math]::Max(1, [int]$Context.Config.MaxConcurrent.FoldersPerMatrix)
+        }
 
         $parallelResults = Invoke-WithOptionalParallelismHC `
             -InputObject $matrixFiles `

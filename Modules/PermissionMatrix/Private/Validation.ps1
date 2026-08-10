@@ -832,6 +832,16 @@ function Test-ConfigurationStructureHC {
                     -Message "Property 'MaxConcurrent.$prop' must be numeric." `
                     -SystemErrors $SystemErrors
             }
+            elseif ([int]$val -lt 1) {
+                <# Zero is numeric but not a usable throttle: these values end
+                up as -ThrottleLimit on ForEach-Object -Parallel, which needs
+                at least 1. Rejecting it here gives a clear message instead of
+                a parameter binding failure part way through a run. #>
+                Add-JsonSchemaErrorHC -Type 'FatalError' `
+                    -Name "Incorrect 'MaxConcurrent.$prop'" `
+                    -Message "Property 'MaxConcurrent.$prop' must be 1 or higher." `
+                    -SystemErrors $SystemErrors
+            }
         }
 
         #region JobsPerComputer cannot exceed JobsTotal

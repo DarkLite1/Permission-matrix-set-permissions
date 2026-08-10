@@ -132,6 +132,18 @@ function Invoke-PermissionMatrixProcessHC {
             [math]::Max(1, [int]$Context.Config.MaxConcurrent.JobsPerComputer)
         }
 
+        # Guarded like the two above. This one is handed to SetPermissions.ps1
+        # as JobThrottleLimit and ends up on ForEach-Object -ThrottleLimit,
+        # which rejects 0.
+        $throttleFoldersPerMatrix = if (
+            [string]::IsNullOrWhiteSpace($Context.Config.MaxConcurrent.FoldersPerMatrix)
+        ) {
+            4
+        }
+        else {
+            [math]::Max(1, [int]$Context.Config.MaxConcurrent.FoldersPerMatrix)
+        }
+
         # 'PSSessionConfiguration' is a TOP-LEVEL configuration property, not a
         # member of 'Settings'. Example.json declares it at the top level and
         # Test-ConfigurationStructureHC validates it there, so reading it from
@@ -358,11 +370,11 @@ function Invoke-PermissionMatrixProcessHC {
             $permResults = Invoke-WithOptionalParallelismHC `
                 -InputObject @($safePermWorkers) `
                 -ThrottleLimit $throttleJobsTotal `
-                -ArgumentList $Context.ScriptPath, $psSessionConfig, $Context.Config.MaxConcurrent, $Context.Config.Settings.SaveLogFiles.Detailed `
+                -ArgumentList $Context.ScriptPath, $psSessionConfig, $throttleFoldersPerMatrix, $Context.Config.Settings.SaveLogFiles.Detailed `
                 -ScriptBlock {
                 param(
                     $compDto, $scriptPaths, 
-                    $sessionConfig, $maxConc, $detailedLog
+                    $sessionConfig, $foldersPerMatrix, $detailedLog
                 )
 
                 # Raise the client-side deserialization cap. By default a
@@ -436,7 +448,7 @@ function Invoke-PermissionMatrixProcessHC {
                             $res = Invoke-Command `
                                 -Session $session `
                                 -FilePath $scriptPaths.SetPermissions `
-                                -ArgumentList $job.Path, $job.Action, $restoredMatrix, $maxConc.FoldersPerMatrix, $detailedLog `
+                                -ArgumentList $job.Path, $job.Action, $restoredMatrix, $foldersPerMatrix, $detailedLog `
                                 -ErrorAction Stop
 
                             $jobResult = [PSCustomObject]@{ 

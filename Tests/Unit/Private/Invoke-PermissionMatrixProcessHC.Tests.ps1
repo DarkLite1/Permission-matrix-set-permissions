@@ -357,6 +357,27 @@ Describe 'Invoke-PermissionMatrixProcessHC' {
             }
         }
 
+        It 'raises a FoldersPerMatrix of zero to one before sending it on' {
+            <# Defence in depth: validation rejects zero, but the value lands on
+            ForEach-Object -ThrottleLimit inside SetPermissions.ps1, which
+            rejects it. JobsTotal and JobsPerComputer were already guarded with
+            [math]::Max(1, ...); this one was passed through raw. #>
+            $m = New-TestMatrix
+            $ctx = New-TestContext -Matrices @($m) -MaxConcurrent @{
+                JobsTotal        = 5
+                FoldersPerMatrix = 0
+            }
+
+            $null = Invoke-PermissionMatrixProcessHC `
+                -Context $ctx `
+                -SystemErrors ([ref]$systemErrors)
+
+            Should-Invoke Invoke-Command -ParameterFilter {
+                $FilePath -eq 'TestDrive:\SetPerm.ps1' -and
+                $ArgumentList[3] -eq 1
+            }
+        }
+
         It 'passes DetailedLog flag to SetPermissions' {
             $m = New-TestMatrix
             $ctx = New-TestContext -Matrices @($m) -Detailed $true
