@@ -694,13 +694,6 @@ function Test-ConfigurationStructureHC {
     #region Settings
     if ($Json.Settings) {
         #region SaveInEventLog
-        if ($Json.Settings.SaveLogFiles.Detailed -isnot [bool]) {
-            Add-JsonSchemaErrorHC -Type 'FatalError' `
-                -Name "Incorrect 'Settings.SaveLogFiles.Detailed'" `
-                -Message 'Must be boolean.' `
-                -SystemErrors $SystemErrors
-        }
-
         if ($Json.Settings.SaveInEventLog.Save -isnot [bool]) {
             Add-JsonSchemaErrorHC -Type 'FatalError' `
                 -Name "Incorrect 'Settings.SaveInEventLog.Save'" `

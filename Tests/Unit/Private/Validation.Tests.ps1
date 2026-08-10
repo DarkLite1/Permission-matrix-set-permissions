@@ -1227,6 +1227,45 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 Get-ErrorNames $errors | Should-ContainCollection "Incorrect 'Settings.SaveLogFiles.Detailed'"
             }
 
+            It 'reports a non-boolean Settings.SaveLogFiles.Detailed exactly once' {
+                # Regression: a duplicate check produced two identical errors.
+                $json = Set-ValidPaths (New-JsonFixtureWithInvalidBoolean -Path 'Settings.SaveLogFiles.Detailed')
+                $errors = Invoke-Validation -Json $json
+
+                @(Get-ErrorNames $errors).Where(
+                    { $_ -eq "Incorrect 'Settings.SaveLogFiles.Detailed'" }
+                ).Count | Should-Be 1
+            }
+
+            It 'reports a missing Settings.SaveLogFiles.Detailed as missing, not as incorrect' {
+                <# Regression: the duplicate check tested $null -isnot [bool],
+                so an absent value was reported both as missing and as not
+                being a boolean.
+
+                New-JsonFixtureWithMissingProperty only removes top-level
+                keys, so the nested one is removed directly here. #>
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.Settings.SaveLogFiles.Remove('Detailed')
+
+                $errors = Invoke-Validation -Json $json
+                $names = @(Get-ErrorNames $errors)
+
+                $names | Should-ContainCollection "Missing 'Settings.SaveLogFiles.Detailed'"
+                $names | Should-NotContainCollection "Incorrect 'Settings.SaveLogFiles.Detailed'"
+            }
+
+            It 'accepts Settings.SaveLogFiles.Detailed set to false' {
+                <# Guard: the missing check must stay '$null -eq', not '-not'.
+                PowerShell coerces $false to falsy, so '-not' would report a
+                legitimate 'false' as a missing value. #>
+                $json = Set-ValidPaths (New-JsonFixture)
+                $json.Settings.SaveLogFiles.Detailed = $false
+
+                $errors = Invoke-Validation -Json $json
+
+                $errors.Count | Should-Be 0
+            }
+
             It 'flags non-boolean Settings.SaveInEventLog.Save' {
                 $json = Set-ValidPaths (New-JsonFixtureWithInvalidBoolean -Path 'Settings.SaveInEventLog.Save')
                 $errors = Invoke-Validation -Json $json
