@@ -362,42 +362,6 @@ function Build-MatrixDetailCardHC {
 "@
 }
 
-function New-HtmlCheckRowHC {
-    param([object]$CheckItem)
-    # Simple two-cell row, kept minimal — used (if at all) by ad-hoc consumers.
-    $cls = Get-HtmlClassProbTypeHC $CheckItem.Type
-    $name = [System.Net.WebUtility]::HtmlEncode($CheckItem.Name)
-    $desc = [System.Net.WebUtility]::HtmlEncode($CheckItem.Description)
-    return "<tr class='$cls'><td style='padding:8px 6px; font-weight:600;'>$name</td><td style='padding:8px 6px;'>$desc</td></tr>"
-}
-
-function New-HtmlSectionHC {
-    param([string]$Title, [array]$Checks, [bool]$LinkJsonDetail = $false)
-    # Build a flat section using the new file-level check row style.
-    $out = ''
-    if (-not [string]::IsNullOrWhiteSpace($Title)) {
-        $out += "<tr><td style='padding:14px 16px 6px 16px; font-size:11px; font-weight:700; color:$($Script:Theme.TextLight); letter-spacing:1.5px; text-transform:uppercase;'>$([System.Net.WebUtility]::HtmlEncode($Title))</td></tr>"
-    }
-    foreach ($c in $Checks) {
-        $out += Build-FileLevelCheckRowHC -Check $c -SheetLabel $Title -LinkJsonDetail $LinkJsonDetail
-    }
-    return $out
-}
-
-function New-SettingsCardHtmlHC {
-    param(
-        [Parameter(Mandatory)][object]$MatrixItem,
-        [Parameter()][bool]$FileHasFatalError = $false
-    )
-    return Build-MatrixDetailCardHC -MatrixItem $MatrixItem -FileHasFatalError $FileHasFatalError
-}
-
-function New-SettingsOverviewHtmlHC {
-    param([array]$MatrixRows, [hashtable]$Html)
-    # No-op in the new layout — overview is now embedded in each file card.
-    return ''
-}
-
 function Write-MatrixExecutionReportHC {
     [CmdletBinding()]
     param(
@@ -739,47 +703,6 @@ $responsiveCss
 
     $logFilePath = Join-Path $LogFolder '00 - Execution Report.html'
     $reportHtml | Out-File -FilePath $logFilePath -Encoding UTF8 -Force
-}
-
-function Write-MatrixSettingLogHC {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object]$Matrix,
-        [Parameter(Mandatory)][hashtable]$Html,
-        [Parameter(Mandatory)][string]$LogFolder
-    )
-    if (-not (Test-Path -LiteralPath $LogFolder -PathType Container)) { return $null }
-
-    $detail = Build-MatrixDetailCardHC -MatrixItem $Matrix
-
-    $htmlOut = @"
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-$($Html.Style)
-</head>
-<body>
-<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; background-color:$($Script:Theme.BgPage);">
-    <tr>
-        <td align="left" valign="top" style="padding:0;">
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="900" style="border-collapse:collapse; width:900px; max-width:100%;">
-                <tr><td style="padding:0;"><h1>Settings Log &mdash; ID $([System.Net.WebUtility]::HtmlEncode($Matrix.ID))</h1></td></tr>
-                <tr><td style="padding:16px 0 0 0;">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
-                        $detail
-                    </table>
-                </td></tr>
-            </table>
-        </td>
-    </tr>
-</table>
-</body>
-</html>
-"@
-
-    $logFilePath = Join-Path -Path $LogFolder -ChildPath "ID $($Matrix.ID) - Settings.html"
-    $htmlOut | Out-File -FilePath $logFilePath -Encoding UTF8 -Force
 }
 
 function New-OverviewHtmlHC {

@@ -278,34 +278,6 @@ Describe 'Get-CheckThemeHC' {
     }
 }
 
-Describe 'Get-TruncatedPathHC' {
-    It 'returns the path unchanged and $false when within the limit' {
-        $result = Get-TruncatedPathHC -Path 'C:\short\path.txt' -MaxChars 64
-        $result[0] | Should-Be 'C:\short\path.txt'
-        $result[1] | Should-BeFalse
-    }
-
-    It 'returns empty input unchanged' {
-        $result = Get-TruncatedPathHC -Path '' -MaxChars 10
-        $result[0] | Should-Be ''
-        $result[1] | Should-BeFalse
-    }
-
-    It 'truncates with an ellipsis and reports $true when over the limit' {
-        $long = 'C:\a\very\deeply\nested\folder\structure\with\a\file.txt'
-        $result = Get-TruncatedPathHC -Path $long -MaxChars 32
-        $result[1] | Should-BeTrue
-        $result[0] | Should-MatchString '\\\.\.\.\\'
-        $result[0].Length | Should-BeLessThanOrEqual ($long.Length)
-    }
-
-    It 'keeps the final segment visible after truncation' {
-        $long = 'C:\a\very\deeply\nested\folder\structure\with\a\report.txt'
-        $result = Get-TruncatedPathHC -Path $long -MaxChars 32
-        $result[0] | Should-MatchString 'report\.txt$'
-    }
-}
-
 Describe 'New-PillHtmlHC' {
     It 'returns empty string for blank text' {
         New-PillHtmlHC -Text '' -Bg '#000000' | Should-Be ''

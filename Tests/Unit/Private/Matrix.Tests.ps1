@@ -180,45 +180,6 @@ Describe 'Format-SettingStringsHC' {
     }
 }
 
-Describe 'ConvertTo-MatrixADNamesHC' {
-    It 'adds Begin, Middle and header SamAccountNames, de-duplicated' {
-        $headers = @(
-            [pscustomobject]@{ P2 = 'Header1' }
-            [pscustomobject]@{ P2 = 'Header2' }
-            [pscustomobject]@{ P2 = 'Header1' }   # duplicate
-        )
-
-        $res = ConvertTo-MatrixADNamesHC -Begin 'GroupA' -Middle 'SiteB' -ColumnHeaders $headers
-
-        $res | Should-ContainCollection 'GroupA'
-        $res | Should-ContainCollection 'SiteB'
-        $res | Should-ContainCollection 'Header1'
-        $res | Should-ContainCollection 'Header2'
-        $res.Count | Should-Be 4
-    }
-
-    It 'returns a unique sorted list' {
-        $headers = @([pscustomobject]@{ P2 = 'Zeta' })
-
-        $res = ConvertTo-MatrixADNamesHC -Begin 'Alpha' -Middle 'Mid' -ColumnHeaders $headers
-
-        $res | Should-BeCollection @('Alpha', 'Mid', 'Zeta')
-    }
-
-    It 'skips header rows without a P2 value' {
-        $headers = @(
-            [pscustomobject]@{ P2 = 'Keep' }
-            [pscustomobject]@{ P2 = '' }
-            [pscustomobject]@{ P2 = $null }
-        )
-
-        $res = ConvertTo-MatrixADNamesHC -Begin 'B' -Middle 'M' -ColumnHeaders $headers
-
-        $res | Should-ContainCollection 'Keep'
-        $res.Count | Should-Be 3
-    }
-}
-
 Describe 'Get-MatrixADObjectsMapHC' {
     It 'resolves GroupName and SiteCode placeholders against the setting row' {
         $sheet = @(

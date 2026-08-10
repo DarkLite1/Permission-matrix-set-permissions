@@ -657,20 +657,6 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
         }
     }
 
-    Context 'Test-MatrixFileHC' {
-        It 'Warns for missing settings' {
-            $M = @{ Settings = @(); Permissions = @('x') }
-            $res = Test-MatrixFileHC -MatrixObject $M
-            $res.Type | Should-ContainCollection 'Warning'
-        }
-
-        It 'Errors for missing permissions' {
-            $M = @{ Settings = @('x'); Permissions = @() }
-            $res = Test-MatrixFileHC -MatrixObject $M
-            $res.Type | Should-ContainCollection 'FatalError'
-        }
-    }
-
     Context 'Test-MatrixPermissionsHC' {
 
         Context 'Happy path' {

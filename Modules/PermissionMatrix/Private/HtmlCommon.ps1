@@ -335,58 +335,6 @@ function Get-CheckThemeHC {
     }
 }
 
-function Get-TruncatedPathHC {
-    <#
-        .DESCRIPTION
-            Truncate a file path in the middle if it exceeds a certain length,
-            replacing the removed portion with an ellipsis. Attempts to break
-            on backslash boundaries for cleaner output, but falls back to
-            character-based truncation if necessary. Returns an array of the
-            truncated display string and a boolean indicating whether truncation
-            occurred.
-    #>
-    param(
-        [string]$Path,
-        [int]$MaxChars = 32
-    )
-
-    if ([string]::IsNullOrEmpty($Path) -or $Path.Length -le $MaxChars) {
-        return @($Path, $false)
-    }
-
-    $ellipsis = '\...\'
-    $keep = $MaxChars - $ellipsis.Length
-    $left = [Math]::Floor($keep / 2)
-    $right = $keep - $left
-
-    # Try to break on backslash boundaries for cleaner output
-    $parts = $Path -split '\\'
-    if ($parts.Count -ge 3) {
-        # Build right side: take segments from the end until we hit the budget
-        $rightStr = $parts[-1]
-        $idx = $parts.Count - 1
-        while ($idx -gt 0 -and ($rightStr.Length + $parts[$idx - 1].Length + 1) -le $right) {
-            $idx--
-            $rightStr = $parts[$idx] + '\' + $rightStr
-        }
-
-        # Build left side
-        $leftStr = $parts[0]
-        $idx = 0
-        while ($idx -lt ($parts.Count - 1) -and ($leftStr.Length + $parts[$idx + 1].Length + 1) -le $left) {
-            $idx++
-            $leftStr = $leftStr + '\' + $parts[$idx]
-        }
-
-        if ($leftStr -and $rightStr -and $leftStr -ne $rightStr) {
-            return @("$leftStr$ellipsis$rightStr", $true)
-        }
-    }
-
-    # Character-based fallback when segment-based slicing can't fit
-    return @("$($Path.Substring(0, $left))$ellipsis$($Path.Substring($Path.Length - $right))", $true)
-}
-
 function New-PillHtmlHC {
     <#
         .DESCRIPTION

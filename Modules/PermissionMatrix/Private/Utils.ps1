@@ -218,17 +218,6 @@ function Get-DatedLogFolderPathHC {
     }
 }
 
-function Plural {
-    [CmdletBinding()]
-    param(
-        [int]$Count,
-        [string]$Word
-    )
-
-    if ($Count -eq 1) { return $Word }
-    return "$Word`s"
-}
-
 function Remove-BlankValueHC {
     <#
     .SYNOPSIS

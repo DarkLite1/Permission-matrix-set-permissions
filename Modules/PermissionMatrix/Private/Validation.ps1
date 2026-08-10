@@ -1,25 +1,3 @@
-function Test-MatrixFileHC {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)] $MatrixObject)
-
-    $checks = @()
-
-    if (-not $MatrixObject.Settings -or $MatrixObject.Settings.Count -eq 0) {
-        $checks += New-ValidationCheckHC -Type 'Warning' -Name 'Matrix disabled' `
-            -Description 'No Settings rows found.' -Category 'File'
-    }
-
-    if (-not $MatrixObject.Permissions -or $MatrixObject.Permissions.Count -eq 0) {
-        $checks += New-ValidationCheckHC `
-            -Type 'FatalError' `
-            -Name 'Missing Permissions sheet' `
-            -Description 'Permissions sheet missing or empty.' `
-            -Category 'File'
-    }
-
-    return $checks
-}
-
 function Test-MatrixPermissionsHC {
     <#
     .SYNOPSIS

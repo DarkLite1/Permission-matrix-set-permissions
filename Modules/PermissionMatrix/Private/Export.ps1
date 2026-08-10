@@ -208,25 +208,6 @@ function Export-FilesHC {
     return $results
 }
 
-function Export-PermissionsFileHC {
-    <#
-        Writes a permissions Excel export using ImportExcel module.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][array]$Rows,
-        [Parameter(Mandatory)][string]$Path
-    )
-
-    try {
-        $Rows | Export-Excel -Path $Path -WorksheetName 'Permissions' -AutoSize
-        return $Path
-    }
-    catch {
-        throw "Failed exporting Permissions Excel file: $_"
-    }
-}
-
 function Export-ServiceNowFormDataHC {
     <#
         Writes ServiceNow FormData into an Excel file.

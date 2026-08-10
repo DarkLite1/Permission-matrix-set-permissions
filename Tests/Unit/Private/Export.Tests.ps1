@@ -54,7 +54,6 @@ Describe 'Export-FilesHC' {
             }
         }
         Mock Export-ConsolidatedPermissionsFileHC { return 'TestDrive:\Permissions.xlsx' }
-        Mock Export-PermissionsFileHC { return 'TestDrive:\Permissions.xlsx' }
         Mock Export-ServiceNowFormDataHC { return 'TestDrive:\ServiceNow.xlsx' }
         Mock New-OverviewHtmlHC { return '<html>overview</html>' }
         Mock Export-OverviewHtmlHC { return 'TestDrive:\Overview.html' }
@@ -74,18 +73,6 @@ Describe 'Export-FilesHC' {
                 $Path -eq 'TestDrive:\Permissions.xlsx'
             }
             $result.Permissions | Should-Be 'TestDrive:\Permissions.xlsx'
-        }
-
-        It 'does not use the flat single-sheet Permissions writer' {
-            $settings = [pscustomobject]@{
-                PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
-                ServiceNowFormDataExcelFile = $null
-                OverviewHtmlFile            = $null
-            }
-
-            Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings | Out-Null
-
-            Should-Invoke Export-PermissionsFileHC -Times 0
         }
 
         It 'skips the permissions file when PermissionsExcelFile is null' {
@@ -758,63 +745,6 @@ Describe 'Export-ConsolidatedPermissionsFileHC' {
             $names | Should-NotContainCollection 'StaleSheet'
             $names | Should-ContainCollection 'AccessList'
         }
-    }
-}
-
-Describe 'Export-PermissionsFileHC' {
-    It 'writes to the "Permissions" worksheet with -AutoSize' {
-        Mock Export-Excel
-
-        $rows = @([pscustomobject]@{ A = 1 })
-        $path = Join-Path $TestDrive 'perm.xlsx'
-
-        Export-PermissionsFileHC -Rows $rows -Path $path | Out-Null
-
-        Should-Invoke Export-Excel -Times 1 -ParameterFilter {
-            $Path -eq $path -and $WorksheetName -eq 'Permissions' -and $AutoSize -eq $true
-        }
-    }
-
-    It 'returns the path it was given' {
-        Mock Export-Excel
-
-        $path = Join-Path $TestDrive 'perm.xlsx'
-        $result = Export-PermissionsFileHC -Rows @([pscustomobject]@{ A = 1 }) -Path $path
-
-        $result | Should-Be $path
-    }
-
-    It 'forwards the supplied rows to Export-Excel' {
-        # Capture the bound parameters in the mock body. Export-Excel's
-        # pipeline parameter has differed across ImportExcel versions
-        # (-TargetData / -InputObject), so we read whichever one bound rather
-        # than naming it. $PesterBoundParameters holds every bound parameter.
-        $script:capturedRows = [System.Collections.Generic.List[object]]::new()
-        Mock Export-Excel {
-            $bp = $PesterBoundParameters
-            $key = 'TargetData', 'InputObject' | Where-Object { $bp.ContainsKey($_) } | Select-Object -First 1
-            if ($key) { foreach ($r in @($bp[$key])) { $script:capturedRows.Add($r) } }
-        }
-
-        $rows = @(
-            [pscustomobject]@{ Computer = 'PC1' }
-            [pscustomobject]@{ Computer = 'PC2' }
-        )
-        $path = Join-Path $TestDrive 'perm.xlsx'
-
-        Export-PermissionsFileHC -Rows $rows -Path $path | Out-Null
-
-        $script:capturedRows.Count | Should-Be 2
-        $script:capturedRows[0].Computer | Should-Be 'PC1'
-        $script:capturedRows[1].Computer | Should-Be 'PC2'
-    }
-
-    It 'wraps a failure from Export-Excel in a descriptive terminating error' {
-        Mock Export-Excel { throw 'disk full' }
-
-        $path = Join-Path $TestDrive 'perm.xlsx'
-
-        { Export-PermissionsFileHC -Rows @([pscustomobject]@{ A = 1 }) -Path $path } | Should-Throw -ExceptionMessage '*Failed exporting Permissions Excel file*disk full*'
     }
 }
 

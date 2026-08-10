@@ -125,20 +125,6 @@ Describe 'Get-DatedLogFolderPathHC' {
     }
 }
 
-Describe 'Plural' {
-    It 'returns the singular word when count is 1' {
-        Plural -Count 1 -Word 'error' | Should-Be 'error'
-    }
-
-    It 'pluralizes when count is 0' {
-        Plural -Count 0 -Word 'error' | Should-Be 'errors'
-    }
-
-    It 'pluralizes when count is greater than 1' {
-        Plural -Count 5 -Word 'warning' | Should-Be 'warnings'
-    }
-}
-
 Describe 'Remove-BlankValueHC' {
     BeforeAll {
         $root = Resolve-Path "$PSScriptRoot\..\..\.."
@@ -203,6 +189,3 @@ Describe 'Remove-BlankValueHC' {
         $result.ContainsKey('Attachments') | Should-BeTrue
     }
 }
-
-
-
