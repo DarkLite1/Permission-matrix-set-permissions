@@ -34,10 +34,14 @@ function Invoke-PermissionMatrix {
         A hashtable containing the absolute file paths to the required 
         execution scripts. 
         Must contain the following keys: 
-        - TestRequirementsFile
-        - SetPermissionFile
-        - UpdateServiceNow
         - PermissionMatrixModule
+        - SetPermissions
+        - TestRequirements
+        - UpdateServiceNow
+        - UploadToSharePoint
+
+        Every value is checked with Test-Path during the Begin stage, so each
+        key must point at a file that exists.
 
     .PARAMETER SystemErrors
         A reference variable ([ref]) containing a List[pscustomobject]. Used to 

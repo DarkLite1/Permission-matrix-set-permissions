@@ -52,6 +52,10 @@ Everything begins in the **[`Scripts/Entrypoints`](Scripts/Entrypoints)**. There
   Install-Package -Name 'MailKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   Install-Package -Name 'MimeKit' -Source 'https://www.nuget.org/api/v2' -Scope 'AllUsers' -SkipDependencies
   ```
+- **ActiveDirectory (RSAT)**: Required by the audit report, which resolves folder owners to mailboxes via `Get-ADObject`, `Get-ADGroupMember` and `Get-ADUser`. The main permission run does not need it: it queries the directory through `System.DirectoryServices` instead.
+  ```powershell
+  Add-WindowsCapability -Online -Name 'Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0'
+  ```
 - **Microsoft.Graph.Authentication (Optional)**: Only required if `SharePoint.SiteUrl` is set for SharePoint uploads.
   ```powershell
   Install-Module -Name 'Microsoft.Graph.Authentication' -Scope 'AllUsers'
@@ -95,7 +99,7 @@ Execution speed is heavily influenced by concurrency. Three settings control you
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | `JobsTotal`        | Jobs running at the same time across **all** remote computers.                                                            |
 | `JobsPerComputer`  | Jobs running at the same time on any **single** remote computer. (Keep this under the computer's MaxShellsPerUser limit). |
-| `FoldersPerMatrix` | Folders processed at the same time **within one** job.                                                                    |
+| `FoldersPerMatrix` | Folders processed at the same time **within one** job. Also caps how many matrix files are read in parallel at startup.   |
 
 #### How to tune for performance:
 
@@ -103,7 +107,7 @@ Execution speed is heavily influenced by concurrency. Three settings control you
 
 2. Set `JobsTotal` to roughly `JobsPerComputer` × the number of computers you want active at once.
 
-3. If one long-running matrix file dominates the queue, raise `FoldersPerMatrix` to parallelize the folders inside it.
+3. If one long-running matrix file dominates the queue, raise `FoldersPerMatrix` to parallelize the folders inside it. Note that this setting does double duty: it also throttles how many matrix files are read from disk at startup, so raising it speeds up that phase too.
 
 ## 📄 Matrix Files
 

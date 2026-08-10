@@ -1,4 +1,3 @@
-
 function Add-ErrorHC {
     <#
     .SYNOPSIS
@@ -513,7 +512,10 @@ function Update-MatrixCounterHC {
             FormData    — fileResult.Sheets.FormData.Check       (FormData sheet)
             Permissions — fileResult.Sheets.Permissions.Check    (Permissions sheet)
             Settings    — fileResult.Matrices[].Check            (per-matrix rows)
-            System      — $SystemErrors.Value                    (script-level)
+
+        System errors ($SystemErrors.Value) count towards TotalErrors and
+        TotalWarnings but have no bucket of their own: New-CounterObjectHC
+        creates only the four listed above.
 
         TotalErrors   = sum of all 'FatalError'-typed checks across every bucket,
                         including system errors.

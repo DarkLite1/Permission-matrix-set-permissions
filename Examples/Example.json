@@ -32,10 +32,6 @@
   "PSSessionConfiguration": "PowerShell.7",
   "Settings": {
     "ScriptName": "Permission matrix",
-    "Advanced": {
-      "DriveMapMaxRetries": 5,
-      "DriveMapSleepSeconds": 5
-    },
     "SendMail": {
       "From": "no-reply-bnl-automation@example.com",
       "FromDisplayName": "Permission matrix",
@@ -98,7 +94,7 @@
       "TenantId": "(Mandatory when SiteUrl is used) The Entra ID tenant ID. Supports environment variables (e.g. 'ENV:AZURE_TENANT_ID').",
       "CertificateThumbprint": "(Mandatory when SiteUrl is used) The thumbprint of the certificate used for app-only authentication. Supports environment variables (e.g. 'ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT')."
     },
-    "PSSessionConfiguration": "(Optional) The PowerShell version of the remote endpoint. This value corresponds to the output of the Get-PSSessionConfiguration cmdlet. The minimum supported version is 'PowerShell.7'. Defaults to 'PowerShell.7' if not specified.",
+    "PSSessionConfiguration": "(Mandatory) The PowerShell version of the remote endpoint. This value corresponds to the output of the Get-PSSessionConfiguration cmdlet. The minimum supported version is 'PowerShell.7'. The key must be present: validation reports a fatal error when it is absent. An empty value falls back to 'PowerShell.7'.",
     "Settings": {
       "ScriptName": "(Mandatory) Name of the script, used in the log files and in the event logs.",
       "SendMail": {
