@@ -1,3 +1,43 @@
+function ConvertTo-EscapedLdapValueHC {
+    <#
+    .SYNOPSIS
+        Escapes a value for safe use inside an LDAP filter assertion.
+
+    .DESCRIPTION
+        Applies RFC 4515 escaping to the characters that are special inside an
+        LDAP assertion value.
+
+        This is a correctness and a safety measure. A value containing '(' or
+        ')' builds a malformed filter, so the search throws and the object is
+        wrongly reported as missing from Active Directory. An unescaped '*' is
+        a wildcard, so a matrix naming 'HR_*' can resolve to whichever object
+        the directory returns first and hand permissions to a group nobody
+        intended.
+
+    .PARAMETER Value
+        The raw value to escape.
+
+    .EXAMPLE
+        ConvertTo-EscapedLdapValueHC -Value 'Finance (EU)'
+
+        Returns 'Finance \28EU\29'.
+    #>
+
+    [CmdletBinding()]
+    [OutputType([String])]
+    param (
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [String]$Value
+    )
+
+    <# The backslash MUST be handled first, otherwise it would escape the
+    backslashes introduced by the replacements that follow and produce
+    '\5c28' instead of '\28'. #>
+    $Value -replace '\\', '\5c' -replace '\(', '\28' `
+        -replace '\)', '\29' -replace '\*', '\2a' -replace "`0", '\00'
+}
+
 function New-AdLdapFilterHC {
     <#
     .SYNOPSIS
@@ -45,36 +85,23 @@ function New-AdLdapFilterHC {
         [String]$Type
     )
 
-    <# RFC 4515 escaping for an assertion value. The backslash MUST be handled
-    first, otherwise it would escape the backslashes introduced by the
-    replacements that follow and produce '\5c28' instead of '\28'. Distinguished
-    names get the same treatment: AD returns them with commas escaped as '\,',
-    which is not a valid filter escape sequence, so a manager whose name
-    contains a comma never resolved either. #>
-    $escape = {
-        param([String]$Value)
-
-        $Value -replace '\\', '\5c' -replace '\(', '\28' `
-            -replace '\)', '\29' -replace '\*', '\2a' -replace "`0", '\00'
-    }
-
     if ($Type -eq 'DistinguishedName') {
-        return "(distinguishedName=$(& $escape $Name))"
+        return "(distinguishedName=$(ConvertTo-EscapedLdapValueHC -Value $Name))"
     }
 
     if ($Name -match '@') {
-        $value = & $escape $Name
+        $value = ConvertTo-EscapedLdapValueHC -Value $Name
         return "(|(samAccountName=$value)(userPrincipalName=$value))"
     }
 
     if ($Name -match '\\') {
         # Strip the NetBIOS domain prefix on the raw value, before escaping,
         # or the separator would already be '\5c' and never match.
-        $value = & $escape ($Name -replace '^.*\\', '')
+        $value = ConvertTo-EscapedLdapValueHC -Value ($Name -replace '^.*\\', '')
         return "(samAccountName=$value)"
     }
 
-    return "(samAccountName=$(& $escape $Name))"
+    return "(samAccountName=$(ConvertTo-EscapedLdapValueHC -Value $Name))"
 }
 
 function Get-ADObjectDetailHC {
@@ -146,10 +173,11 @@ function Get-ADObjectDetailHC {
     $gcPath = $script:CachedGcPath
 
     # ForEach-Object -Parallel runspaces do not inherit the module scope, so
-    # the filter builder is passed in as source and redefined inside each one.
-    # This keeps it a normal, unit-testable function instead of a copy buried
-    # in the parallel block.
+    # the filter builder and the escape helper it calls are passed in as source
+    # and redefined inside each one. This keeps them normal, unit-testable
+    # functions instead of copies buried in the parallel block.
     $filterFunction = ${function:New-AdLdapFilterHC}.ToString()
+    $escapeFunction = ${function:ConvertTo-EscapedLdapValueHC}.ToString()
 
     $ADObjectName = $ADObjectName | Sort-Object -Unique
 
@@ -158,6 +186,7 @@ function Get-ADObjectDetailHC {
         $gcPath = $using:gcPath
         $name = $_
 
+        ${function:ConvertTo-EscapedLdapValueHC} = $using:escapeFunction
         ${function:New-AdLdapFilterHC} = $using:filterFunction
 
         $propertiesToLoad = @(
@@ -355,8 +384,19 @@ function Get-AdUserPrincipalNameHC {
             $UniqueNames = $Name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique
 
             foreach ($N in $UniqueNames) {
-                # Find the object in AD
-                $AdObject = Get-ADObject -Filter "ProxyAddresses -eq 'smtp:$N' -or SamAccountName -eq '$N'" -Property 'Mail'
+                <# Find the object in AD.
+
+                An LDAP filter with an escaped value, not -Filter with an
+                interpolated one. The AD provider's -eq translates straight to
+                an LDAP '=' assertion, so an unescaped '*' in the input matched
+                as a wildcard and could resolve to an object the caller never
+                named. An apostrophe, as in O'Brien, terminated the filter
+                string and threw outright. #>
+                $escapedName = ConvertTo-EscapedLdapValueHC -Value $N
+
+                $AdObject = Get-ADObject -LDAPFilter (
+                    "(|(proxyAddresses=smtp:$escapedName)(sAMAccountName=$escapedName))"
+                ) -Property 'Mail'
 
                 if ($AdObject.Count -ge 2) {
                     throw "The name '$N' is ambiguous and matches $($AdObject.Count) Active Directory objects: $($AdObject.Name -join ', '). This usually happens when duplicate objects exist in the domain or forest. Please specify the exact object in the input file (for example by using the unique 'DOMAIN\SamAccountName' or e-mail address) so it can be resolved unambiguously."

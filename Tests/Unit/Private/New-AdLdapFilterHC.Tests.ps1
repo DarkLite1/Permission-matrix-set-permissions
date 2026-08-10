@@ -2,18 +2,51 @@
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '6.0.0' }
 
 <#
-    Tests for New-AdLdapFilterHC in
+    Tests for ConvertTo-EscapedLdapValueHC and New-AdLdapFilterHC in
     Modules\PermissionMatrix\Private\ActiveDirectory.ps1
 
-    Unlike the rest of ActiveDirectory.ps1, this function is pure string
-    building with no directory access, so it is a unit test and needs no
-    domain controller. It was extracted out of the ForEach-Object -Parallel
-    block in Get-ADObjectDetailHC precisely so it could be covered here.
+    Unlike the rest of ActiveDirectory.ps1, both functions are pure string
+    building with no directory access, so these are unit tests and need no
+    domain controller. They were extracted out of the ForEach-Object -Parallel
+    block in Get-ADObjectDetailHC precisely so they could be covered here.
 #>
 
 BeforeAll {
     $root = Resolve-Path "$PSScriptRoot\..\..\.."
     . "$root\Modules\PermissionMatrix\Private\ActiveDirectory.ps1"
+}
+
+Describe 'ConvertTo-EscapedLdapValueHC' {
+    It 'leaves a plain value untouched' {
+        ConvertTo-EscapedLdapValueHC -Value 'jdoe' | Should-Be 'jdoe'
+    }
+
+    It 'escapes parentheses' {
+        ConvertTo-EscapedLdapValueHC -Value 'Finance (EU)' |
+        Should-Be 'Finance \28EU\29'
+    }
+
+    It 'escapes an asterisk so it cannot act as a wildcard' {
+        ConvertTo-EscapedLdapValueHC -Value 'HR_*' | Should-Be 'HR_\2a'
+    }
+
+    It 'escapes a backslash' {
+        ConvertTo-EscapedLdapValueHC -Value 'Doe\, John' | Should-Be 'Doe\5c, John'
+    }
+
+    It 'escapes a NUL character' {
+        ConvertTo-EscapedLdapValueHC -Value "jdoe`0" | Should-Be 'jdoe\00'
+    }
+
+    It 'escapes the backslash before the characters it introduces' {
+        # Ordering guard: escaping '(' first would turn the backslash of the
+        # resulting '\28' into '\5c28'.
+        ConvertTo-EscapedLdapValueHC -Value 'A\(B' | Should-Be 'A\5c\28B'
+    }
+
+    It 'accepts an empty string' {
+        ConvertTo-EscapedLdapValueHC -Value '' | Should-Be ''
+    }
 }
 
 Describe 'New-AdLdapFilterHC' {
@@ -85,5 +118,81 @@ Describe 'New-AdLdapFilterHC' {
             New-AdLdapFilterHC -Name 'DOMAIN\Finance (EU)' -Type 'SamAccountName' |
             Should-Be '(samAccountName=Finance \28EU\29)'
         }
+    }
+}
+
+Describe 'Use inside ForEach-Object -Parallel runspaces' {
+    <#
+        Get-ADObjectDetailHC builds its filters inside ForEach-Object -Parallel.
+        Those runspaces do not inherit the caller's session state, so the two
+        functions are passed in as source and redefined per runspace with
+        ${function:Name} = $using:definition.
+
+        That idiom is the fragile part of the arrangement: it breaks silently
+        if a definition stops round-tripping through .ToString(), or if a
+        dependency is forgotten. New-AdLdapFilterHC calling
+        ConvertTo-EscapedLdapValueHC is exactly such a dependency, and leaving
+        it out fails only in the parallel path, never in the tests above.
+
+        The definitions are captured inside each It rather than in a BeforeAll,
+        so $using: reads them from the immediate local scope, exactly as
+        Get-ADObjectDetailHC does.
+    #>
+
+    It 'builds the same filters in a runspace as it does in process' {
+        $filterFunction = ${function:New-AdLdapFilterHC}.ToString()
+        $escapeFunction = ${function:ConvertTo-EscapedLdapValueHC}.ToString()
+
+        $names = @(
+            'jdoe'
+            'Finance (EU)'
+            'DOMAIN\jdoe'
+            'HR_*'
+            'a*b@contoso.com'
+        )
+
+        $expected = $names | ForEach-Object {
+            New-AdLdapFilterHC -Name $_ -Type 'SamAccountName'
+        } | Sort-Object
+
+        # Parallel output order is not guaranteed, so both sides are sorted.
+        $actual = $names | ForEach-Object -ThrottleLimit 3 -Parallel {
+            ${function:ConvertTo-EscapedLdapValueHC} = $using:escapeFunction
+            ${function:New-AdLdapFilterHC} = $using:filterFunction
+
+            New-AdLdapFilterHC -Name $_ -Type 'SamAccountName'
+        } | Sort-Object
+
+        $actual | Should-BeCollection $expected
+    }
+
+    It 'reaches the injected escape helper from the injected filter builder' {
+        # Without $escapeFunction this throws CommandNotFoundException inside
+        # the runspace, which is the failure the parallel path would hide.
+        $filterFunction = ${function:New-AdLdapFilterHC}.ToString()
+        $escapeFunction = ${function:ConvertTo-EscapedLdapValueHC}.ToString()
+
+        $result = @('Finance (EU)') | ForEach-Object -Parallel {
+            ${function:ConvertTo-EscapedLdapValueHC} = $using:escapeFunction
+            ${function:New-AdLdapFilterHC} = $using:filterFunction
+
+            New-AdLdapFilterHC -Name $_ -Type 'SamAccountName'
+        }
+
+        $result | Should-Be '(samAccountName=Finance \28EU\29)'
+    }
+
+    It 'builds distinguishedName filters in a runspace' {
+        $filterFunction = ${function:New-AdLdapFilterHC}.ToString()
+        $escapeFunction = ${function:ConvertTo-EscapedLdapValueHC}.ToString()
+
+        $result = @('OU=A\(B') | ForEach-Object -Parallel {
+            ${function:ConvertTo-EscapedLdapValueHC} = $using:escapeFunction
+            ${function:New-AdLdapFilterHC} = $using:filterFunction
+
+            New-AdLdapFilterHC -Name $_ -Type 'DistinguishedName'
+        }
+
+        $result | Should-Be '(distinguishedName=OU=A\5c\28B)'
     }
 }
