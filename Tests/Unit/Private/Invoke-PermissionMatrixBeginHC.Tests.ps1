@@ -276,6 +276,35 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
+        It 'excludes the defaults workbook when its path is not canonical' {
+            <# Regression: the exclusion compared the raw configured string
+            against FileInfo.FullName. A DefaultsFile written with '.\'
+            segments or forward slashes is the same file on disk but a
+            different string, so the defaults workbook was imported as if it
+            were an ordinary matrix file. #>
+            $matrixFolder = Join-Path $TestDrive 'Matrix'
+
+            New-Item (Join-Path $matrixFolder 'M1.xlsx') -ItemType File -Force | Out-Null
+            New-ValidDefaultsExcelFixture -Path (
+                Join-Path $matrixFolder 'Defaults.xlsx'
+            ) | Out-Null
+
+            # Same file, deliberately denormalized.
+            $denormalized = Join-Path $matrixFolder '.\Defaults.xlsx'
+
+            $config = New-BeginJsonFile -Overrides @{
+                'Matrix.DefaultsFile' = $denormalized
+            }
+            $args = New-BeginArgs -ConfigurationJsonFile $config
+
+            $null = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            Should-Invoke Invoke-WithOptionalParallelismHC -ParameterFilter {
+                @($InputObject).Count -eq 1 -and
+                @($InputObject)[0].Name -eq 'M1.xlsx'
+            }
+        }
+
         It 'sets FoundMatrices=true when at least one .xlsx exists' {
             New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
             $args = New-BeginArgs

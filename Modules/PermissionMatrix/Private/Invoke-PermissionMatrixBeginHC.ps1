@@ -134,8 +134,31 @@ function Invoke-PermissionMatrixBeginHC {
             return $Context
         }
 
+        <# Compare resolved paths rather than the raw configured string. A
+        DefaultsFile written as a relative path, with forward slashes, or with
+        redundant '.' segments points at the same file on disk but is not the
+        same string, and the defaults workbook would then be imported as if it
+        were an ordinary matrix file.
+
+        Note this normalizes syntax only. A drive letter mapped to the same
+        UNC share still compares as a different path, so keep DefaultsFile and
+        Matrix.FolderPath in the same notation. #>
+        $defaultsFullName = (
+            Resolve-Path `
+                -LiteralPath $Context.Config.Matrix.DefaultsFile `
+                -ErrorAction SilentlyContinue
+        ).ProviderPath
+
+        if (-not $defaultsFullName) {
+            # Validation already requires this file to exist. If it vanished
+            # since then, fall back to the configured value so an exact match
+            # is still excluded, and let Import-MatrixDefaultsFileHC report it
+            # a few lines below.
+            $defaultsFullName = $Context.Config.Matrix.DefaultsFile
+        }
+
         $matrixFiles = $matrixFiles | Where-Object {
-            $_.FullName -ne $Context.Config.Matrix.DefaultsFile
+            $_.FullName -ne $defaultsFullName
         }
 
         if (-not $matrixFiles -or $matrixFiles.Count -eq 0) {
