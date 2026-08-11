@@ -1072,6 +1072,18 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             }
         }
 
+        Context 'record shape' {
+            It 'returns records carrying DateTime and Category like the other validators' {
+                # These records used to be bare [PSCustomObject] literals, so
+                # they lacked the DateTime and Category every sibling validator
+                # produces via New-ValidationCheckHC.
+                $result = Test-MatrixFormDataHC -FormData $null
+
+                $result.Category | Should-Be 'FormData'
+                $result.DateTime | Should-HaveType ([datetime])
+            }
+        }
+
         Context 'mandatory values when status is Enabled' {
             It 'flags a FatalError when an Enabled row has a blank value' {
                 $row = New-ValidFormDataRow
@@ -1098,6 +1110,23 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $result.Name | Should-Be 'Missing value'
                 $result.Value | Should-MatchString 'MatrixResponsible'
                 $result.Value | Should-MatchString 'MatrixFolderPath'
+            }
+
+            It 'matches the Enabled status when it has surrounding whitespace' {
+                <# Regression: Format-FormDataStringsHC trims every string
+                field, but it only runs after this validator, so ' Enabled '
+                skipped the mandatory-value check entirely. The row was still
+                written to the ServiceNow export, which does not filter on
+                status, so blank mandatory values reached ServiceNow. #>
+                $row = New-ValidFormDataRow
+                $row.MatrixFormStatus = ' Enabled '
+                $row.MatrixResponsible = ''
+
+                $result = Test-MatrixFormDataHC -FormData $row
+
+                $result.Type | Should-Be 'FatalError'
+                $result.Name | Should-Be 'Missing value'
+                $result.Value | Should-MatchString 'MatrixResponsible'
             }
 
             It 'matches the Enabled status case-insensitively' {

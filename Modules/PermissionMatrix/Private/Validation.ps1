@@ -308,76 +308,79 @@ function Test-MatrixFormDataHC {
         [PSCustomObject[]]$FormData
     )
 
-    process {
-        try {
-            #region No FormData -> Warning
-            if ((-not $FormData) -or ($FormData.Count -eq 0)) {
-                return [PSCustomObject]@{
-                    Type        = 'Warning'
-                    Name        = 'Missing FormData'
-                    Description = 'No FormData rows were found. ServiceNow form data will not be exported for this matrix file.'
-                    Value       = $null
-                }
-            }
-            #endregion
-
-            if ($FormData.Count -ne 1) {
-                return [PSCustomObject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Incorrect row count'
-                    Description = "Exactly one row of data is required. Found $($FormData.Count) row(s)."
-                    Value       = $FormData.Count
-                }
-            }
-
-            $Row = $FormData[0]
-            $Properties = ($Row | Get-Member -MemberType NoteProperty).Name
-
-            $MandatoryProperties = @(
-                'MatrixFormStatus',
-                'MatrixCategoryName',
-                'MatrixSubCategoryName',
-                'MatrixResponsible',
-                'MatrixFolderDisplayName',
-                'MatrixFolderPath'
-            )
-
-            #region Missing column headers
-            $MissingProperties = $MandatoryProperties.Where({ $_ -notin $Properties })
-
-            if ($MissingProperties) {
-                return [PSCustomObject]@{
-                    Type        = 'FatalError'
-                    Name        = 'Missing column header'
-                    Description = "The following column headers are mandatory: $($MandatoryProperties -join ', ')."
-                    Value       = $MissingProperties -join ', '
-                }
-            }
-            #endregion
-
-            #region Mandatory property values (Only if Enabled)
-            if ($Row.MatrixFormStatus -eq 'Enabled') {
-
-                $MandatoryPropertyValues = $MandatoryProperties.Where({ $_ -ne 'MatrixFormStatus' })
-
-                $BlankProperties = $MandatoryPropertyValues.Where({
-                        [string]::IsNullOrWhiteSpace($Row.$_)
-                    })
-
-                if ($BlankProperties) {
-                    return [PSCustomObject]@{
-                        Type        = 'FatalError'
-                        Name        = 'Missing value'
-                        Description = "Values for the following columns are mandatory when status is Enabled: $($MandatoryPropertyValues -join ', ')."
-                        Value       = $BlankProperties -join ', '
-                    }
-                }
-            }
-            #endregion
+    try {
+        #region No FormData -> Warning
+        if ((-not $FormData) -or ($FormData.Count -eq 0)) {
+            return New-ValidationCheckHC `
+                -Type 'Warning' `
+                -Name 'Missing FormData' `
+                -Description 'No FormData rows were found. ServiceNow form data will not be exported for this matrix file.' `
+                -Category 'FormData'
         }
-        catch {
-            throw "Failed testing the Excel sheet 'FormData': $_"
+        #endregion
+
+        if ($FormData.Count -ne 1) {
+            return New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Incorrect row count' `
+                -Description "Exactly one row of data is required. Found $($FormData.Count) row(s)." `
+                -Value $FormData.Count `
+                -Category 'FormData'
         }
+
+        $Row = $FormData[0]
+        $Properties = ($Row | Get-Member -MemberType NoteProperty).Name
+
+        $MandatoryProperties = @(
+            'MatrixFormStatus',
+            'MatrixCategoryName',
+            'MatrixSubCategoryName',
+            'MatrixResponsible',
+            'MatrixFolderDisplayName',
+            'MatrixFolderPath'
+        )
+
+        #region Missing column headers
+        $MissingProperties = $MandatoryProperties.Where({ $_ -notin $Properties })
+
+        if ($MissingProperties) {
+            return New-ValidationCheckHC `
+                -Type 'FatalError' `
+                -Name 'Missing column header' `
+                -Description "The following column headers are mandatory: $($MandatoryProperties -join ', ')." `
+                -Value ($MissingProperties -join ', ') `
+                -Category 'FormData'
+        }
+        #endregion
+
+        #region Mandatory property values (Only if Enabled)
+        <# Compare a normalized copy. Format-FormDataStringsHC trims every
+        string field, but it only runs after this validator has passed, so
+        a MatrixFormStatus of 'Enabled ' with a trailing space skipped the
+        mandatory-value check entirely. The row was still written to the
+        ServiceNow export, which does not filter on status, so blank
+        mandatory values reached ServiceNow unreported. #>
+        if ("$($Row.MatrixFormStatus)".Trim() -eq 'Enabled') {
+
+            $MandatoryPropertyValues = $MandatoryProperties.Where({ $_ -ne 'MatrixFormStatus' })
+
+            $BlankProperties = $MandatoryPropertyValues.Where({
+                    [string]::IsNullOrWhiteSpace($Row.$_)
+                })
+
+            if ($BlankProperties) {
+                return New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Missing value' `
+                    -Description "Values for the following columns are mandatory when status is Enabled: $($MandatoryPropertyValues -join ', ')." `
+                    -Value ($BlankProperties -join ', ') `
+                    -Category 'FormData'
+            }
+        }
+        #endregion
+    }
+    catch {
+        throw "Failed testing the Excel sheet 'FormData': $_"
     }
 }
 
