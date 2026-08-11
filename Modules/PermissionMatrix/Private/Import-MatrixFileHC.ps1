@@ -168,19 +168,21 @@ function Import-MatrixFileHC {
         )
         $fileResult.Sheets.Settings.Raw = $settingsSheet
 
-        <# Compare a normalized copy of Status. Format-SettingStringsHC trims
-        every string property, but it runs further down, so selecting on the
-        raw value meant a cell containing 'Enabled ' with a trailing space
-        silently disabled the whole matrix file with no indication why.
-        The "" wrapper keeps this safe when Status is absent or not a string,
-        where .Trim() would throw.
+        <# Collect the indexes of the enabled rows rather than the rows
+        themselves. Format-SettingStringsHC emits one row per input row in
+        order, so the formatted sheet built after the guard below is index
+        aligned with the raw sheet, and each matrix can then reference both
+        its raw and its formatted row without formatting that row a second
+        time.
 
-        Indexes are collected rather than the rows themselves.
-        Format-SettingStringsHC emits one row per input row in order, so the
-        formatted sheet built below is index aligned with the raw sheet. Each
-        matrix can then reference both its raw and its formatted row without
-        formatting that row a second time. A 'for' loop is used because
-        0..($settingsSheet.Count - 1) counts backwards on an empty sheet. #>
+        Status is trimmed for the comparison because formatting has not run
+        yet at this point. Selecting on the raw value meant a cell containing
+        'Enabled ' with a trailing space silently disabled the whole matrix
+        file with no indication why. The "" wrapper keeps this safe when
+        Status is absent or not a string, where .Trim() would throw.
+
+        A 'for' loop is used because 0..($settingsSheet.Count - 1) counts
+        backwards on an empty sheet. #>
         $enabledSettingIndexes = @(
             for ($i = 0; $i -lt $settingsSheet.Count; $i++) {
                 if ("$($settingsSheet[$i].Status)".Trim() -eq 'Enabled') { $i }
