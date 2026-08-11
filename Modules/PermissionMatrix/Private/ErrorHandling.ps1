@@ -4,76 +4,24 @@ function Add-ErrorHC {
         Append a structured error record to a system-error accumulator.
 
     .DESCRIPTION
-        Builds a structured error object and adds it to the collection
-        referenced by SystemErrors. The record captures the moment it was
-        created (DateTime is stamped via Get-Date at call time) together with
-        the supplied classification and message fields: Type, Name, Message,
-        Description and Category.
-
-        The function records rather than throws: it appends to the accumulator
-        and returns, leaving the caller to inspect the collected errors and
-        decide how to proceed.
-
-        SystemErrors is passed by reference and must point at a collection that
-        exposes an .Add() method (for example [System.Collections.ArrayList] or
-        [System.Collections.Generic.List[object]]). A fixed-size array created
-        with @() does not support .Add() and causes a terminating error.
-
-    .PARAMETER Type
-        The error severity: 'FatalError' or 'Warning'. Restricted to those two
-        values, because callers decide whether to halt by testing
-        Type -eq 'FatalError'. A typo such as 'Fatal' would never match and the
-        error would be silently downgraded to advisory.
-
-    .PARAMETER Name
-        A short title for the error, used to identify or group similar
-        problems.
-
-    .PARAMETER Message
-        The human-readable description of what went wrong.
-
-    .PARAMETER Description
-        Optional additional detail or remediation guidance. Defaults to an
-        empty string.
-
-    .PARAMETER Category
-        The error category, for example 'Matrix', 'Permissions',
-        'RuntimeSettings' or 'JsonSchema'. The Add-*ErrorHC wrappers each supply
-        a fixed value here.
+        Records rather than throws: the record is appended to SystemErrors and
+        the caller decides how to proceed.
 
     .PARAMETER SystemErrors
-        A [ref] to the caller's error accumulator: a collection supporting
-        .Add(). The new record is appended to SystemErrors.Value. This is an
-        in/out parameter.
+        A [ref] to a collection exposing .Add(), for example
+        [System.Collections.Generic.List[object]]. An array created with @() is
+        fixed-size and causes a terminating error. Prefer a generic List over an
+        ArrayList: ArrayList.Add() returns the insertion index, which would leak
+        onto the pipeline.
+
+    .NOTES
+        Type is restricted to 'FatalError'/'Warning' because callers decide
+        whether to halt by testing Type -eq 'FatalError'. A typo such as 'Fatal'
+        would never match and would silently downgrade the error to advisory.
 
     .EXAMPLE
         $errors = [System.Collections.Generic.List[object]]::new()
         Add-ErrorHC -Type 'FatalError' -Name 'Bad row' -Message 'Missing path.' -Category 'Matrix' -SystemErrors ([ref]$errors)
-
-        Appends one error record to $errors, with DateTime set to the current
-        time and Description left empty.
-
-    .OUTPUTS
-        None. The function appends to the referenced collection and returns
-        nothing.
-
-    .NOTES
-        - The function records errors; it does not throw. Callers inspect the
-          accumulator afterwards.
-        - DateTime is captured with Get-Date at the moment of the call (local
-          time).
-        - If SystemErrors.Value is a [System.Collections.ArrayList], its .Add()
-          returns the insertion index, which would leak onto the pipeline. A
-          generic List[T] returns void and avoids this.
-
-    .LINK
-        Add-MatrixErrorHC
-    .LINK
-        Add-PermissionsErrorHC
-    .LINK
-        Add-RuntimeErrorHC
-    .LINK
-        Add-JsonSchemaErrorHC
     #>
 
     [CmdletBinding()]
@@ -100,224 +48,14 @@ function Add-ErrorHC {
     )
 }
 
-function Add-MatrixErrorHC {
-    <#
-    .SYNOPSIS
-        Add a 'Matrix'-category error to the system-error accumulator.
-
-    .DESCRIPTION
-        Thin wrapper around Add-ErrorHC that fixes Category to 'Matrix'. All
-        other parameters are forwarded unchanged. See Add-ErrorHC for the full
-        description of the record created and how SystemErrors is used.
-
-    .PARAMETER Type
-        The error severity: 'FatalError' or 'Warning'. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Name
-        A short title for the error. Forwarded to Add-ErrorHC.
-
-    .PARAMETER Message
-        The human-readable description of the problem. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Description
-        Optional additional detail. Defaults to an empty string. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER SystemErrors
-        A [ref] to the caller's error accumulator (a collection supporting
-        .Add()). Forwarded to Add-ErrorHC.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        Add-MatrixErrorHC -Type 'FatalError' -Name 'Duplicate entry' -Message "'GRP' defined twice." -SystemErrors ([ref]$errors)
-
-        Appends a 'Matrix'-category error to $errors.
-
-    .OUTPUTS
-        None. Appends to the referenced collection and returns nothing.
-
-    .NOTES
-        Category is fixed to 'Matrix' and cannot be overridden through this
-        function.
-
-    .LINK
-        Add-ErrorHC
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('FatalError', 'Warning')]
-        [string]$Type,
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][string]$Message,
-        [string]$Description = '',
-        [Parameter(Mandatory)][ref]$SystemErrors
-    )
-
-    Add-ErrorHC -Category 'Matrix' @PSBoundParameters
-}
-
-function Add-PermissionsErrorHC {
-    <#
-    .SYNOPSIS
-        Add a 'Permissions'-category error to the system-error accumulator.
-
-    .DESCRIPTION
-        Thin wrapper around Add-ErrorHC that fixes Category to 'Permissions'.
-        All other parameters are forwarded unchanged. See Add-ErrorHC for the
-        full description of the record created and how SystemErrors is used.
-
-    .PARAMETER Type
-        The error severity: 'FatalError' or 'Warning'. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Name
-        A short title for the error. Forwarded to Add-ErrorHC.
-
-    .PARAMETER Message
-        The human-readable description of the problem. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Description
-        Optional additional detail. Defaults to an empty string. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER SystemErrors
-        A [ref] to the caller's error accumulator (a collection supporting
-        .Add()). Forwarded to Add-ErrorHC.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        Add-PermissionsErrorHC -Type 'FatalError' -Name 'Invalid permission' -Message "Unknown permission 'X'." -SystemErrors ([ref]$errors)
-
-        Appends a 'Permissions'-category error to $errors.
-
-    .OUTPUTS
-        None. Appends to the referenced collection and returns nothing.
-
-    .NOTES
-        Category is fixed to 'Permissions' and cannot be overridden through this
-        function.
-
-    .LINK
-        Add-ErrorHC
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('FatalError', 'Warning')]
-        [string]$Type,
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][string]$Message,
-        [string]$Description = '',
-        [Parameter(Mandatory)][ref]$SystemErrors
-    )
-
-    Add-ErrorHC -Category 'Permissions' @PSBoundParameters
-}
-
-function Add-RuntimeErrorHC {
-    <#
-    .SYNOPSIS
-        Add a 'RuntimeSettings'-category error to the system-error accumulator.
-
-    .DESCRIPTION
-        Thin wrapper around Add-ErrorHC that fixes Category to 'RuntimeSettings'.
-        All other parameters are forwarded unchanged. See Add-ErrorHC for the
-        full description of the record created and how SystemErrors is used.
-
-    .PARAMETER Type
-        The error severity: 'FatalError' or 'Warning'. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Name
-        A short title for the error. Forwarded to Add-ErrorHC.
-
-    .PARAMETER Message
-        The human-readable description of the problem. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Description
-        Optional additional detail. Defaults to an empty string. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER SystemErrors
-        A [ref] to the caller's error accumulator (a collection supporting
-        .Add()). Forwarded to Add-ErrorHC.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        Add-RuntimeErrorHC -Type 'FatalError' -Name 'Missing setting' -Message 'LogFolder is not configured.' -SystemErrors ([ref]$errors)
-
-        Appends a 'RuntimeSettings'-category error to $errors.
-
-    .OUTPUTS
-        None. Appends to the referenced collection and returns nothing.
-
-    .NOTES
-        Category is fixed to 'RuntimeSettings' and cannot be overridden through
-        this function.
-
-    .LINK
-        Add-ErrorHC
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)]
-        [ValidateSet('FatalError', 'Warning')]
-        [string]$Type,
-        [Parameter(Mandatory)][string]$Name,
-        [Parameter(Mandatory)][string]$Message,
-        [string]$Description = '',
-        [Parameter(Mandatory)][ref]$SystemErrors
-    )
-
-    Add-ErrorHC -Category 'RuntimeSettings' @PSBoundParameters
-}
-
 function Add-JsonSchemaErrorHC {
     <#
     .SYNOPSIS
         Add a 'JsonSchema'-category error to the system-error accumulator.
 
     .DESCRIPTION
-        Thin wrapper around Add-ErrorHC that fixes Category to 'JsonSchema'. All
-        other parameters are forwarded unchanged. See Add-ErrorHC for the full
-        description of the record created and how SystemErrors is used.
-
-    .PARAMETER Type
-        The error severity: 'FatalError' or 'Warning'. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Name
-        A short title for the error. Forwarded to Add-ErrorHC.
-
-    .PARAMETER Message
-        The human-readable description of the problem. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER Description
-        Optional additional detail. Defaults to an empty string. Forwarded to
-        Add-ErrorHC.
-
-    .PARAMETER SystemErrors
-        A [ref] to the caller's error accumulator (a collection supporting
-        .Add()). Forwarded to Add-ErrorHC.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        Add-JsonSchemaErrorHC -Type 'FatalError' -Name 'Schema violation' -Message "Property 'Path' is required." -SystemErrors ([ref]$errors)
-
-        Appends a 'JsonSchema'-category error to $errors.
-
-    .OUTPUTS
-        None. Appends to the referenced collection and returns nothing.
-
-    .NOTES
-        Category is fixed to 'JsonSchema' and cannot be overridden through this
-        function.
+        Wrapper around Add-ErrorHC that fixes Category to 'JsonSchema'. All
+        other parameters are forwarded unchanged.
 
     .LINK
         Add-ErrorHC
@@ -343,71 +81,24 @@ function ConvertTo-StructuredObjectHC {
         and unknown objects and passing structured objects through.
 
     .DESCRIPTION
-        Takes a stream of arbitrary objects and emits a structured record for
-        each, so a mixed pipeline (strings, hashtables, custom objects, other
-        types) becomes a uniform sequence of objects downstream code can handle
-        consistently.
+        Remote scripts return a mix of free-form strings and ready-made check
+        records. This turns that stream into one downstream code can treat
+        uniformly:
 
-        Each input item is classified as follows:
+        - $null              skipped, no output
+        - [string]           wrapped as Type 'Information', Name 'Message'
+        - [hashtable] /
+          [pscustomobject]   passed through unchanged
+        - anything else      stringified, wrapped as Name 'UnknownObject'
 
-        - $null: skipped, producing no output.
-        - [string]: wrapped via New-ValidationCheckHC with Type 'Information'
-          and Name 'Message', the string becoming the record's Description.
-        - [hashtable] or [pscustomobject]: passed through unchanged, on the
-          assumption it is already a structured record.
-        - Anything else: stringified and wrapped via New-ValidationCheckHC with
-          Type 'Information' and Name 'UnknownObject', the string form becoming
-          the record's Description.
-
-        The function processes pipeline input one item at a time and also
-        iterates the items of any array passed as a single argument.
-
-    .PARAMETER InputObject
-        The object(s) to normalize. Accepts pipeline input. Each item is
-        classified and emitted individually; $null items are dropped. Mandatory.
-
-    .EXAMPLE
-        'something happened' | ConvertTo-StructuredObjectHC
-
-        Emits a validation-check record: Type 'Information', Name 'Message',
-        Description 'something happened'.
-
-    .EXAMPLE
-        @(
-            'a message',
-            [pscustomobject]@{ Type = 'Warning'; Name = 'X' },
-            42,
-            $null
-        ) | ConvertTo-StructuredObjectHC
-
-        Emits three records: the string is wrapped as a 'Message', the
-        PSCustomObject passes through unchanged, 42 is wrapped as an
-        'UnknownObject' with Description '42', and the $null is skipped.
+    .NOTES
+        - Hashtables pass through as-is and are NOT converted to PSCustomObject,
+          so consumers can receive both shapes.
+        - An unrecognized type is recorded as 'Information', not as a warning,
+          even though its type was unexpected.
 
     .EXAMPLE
         Some-Step | ConvertTo-StructuredObjectHC | Where-Object Type -eq 'Information'
-
-        Normalizes whatever Some-Step emits (free-form strings, ready-made
-        records, or other values) so the downstream filter can rely on a
-        consistent record shape.
-
-    .OUTPUTS
-        System.Management.Automation.PSCustomObject
-        For strings and unrecognized types, a record from New-ValidationCheckHC.
-        For hashtables and PSCustomObjects, the original object unchanged. No
-        output is produced for $null items.
-
-    .NOTES
-        - $null items are silently dropped.
-        - Strings and unknown types are wrapped with Type 'Information'; the
-          difference is the Name ('Message' vs 'UnknownObject'). Note an unknown
-          object is recorded as 'Information', not as a warning, even though it
-          was an unexpected type.
-        - Hashtables are passed through as-is and are not converted to
-          PSCustomObjects or validated; downstream code receiving a [hashtable]
-          alongside [pscustomobject] records should be ready for both shapes.
-        - The wrapped records carry only Description (no Value); their Value and
-          Category fields are $null.
 
     .LINK
         New-ValidationCheckHC
@@ -514,6 +205,7 @@ function Update-MatrixCounterHC {
     .SYNOPSIS
         Calculates the total errors and warnings across all matrix files and
         system-level errors.
+
     .DESCRIPTION
         Walks $Context.FileResults — the same data shape used by
         Build-MatrixFileCardHC — so the global "Detected issues" pills in the
@@ -525,14 +217,8 @@ function Update-MatrixCounterHC {
             Permissions — fileResult.Sheets.Permissions.Check    (Permissions sheet)
             Settings    — fileResult.Matrices[].Check            (per-matrix rows)
 
-        System errors ($SystemErrors.Value) count towards TotalErrors and
-        TotalWarnings but have no bucket of their own: New-CounterObjectHC
-        creates only the four listed above.
-
-        TotalErrors   = sum of all 'FatalError'-typed checks across every bucket,
-                        including system errors.
-        TotalWarnings = sum of all 'Warning'-typed checks across every bucket,
-                        including system errors.
+        System errors ($SystemErrors.Value) count towards the totals but have no
+        bucket of their own: New-CounterObjectHC creates only the four above.
     #>
     [CmdletBinding()]
     param(

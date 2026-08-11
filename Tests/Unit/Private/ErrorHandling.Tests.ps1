@@ -102,39 +102,12 @@ Describe 'Add-ErrorHC' {
     }
 }
 
-Describe 'Category wrapper functions' {
+Describe 'Add-JsonSchemaErrorHC' {
     BeforeEach {
         $script:errors = [System.Collections.Generic.List[PSObject]]::new()
     }
 
-    It 'Add-MatrixErrorHC sets Category to Matrix' {
-        Add-MatrixErrorHC `
-            -Type 'FatalError' `
-            -Name 'N' `
-            -Message 'M' `
-            -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should-Be 'Matrix'
-    }
-
-    It 'Add-PermissionsErrorHC sets Category to Permissions' {
-        Add-PermissionsErrorHC `
-            -Type 'FatalError' `
-            -Name 'N' `
-            -Message 'M' `
-            -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should-Be 'Permissions'
-    }
-
-    It 'Add-RuntimeErrorHC sets Category to RuntimeSettings' {
-        Add-RuntimeErrorHC `
-            -Type 'FatalError' `
-            -Name 'N' `
-            -Message 'M' `
-            -SystemErrors ([ref]$script:errors)
-        $script:errors[0].Category | Should-Be 'RuntimeSettings'
-    }
-
-    It 'Add-JsonSchemaErrorHC sets Category to JsonSchema' {
+    It 'sets Category to JsonSchema' {
         Add-JsonSchemaErrorHC `
             -Type 'FatalError' `
             -Name 'N' `
@@ -144,7 +117,7 @@ Describe 'Category wrapper functions' {
     }
 
     It 'forwards Description through the wrapper' {
-        Add-MatrixErrorHC `
+        Add-JsonSchemaErrorHC `
             -Type 'Warning' `
             -Name 'N' `
             -Message 'M' `
