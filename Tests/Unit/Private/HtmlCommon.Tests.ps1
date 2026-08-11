@@ -52,18 +52,6 @@ Describe 'Initialize-HtmlStructureHC' {
     }
 }
 
-Describe 'Get-HtmlClassProbTypeHC' {
-    It 'maps <Type> to <Expected>' -ForEach @(
-        @{ Type = 'FatalError'; Expected = 'probTypeError' }
-        @{ Type = 'Warning'; Expected = 'probTypeWarning' }
-        @{ Type = 'Information'; Expected = 'probTypeInfo' }
-        @{ Type = ''; Expected = 'probTypeInfo' }
-        @{ Type = 'unknown'; Expected = 'probTypeInfo' }
-    ) {
-        Get-HtmlClassProbTypeHC $Type | Should-Be $Expected
-    }
-}
-
 Describe 'Get-FileCheckTallyHC' {
     BeforeAll {
         function New-TallyFileResult {

@@ -2,27 +2,17 @@
 # Shared HTML theme + low-level primitives used by BOTH the email body
 # (HtmlMailBody.ps1) and the on-disk report (HtmlReport.ps1).
 # Must be loaded before those two: it defines $Script:Theme.
-
-<#
-    Html.ps1
-    Consolidated HTML rendering logic for Toolbox.PermissionMatrixHC
-
-    --- MODERN DASHBOARD REDESIGN ---
-    The email body is a SUMMARY ONLY: per-file gradient header cards with the
-    file's settings rows. Errors/warnings are linked but listed in the
-    standalone "00 - Execution Report.html" produced by Write-MatrixExecutionReportHC.
-    System errors (script-level exceptions) are surfaced separately at the top
-    of the email since they don't belong to any single file.
-
-    Layout uses table-based HTML with inline styles so modern Outlook (Windows,
-    Mac, Web) and standalone browsers render the same picture. No flexbox, no
-    CSS grid. Width is fixed at 620px so the email fits comfortably on small
-    laptop screens beside the inbox sidebar.
-
-    Color palette: amber for warnings, red for errors, green for success.
-    Gradients in card headers use a 135deg dark-to-light variant of the accent
-    color with a solid bgcolor fallback for any client that ignores gradients.
-#>
+#
+# The email body is a SUMMARY ONLY: per-file gradient header cards with the
+# file's settings rows. Errors/warnings are linked but listed in the standalone
+# "00 - Execution Report.html" produced by Write-MatrixExecutionReportHC. System
+# errors (script-level exceptions) are surfaced separately at the top of the
+# email since they don't belong to any single file.
+#
+# Layout uses table-based HTML with inline styles so modern Outlook (Windows,
+# Mac, Web) and standalone browsers render the same picture. No flexbox, no CSS
+# grid. Width is fixed so the email fits comfortably on small laptop screens
+# beside the inbox sidebar.
 
 # =====================================================================
 # GLOBAL HTML THEME
@@ -148,33 +138,20 @@ function Initialize-HtmlStructureHC {
     }
 }
 
-function Get-HtmlClassProbTypeHC {
-    param([string]$Type)
-    switch ($Type) {
-        'FatalError' { 'probTypeError' }
-        'Warning' { 'probTypeWarning' }
-        default { 'probTypeInfo' }
-    }
-}
-
 function Get-FileCheckTallyHC {
     <#
         .DESCRIPTION
-            Tally the FatalError and Warning checks a matrix file carries,
-            gathered from every place a check can live: the file itself, its
-            'FormData' and 'Permissions' sheets, and each of its matrices.
+            Tally the FatalError and Warning checks a matrix file carries, from
+            every place a check can live: the file itself, its 'FormData' and
+            'Permissions' sheets, and each of its matrices.
 
-            This is the tally that decides a card's header colour, glyph and
-            status pill, and it is also the sort key used to float problem
-            cards to the top of the overview — sharing one implementation
-            keeps the two in step.
+            This tally decides a card's header colour, glyph and status pill AND
+            is the sort key that floats problem cards to the top of the
+            overview. One implementation keeps the two in step.
 
-            Informational checks are deliberately NOT counted. They are
-            notices, not issues: they must not colour a header and they must
-            not lift a card out of the alphabetical run.
-
-        .PARAMETER FileResult
-            One element of $Context.FileResults.
+            Informational checks are deliberately NOT counted. They are notices,
+            not issues: they must not colour a header and must not lift a card
+            out of the alphabetical run.
     #>
     param([object]$FileResult)
 
@@ -201,21 +178,14 @@ function Get-FileCheckTallyHC {
 function Get-MatrixFileNameHC {
     <#
         .DESCRIPTION
-            Resolve the display name of a matrix file from a file-result
-            object. Used for the card header title AND as the sort key for
-            the overview, so the visible title and the ordering can never
-            disagree.
+            Resolve the display name of a matrix file from a file-result object.
+            Used for the card header title AND as the overview sort key, so the
+            visible title and the ordering can never disagree.
 
             A file result normally carries an 'Item' (the FileInfo of the
             .xlsx). When the runspace threw before that was set, the fallback
             object built by the catch block carries 'File' instead — the same
             two-step lookup Invoke-PermissionMatrixAuditReport already does.
-
-        .PARAMETER FileResult
-            One element of $Context.FileResults.
-
-        .PARAMETER Default
-            Returned when neither 'Item' nor 'File' yields a name.
     #>
     param(
         [object]$FileResult,
@@ -252,21 +222,18 @@ function Format-LastChangeHC {
     <#
         .DESCRIPTION
             Build a "Last change: ..." line from an Excel file's last-modified
-            metadata. Handles missing/unknown values gracefully:
-                - Both user and date known  → "Last change: Brecht · 19/05/2026 13:30"
-                - Only user known  → "Last change: Brecht"
-                - Only date known  → "Last change: 19/05/2026 13:30"
-                - Neither known    → "No modification metadata available"
+            metadata:
+                Both known  → "Last change: Brecht &middot; 19/05/2026 13:30"
+                User only   → "Last change: Brecht"
+                Date only   → "Last change: 19/05/2026 13:30"
+                Neither     → "No modification metadata available"
 
-            The user component is HTML-encoded. The separator is the HTML
-            entity &middot;. Callers can drop the returned string directly
-            into HTML; if empty, they should skip rendering the line.
-        .PARAMETER LastModifiedBy
-            Raw username string from ExcelInfo.LastModifiedBy. Treated as
-            missing when null, empty, whitespace, or the literal 'Unknown'.
-        .PARAMETER Modified
-            Raw datetime from ExcelInfo.Modified. Treated as missing when
-            not a [datetime] or equal to [datetime]::MinValue.
+            LastModifiedBy counts as missing when blank OR the literal
+            'Unknown'; Modified counts as missing when not a [datetime] or equal
+            to [datetime]::MinValue.
+
+            The user component is HTML-encoded, so the result can be dropped
+            straight into HTML.
     #>
     param(
         [object]$LastModifiedBy,
