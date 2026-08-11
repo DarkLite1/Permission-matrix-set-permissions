@@ -173,12 +173,24 @@ function Import-MatrixFileHC {
         raw value meant a cell containing 'Enabled ' with a trailing space
         silently disabled the whole matrix file with no indication why.
         The "" wrapper keeps this safe when Status is absent or not a string,
-        where .Trim() would throw. #>
-        $enabledSettings = $settingsSheet.Where(
-            { "$($_.Status)".Trim() -eq 'Enabled' }
+        where .Trim() would throw.
+
+        Indexes are collected rather than the rows themselves.
+        Format-SettingStringsHC emits one row per input row in order, so the
+        formatted sheet built below is index aligned with the raw sheet. Each
+        matrix can then reference both its raw and its formatted row without
+        formatting that row a second time. A 'for' loop is used because
+        0..($settingsSheet.Count - 1) counts backwards on an empty sheet. #>
+        $enabledSettingIndexes = @(
+            for ($i = 0; $i -lt $settingsSheet.Count; $i++) {
+                if ("$($settingsSheet[$i].Status)".Trim() -eq 'Enabled') { $i }
+            }
         )
 
-        if (-not $enabledSettings) {
+        <# .Count, not '-not': a single-element array is unwrapped in a boolean
+        context, so '-not @(0)' is $true and a file whose only enabled row is
+        the first one would be reported as having no enabled settings. #>
+        if ($enabledSettingIndexes.Count -eq 0) {
             $fileResult.Check.Add(
                 [pscustomobject]@{
                     Type        = 'FatalError'
@@ -191,7 +203,9 @@ function Import-MatrixFileHC {
             return
         }
 
-        $fileResult.Sheets.Settings.Formatted = $fileResult.Sheets.Settings.Raw | Format-SettingStringsHC
+        $fileResult.Sheets.Settings.Formatted = @(
+            $fileResult.Sheets.Settings.Raw | Format-SettingStringsHC
+        )
         #endregion
 
         #region Import Permissions sheet
@@ -245,13 +259,12 @@ function Import-MatrixFileHC {
         #endregion
 
         #region Create matrix per enabled Settings row
-        foreach ($enabledSetting in $enabledSettings) {
+        foreach ($index in $enabledSettingIndexes) {
             $matrix = [pscustomobject]@{
                 ID          = [guid]::NewGuid().ToString()
                 Setting     = @{
-                    Raw       = $enabledSetting
-                    Formatted = Format-SettingStringsHC `
-                        -Settings $enabledSetting
+                    Raw       = $settingsSheet[$index]
+                    Formatted = $fileResult.Sheets.Settings.Formatted[$index]
                 }
                 Check       = [System.Collections.Generic.List[pscustomobject]]::new()
                 Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()

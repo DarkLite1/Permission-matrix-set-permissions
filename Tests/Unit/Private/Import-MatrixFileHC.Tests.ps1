@@ -155,6 +155,49 @@ Describe 'Import-MatrixFileHC' {
     }
 
     Context 'Status with surrounding whitespace' {
+        It 'creates a matrix when only the first Settings row is enabled' {
+            <# Guard: enabled rows are tracked by index, and index 0 is falsy
+            in a boolean context once a single-element array is unwrapped. A
+            '-not' test here would report 'No enabled matrix settings' for a
+            file whose only enabled row is the first one. #>
+            $rows = @(
+                (New-MatrixSettingsFixtureRows -Scenario 'Valid')[0],
+                (New-MatrixSettingsFixtureRows -Scenario 'Valid')[0]
+            )
+            $rows[0].Status = 'Enabled'
+            $rows[1].Status = 'Disabled'
+
+            New-MatrixExcelFixture -Path $matrixPath -SettingsRows $rows
+
+            $result = Import-MatrixFileHC `
+                -MatrixFile (Get-Item -LiteralPath $matrixPath) `
+                -Context (New-TestContext)
+
+            $result.Check | Should-BeFalsy
+            $result.Matrices.Count | Should-Be 1
+        }
+
+        It 'pairs each matrix with its own formatted Settings row' {
+            # The formatted sheet is index aligned with the raw sheet, so each
+            # matrix must pick up the formatted row matching its raw row.
+            $rows = @(
+                (New-MatrixSettingsFixtureRows -Scenario 'Valid')[0],
+                (New-MatrixSettingsFixtureRows -Scenario 'Valid')[0]
+            )
+            $rows[0].Status = 'Disabled'
+            $rows[1].Status = 'Enabled'
+            $rows[1].ComputerName = ' server02 '
+
+            New-MatrixExcelFixture -Path $matrixPath -SettingsRows $rows
+
+            $result = Import-MatrixFileHC `
+                -MatrixFile (Get-Item -LiteralPath $matrixPath) `
+                -Context (New-TestContext)
+
+            $result.Matrices.Count | Should-Be 1
+            $result.Matrices[0].Setting.Formatted.ComputerName | Should-Be 'SERVER02'
+        }
+
         It 'treats a Status of " Enabled " as enabled' {
             <# Regression: the enabled rows were selected from the raw sheet,
             before Format-SettingStringsHC trimmed anything, so a stray space
