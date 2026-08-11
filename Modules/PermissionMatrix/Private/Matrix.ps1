@@ -4,58 +4,15 @@ function Format-FormDataStringsHC {
         Return a copy of a FormData row with all string values trimmed.
 
     .DESCRIPTION
-        Produces a new object from the input row in which every string-valued
-        property has its leading and trailing whitespace removed. Values that
-        are not strings (numbers, dates, booleans, $null, arrays, nested
-        objects, and so on) are copied across unchanged.
+        Non-string values (numbers, dates, booleans, $null, arrays, nested
+        objects) are copied across unchanged. The input row is not modified.
 
-        The original property order is preserved by building the result through
-        an ordered dictionary, so the column layout from the source (for example
-        an Excel or CSV import) is kept intact. The input object is not
-        modified; a new PSCustomObject is returned.
-
-        The function accepts pipeline input and processes one row at a time,
-        emitting one cleaned object per input row. This lets it sit directly in
-        a pipeline after a command such as Import-Csv or Import-Excel.
-
-    .PARAMETER Row
-        The row to normalize: any object whose properties should have their
-        string values trimmed. Accepts pipeline input, so a stream of rows can
-        be piped in and each is processed and emitted individually. Every
-        property exposed by the object (via PSObject.Properties) is examined.
-
-    .EXAMPLE
-        [pscustomobject]@{ Name = '  Bob  '; Age = 30 } | Format-FormDataStringsHC
-
-        Returns an object where Name is 'Bob' (trimmed) and Age is still the
-        integer 30 (left unchanged, because it is not a string).
+    .NOTES
+        Only scalar [string] values are trimmed, so a string element inside an
+        array property is left as-is.
 
     .EXAMPLE
         Import-Csv 'C:\data\forms.csv' | Format-FormDataStringsHC
-
-        Trims every string field of every row in the CSV, preserving the
-        original column order, and emits one cleaned object per row.
-
-    .EXAMPLE
-        $row = [pscustomobject]@{ Id = 5; Label = ' active ' }
-        $clean = $row | Format-FormDataStringsHC
-        $row.Label    # still ' active '
-        $clean.Label  # 'active'
-
-        Shows that a new object is returned and the original row is left
-        unmodified.
-
-    .OUTPUTS
-        System.Management.Automation.PSCustomObject
-        One object per input row, exposing the same properties in the same
-        order, with string values trimmed.
-
-    .NOTES
-        - Only scalar [string] values are trimmed. Everything else is copied
-          unchanged, including $null, numbers, dates, booleans and arrays. A
-          string element inside an array property is therefore not trimmed.
-        - The input object is not mutated; a new object is returned.
-        - Property/column order is preserved via [ordered].
     #>
 
     [CmdletBinding()]
@@ -87,68 +44,17 @@ function Format-PermissionsStringsHC {
         every column except the P1 path column upper-cased.
 
     .DESCRIPTION
-        Produces a new object from a row returned by Import-Excel for the
-        Permissions sheet, in which every string-valued property is trimmed of
-        leading and trailing whitespace. All columns except P1 are also
-        converted to upper case; P1 holds the folder path (Column A), keeps
-        its original capitalization, and has trailing path separators removed
-        because it is used verbatim to create folders on disk. Values that are
-        not strings (numbers, dates, booleans,
-        $null, arrays, nested objects, and so on) are copied across unchanged.
+        P1 holds the folder path (Column A) and keeps its original
+        capitalization; every other column holds a permission character matched
+        case-insensitively and is upper-cased. Non-string values are copied
+        across unchanged and the input row is not modified.
 
-        The original property order is preserved by building the result through
-        an ordered dictionary, so the Excel column layout is kept intact. The
-        input object is not modified; a new PSCustomObject is returned.
-
-        The function accepts pipeline input and processes one row at a time,
-        emitting one normalized object per input row, so it can sit directly in
-        a pipeline after Import-Excel.
-
-    .PARAMETER Row
-        The row to normalize: any object whose string properties should be
-        trimmed and uppercased. Accepts pipeline input, so a stream of rows can
-        be piped in and each is processed and emitted individually. Every
-        property exposed by the object (via PSObject.Properties) is examined.
-
-    .EXAMPLE
-        [pscustomobject]@{ Account = '  domain\bob  '; Level = 30 } | Format-PermissionsStringsHC
-
-        Returns an object where Account is 'DOMAIN\BOB' (trimmed and uppercased)
-        and Level is still the integer 30 (left unchanged, because it is not a
-        string).
+    .NOTES
+        Only scalar [string] values are handled, so a string element inside an
+        array property is left as-is.
 
     .EXAMPLE
         Import-Excel 'C:\data\matrix.xlsx' -WorksheetName 'Permissions' | Format-PermissionsStringsHC
-
-        Trims and uppercases every string field of every row on the Permissions
-        sheet, preserving the original column order, and emits one normalized
-        object per row.
-
-    .EXAMPLE
-        $row = [pscustomobject]@{ Id = 5; Right = ' read ' }
-        $clean = $row | Format-PermissionsStringsHC
-        $row.Right    # still ' read '
-        $clean.Right  # 'READ'
-
-        Shows that a new object is returned and the original row is left
-        unmodified.
-
-    .OUTPUTS
-        System.Management.Automation.PSCustomObject
-        One object per input row, exposing the same properties in the same
-        order, with string values trimmed and (except P1) uppercased.
-
-    .NOTES
-        - Only scalar [string] values are trimmed. Every string column except
-          P1 is also uppercased; P1 (the folder path) is trimmed and stripped of
-          trailing path separators so its on-disk capitalization is preserved
-          while path comparisons stay stable. Everything non-string is copied
-          unchanged, including $null, numbers, dates, booleans and arrays. A
-          string element inside an array property is therefore left as-is.
-        - Trimming removes leading and trailing whitespace only; whitespace
-          inside the value (for example between words) is preserved.
-        - The input object is not mutated; a new object is returned.
-        - Property/column order is preserved via [ordered].
     #>
 
     [CmdletBinding()]
@@ -202,80 +108,23 @@ function Format-SettingStringsHC {
         ApplyDefaultPermissions.
 
     .DESCRIPTION
-        Takes a Settings object (typically a row from Import-Excel) and returns
-        a cleaned shallow copy. The original object is not reassigned in place;
-        a copy is made via PSObject.Copy() and all changes are applied to the
-        copy.
+        Each named transform is applied only when its property is present and
+        not blank, so a Settings object missing any of them is handled without
+        error.
 
-        The following normalizations are applied, in order:
-
-        - Every string-valued property has its leading and trailing whitespace
-          trimmed. Non-string properties are left unchanged.
-        - Path has any trailing '\' and '/' characters removed.
-        - ComputerName is converted to upper case.
-        - Action is converted to title case (for example 'fIx' becomes 'Fix'
-          and 'REPORT' becomes 'Report'), for consistent UI reporting.
-        - ApplyDefaultPermissions, when present and non-empty, is parsed into a
-          real [bool].
-
-        Each of the named transforms is applied only when its property is
-        present and not null/empty/whitespace, so a Settings object missing any
-        of these properties is handled without error.
-
-        The function accepts pipeline input and processes one row at a time,
-        emitting one normalized object per input row, so it can sit directly in
-        a pipeline after Import-Excel.
-
-    .PARAMETER Settings
-        The Settings row to normalize. Accepts pipeline input, so a stream of
-        rows can be piped in and each is processed and emitted individually.
-        All string properties are trimmed; the properties Path, ComputerName,
-        Action and ApplyDefaultPermissions receive additional, property-specific
-        treatment when present.
-
-    .EXAMPLE
-        $s = [pscustomobject]@{
-            Path                    = '  C:\Data\Share\  '
-            ComputerName            = ' server01 '
-            Action                  = 'fIx'
-            ApplyDefaultPermissions = 'true'
-        }
-        $s | Format-SettingStringsHC
-
-        Returns an object with Path 'C:\Data\Share', ComputerName 'SERVER01',
-        Action 'Fix', and ApplyDefaultPermissions as the boolean $true.
+    .NOTES
+        - The copy is shallow (PSObject.Copy()). Reassigning scalar properties
+          does not affect the input, but any reference-type property (array,
+          nested object) is shared with the original.
+        - ApplyDefaultPermissions is parsed with [bool]::TryParse, which only
+          recognizes the text 'true'/'false'. Any other value, INCLUDING '1',
+          '0', 'yes' and 'no', fails to parse and results in $false.
+          Test-MatrixSettingRowHC rejects those values before this runs.
+        - ComputerName uppercasing and Action title-casing use the current
+          culture.
 
     .EXAMPLE
         Import-Excel 'C:\data\matrix.xlsx' -WorksheetName 'Settings' | Format-SettingStringsHC
-
-        Normalizes every row on the Settings sheet, emitting one cleaned object
-        per row.
-
-    .EXAMPLE
-        $s = [pscustomobject]@{ Path = 'C:\Logs'; Note = '  keep me  ' }
-        $s | Format-SettingStringsHC
-
-        Returns Path 'C:\Logs' and Note 'keep me'. ComputerName, Action and
-        ApplyDefaultPermissions are absent, so only the universal string
-        trimming applies.
-
-    .OUTPUTS
-        System.Management.Automation.PSCustomObject
-        One normalized object per input row, of the same type and shape as the
-        input, with the transforms above applied.
-
-    .NOTES
-        - The copy is shallow (PSObject.Copy()). Reassigning scalar string and
-          boolean properties on the copy does not affect the input, but any
-          reference-type property (array, nested object) is shared with the
-          original; mutating its contents would affect both.
-        - ApplyDefaultPermissions is parsed with [bool]::TryParse, which only
-          recognizes the text 'true'/'false' (case-insensitive). Any other
-          value, including '1', '0', 'yes' and 'no', fails to parse and results
-          in $false.
-        - Path trimming removes every trailing slash/backslash, not just one.
-        - ComputerName uppercasing and Action title-casing use the current
-          culture.
     #>
     [CmdletBinding()]
     param(
@@ -331,86 +180,30 @@ function Get-DefaultAclHC {
         validating each entry and recording problems in SystemErrors.
 
     .DESCRIPTION
-        Walks the rows of the Defaults Settings sheet and builds a hashtable
-        mapping each ADObjectName to its permission character.
-
-        Each row is classified by whether ADObjectName and/or Permission are
-        populated (both are trimmed first; Permission is also upper-cased):
-
-        - Both empty: the row is not an ACL entry (typically a MailTo-only row
-          or a trailing blank row) and is skipped silently.
-        - Only one of the two populated: the pair is incomplete and a
-          FatalError is recorded; the row is skipped.
-        - Permission populated but not one of the valid characters: a
-          FatalError is recorded; the row is skipped.
-        - ADObjectName already seen: the duplicate is reported as a FatalError
-          and skipped, so the first occurrence wins.
-        - Otherwise: the ADObjectName/Permission pair is added to the result.
-
-        Valid permission characters are L, R, W and F. The permission 'I'
-        (inherit) is intentionally rejected: defaults are explicit grants by
-        definition, so "inherit by default" is meaningless.
-
-        Validation problems are not thrown; they are appended to the
-        SystemErrors accumulator via Add-ErrorHC, so the function always
-        returns a hashtable (containing only the rows that passed validation),
-        and the caller inspects SystemErrors to decide how to proceed.
-
-    .PARAMETER Sheet
-        The rows of the Defaults Settings sheet, as an array of objects (for
-        example from Import-Excel). Each row is expected to expose ADObjectName
-        and Permission properties. An empty collection is allowed and yields an
-        empty hashtable. Mandatory.
-
-    .PARAMETER SystemErrors
-        A [ref] to the caller's system-error accumulator. Validation failures
-        (incomplete pairs, invalid permissions, duplicates) are added to it via
-        Add-ErrorHC rather than thrown. This is an in/out parameter: the
-        function appends to whatever it references. Mandatory.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        $sheet = @(
-            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'w' },
-            [pscustomobject]@{ ADObjectName = 'GRP-RO'; Permission = 'R' }
-        )
-        $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
-
-        Returns @{ 'GRP-RW' = 'W'; 'GRP-RO' = 'R' }. The lower-case 'w' is
-        upper-cased. $errors stays empty because both rows are valid.
-
-    .EXAMPLE
-        $errors = [System.Collections.Generic.List[object]]::new()
-        $sheet = @(
-            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'F' },
-            [pscustomobject]@{ ADObjectName = 'GRP-RW'; Permission = 'R' },
-            [pscustomobject]@{ ADObjectName = 'GRP-X';  Permission = 'I' },
-            [pscustomobject]@{ ADObjectName = '';       Permission = 'R' }
-        )
-        $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
-
-        Returns @{ 'GRP-RW' = 'F' }. The second 'GRP-RW' is a duplicate, 'I' is
-        not a valid default permission, and the last row has a permission but no
-        ADObjectName — each adds a FatalError to $errors and is skipped.
-
-    .OUTPUTS
-        System.Collections.Hashtable
-        A hashtable whose keys are ADObjectNames and whose values are the
-        validated, upper-cased permission characters. Only rows that passed all
-        validation are included.
+        Maps each ADObjectName to its permission character. Rows where both
+        ADObjectName and Permission are empty are not ACL rows (typically
+        MailTo-only or trailing blanks) and are skipped silently. Incomplete
+        pairs, invalid permissions and duplicates are rejected.
 
     .NOTES
-        - The function does not throw on bad data; it accumulates FatalErrors in
-          SystemErrors and returns whatever passed validation. Callers must
-          check SystemErrors, not just the returned hashtable.
-        - On a duplicate ADObjectName the first occurrence is kept and later
-          ones are rejected.
-        - ADObjectName and Permission are trimmed; Permission is upper-cased, so
-          permission matching is case-insensitive. Key matching on ADObjectName
-          is whatever the hashtable uses by default — case-insensitive for
-          string keys — so names differing only in case collide and the second
-          is treated as a duplicate.
-        - The valid set (L, R, W, F) mirrors Test-MatrixPermissionsHC minus 'I'.
+        - Does NOT throw. Problems are appended to SystemErrors via Add-ErrorHC
+          and the function still returns the rows that passed, so callers must
+          inspect SystemErrors rather than just the returned hashtable.
+        - Permission 'I' (inherit) is deliberately rejected: defaults are
+          explicit grants by definition, so "inherit by default" is meaningless.
+        - On a duplicate ADObjectName the first occurrence is kept. Key matching
+          is case-insensitive, so names differing only in case collide.
+
+    .PARAMETER Sheet
+        The rows of the Defaults Settings sheet, each exposing ADObjectName and
+        Permission. An empty collection yields an empty hashtable.
+
+    .PARAMETER SystemErrors
+        A [ref] to the caller's system-error accumulator. In/out parameter.
+
+    .EXAMPLE
+        $errors = [System.Collections.Generic.List[object]]::new()
+        $acl = Get-DefaultAclHC -Sheet $sheet -SystemErrors ([ref]$errors)
     #>
 
     [CmdletBinding()]
@@ -497,39 +290,26 @@ function Get-MatrixADObjectsMapHC {
         name, resolving GroupName/SiteCode placeholders from a setting row.
 
     .DESCRIPTION
-        Reads the header rows of the Permissions sheet and, for each permission
-        column, assembles the AD object name that column refers to. The result
-        is an ordered dictionary keyed by column name (P2, P3, ...) whose values
-        are the assembled names.
+        The first three rows of PermissionsSheet are header rows. Columns are
+        scanned from P2 upward; for each one the three header cells are walked
+        bottom-to-top, 'GroupName'/'SiteCode' are replaced with the values from
+        SettingRow, and the parts are joined with a single space.
 
-        The first three rows of PermissionsSheet are treated as header rows.
-        Columns are scanned starting at P2 and increasing (P2, P3, P4, ...);
-        scanning stops at the first column name that is not present on the first
-        header row.
-
-        For each column, the three header cells are walked from the bottom row
-        up to the top row. Each cell is resolved as follows:
-
-        - An empty or whitespace cell is skipped (so it cannot introduce a blank
-          part).
-        - A cell equal to 'GroupName' is replaced with SettingRow.GroupName.
-        - A cell equal to 'SiteCode' is replaced with SettingRow.SiteCode.
-        - Any other cell is used literally.
-
-        The resolved parts are joined with a single space and trimmed to form
-        the AD object name. Columns whose assembled name is empty are omitted
-        from the map.
+    .NOTES
+        - Scanning STOPS at the first column name absent from the FIRST header
+          row, so a gap in the numbering (P2, P3, then P5) ends the scan early,
+          and a column present only on a later header row is never reached.
+        - Empty header cells are skipped so they cannot introduce a blank part,
+          but an empty *resolved* placeholder is not: a cell saying 'GroupName'
+          with an empty SettingRow.GroupName still produces an empty part.
+        - Columns assembling to an empty name are omitted from the map.
+        - Placeholder matching uses a switch, so it is case-insensitive.
 
     .PARAMETER PermissionsSheet
-        The Permissions sheet as an array of row objects (for example from
-        Import-Excel). Only the first three rows are used, as the header rows.
-        Each row is expected to expose the permission columns as properties
-        named P2, P3, and so on. Mandatory.
+        The Permissions sheet rows. Only the first three are used, as headers.
 
     .PARAMETER SettingRow
-        The single setting row that supplies the placeholder values. Its
-        GroupName and SiteCode properties are substituted wherever the header
-        cells contain the literals 'GroupName' or 'SiteCode'. Mandatory.
+        The setting row supplying the GroupName and SiteCode values.
 
     .EXAMPLE
         $setting = [pscustomobject]@{ GroupName = 'GRP'; SiteCode = 'BRU' }
@@ -540,43 +320,8 @@ function Get-MatrixADObjectsMapHC {
         )
         Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
 
-        Returns an ordered map @{ P2 = 'Mgrs BRU GRP'; P3 = 'Users GRP' }.
-        For P2 the rows are walked bottom-to-top: 'Mgrs' (literal), then
-        'SiteCode' -> 'BRU', then 'GroupName' -> 'GRP'. For P3 the empty middle
-        cell is skipped, leaving 'Users' and 'GRP'.
-
-    .EXAMPLE
-        $setting = [pscustomobject]@{ GroupName = 'GRP'; SiteCode = 'BRU' }
-        $sheet = @(
-            [pscustomobject]@{ P2 = 'GroupName'; P3 = '' }
-            [pscustomobject]@{ P2 = 'SiteCode';  P3 = '' }
-            [pscustomobject]@{ P2 = 'Admins';    P3 = '' }
-        )
-        Get-MatrixADObjectsMapHC -PermissionsSheet $sheet -SettingRow $setting
-
-        Returns @{ P2 = 'Admins BRU GRP' }. P3 has only empty header cells, so
-        its assembled name is empty and the column is left out of the map.
-
-    .OUTPUTS
-        System.Collections.Specialized.OrderedDictionary
-        An ordered map whose keys are permission column names (P2, P3, ...) in
-        ascending order and whose values are the assembled AD object names.
-        Columns that assemble to an empty string are not included.
-
-    .NOTES
-        - Only the first three rows of PermissionsSheet are used as header rows.
-        - Columns are scanned from P2 upward and scanning stops at the first
-          column name absent from the first header row, so a gap in the column
-          numbering (e.g. P2, P3, then P5) ends the scan early.
-        - Column presence is tested against the first header row only; columns
-          that exist on a later header row but not the first are never reached.
-        - Header rows are walked bottom-to-top, so the lowest header row's value
-          appears first in the assembled name.
-        - Placeholder matching uses a switch, which is case-insensitive by
-          default, so 'groupname'/'sitecode' in any casing are also resolved.
-        - Empty header cells are skipped, but an empty *resolved* placeholder is
-          not: if a cell says 'GroupName' and SettingRow.GroupName is empty, an
-          empty part is still produced.
+        Returns @{ P2 = 'Mgrs BRU GRP'; P3 = 'Users GRP' }. P3's empty middle
+        cell is skipped rather than producing a double space.
     #>
     [CmdletBinding()]
     param(
@@ -623,44 +368,36 @@ function Get-MatrixADObjectsMapHC {
 }
 
 function ConvertTo-MatrixAclHC {
-     <#
+    <#
     .SYNOPSIS
         Convert Permissions data rows into per-path ACL objects, using a
         column-to-AD-name map to resolve each permission column.
 
     .DESCRIPTION
-        Walks the data rows of the Permissions sheet and produces one object per
-        path, pairing the path with an ACL hashtable that maps resolved AD
-        object names to permission characters.
+        Emits one object per data row with a non-empty P1, each carrying Path,
+        ACL (resolved AD name to permission character) and Ignore. Only the
+        columns present in AdObjectsMap are read; anything else on the row is
+        ignored.
 
-        For each data row:
-
-        - P1 holds the path. Rows with no P1 are skipped entirely.
-        - For every column in AdObjectsMap (P2, P3, ...), the row's value in
-          that column is the permission for the corresponding AD object. The
-          permission is added to the row's ACL only when it is non-empty and
-          not 'I' (Ignore); the ACL key is the resolved AD name taken from
-          AdObjectsMap, and the value is the permission character.
-        - A single 'I' (Ignore) in any permission column flags the whole row as
-          ignored: the resulting entry gets an empty ACL and Ignore = $true, so
-          downstream defaults merging and SetPermissions.ps1 leave the folder
-          (and its subtree) completely untouched.
-
-        Each surviving row becomes a PSCustomObject with Path, ACL and Ignore
-        properties. The collected objects are returned as an array.
+    .NOTES
+        - Permission values are NOT validated against a permitted set here,
+          unlike Get-DefaultAclHC. Only two values are special-cased: empty
+          (skipped) and 'I' (flags the row as ignored).
+        - A single 'I' in ANY permission column flags the whole row: it gets an
+          empty ACL and Ignore = $true, and any other permissions on that row
+          are discarded, because an ignored folder is left untouched.
+        - A row whose every permission is empty still produces an entry with an
+          empty ACL and Ignore = $false. Downstream that means inherit-only.
+        - If two columns in AdObjectsMap resolve to the same AD name, the later
+          column's permission silently overwrites the earlier one.
 
     .PARAMETER DataRows
-        The data rows of the Permissions sheet (the rows below the header
-        rows), as an array of objects. Each row is expected to expose P1 (the
-        path) and the permission columns P2, P3, and so on. Rows whose P1 is
-        empty are ignored. Mandatory.
+        The Permissions sheet rows below the headers. Rows with an empty P1 are
+        dropped.
 
     .PARAMETER AdObjectsMap
-        A hashtable mapping permission column names (P2, P3, ...) to the
-        resolved AD object names for those columns — typically the output of
-        Get-MatrixADObjectsMapHC. Only the columns present as keys here are
-        read from each data row; any other columns on the row are ignored.
-        Mandatory.
+        Column name to resolved AD object name, typically from
+        Get-MatrixADObjectsMapHC.
 
     .EXAMPLE
         $map = @{ P2 = 'Mgrs BRU GRP'; P3 = 'Users GRP' }
@@ -670,48 +407,8 @@ function ConvertTo-MatrixAclHC {
         )
         ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
 
-        Returns two objects. '\\srv\Finance' gets ACL
-        @{ 'Mgrs BRU GRP' = 'F'; 'Users GRP' = 'R' } and Ignore = $false.
-        '\\srv\HR' has an 'I' in a permission column, so it is flagged as
-        ignored: an empty ACL and Ignore = $true. Its other value ('W') is
-        discarded because an ignored folder is left untouched.
-
-    .EXAMPLE
-        $map = @{ P2 = 'Mgrs BRU GRP' }
-        $rows = @(
-            [pscustomobject]@{ P1 = '';           P2 = 'F' },
-            [pscustomobject]@{ P1 = '\\srv\Logs'; P2 = 'I' }
-        )
-        ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $map
-
-        Returns one object: Path '\\srv\Logs' with an empty ACL hashtable and
-        Ignore = $true. The first row has no P1 and is skipped; the second is
-        an ignore row.
-
-    .OUTPUTS
-        System.Management.Automation.PSCustomObject[]
-        An array of objects, one per data row with a non-empty P1, each having:
-        - Path:   the value of the row's P1.
-        - ACL:    a hashtable mapping resolved AD object names to permission
-                  characters. Empty when the row grants nothing or is ignored.
-        - Ignore: $true when any permission column held 'I', otherwise $false.
-        Returns an empty array when no rows qualify.
-
-    .NOTES
-        - Rows with an empty P1 are dropped; a path is required to produce an
-          entry.
-        - Permission values are taken from the row as-is for the ACL: they are
-          not validated against a permitted set, unlike Get-DefaultAclHC. Two
-          values are special-cased — empty (skipped) and 'I' (flags the row as
-          ignored). The 'I' comparison is trimmed and case-insensitive.
-        - An ignored row (any 'I') always produces an entry with an empty ACL
-          and Ignore = $true; any other permissions on that row are discarded.
-        - A path whose every permission is empty still produces an entry with an
-          empty ACL and Ignore = $false.
-        - The ACL is a default @{} hashtable, so its AD-name keys are matched
-          case-insensitively. If two columns in AdObjectsMap resolve to the same
-          AD name, the later column's permission overwrites the earlier one's
-          for that path, silently.
+        Finance gets both permissions. HR is flagged ignored and its 'W' is
+        discarded.
     #>
     [CmdletBinding()]
     param(
@@ -766,97 +463,32 @@ function ConvertTo-MatrixAclHC {
 }
 
 function Merge-DefaultPermissionsHC {
-      <#
+    <#
     .SYNOPSIS
         Merge the default ACL into a matrix ACL, unless defaults are disabled or
         the two define the same AD object.
 
     .DESCRIPTION
-        Combines a path's matrix ACL with the default ACL and returns the
-        result as a new hashtable. The input hashtables are never modified; the
-        function works on clones.
-
-        Behavior depends on ApplyDefaultPermissions:
-
-        - When $false, defaults are ignored entirely and a clone of MatrixAcl is
-          returned unchanged.
-        - When $true, the function first checks for conflicts — AD object names
-          present in both Defaults and MatrixAcl. If any exist, it throws,
-          listing the conflicting names, and returns nothing. If there are no
-          conflicts, the default entries are added to a clone of MatrixAcl and
-          the merged hashtable is returned.
-
-        A conflict is treated as a hard error rather than resolved by
-        precedence: an AD object must be defined by the matrix or by the
-        defaults, not both.
-
-    .PARAMETER Defaults
-        The default ACL: a hashtable mapping AD object names to permission
-        characters (typically from Get-DefaultAclHC). Its entries are added to
-        the matrix ACL when ApplyDefaultPermissions is $true and there are no
-        conflicts. Mandatory.
-
-    .PARAMETER MatrixAcl
-        The per-path ACL from the matrix: a hashtable mapping AD object names to
-        permission characters (typically the ACL property of a
-        ConvertTo-MatrixAclHC entry). This is the base that defaults are merged
-        into. Mandatory.
-
-    .PARAMETER ApplyDefaultPermissions
-        When $true, defaults are merged into the matrix ACL (subject to the
-        conflict check). When $false, defaults are skipped and the matrix ACL is
-        returned as-is. Mandatory.
-
-    .EXAMPLE
-        $defaults = @{ 'Admins' = 'F' }
-        $matrix   = @{ 'Users GRP' = 'R' }
-        Merge-DefaultPermissionsHC `
-            -Defaults $defaults `
-            -MatrixAcl $matrix `
-            -ApplyDefaultPermissions $true
-
-        Returns @{ 'Users GRP' = 'R'; 'Admins' = 'F' }. The default entry is
-        added because there is no overlap with the matrix ACL.
-
-    .EXAMPLE
-        $defaults = @{ 'Admins' = 'F' }
-        $matrix   = @{ 'Users GRP' = 'R' }
-        Merge-DefaultPermissionsHC `
-            -Defaults $defaults `
-            -MatrixAcl $matrix `
-            -ApplyDefaultPermissions $false
-
-        Returns @{ 'Users GRP' = 'R' } — a clone of the matrix ACL. Because
-        defaults are disabled, Defaults is not consulted at all.
-
-    .EXAMPLE
-        $defaults = @{ 'Admins' = 'F' }
-        $matrix   = @{ 'Admins' = 'R' }
-        Merge-DefaultPermissionsHC `
-            -Defaults $defaults `
-            -MatrixAcl $matrix `
-            -ApplyDefaultPermissions $true
-
-        Throws, because 'Admins' is defined in both the matrix and the
-        defaults.
-
-    .OUTPUTS
-        System.Collections.Hashtable
-        A new hashtable mapping AD object names to permission characters: either
-        a clone of MatrixAcl (when defaults are disabled) or the clone with the
-        default entries added (when enabled and conflict-free).
+        With ApplyDefaultPermissions $false, Defaults is not consulted at all
+        and a clone of MatrixAcl is returned. With $true, the default entries
+        are added to a clone of MatrixAcl provided no AD object appears in both.
 
     .NOTES
-        - The result is always a clone; neither Defaults nor MatrixAcl is
-          mutated.
-        - On a conflict the function throws and returns nothing, so callers
-          should be prepared to handle a terminating error rather than an empty
-          result.
-        - Conflict detection uses ContainsKey on a default @{} hashtable, so AD
-          object names are matched case-insensitively: 'Admins' and 'admins'
-          count as a conflict.
-        - The merge does not validate or normalize permission characters; it
-          copies whatever values the two hashtables hold.
+        - A conflict is a hard error, not resolved by precedence: an AD object
+          must be defined by the matrix or by the defaults, never both. The
+          function THROWS and returns nothing, so callers must be ready for a
+          terminating error rather than an empty result.
+        - Conflict detection is case-insensitive: 'Admins' and 'admins' collide.
+        - Neither input is mutated; the result is always a clone.
+        - Permission characters are copied as-is, not validated or normalized.
+
+    .EXAMPLE
+        Merge-DefaultPermissionsHC `
+            -Defaults @{ 'Admins' = 'F' } `
+            -MatrixAcl @{ 'Users GRP' = 'R' } `
+            -ApplyDefaultPermissions $true
+
+        Returns @{ 'Users GRP' = 'R'; 'Admins' = 'F' }.
     #>
     [CmdletBinding()]
     param(
