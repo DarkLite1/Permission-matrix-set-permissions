@@ -21,6 +21,27 @@ Describe 'Add-ErrorHC' {
         $script:errors.Count | Should-Be 1
     }
 
+    It 'rejects a Type outside the allowed set' {
+        <# Callers decide whether to halt by testing Type -eq 'FatalError', so
+        a typo like 'Fatal' or 'fatalerror ' would never match and would
+        silently downgrade a fatal error to advisory. #>
+        {
+            Add-ErrorHC -Type 'Fatal' -Name 'Test' -Message 'Boom' `
+                -Category 'Matrix' -SystemErrors ([ref]$script:errors)
+        } | Should-Throw
+
+        $script:errors.Count | Should-Be 0
+    }
+
+    It 'accepts both allowed Type values' {
+        Add-ErrorHC -Type 'FatalError' -Name 'A' -Message 'M' `
+            -Category 'Matrix' -SystemErrors ([ref]$script:errors)
+        Add-ErrorHC -Type 'Warning' -Name 'B' -Message 'M' `
+            -Category 'Matrix' -SystemErrors ([ref]$script:errors)
+
+        $script:errors.Count | Should-Be 2
+    }
+
     It 'populates all provided fields' {
         Add-ErrorHC `
             -Type 'Warning' `

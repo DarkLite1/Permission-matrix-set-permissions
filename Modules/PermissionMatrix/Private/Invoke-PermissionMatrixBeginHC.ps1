@@ -118,7 +118,13 @@ function Invoke-PermissionMatrixBeginHC {
         }
         #endregion
 
-        if ($SystemErrors.Value.Count -gt 0) { return $Context }
+        <# Only a fatal error stops the run here, matching how every other
+        stage of this function decides. Counting entries instead meant a
+        Warning added by the two validations above would abort silently, and
+        nothing constrains the Type those helpers accept. #>
+        if (Test-ItemHasFatalErrorHC -CheckList $SystemErrors.Value) {
+            return $Context
+        }
 
         #region Get Matrix Files
         try {

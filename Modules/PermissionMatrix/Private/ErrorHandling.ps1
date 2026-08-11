@@ -20,8 +20,10 @@ function Add-ErrorHC {
         with @() does not support .Add() and causes a terminating error.
 
     .PARAMETER Type
-        The error severity or kind, for example 'FatalError' or 'Warning'. Free
-        text; not validated against a fixed set.
+        The error severity: 'FatalError' or 'Warning'. Restricted to those two
+        values, because callers decide whether to halt by testing
+        Type -eq 'FatalError'. A typo such as 'Fatal' would never match and the
+        error would be silently downgraded to advisory.
 
     .PARAMETER Name
         A short title for the error, used to identify or group similar
@@ -76,7 +78,9 @@ function Add-ErrorHC {
 
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,       
+        [Parameter(Mandatory)]
+        [ValidateSet('FatalError', 'Warning')]
+        [string]$Type,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$Message,
         [Parameter()][string]$Description = '',
@@ -107,7 +111,7 @@ function Add-MatrixErrorHC {
         description of the record created and how SystemErrors is used.
 
     .PARAMETER Type
-        The error severity or kind (for example 'FatalError'). Forwarded to
+        The error severity: 'FatalError' or 'Warning'. Forwarded to
         Add-ErrorHC.
 
     .PARAMETER Name
@@ -143,7 +147,9 @@ function Add-MatrixErrorHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)]
+        [ValidateSet('FatalError', 'Warning')]
+        [string]$Type,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$Message,
         [string]$Description = '',
@@ -164,7 +170,7 @@ function Add-PermissionsErrorHC {
         full description of the record created and how SystemErrors is used.
 
     .PARAMETER Type
-        The error severity or kind (for example 'FatalError'). Forwarded to
+        The error severity: 'FatalError' or 'Warning'. Forwarded to
         Add-ErrorHC.
 
     .PARAMETER Name
@@ -200,7 +206,9 @@ function Add-PermissionsErrorHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)]
+        [ValidateSet('FatalError', 'Warning')]
+        [string]$Type,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$Message,
         [string]$Description = '',
@@ -221,7 +229,7 @@ function Add-RuntimeErrorHC {
         full description of the record created and how SystemErrors is used.
 
     .PARAMETER Type
-        The error severity or kind (for example 'FatalError'). Forwarded to
+        The error severity: 'FatalError' or 'Warning'. Forwarded to
         Add-ErrorHC.
 
     .PARAMETER Name
@@ -257,7 +265,9 @@ function Add-RuntimeErrorHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)]
+        [ValidateSet('FatalError', 'Warning')]
+        [string]$Type,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$Message,
         [string]$Description = '',
@@ -278,7 +288,7 @@ function Add-JsonSchemaErrorHC {
         description of the record created and how SystemErrors is used.
 
     .PARAMETER Type
-        The error severity or kind (for example 'FatalError'). Forwarded to
+        The error severity: 'FatalError' or 'Warning'. Forwarded to
         Add-ErrorHC.
 
     .PARAMETER Name
@@ -314,7 +324,9 @@ function Add-JsonSchemaErrorHC {
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][string]$Type,
+        [Parameter(Mandatory)]
+        [ValidateSet('FatalError', 'Warning')]
+        [string]$Type,
         [Parameter(Mandatory)][string]$Name,
         [Parameter(Mandatory)][string]$Message,
         [string]$Description = '',

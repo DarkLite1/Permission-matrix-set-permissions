@@ -225,6 +225,27 @@ Describe 'Invoke-PermissionMatrixBeginHC' {
             Should-Invoke Invoke-WithOptionalParallelismHC -Times 0
         }
 
+        It 'continues past a Warning from Test-ConfigurationStructureHC' {
+            <# Regression: the guard counted entries rather than checking for
+            fatal ones, so any Warning recorded during validation aborted the
+            run before matrix discovery. Every other stage of this function
+            uses Test-ItemHasFatalErrorHC. #>
+            New-Item (Join-Path $TestDrive 'Matrix\M1.xlsx') -ItemType File -Force | Out-Null
+
+            Mock Test-ConfigurationStructureHC {
+                $SystemErrors.Value.Add([pscustomobject]@{
+                        Type = 'Warning'; Category = 'Validation'; Message = 'deprecated setting'
+                    })
+            }
+            $args = New-BeginArgs
+
+            $context = Invoke-PermissionMatrixBeginHC @args -SystemErrors ([ref]$systemErrors)
+
+            $context.FoundMatrices | Should-BeTrue
+            $systemErrors.Where({ $_.Type -eq 'FatalError' }).Count | Should-Be 0
+            Should-Invoke Invoke-WithOptionalParallelismHC -Times 1
+        }
+
         It 'continues to next phase when validation passes' {
             $args = New-BeginArgs
 
