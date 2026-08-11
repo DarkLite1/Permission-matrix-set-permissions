@@ -77,7 +77,12 @@ function Test-MatrixPermissionsHC {
 
         # Separate Headers from Data
         $NonHeaderRows = $Permissions | Select-Object -Skip 3
-        $FolderNames = $NonHeaderRows | Select-Object -Skip 1
+
+        <# The sub-folder rows: everything after the 3 header rows and the
+        parent folder row on row 4. This slice was previously built twice,
+        here and again as '$Permissions | Select-Object -Skip 4' further
+        down, which is the same set of rows by a different route. #>
+        $FolderRows = $NonHeaderRows | Select-Object -Skip 1
 
         #region Permission character unknown
         $InvalidChars = [System.Collections.Generic.List[string]]::new()
@@ -107,7 +112,7 @@ function Test-MatrixPermissionsHC {
         #endregion
 
         #region Folder name missing
-        $MissingFolders = $FolderNames.Where(
+        $MissingFolders = $FolderRows.Where(
             { [string]::IsNullOrWhiteSpace($_.$FirstProperty) }
         )
 
@@ -123,7 +128,7 @@ function Test-MatrixPermissionsHC {
         #endregion
 
         #region Duplicate folder name
-        $NotUniqueFolder = $FolderNames.$FirstProperty | Group-Object | Where-Object Count -GE 2
+        $NotUniqueFolder = $FolderRows.$FirstProperty | Group-Object | Where-Object Count -GE 2
         if ($NotUniqueFolder) {
             $checks.Add(
                 (New-ValidationCheckHC `
@@ -136,8 +141,6 @@ function Test-MatrixPermissionsHC {
         #endregion
 
         #region Deepest folder has only List permissions or none at all
-        $FolderRows = $Permissions | Select-Object -Skip 4
-
         <#
          Normalize paths before comparing: trim surrounding whitespace and
          trailing backslashes, so a cell typed as 'BEL\L&D\Certificates\' is
