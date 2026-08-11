@@ -1,40 +1,24 @@
 function Remove-OldLogsHC {
     <#
     .SYNOPSIS
-        Purges old log files and orphaned directories based on a retention 
-        policy.
+        Purges old log files and the directories left empty behind them.
 
     .DESCRIPTION
-        Evaluates files within the specified log directory against a given 
-        retention threshold (in days). Files with a 'CreationTime' older than 
-        the threshold are permanently deleted. 
-        
-        Following the file cleanup, the function performs a highly efficient 
-        bottom-up (descending sort) evaluation of the directory tree, removing 
-        any subdirectories that are now empty. 
-        
-        Architectural Note: Deletion operations frequently encounter locked 
-        files (e.g., if a log is currently open in another process). This 
-        function safely catches those exceptions and appends them as 
-        non-terminating 'Warning' records to the SystemErrors reference, 
-        ensuring that cleanup failures never crash the main orchestrator.
+        Deletes files older than the retention threshold, then walks the
+        directory tree bottom-up (sorted descending) removing any subdirectory
+        that is now empty.
 
-    .PARAMETER LogFolder
-        The absolute path to the root logging directory to be evaluated.
-
-    .PARAMETER RetentionDays
-        The number of days to retain logs. Files older than this threshold will 
-        be deleted. A value of 0 or less will instantly bypass the cleanup 
-        process.
-
-    .PARAMETER SystemErrors
-        A reference variable ([ref]) containing a List[pscustomobject]. Used to 
-        capture and bubble up file-lock exceptions or permission errors as 
-        warnings.
+    .NOTES
+        - Age is measured on CreationTime, NOT LastWriteTime. A file that is
+          still being appended to is deleted once it is old enough.
+        - RetentionDays of 0 or less disables the cleanup entirely.
+        - Deletion failures (a log open in another process, access denied) are
+          appended to SystemErrors as WARNINGS and never throw, so cleanup
+          problems cannot crash the orchestrator.
 
     .EXAMPLE
         $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
-        
+
         Remove-OldLogsHC `
             -LogFolder 'C:\MatrixLogs' `
             -RetentionDays 30 `
@@ -109,24 +93,16 @@ function Write-CheckDetailJsonHC {
     .DESCRIPTION
         Stamps the check with 'JsonFileName' and 'JsonFilePath', then, when the
         check carries a 'Value', serializes a copy (excluding those two link
-        properties) to disk as JSON. ErrorRecord/Exception values are rendered
-        to their string form first to avoid serialization depth failures.
+        properties) to disk as JSON.
 
-        When the check has no 'Value', or when serialization fails, the
-        'JsonFileName'/'JsonFilePath' properties are set back to $null so
-        downstream reporting does not link to a file that was never written. A
-        serialization failure is also appended to the check's 'Description'.
-
-        The passed-in check object is mutated in place.
-
-    .PARAMETER Check
-        The check object (file-level or matrix-level) to serialize.
-
-    .PARAMETER JsonFileName
-        The file name to use for the detail JSON (e.g. 'File - Detail 1.json').
-
-    .PARAMETER LogFolder
-        The folder in which to write the detail JSON file.
+    .NOTES
+        - The passed-in check object is MUTATED in place.
+        - ErrorRecord/Exception values are rendered to their string form first,
+          to avoid serialization depth failures.
+        - When the check has no 'Value', or serialization fails, both link
+          properties are reset to $null so downstream reporting never links to a
+          file that was not written. A failure is also appended to the check's
+          'Description'.
     #>
     [CmdletBinding()]
     param(
@@ -169,62 +145,43 @@ function Write-CheckDetailJsonHC {
 function Out-LogFileHC {
     <#
     .SYNOPSIS
-        A versatile data export engine that writes PowerShell objects to 
-        multiple file formats simultaneously.
+        Writes PowerShell objects to several file formats at once, from one
+        shared base path.
 
     .DESCRIPTION
-        Takes an array of custom objects and exports them to one or more 
-        requested file formats (CSV, JSON, TXT, XLSX) using a shared base path. 
-        
-        It includes intelligent data handling for specific formats:
-        - JSON: 
-            Automatically intercepts and unwraps [System.Management. Automation.
-            ErrorRecord] objects into flat string messages to prevent 
-            serialization depth failures. Custom logic is also used to safely 
-            append to existing JSON arrays.
-        - XLSX: 
-            Leverages the ImportExcel module to dynamically build formatted 
-            Excel tables with frozen headers and auto-sized columns.
+        Exports DataToExport to each requested extension ('.csv', '.json',
+        '.txt', '.xlsx'), appending the extension to PartialPath. Extensions are
+        de-duplicated and sorted before use. Returns the paths actually written.
 
-    .PARAMETER DataToExport
-        An array of PSCustomObject items containing the data rows to be written 
-        to disk.
-
-    .PARAMETER PartialPath
-        The absolute file path minus the extension 
-        (e.g., 'C:\Logs\ExecutionReport'). The script will append the requested 
-        extensions to this base path.
-
-    .PARAMETER FileExtensions
-        An array of string extensions dictating the desired output formats. 
-        Valid values: '.csv', '.json', '.txt', '.xlsx'.
+        Format-specific handling:
+        - JSON: ErrorRecord values are flattened to their message text so
+          serialization cannot fail on depth. The caller's DataToExport is never
+          mutated: a fresh object is built per item. With -Append the existing
+          file is read and merged, rather than concatenating raw text.
+        - XLSX: built through ImportExcel with frozen headers and auto-sized
+          columns. Without -Append an existing file is deleted first, because
+          Export-Excel is always called in append mode.
 
     .PARAMETER ExcelFile
-        A hashtable defining the structural formatting rules for '.xlsx' 
-        exports. 
-        Expected keys: 'SheetName', 'TableName', and 'CellStyle'.
+        Formatting rules for '.xlsx'. Keys: 'SheetName', 'TableName',
+        'CellStyle'.
 
-    .PARAMETER Append
-        If specified, the function will attempt to append the new data to 
-        existing files rather than overwriting them. 
+    .NOTES
+        A format that fails is reported with Write-Warning and its path is
+        omitted from the return value; the remaining formats still export. A
+        caller that ignores the returned paths will not notice a partial
+        failure. An unsupported extension throws inside the loop and is caught
+        by that same handler.
 
     .OUTPUTS
         System.String[]
-        Returns an array of strings representing the absolute paths of all 
-        successfully generated or updated log files.
+        Paths of the log files successfully generated or updated.
 
     .EXAMPLE
-        $data = @(
-            [pscustomobject]@{ Status = 'Success'; Server = 'SRV-01' }
-            [pscustomobject]@{ Status = 'Failed'; Server = 'SRV-02' }
-        )
-        
-        $extensions = @('.csv', '.json', '.xlsx')
-        
         $exportedPaths = Out-LogFileHC `
             -DataToExport $data `
             -PartialPath 'C:\Logs\DailyReport' `
-            -FileExtensions $extensions
+            -FileExtensions @('.csv', '.json', '.xlsx')
     #>
     [CmdletBinding()]
     param (
@@ -331,42 +288,22 @@ function Out-LogFileHC {
 function Remove-FileHC {
     <#
     .SYNOPSIS
-        Safely deletes a specified file and handles locking/permission errors 
-        non-destructively.
+        Deletes a file, downgrading locking/permission failures to a warning.
 
     .DESCRIPTION
-        Attempts to forcefully remove a target file if it currently exists on 
-        the disk. 
-        
-        To ensure the stability of the broader orchestrator, this function will 
-        never throw a terminating error. If the file is locked by another 
-        process or access is denied, it safely catches the exception and logs 
-        it as a 'Warning'. 
-        
-        It intelligently routes this warning: if the `$SystemErrors` reference 
-        variable is provided, the error is added to the centralized collection. 
-        If it is omitted, it falls back to the standard PowerShell warning 
-        stream.
+        Removes FilePath when it exists. A missing file is a silent no-op.
 
-    .PARAMETER FilePath
-        The absolute path to the target file that should be deleted.
-
-    .PARAMETER SystemErrors
-        An optional reference variable ([ref]) containing a List
-        [pscustomobject]. Used to capture and bubble up file deletion failures 
-        as structured warnings rather than crashing the script.
+    .NOTES
+        Never throws. On failure the warning is routed to SystemErrors when that
+        reference is supplied, and to the PowerShell warning stream when it is
+        not.
 
     .EXAMPLE
-        # Standard deletion with console warnings on failure
-        Remove-FileHC -FilePath 'C:\Temp\OldLog.txt'
-
-    .EXAMPLE
-        # Silent deletion routing failures to the global error tracker
         $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
         Remove-FileHC `
             -FilePath 'C:\Temp\OldLog.txt' `
             -SystemErrors ([ref]$sysErrors)
-    #> 
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string]$FilePath,
@@ -395,52 +332,24 @@ function Remove-FileHC {
 function Write-EventLogSafeHC {
     <#
     .SYNOPSIS
-        Safely formats and writes aggregated execution data and system errors 
-        to the Windows Event Log.
+        Formats and writes aggregated execution data and system errors to the
+        Windows Event Log, without ever throwing.
 
     .DESCRIPTION
-        Acts as a robust, non-terminating wrapper for system-level event 
-        logging. When Event Logging is enabled in the configuration, this 
-        function performs three critical steps:
-        
-        1. Error Consolidation: 
-            Extracts all accumulated pipeline failures from the '$SystemErrors' 
-            collection and translates them into standalone 'Error' events 
-            (EventID 2).
-        2. Execution Closure: 
-            Appends a standardized "Script ended" 'Information' event (EventID 
-            199) to formally mark the end of the run.
-        3. Safety Truncation: 
-            Automatically scans all outgoing messages and truncates anything 
-            exceeding 31,000 characters. This prevents the underlying Windows 
-            Event Log API from throwing fatal serialization errors when 
-            processing massive stack traces or data dumps.
+        Returns immediately unless 'SaveInEventLog.Save' is set and a LogName is
+        configured. Otherwise it adds every entry in SystemErrors as its own
+        Error event (EventID 2), appends a 'Script ended' Information event
+        (EventID 199), then hands the batch to Write-EventsToEventLogHC.
 
-        If the function lacks permissions to create the Event Source or write 
-        to the log, it safely catches the exception and appends a 'Warning' 
-        back to the `$SystemErrors` reference.
-
-    .PARAMETER EventLogData
-        A generic list of PSCustomObjects containing the baseline event data 
-        (like execution statistics and timestamps) to be written to the log.
-
-    .PARAMETER ScriptName
-        The string name to be used as the Event Log 'Source' 
-        (e.g., 'Permission Matrix').
-
-    .PARAMETER Settings
-        The parsed JSON configuration settings object containing the 
-        `SaveInEventLog` rules (LogName, Save boolean).
-
-    .PARAMETER SystemErrors
-        A reference variable ([ref]) containing a List[pscustomobject]. These 
-        captured errors are unwrapped and directly injected into the Event Log 
-        stream.
+    .NOTES
+        - Messages longer than 31,000 characters are truncated with a marker.
+          The Event Log API throws on oversized entries, which a large stack
+          trace or data dump would otherwise trigger.
+        - Failures (no permission to create the source or write the log) are
+          appended to SystemErrors as a warning. Contrast
+          Write-EventsToEventLogHC, which throws.
 
     .EXAMPLE
-        $sysErrors = [System.Collections.Generic.List[pscustomobject]]::new()
-        $eventData = [System.Collections.Generic.List[pscustomobject]]::new()
-        
         Write-EventLogSafeHC `
             -EventLogData $eventData `
             -ScriptName 'Permission Matrix' `
@@ -510,44 +419,19 @@ function Write-EventLogSafeHC {
 function Write-EventsToEventLogHC {
     <#
     .SYNOPSIS
-        Dynamically formats and writes an array of custom objects to the 
-        Windows Event Log.
+        Writes an array of custom objects to the Windows Event Log, flattening
+        their properties into the event message.
 
     .DESCRIPTION
-        This function handles the physical writing of data to the Windows Event 
-        Log. It evaluates the provided array of event objects and processes 
-        them using the following logic:
+        Registers the Event Source when missing, then writes one event per
+        object. 'EntryType' and 'EventID' map to the matching Event Log fields;
+        every other property is flattened into a bulleted message body. Missing
+        values default to 'Information' and EventID 4.
 
-        1. Source Registration: 
-            Checks if the specified Event Source exists in the target Log. If 
-            it is missing, it automatically creates it (Note: creating a new 
-            Event Source requires Administrator privileges).
-        2. Dynamic Message Construction: 
-            It extracts the 'EntryType' and 'EventID' properties from the 
-            object. All remaining properties are dynamically iterated over and 
-            flattened into a bulleted string to construct the final Event Log 
-            'Message'.
-        3. Fallbacks: 
-            If an object is missing an 'EntryType', it defaults to 
-            'Information'. If it is missing an 'EventID', it defaults to '4'.
-
-        Unlike its parent wrapper (Write-EventLogSafeHC), this function will 
-        throw a terminating error if it fails to write, passing the exception 
-        back up the chain.
-
-    .PARAMETER Source
-        The name of the application or script generating the event 
-        (e.g., 'Permission Matrix'). This becomes the 'Source' column in the 
-        Event Viewer.
-
-    .PARAMETER LogName
-        The name of the target Windows Event Log 
-        (e.g., 'Application' or 'System').
-
-    .PARAMETER Events
-        An array of PSCustomObjects containing the data to log. Properties 
-        named 'EntryType' and 'EventID' map directly to Event Log fields, while 
-        all other properties are concatenated into the message body.
+    .NOTES
+        - Creating a new Event Source requires Administrator privileges.
+        - Unlike its wrapper Write-EventLogSafeHC, this function THROWS on
+          failure and passes the exception back up the chain.
 
     .EXAMPLE
         $events = @(
@@ -558,7 +442,7 @@ function Write-EventsToEventLogHC {
                 Status    = 'Folder locked by another process'
             }
         )
-        
+
         Write-EventsToEventLogHC `
             -Source 'MyScript' `
             -LogName 'Application' `
@@ -607,55 +491,29 @@ function Write-EventsToEventLogHC {
 function Write-SystemErrorLogHC {
     <#
     .SYNOPSIS
-        Exports system errors to a JSON log file and automatically attaches it 
-        to the outgoing email parameters.
+        Exports system errors to a JSON log file and attaches it to the outgoing
+        email parameters.
 
     .DESCRIPTION
-        This function processes the global collection of system errors 
-        encountered during the pipeline's execution. 
-        
-        If errors exist, it resolves the appropriately dated log directory and 
-        serializes the error records into a 'SystemErrors.json' file using the 
-        Out-LogFileHC engine. Finally, it safely modifies the referenced 
-        `$MailParams` hashtable to append the newly generated JSON file to its 
-        'Attachments' array. This ensures that administrators receive the full, 
-        raw error data alongside the HTML summary email.
-
-    .PARAMETER SystemErrors
-        An array or collection of PSCustomObjects representing the captured 
-        pipeline errors and warnings.
-
-    .PARAMETER LogFolder
-        The absolute path to the root logging directory where the file will be 
-        saved.
+        Serializes SystemErrors to 'SystemErrors.json' in the dated log folder,
+        then adds that path to the 'Attachments' key of the referenced
+        MailParams hashtable, creating the key when absent. Administrators then
+        receive the raw error data alongside the HTML summary.
 
     .PARAMETER MailParams
-        A reference variable ([ref]) containing the hashtable of SMTP 
-        parameters destined for the email sending function. The function will 
-        dynamically create or update the 'Attachments' key within this 
-        hashtable.
+        A [ref] to the SMTP splatting hashtable. MUTATED in place.
 
-    .PARAMETER ScriptStartTime
-        The exact DateTime the script started executing. Used to ensure the log 
-        file is placed in the correct timestamped subfolder.
-
-    .PARAMETER JsonFileName
-        The base name of the configuration file, utilized by the folder 
-        creation logic to maintain consistent directory naming conventions.
+    .NOTES
+        Returns without doing anything when there are no system errors or when
+        the log folder does not exist.
 
     .EXAMPLE
-        $mailSplat = @{ 
-            To      = 'admin@domain.com'
-            Subject = 'Execution Report' 
-        }
-        
+        $mailSplat = @{ To = 'admin@domain.com'; Subject = 'Execution Report' }
+
         Write-SystemErrorLogHC `
             -SystemErrors $sysErrors `
             -LogFolder 'C:\MatrixLogs' `
             -MailParams ([ref]$mailSplat)
-            
-        # $mailSplat now contains an 'Attachments' array with the path to 
-        SystemErrors.json
     #>
     [CmdletBinding()]
     param(
