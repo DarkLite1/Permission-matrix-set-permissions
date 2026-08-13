@@ -556,13 +556,52 @@ function Test-AdObjectInMatrixHC {
     #>
     $emptyGroups = [System.Collections.Generic.List[psobject]]::new()
 
+    <#
+     User accounts referenced directly in the matrix that are disabled in AD.
+
+     Collected in the same pass as the empty-group check to avoid a second walk
+     over the matrix objects.
+    #>
+    $disabledUsers = [System.Collections.Generic.List[psobject]]::new()
+
     foreach ($name in $matrixAdObjects) {
         $detail = $detailLookup[[string]$name]
 
         # Already reported above as an unknown AD object
         if (-not $detail.adObject) { continue }
 
-        if ($detail.adObject.ObjectClass -ne 'group') { continue }
+        if ($detail.adObject.ObjectClass -ne 'group') {
+            <#
+             A disabled user granted permissions directly is dead access: the
+             ACE stays on the folder but nobody can use it. Unlike a group, it
+             will not start working again when someone is added, so it needs
+             either removing from the matrix or the account re-enabling.
+
+             'Enabled' is compared to $false explicitly, not tested for
+             truthiness. Get-ADObjectDetailHC leaves it $null when
+             'useraccountcontrol' was not returned, and an unknown state must
+             not be reported as disabled.
+
+             Placeholder accounts are skipped: they exist precisely to occupy a
+             matrix slot without granting access, so reporting them every run
+             would be noise. This matches how the empty-group check below treats
+             them.
+            #>
+            if (
+                ($detail.adObject.Enabled -eq $false) -and
+                (-not $placeHolders.Contains([string]$name))
+            ) {
+                $disabledUsers.Add(
+                    [PSCustomObject]@{
+                        Name              = [string]$name
+                        DisplayName       = [string]$detail.adObject.Name
+                        DistinguishedName = [string]$detail.adObject.DistinguishedName
+                    }
+                )
+            }
+
+            continue
+        }
 
         # 'adGroupMember' is $null when the group could not be expanded
         $members = @($detail.adGroupMember | Where-Object { $_ })
@@ -648,6 +687,16 @@ function Test-AdObjectInMatrixHC {
             -Name 'AD groups without members' `
             -Description "One or more AD groups in the matrix have no effective members: they are empty, they only contain placeholder accounts, or they only contain disabled accounts. No one has access to the folders granted to these groups. $placeHolderText" `
             -Value $emptyGroupList
+    }
+    #endregion
+
+    #region Disabled user accounts used directly in the matrix (information)
+    if ($disabledUsers.Count -gt 0) {
+        $checks += New-ValidationCheckHC `
+            -Type 'Information' `
+            -Name 'Disabled AD user accounts' `
+            -Description 'One or more user accounts granted permissions directly in the matrix are disabled in Active Directory. The permissions are still applied to the folders, but the accounts cannot use them. Remove the accounts from the matrix or re-enable them in Active Directory.' `
+            -Value @($disabledUsers | Sort-Object -Property 'Name')
     }
     #endregion
 

@@ -59,7 +59,17 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                     [Parameter(Mandatory)][string]$SamAccountName,
                     [ValidateSet('user', 'group')][string]$ObjectClass = 'group',
                     [object[]]$Member = @(),
-                    [switch]$NotFound
+                    [switch]$NotFound,
+                    <#
+                     [object] so all three real states can be expressed:
+                     $true/$false for a user, and $null for a group or for a
+                     user whose 'useraccountcontrol' was not returned.
+
+                     Defaults to $null, which is what Get-ADObjectDetailHC
+                     produces for a group, so the fixtures that predate this
+                     parameter keep their original meaning.
+                    #>
+                    [object]$Enabled = $null
                 )
 
                 $adObject = if ($NotFound) { $null }
@@ -70,6 +80,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                         ObjectSid         = "S-1-5-21-1-1-1-$($SamAccountName.Length)"
                         ObjectClass       = $ObjectClass
                         Name              = $SamAccountName
+                        Enabled           = $Enabled
                     }
                 }
 
@@ -102,6 +113,19 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 param([object[]]$Checks)
 
                 @($Checks | Where-Object { $_.Name -eq 'AD groups without members' })
+            }
+
+            function Get-DisabledUserCheckHC {
+                param([object[]]$Checks)
+
+                @($Checks | Where-Object { $_.Name -eq 'Disabled AD user accounts' })
+            }
+
+            # The reported SamAccountNames, in the order the check lists them
+            function Get-DisabledUserNameHC {
+                param([object]$Check)
+
+                @($Check.Value) | ForEach-Object { $_.Name }
             }
 
             <#
@@ -653,6 +677,142 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 @($res).Count | Should-Be 2
                 $res.Type | Should-ContainCollection 'FatalError'
                 $res.Type | Should-ContainCollection 'Information'
+            }
+        }
+
+        Context 'disabled user accounts' {
+            It 'raises a notice for a disabled user used directly' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'bmarley'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' `
+                        -ObjectClass 'user' -Enabled $false
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = Get-DisabledUserCheckHC $res
+                @($check).Count | Should-Be 1
+                $check.Type | Should-Be 'Information'
+                Get-DisabledUserNameHC $check | Should-BeCollection @('bmarley')
+            }
+
+            It 'raises no notice for an enabled user' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'bmarley'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' `
+                        -ObjectClass 'user' -Enabled $true
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-DisabledUserCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'raises no notice when Enabled is unknown' {
+                <#
+                 Get-ADObjectDetailHC leaves Enabled $null when
+                 'useraccountcontrol' was not returned. An unknown state must
+                 not be reported as disabled.
+                #>
+                $matrix = New-FakeMatrixHC -AdObjectName 'bmarley'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' `
+                        -ObjectClass 'user' -Enabled $null
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-DisabledUserCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'raises no notice for a group' {
+                # Groups have no enabled state; Enabled is always $null
+                $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
+                        New-FakeAdMemberHC -SamAccountName 'bmarley'
+                    )
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-DisabledUserCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'skips a disabled placeholder account' {
+                <#
+                 A placeholder exists to occupy a matrix slot without granting
+                 access, so it is expected to be disabled and must not be
+                 reported every run.
+                #>
+                $matrix = New-FakeMatrixHC -AdObjectName 'cnorris'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'cnorris' `
+                        -ObjectClass 'user' -Enabled $false
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
+                    -ExcludedSamAccountName @('cnorris')
+
+                Get-DisabledUserCheckHC $res | Should-BeCollection @()
+            }
+
+            It 'raises no notice for a user that does not resolve' {
+                # Already reported as an unknown AD object
+                $matrix = New-FakeMatrixHC -AdObjectName 'ghost'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'ghost' -NotFound
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                Get-DisabledUserCheckHC $res | Should-BeCollection @()
+                $res.Type | Should-ContainCollection 'FatalError'
+            }
+
+            It 'reports every disabled user, sorted by name' {
+                $matrix = New-FakeMatrixHC -AdObjectName @('zulu', 'alpha', 'mike')
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'zulu' -ObjectClass 'user' -Enabled $false
+                    New-FakeAdDetailHC -SamAccountName 'alpha' -ObjectClass 'user' -Enabled $false
+                    New-FakeAdDetailHC -SamAccountName 'mike' -ObjectClass 'user' -Enabled $true
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $check = Get-DisabledUserCheckHC $res
+                Get-DisabledUserNameHC $check |
+                Should-BeCollection @('alpha', 'zulu')
+            }
+
+            It 'carries the display name and DistinguishedName' {
+                $matrix = New-FakeMatrixHC -AdObjectName 'bmarley'
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' `
+                        -ObjectClass 'user' -Enabled $false
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                $entry = @((Get-DisabledUserCheckHC $res).Value)[0]
+                $entry.Name | Should-Be 'bmarley'
+                $entry.DisplayName | Should-Be 'bmarley'
+                $entry.DistinguishedName |
+                Should-Be 'CN=bmarley,DC=contoso,DC=com'
+            }
+
+            It 'reports a disabled user alongside an empty group' {
+                $matrix = New-FakeMatrixHC -AdObjectName @('GRP-HR', 'bmarley')
+                $ad = @(
+                    New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @()
+                    New-FakeAdDetailHC -SamAccountName 'bmarley' `
+                        -ObjectClass 'user' -Enabled $false
+                )
+
+                $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
+
+                @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
+                @(Get-DisabledUserCheckHC $res).Count | Should-Be 1
             }
         }
     }
