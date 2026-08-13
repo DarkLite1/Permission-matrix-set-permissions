@@ -31,22 +31,6 @@ Describe 'Initialize-HtmlStructureHC' {
         $struct.TroubleshootingStyle | Should-MatchString '<style type="text/css">'
     }
 
-    It 'exposes a Templates hashtable' {
-        $struct.Templates | Should-HaveType ([hashtable])
-        $struct.Templates.ContainsKey('SettingsHeader') | Should-BeTrue
-        $struct.Templates.ContainsKey('LegendTable') | Should-BeTrue
-    }
-
-    It 'keeps Templates.SettingsHeader as an empty no-op placeholder' {
-        # The modern layout embeds settings per file card; this template is
-        # retained only for backward compatibility with external callers.
-        $struct.Templates.SettingsHeader | Should-BeFalsy
-    }
-
-    It 'keeps Templates.LegendTable as an empty no-op placeholder' {
-        $struct.Templates.LegendTable | Should-BeFalsy
-    }
-
     It 'embeds the themed page background colour in the Style block' {
         $struct.Style | Should-MatchString 'background-color: #e5e7eb;'
     }

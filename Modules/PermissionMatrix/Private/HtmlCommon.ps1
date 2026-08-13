@@ -112,11 +112,6 @@ function Initialize-HtmlStructureHC {
         .rr-srow .rr-srow-status,
         .rr-syscard .rr-syscard-status { white-space: normal !important; }
     }
-    /* Legacy classes preserved for any external consumer; the new
-       email layout uses inline styles exclusively. */
-    .probTypeError { background-color: $($Script:Theme.StatusError); }
-    .probTypeWarning { background-color: $($Script:Theme.StatusWarning); }
-    .probTypeInfo { background-color: $($Script:Theme.BgAlt); }
 </style>
 "@
 
@@ -129,12 +124,6 @@ function Initialize-HtmlStructureHC {
     @{
         Style                = $style
         TroubleshootingStyle = $troubleshooting
-        Templates            = @{
-            # Kept as no-op placeholders — the new layout doesn't use them,
-            # but external callers might reference them.
-            SettingsHeader = ''
-            LegendTable    = ''
-        }
     }
 }
 
