@@ -437,7 +437,6 @@ function Test-MatrixSettingRowHC {
         -not [string]::IsNullOrWhiteSpace($SettingRow.ApplyDefaultPermissions)
     ) {
         $parsed = $false
-        # If the value cannot be parsed strictly as a boolean, flag it as a FatalError
         if (-not [bool]::TryParse($SettingRow.ApplyDefaultPermissions.ToString(), [ref]$parsed)) {
             $checks.Add(
                 (New-ValidationCheckHC `
