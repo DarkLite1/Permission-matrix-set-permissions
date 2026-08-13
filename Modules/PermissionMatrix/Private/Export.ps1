@@ -4,31 +4,28 @@ function Build-ExportDataHC {
         Builds aggregated export data for permissions and ServiceNow form data.
 
     .DESCRIPTION
-        Iterates the flattened matrix objects (one per enabled Settings row,
-        as found in $Context.AllMatrices) and extracts:
+        Iterates the flattened matrix objects ($Context.AllMatrices) and emits
+        one Permissions row per matrix object, plus one FormData row and its
+        ServiceNow rows per matrix FILE.
 
-        - one Permissions row per matrix object, built from the formatted
-          Settings values and the matrix object's own check list
-        - one FormData row per matrix file, taken from the file's formatted
-          FormData
+        Because AllMatrices is flattened per Settings row, several matrix
+        objects can share one source file. FormData is therefore deduplicated on
+        the FileContext (keyed on Item.FullName, falling back to Item.Name)
+        while permissions rows are emitted for every matrix object.
 
-        Because $Context.AllMatrices is flattened per Settings row, several
-        matrix objects can share the same source file. The FormData row is
-        therefore emitted only once per file (deduplicated on the shared
-        FileContext), while permissions rows are emitted for every matrix
-        object.
-
-        This output is specifically formatted to be fed directly into the HTML
-        and Excel reporting functions.
+    .NOTES
+        - The dedupe means the ServiceNow rows are built from whichever matrix
+          object reached the file FIRST; its Matrix.AdNames alone supply the AD
+          objects for that file.
+        - A file whose FormData is $null produces no FormData and no ServiceNow
+          rows, but is still marked as seen.
+        - The FormData row is MUTATED: 'MatrixFileName' is added to the file's
+          formatted FormData in place.
 
     .PARAMETER ImportedMatrix
-        An array of matrix objects (typically $Context.AllMatrices). Each
-        object exposes:
-        - Setting.Formatted.{ComputerName, Path, Action}
-        - Check (list of objects with a 'Type' of 'FatalError' / 'Warning')
-        - FileContext.Item.{Name, FullName}
-        - FileContext.Sheets.FormData.Formatted (a single formatted row, or
-          $null when no ServiceNow / overview export is configured)
+        Matrix objects, each exposing Setting.Formatted.{ComputerName, Path,
+        Action}, Check, FileContext.Item.{Name, FullName} and
+        FileContext.Sheets.FormData.Formatted.
     #>
     [CmdletBinding()]
     param(
@@ -130,29 +127,23 @@ function Export-FilesHC {
         Executes all export operations based on settings.
 
     .DESCRIPTION
-        Writes the configured export artifacts to disk:
+        Writes the configured export artifacts to disk, each one skipped when
+        its setting is absent:
 
-        - Permissions Excel: a single consolidated workbook holding the
-          'AccessList', 'GroupManagers', 'AdObjects' and 'FormData'
-          worksheets aggregated across every matrix file. The same per-file
-          rows are still written into the per-matrix copies in the log folder
-          by EndHC; to avoid resolving group managers in AD twice, the rows
-          built here are cached on each file result (.LogSheets) so EndHC can
-          reuse them.
-        - ServiceNow FormData Excel
-        - the standalone overview HTML page (generated internally)
+        - Permissions Excel: one consolidated workbook holding the 'AccessList',
+          'GroupManagers', 'AdObjects' and 'FormData' worksheets aggregated
+          across every matrix file.
+        - ServiceNow FormData Excel.
+        - The standalone overview HTML page.
 
-        The email summary body is a separate artifact built by EndHC and is
-        not used here.
+        The email summary body is a separate artifact built by EndHC and is not
+        used here.
 
-    .PARAMETER FileResults
-        The per-file result objects ($Context.FileResults). Required to build
-        the consolidated Permissions workbook and the log-folder sheet rows.
-
-    .PARAMETER AdObjectDetails
-        The resolved AD objects of the run ($Context.AdObjectDetails), used to
-        expand group members and managers for the AccessList / GroupManagers /
-        AdObjects sheets.
+    .NOTES
+        EndHC also writes the same per-file rows into the per-matrix copies in
+        the log folder. To avoid resolving group managers in AD twice,
+        Build-ConsolidatedExportDataHC caches the rows built here on each file
+        result (.LogSheets) for EndHC to reuse.
     #>
     [CmdletBinding()]
     param(
@@ -260,37 +251,27 @@ function Export-OverviewHtmlHC {
 function Build-ConsolidatedExportDataHC {
     <#
     .SYNOPSIS
-        Aggregates the log-sheet rows of every matrix file into one set of
-        rows for the consolidated Permissions workbook.
+        Aggregates the log-sheet rows of every matrix file into one set of rows
+        for the consolidated Permissions workbook.
 
     .DESCRIPTION
-        For each file result, builds the per-file 'AccessList',
-        'GroupManagers' and 'AdObjects' rows with Build-MatrixLogSheetRowsHC
-        and combines them across all files:
+        For each file result, builds the per-file 'AccessList', 'GroupManagers'
+        and 'AdObjects' rows with Build-MatrixLogSheetRowsHC and combines them:
 
-        - AccessList   : each row is prefixed with a 'MatrixFileName' column
-                         so rows from different files can be told apart in the
-                         combined sheet
-        - GroupManagers: each row is prefixed with a 'MatrixFileName' column
-                         so rows from different files can be told apart in the
-                         combined sheet; 'MemberEnabled' is preserved
-        - AdObjects    : taken as-is (already carries 'MatrixFileName')
-        - FormData     : one row per file, from the file's formatted FormData
+        - AccessList    : prefixed with a 'MatrixFileName' column so rows from
+                          different files can be told apart
+        - GroupManagers : likewise prefixed; 'MemberEnabled' is preserved
+        - AdObjects     : taken as-is (already carries 'MatrixFileName')
+        - FormData      : one row per file, from the file's formatted FormData
 
+    .NOTES
         The unmodified per-file row sets are cached on each file result as a
-        'LogSheets' property, so EndHC can reuse them when writing the
-        per-matrix copy to the log folder instead of resolving group managers
-        in AD a second time.
-
-    .PARAMETER FileResults
-        The per-file result objects ($Context.FileResults).
-
-    .PARAMETER AdObjectDetails
-        The resolved AD objects of the run ($Context.AdObjectDetails).
+        'LogSheets' property, so EndHC can reuse them for the per-matrix log
+        folder copy instead of resolving group managers in AD a second time.
 
     .OUTPUTS
-        PSCustomObject with the properties 'AccessList', 'GroupManagers',
-        'AdObjects' and 'FormData'.
+        PSCustomObject with 'AccessList', 'GroupManagers', 'AdObjects' and
+        'FormData'.
     #>
     [CmdletBinding()]
     param(
@@ -378,22 +359,25 @@ function Build-ConsolidatedExportDataHC {
 function Get-PlaceHolderFilterValueHC {
     <#
     .SYNOPSIS
-        Builds the value list used to filter the placeholder accounts out of
-        the matrix Excel log file.
+        Builds the value list used to filter placeholder accounts out of the
+        matrix Excel log file.
 
     .DESCRIPTION
         Placeholder accounts are configured as SamAccountNames
-        ('Matrix.ExcludedSamAccountName', or 'Matrix.AdGroupPlaceHolders' in
-        the audit report configuration). The 'AccessList' worksheet holds a
+        ('Matrix.ExcludedSamAccountName', or 'Matrix.AdGroupPlaceHolders' in the
+        audit report configuration). 'AccessList' has a
         'MemberSamAccountName' column and can be matched directly, but
-        'GroupManagers' only carries the display name of a manager group
-        member in 'ManagerMemberName'.
+        'GroupManagers' only carries a display name in 'ManagerMemberName'.
 
-        The 'AccessList' rows already pair both spellings of every member, so
-        this walks them once to translate each placeholder SamAccountName into
-        its display name and returns both. A value that occurs in neither
-        column is never matched, so the combined list can be handed to
-        Set-DefaultSheetFilterHC for both worksheets at once.
+        AccessList rows already pair both spellings of every member, so this
+        walks them once to translate each placeholder SamAccountName into its
+        display name and returns both. A value occurring in neither column never
+        matches, so the combined list can be handed to Set-DefaultSheetFilterHC
+        for both worksheets at once.
+
+    .NOTES
+        Returns an empty array when no placeholders are configured, without
+        reading AccessListRow at all.
     #>
     [CmdletBinding()]
     [OutputType([string[]])]
@@ -441,25 +425,13 @@ function Export-ConsolidatedPermissionsFileHC {
 
     .DESCRIPTION
         Always creates all four worksheets, even when a row set is empty
-        (header-only for the sheets with a fixed column layout), so the
-        workbook always has the same structure. Any pre-existing file at the
-        target path is replaced, so re-runs don't stack stale worksheets.
+        (header-only for the sheets with a fixed column layout), so the workbook
+        always has the same structure. Any pre-existing file at the target path
+        is replaced, so re-runs don't stack stale worksheets.
 
-    .PARAMETER AccessList
-        Aggregated AccessList rows.
-
-    .PARAMETER GroupManagers
-        Aggregated GroupManagers rows (including the 'MatrixFileName' column).
-
-    .PARAMETER AdObjects
-        Aggregated AdObjects rows.
-
-    .PARAMETER FormData
-        Aggregated FormData rows (one per file). Columns depend on the matrix
-        template, so no fixed headers are written when this set is empty.
-
-    .PARAMETER Path
-        The target .xlsx path ($Context.Config.Export.PermissionsExcelFile).
+    .NOTES
+        FormData columns depend on the matrix template, so no fixed headers are
+        written when that set is empty.
 
     .OUTPUTS
         System.String - the path that was written.
@@ -558,56 +530,34 @@ function Export-ConsolidatedPermissionsFileHC {
 function Copy-MatrixFileToLogFolderHC {
     <#
     .SYNOPSIS
-        Copies the original matrix Excel file to the log folder and appends
-        the worksheets 'AccessList', 'GroupManagers' and 'AdObjects'.
+        Copies the original matrix Excel file to the log folder and appends the
+        worksheets 'AccessList', 'GroupManagers' and 'AdObjects'.
 
     .DESCRIPTION
-        Creates a copy of the processed source matrix .xlsx file inside the
-        dated log folder of that matrix file. The copy always contains the
-        three extra worksheets, even when no rows are available (in that
-        case only the header row is written), so users always find the
-        same structure in every archived matrix file.
+        Copies the processed source .xlsx into the dated log folder of that
+        matrix file. The copy always contains the three extra worksheets, even
+        when no rows are available (header row only), so every archived matrix
+        file has the same structure.
 
-        The read-only attribute is stripped from the copy, because source
-        matrix files are often opened/stored read-only and ImportExcel
-        cannot write to a read-only file.
-
-        Expected row shapes (extra properties are exported as extra columns):
+        Expected row shapes (extra properties become extra columns):
         - AccessList   : SamAccountName, Name, Type, MemberName,
                          MemberSamAccountName, MemberEnabled
         - GroupManagers: GroupName, ManagerName, ManagerType,
                          ManagerMemberName, MemberEnabled
-        - AdObjects    : MatrixFileName, SamAccountName, GroupName,
-                         SiteCode, Name, Enabled
-
-    .PARAMETER SourceFilePath
-        The absolute path of the original matrix Excel file that was
-        processed (e.g. $fileResult.Item.FullName).
-
-    .PARAMETER LogFolder
-        The absolute path of the log folder for this matrix file
-        (e.g. $fileResult.LogFolder).
-
-    .PARAMETER AccessListRows
-        Rows for the 'AccessList' worksheet.
-
-    .PARAMETER GroupManagerRows
-        Rows for the 'GroupManagers' worksheet.
-
-    .PARAMETER AdObjectRows
-        Rows for the 'AdObjects' worksheet.
-
-    .PARAMETER DefaultsAcl
-        Rows for the 'DefaultsAcl' worksheet.
+        - AdObjects    : MatrixFileName, SamAccountName, GroupName, SiteCode,
+                         Name, Enabled
 
     .PARAMETER DestinationFileName
-        Optional file name (with extension) for the copy inside LogFolder. When
-        omitted, the source file's own name is used. Lets callers add a
-        date-stamped name (e.g. the audit report's per-run history files).
+        Optional file name (with extension) for the copy. Defaults to the source
+        file's own name. Lets callers add a date-stamped name, as the audit
+        report's per-run history files do.
+
+    .NOTES
+        The read-only attribute is stripped from the copy: source matrix files
+        are often stored read-only and ImportExcel cannot write to them.
 
     .OUTPUTS
-        System.String
-        The absolute path of the created copy.
+        System.String - the absolute path of the created copy.
     #>
     [CmdletBinding()]
     param(
@@ -731,60 +681,42 @@ function Build-MatrixLogSheetRowsHC {
     <#
     .SYNOPSIS
         Builds the row sets for the 'AccessList', 'GroupManagers' and
-        'AdObjects' worksheets in the matrix file copy saved to the log
-        folder.
+        'AdObjects' worksheets in the matrix file copy saved to the log folder.
 
     .DESCRIPTION
-        Transforms the resolved Active Directory details of one matrix file
-        into three flat row collections, ready to be passed to
-        Copy-MatrixFileToLogFolderHC:
+        Transforms the resolved AD details of one matrix file into three flat
+        row collections for Copy-MatrixFileToLogFolderHC:
 
-        - AccessList   : one row per group member, including the new
-                         'MemberEnabled' column (AD account status of the
-                         member; blank for nested groups). Groups without
-                         members still get one row with empty member
-                         columns. AD objects of type 'user' that are used
-                         directly in the matrix are listed with themselves
-                         as member, so their account status is visible too.
-        - GroupManagers: one row per group. When the group has a manager
-                         ('managedBy'), the manager is resolved against AD.
-                         If the manager is itself a group, one row per
-                         manager group member is written with that member's
-                         AD account status in 'MemberEnabled'. When the
-                         manager is a single user, 'MemberEnabled' holds
-                         the manager's own account status, so a disabled
-                         managing account is visible.
-        - AdObjects    : one row per unique AD object used in the matrix
-                         file, including the new 'Enabled' column. The
-                         'GroupName', 'SiteCode' and 'Name' columns are
-                         derived by matching the AD object name against
-                         the 'GroupName'/'SiteCode' values of the Settings
-                         rows of this matrix file. Names that don't follow
-                         the naming convention keep these columns blank.
+        - AccessList   : one row per group member, with 'MemberEnabled' holding
+                         the member's AD account status (blank for nested
+                         groups). A group without members still gets one row
+                         with empty member columns. AD objects of type 'user'
+                         used directly in the matrix are listed with themselves
+                         as member, so their status is visible too.
+        - GroupManagers: one row per group. A manager ('managedBy') is resolved
+                         against AD; if the manager is itself a GROUP, one row
+                         per manager-group member is written. For a single user
+                         manager, 'MemberEnabled' holds that manager's own
+                         status, so a disabled managing account is visible.
+        - AdObjects    : one row per unique AD object in the file, with
+                         'Enabled'. 'GroupName', 'SiteCode' and 'Name' are
+                         derived by matching the AD object name against the
+                         Settings rows of this file; names that don't follow the
+                         naming convention leave these blank.
 
-        The AD object names used by this matrix file are collected from the
-        per-folder 'AdNames' maps created during the SID rewrite in the
-        BEGIN stage (falling back to the raw ACL keys when the rewrite was
-        skipped). This also includes default permissions that were merged
-        into the folder ACLs.
-
-    .PARAMETER FileResult
-        One matrix file result object from $Context.FileResults, containing
-        the 'Item' (FileInfo) and 'Matrices' properties.
+    .NOTES
+        AD object names come from the per-folder 'AdNames' maps built during the
+        SID rewrite in the BEGIN stage, falling back to the raw ACL keys when
+        that rewrite was skipped. This includes default permissions merged into
+        the folder ACLs.
 
     .PARAMETER AdObjectDetails
-        The resolved AD objects of the whole pipeline run:
         $Context.AdObjectDetails, populated by the BEGIN stage from
-        Get-ADObjectDetailHC (objects with the properties 'SamAccountName',
-        'adObject' and 'adGroupMember').
-
-    .PARAMETER MaxThreads
-        Maximum number of concurrent AD queries used to resolve group
-        managers. (Default: 7)
+        Get-ADObjectDetailHC (objects with 'SamAccountName', 'adObject' and
+        'adGroupMember').
 
     .OUTPUTS
-        PSCustomObject with the properties 'AccessList', 'GroupManagers'
-        and 'AdObjects'.
+        PSCustomObject with 'AccessList', 'GroupManagers' and 'AdObjects'.
     #>
     [CmdletBinding()]
     param(
