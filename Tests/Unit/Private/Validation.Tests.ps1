@@ -1328,6 +1328,69 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             $r = Test-MatrixSettingRowHC -SettingRow $S
             $r.Type | Should-ContainCollection 'FatalError'
         }
+        Describe 'Test-MatrixSettingRowHC - ApplyDefaultPermissions Validation' {
+            It 'Should return no errors when ApplyDefaultPermissions is an actual boolean' {
+                $row = [PSCustomObject]@{ ComputerName = 'SRV01'; Action = 'Fix'; Path = 'C:\Test'; ApplyDefaultPermissions = $true }
+        
+                $result = Test-MatrixSettingRowHC -SettingRow $row
+        
+                $result | Should-BeNull
+            }
+
+            It 'Should return no errors when ApplyDefaultPermissions is a valid boolean string (True/False)' {
+                $row = [PSCustomObject]@{ ComputerName = 'SRV01'; Action = 'Check'; Path = 'C:\Test'; ApplyDefaultPermissions = 'False' }
+        
+                $result = Test-MatrixSettingRowHC -SettingRow $row
+        
+                $result | Should-BeNull
+            }
+
+            It 'Should return a FatalError when ApplyDefaultPermissions is left blank' {
+                $row = [PSCustomObject]@{ ComputerName = 'SRV01'; Action = 'New'; Path = 'C:\Test'; ApplyDefaultPermissions = '' }
+        
+                $result = Test-MatrixSettingRowHC -SettingRow $row
+        
+                $result.Count | Should -BeGreaterThan 0
+                $errorMessage = $result | Where-Object { 
+                    $_.Name -eq 'Missing ApplyDefaultPermissions' 
+                } | Select-Object -First 1
+        
+                $errorMessage | Should-NotBeNull
+                $errorMessage.Type | Should-Be 'FatalError'
+            }
+
+
+            It 'Should return a FatalError when ApplyDefaultPermissions is an invalid string ("Yes")' {
+                $row = [PSCustomObject]@{ ComputerName = 'SRV01'; Action = 'Fix'; Path = 'C:\Test'; ApplyDefaultPermissions = 'Yes' }
+        
+                $result = Test-MatrixSettingRowHC -SettingRow $row
+        
+                $result.Count | Should-BeGreaterThan 0
+                $errorMessage = $result | Where-Object {
+                    $_.Name -eq 'Invalid ApplyDefaultPermissions' 
+                } | Select-Object -First 1
+        
+                $errorMessage | Should-NotBeNull
+                $errorMessage.Type | Should-Be 'FatalError'
+                $errorMessage.Value | Should-Be "Found: 'Yes'"
+            }
+
+            It 'Should return a FatalError when ApplyDefaultPermissions is an invalid integer (1)' {
+                $row = [PSCustomObject]@{ ComputerName = 'SRV01'; Action = 'Fix'; Path = 'C:\Test'; ApplyDefaultPermissions = 1 }
+        
+                $result = Test-MatrixSettingRowHC -SettingRow $row
+        
+                $result.Count | Should -BeGreaterThan 0
+                $errorMessage = $result | 
+                Where-Object { 
+                    $_.Name -eq 'Invalid ApplyDefaultPermissions'
+                } | Select-Object -First 1
+        
+                $errorMessage | Should-NotBeNull
+                $errorMessage.Type | Should-Be 'FatalError'
+                $errorMessage.Value | Should-Be "Found: '1'"
+            }
+        }
     }
 
     Describe 'Test-ConfigurationStructureHC' {

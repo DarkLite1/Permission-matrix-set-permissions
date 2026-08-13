@@ -431,6 +431,24 @@ function Test-MatrixSettingRowHC {
         )
     }
 
+    # Validate ApplyDefaultPermissions
+    if (
+        $SettingRow.PSObject.Properties.Match('ApplyDefaultPermissions').Count -gt 0 -and
+        -not [string]::IsNullOrWhiteSpace($SettingRow.ApplyDefaultPermissions)
+    ) {
+        $parsed = $false
+        # If the value cannot be parsed strictly as a boolean, flag it as a FatalError
+        if (-not [bool]::TryParse($SettingRow.ApplyDefaultPermissions.ToString(), [ref]$parsed)) {
+            $checks.Add(
+                (New-ValidationCheckHC `
+                    -Type 'FatalError' `
+                    -Name 'Invalid ApplyDefaultPermissions' `
+                    -Description "The column 'ApplyDefaultPermissions' must be a valid boolean ('True' or 'False') or left blank." `
+                    -Value "Found: '$($SettingRow.ApplyDefaultPermissions)'")
+            )
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($SettingRow.ComputerName)) {
         $checks.Add(
             (New-ValidationCheckHC `
