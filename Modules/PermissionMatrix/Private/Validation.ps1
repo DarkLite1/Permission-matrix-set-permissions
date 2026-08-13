@@ -150,7 +150,10 @@ function Test-MatrixPermissionsHC {
          break the match. NTFS paths are case-insensitive, so all
          comparisons use OrdinalIgnoreCase.
         #>
-        $normalizePath = { param($p) ([string]$p).Trim().TrimEnd('\') }
+        $normalizePath = { 
+            param($p) 
+            ([string]$p).Trim().TrimEnd('\', '/') -replace '/', '\' 
+        }
 
         $Paths = @(
             $FolderRows.$FirstProperty.Where({
