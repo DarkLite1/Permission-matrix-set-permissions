@@ -1,3 +1,9 @@
+# DUPLICATED: this helper is copied into
+#   Scripts\Operations\UpdateServiceNow.ps1
+#   Scripts\Operations\UploadToSharePoint.ps1
+# Those scripts are run by path from configuration and cannot import this
+# module, so the copies are intentional. Change all three together;
+# Tests\Operations\DuplicatedHelpers.Tests.ps1 fails if they drift apart.
 function Get-StringValueHC {
     <#
     .SYNOPSIS

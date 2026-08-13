@@ -91,6 +91,13 @@ param (
 )
 
 begin {
+    # DUPLICATED: this helper is copied verbatim into
+    #   Scripts\Operations\UpdateServiceNow.ps1
+    #   Scripts\Operations\UploadToSharePoint.ps1
+    #   Modules\PermissionMatrix\Private\Utils.ps1
+    # The Operations scripts are run by path from configuration and cannot
+    # import the module, so the copy is intentional. Change all three together;
+    # Tests\Operations\DuplicatedHelpers.Tests.ps1 fails if they drift apart.
     function Get-StringValueHC {
         <#
         .SYNOPSIS
@@ -121,20 +128,29 @@ begin {
 
             # Output: NULL
         #>
-        param (
-            [String]$Name
-        )
+        [CmdletBinding()]
+        param([String]$Name)
 
         if ([string]::IsNullOrWhiteSpace($Name)) {
             return $null
         }
-        elseif (
-            $Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)
-        ) {
+        elseif ($Name.StartsWith('ENV:', [System.StringComparison]::OrdinalIgnoreCase)) {
             $envVariableName = $Name.Substring(4).Trim()
-            $envStringValue = Get-Item -Path "Env:\$envVariableName" -EA Ignore
-            if ($envStringValue) {
-                return $envStringValue.Value
+
+            # Guard against 'ENV:' with no usable variable name after the prefix,
+            # so the error names the problem instead of reporting an empty variable.
+            if ([string]::IsNullOrWhiteSpace($envVariableName)) {
+                throw "No environment variable name given after 'ENV:'."
+            }
+
+            # Plain literal lookup: no Env-provider path parsing, so characters
+            # like '*' or '\' in the name are matched as-is.
+            $envStringValue = [System.Environment]::GetEnvironmentVariable($envVariableName)
+
+            # Explicit $null check (not truthiness) so an existing-but-empty
+            # variable returns '' rather than being reported as "not found".
+            if ($null -ne $envStringValue) {
+                return $envStringValue
             }
             else {
                 throw "Environment variable '$envVariableName' not found."
