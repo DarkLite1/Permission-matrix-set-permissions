@@ -13,71 +13,50 @@
 
         The upload always overwrites: when a file with the same name already
         exists in the target folder its content is replaced (SharePoint keeps
-        the previous content as a version, so nothing is lost). No error is
-        raised for an existing file and no error is raised when the file is
-        not there yet.
+        the previous content as a version, so nothing is lost). Neither an
+        existing file nor a missing one raises an error.
 
-        Two upload strategies are used, chosen automatically on file size:
+        Two upload strategies are chosen automatically on file size:
+            - Up to 4 MB: a single PUT to the /content endpoint, which replaces
+              existing content by default.
+            - Larger: a resumable upload session with conflictBehavior
+              'replace', uploaded in sequential chunks.
 
-            - Files up to 4 MB are sent in a single PUT to the /content
-              endpoint, which replaces existing content by default.
-            - Larger files use a resumable upload session created with
-              conflictBehavior 'replace', uploaded in sequential chunks.
-
-        Any missing folders in FolderPath are created before the upload, so
-        the library does not need to be prepared by hand.
-
-        Security Feature: like the other Operations scripts, every string
-        parameter supports dynamically fetching secrets from the host's
-        environment variables to avoid hardcoding them. Simply prefix the
-        value with 'ENV:' (e.g. -ClientId 'ENV:AZURE_CLIENT_ID').
+        Missing folders in FolderPath are created before the upload, so the
+        library does not need to be prepared by hand.
 
         Required Entra ID application permission (admin consented):
-        'Sites.ReadWrite.All', or 'Sites.Selected' with write access granted
-        on the target site.
-
-    .PARAMETER FilePath
-        The absolute path to the local file to upload (e.g. the generated
-        'Overview.html').
-
-    .PARAMETER SiteUrl
-        The full URL of the SharePoint Online site that hosts the document
-        library (e.g. 'https://contoso.sharepoint.com/sites/IT').
-
-    .PARAMETER DocumentLibraryName
-        The display name of the target document library
-        (e.g. 'Documents' or 'Shared Documents').
+        'Sites.ReadWrite.All', or 'Sites.Selected' with write access granted on
+        the target site.
 
     .PARAMETER FolderPath
-        (Optional) A folder path inside the document library, relative to its
-        root (e.g. 'Reports/Permission matrix'). Folders that do not exist are
-        created. When omitted the file is uploaded to the library root.
+        Optional folder path inside the document library, relative to its root
+        (e.g. 'Reports/Permission matrix'). Missing folders are created. When
+        omitted the file lands in the library root.
 
     .PARAMETER FileName
-        (Optional) The name to give the file in SharePoint. Defaults to the
-        file name of FilePath.
+        Optional name to give the file in SharePoint. Defaults to the file name
+        of FilePath.
 
     .PARAMETER ClientId
-        The application (client) ID of the Entra ID app registration.
-        Supports 'ENV:AZURE_CLIENT_ID'.
-
-    .PARAMETER TenantId
-        The Entra ID tenant ID.
-        Supports 'ENV:AZURE_TENANT_ID'.
+        Application (client) ID of the Entra ID app registration.
 
     .PARAMETER CertificateThumbprint
-        The thumbprint of the certificate, installed in the certificate store
-        of the executing account, used for app-only authentication.
-        Supports 'ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT'.
+        Thumbprint of the certificate, installed in the certificate store of the
+        executing account, used for app-only authentication.
 
     .PARAMETER MaxRetries
-        The maximum number of attempts for each Graph call before giving up.
-        Failed attempts are 3 seconds apart. (Default: 3, minimum 1)
+        Maximum attempts per Graph call before giving up. (Default: 3)
 
     .PARAMETER ChunkSizeMB
-        The size in MB of a single chunk in a resumable upload session. Must be
-        a multiple of 320 KiB, which every allowed value here satisfies.
-        Only used for files larger than 4 MB. (Default: 5)
+        Size in MB of a single chunk in a resumable upload session. Must be a
+        multiple of 320 KiB, which every allowed value satisfies. Only used for
+        files larger than 4 MB. (Default: 5)
+
+    .NOTES
+        Like the other Operations scripts, EVERY string parameter accepts an
+        'ENV:' prefix to read the value from the host's environment variables
+        instead of hardcoding it (e.g. -ClientId 'ENV:AZURE_CLIENT_ID').
 
     .EXAMPLE
         .\UploadToSharePoint.ps1 `
@@ -89,9 +68,9 @@
             -TenantId 'ENV:AZURE_TENANT_ID' `
             -CertificateThumbprint 'ENV:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT'
 
-        Uploads 'Overview.html' to the folder 'Reports/Permission matrix' in
-        the 'Documents' library. The folder is created when it does not exist
-        and the file is overwritten when it is already there.
+        Uploads to 'Reports/Permission matrix' in the 'Documents' library,
+        creating the folder when absent and overwriting an existing file.
+        Credentials are resolved by the script from environment variables.
 
     .EXAMPLE
         .\UploadToSharePoint.ps1 `
@@ -104,8 +83,8 @@
             -CertificateThumbprint $env:AZURE_POWERSHELL_CERTIFICATE_THUMBPRINT `
             -Verbose
 
-        Uploads to the root of the library under a different name, with the
-        credentials resolved by the caller instead of by this script.
+        Uploads to the library root under a different name, with the credentials
+        resolved by the caller instead of by this script.
 #>
 
 param (
@@ -137,23 +116,16 @@ begin {
             string.
 
         .DESCRIPTION
-            This function checks the 'Name' property. If the value starts with
-            'ENV:', it attempts to retrieve the string value from the specified
-            environment variable. Otherwise, it returns the value directly.
-
-        .PARAMETER Name
-            Either a string starting with 'ENV:'; a plain text string or NULL.
+            A Name starting with 'ENV:' (case-insensitive) is treated as an
+            environment variable name; its value is returned, or the function
+            throws when the variable does not exist. Anything else is returned
+            unchanged, and a blank Name returns $null.
 
         .EXAMPLE
             Get-StringValueHC -Name 'ENV:AZURE_CLIENT_ID'
 
-            # Output: the environment variable value of $ENV:AZURE_CLIENT_ID
-            # or an error when the variable does not exist
-
-        .EXAMPLE
-            Get-StringValueHC -Name 'myClientId'
-
-            # Output: myClientId
+            Returns the value of $env:AZURE_CLIENT_ID, or throws when it is not
+            set.
         #>
         param (
             [String]$Name
@@ -282,9 +254,9 @@ begin {
 
         .DESCRIPTION
             Executes the supplied script block, retrying up to MaxRetries
-            attempts. Exhausting the retries rethrows, because every call in this
-            script is required for the upload to succeed: there is no useful
-            "carry on without it" state.
+            attempts. Exhausting the retries rethrows, because every call in
+            this script is required for the upload to succeed: there is no
+            useful "carry on without it" state.
 
             Three things decide what happens after a failure:
 
@@ -294,21 +266,14 @@ begin {
             - A Retry-After hint from a throttling response is honoured exactly,
               because retrying sooner deepens the throttling.
             - Everything else backs off exponentially (RetryDelaySeconds, then
-              doubling, capped at 60s) rather than hammering at a fixed interval.
+              doubling, capped at 60s) rather than hammering at a fixed
+              interval.
 
             Pauses happen only *between* attempts, never after the last one.
 
-            Returns whatever the script block returns.
-
-        .PARAMETER Action
-            The script block to execute.
-
         .PARAMETER Description
-            A short lower-case description of the operation, used in warning
-            and error messages ("Failed to <description>").
-
-        .PARAMETER MaxRetries
-            Maximum attempts before giving up and throwing.
+            A short lower-case description of the operation, used in warning and
+            error messages ("Failed to <description>").
 
         .PARAMETER RetryDelaySeconds
             Base delay for the first retry. Each subsequent wait doubles it.
@@ -365,11 +330,11 @@ begin {
             Convert a library relative folder/file path to a Graph safe path.
 
         .DESCRIPTION
-            Splits on both slash types, drops empty segments (so 'a//b/' and
-            '\a\b' both become 'a/b') and URL encodes each segment
-            individually. Encoding per segment rather than the whole string
-            keeps the '/' separators intact while escaping spaces and other
-            characters that are legal in SharePoint names but not in a URL.
+            Splits on both slash types and drops empty segments, so 'a//b/' and
+            '\a\b' both become 'a/b'. Each segment is URL encoded individually:
+            encoding per segment rather than the whole string keeps the '/'
+            separators intact while escaping spaces and other characters that
+            are legal in SharePoint names but not in a URL.
 
             Returns an empty string when Path is empty.
         #>
