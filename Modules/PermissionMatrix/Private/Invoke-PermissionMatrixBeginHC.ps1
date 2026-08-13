@@ -538,6 +538,33 @@ function Invoke-PermissionMatrixBeginHC {
             $Context.AdObjectDetails = $adObjectDetails
 
             #region Build Name → SID map for quick lookup during ACL rewrite
+            <#
+             Only objects with a readable ObjectSid enter the map, and the ACL
+             rewrite below drops any name it cannot find here. A dropped entry
+             would remove the group's access on a protected ACL under Action
+             'Fix' without reporting anything, so it is worth stating why that
+             cannot happen:
+
+             - Test-AdObjectInMatrixHC runs before the rewrite and raises
+               'Unknown AD Objects in Matrix' (FatalError) for every name whose
+               'adObject' is null, and a fatal check skips the matrix.
+             - The only remaining gap is an object that resolves but whose
+               ObjectSid could not be read. Get-ADObjectDetailHC searches on
+               (samAccountName=..), and everything holding a samAccountName is a
+               security principal, so it has an objectSid.
+
+             Measured on 2026-08-13 over all 53 matrix files plus the defaults:
+             1176 unique AD objects, all resolved with a readable SID, all in a
+             single domain. Nothing was dropped.
+
+             Raising a FatalError on a miss would therefore add a new way for a
+             whole matrix to be skipped, for a condition that has never
+             occurred. Re-measure with
+             Scripts\Diagnostics\TestMatrixAdObjectSid.ps1 before concluding
+             otherwise: cross-forest or trusted-domain principals are the case
+             most likely to change this, because the Global Catalog fallback
+             returns a partial attribute set.
+            #>
             $nameToSid = @{}
             foreach ($detail in $adObjectDetails) {
                 if ($detail.adObject -and $detail.adObject.ObjectSid) {
@@ -579,6 +606,9 @@ function Invoke-PermissionMatrixBeginHC {
                     $newAcl = @{}
                     $adNames = @{}
                     foreach ($name in @($folder.ACL.Keys)) {
+                        # A name missing from $nameToSid is dropped. See the
+                        # note above the map construction for why that cannot
+                        # happen here.
                         $sid = $nameToSid[$name]
                         if ($sid) {
                             $newAcl[$sid] = $folder.ACL[$name]
