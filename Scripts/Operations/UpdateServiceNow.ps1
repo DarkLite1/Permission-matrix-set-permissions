@@ -125,7 +125,7 @@ begin {
             [String]$Name
         )
 
-        if (-not $Name) {
+        if ([string]::IsNullOrWhiteSpace($Name)) {
             return $null
         }
         elseif (
