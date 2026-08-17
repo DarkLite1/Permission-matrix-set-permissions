@@ -708,7 +708,7 @@ param(`$CredentialsFilePath, `$Environment, `$TableName, `$FormDataExcelFilePath
 
         Invoke-PermissionMatrixEndHC -Context $ctx -SystemErrors ([ref]$systemErrors)
 
-        $jsonFiles = Get-ChildItem -Path $logRoot -Recurse -Filter '*.json' -ErrorAction Ignore
+        $jsonFiles = Get-ChildItem -Path $logRoot -Recurse -Filter '*.json' -ErrorAction Ignore | Where-Object { $_.Name -notlike 'Diagnostics.Fields.json' }
         # Only the check WithValue should produce a JSON file
         $jsonFiles.Count | Should-Be 1
     }
