@@ -84,6 +84,18 @@ function Build-ExecutionDetailsBlockHC {
     }
     else { '' }
 
+    # Sortable diagnostics page for the whole run, same run folder.
+    $diagnosticsHtmlPath = if (
+        -not [string]::IsNullOrWhiteSpace($FileResult.LogFolder)
+    ) {
+        $candidateHtml = Join-Path `
+            -Path (Split-Path -Path $FileResult.LogFolder -Parent) `
+            -ChildPath 'Diagnostics.html'
+
+        if (Test-Path -LiteralPath $candidateHtml) { $candidateHtml } else { '' }
+    }
+    else { '' }
+
     # Companion field reference, written to the same run folder. Skipped when
     # absent so an older log folder still renders.
     $diagnosticsFieldsPath = if (
@@ -100,6 +112,7 @@ function Build-ExecutionDetailsBlockHC {
     # Each row: (label, value-html, use-mono-font?)
     $items = @(
         @{ Label = 'Matrix log copy'; Value = (Convert-PathToFileLink -Path $logMatrixPath -Title 'Copy of the processed matrix file, including the AccessList, GroupManagers and AdObjects sheets'); Mono = $true }
+        @{ Label = 'Diagnostics page'; Value = (Convert-PathToFileLink -Path $diagnosticsHtmlPath -Title 'Sortable, self-contained page holding every diagnostics row for this run — open two runs side by side to compare'); Mono = $true }
         @{ Label = 'Run diagnostics'; Value = (Convert-PathToFileLink -Path $runDiagnosticsPath -Title 'Volume and cost counters for every Settings row in this run — compare the same path across runs to separate data growth from storage slowdown'); Mono = $true }
         @{ Label = 'Diagnostics fields'; Value = (Convert-PathToFileLink -Path $diagnosticsFieldsPath -Title 'What every diagnostics counter means, how to read them together, and the caveats'); Mono = $true }
         @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
@@ -906,4 +919,293 @@ $style
 </body>
 </html>
 "@
+}
+function Write-RunDiagnosticsHtmlHC {
+    <#
+    .SYNOPSIS
+        Writes 'Diagnostics.html': one self-contained, sortable page holding
+        every diagnostics row for the whole run.
+
+    .DESCRIPTION
+        Built for SIDE-BY-SIDE COMPARISON of two nights. Open yesterday's file in
+        one window and today's in another, apply the same sort and filter to
+        both, and read the differences off the screen.
+
+        SELF-CONTAINED IS A HARD REQUIREMENT, NOT A PREFERENCE
+        The data is embedded in the page as JSON rather than fetched from the
+        sibling .json files. A page opened over file:// cannot fetch a local
+        file — the browser blocks it as a cross-origin request — so a page that
+        loaded its data at runtime would simply render empty tables from a log
+        share. Embedding also means a single file can be mailed or copied out of
+        the run folder and still work.
+
+        NO EXTERNAL ASSETS
+        No CDN, no web fonts, no frameworks. Log shares are often reached from
+        machines with no internet route, and a diagnostics page that needs the
+        network to render its own sort arrows is not a diagnostics page.
+
+        DEFAULT SORT IS STABLE, NOT INTERESTING
+        Rows default to computer then path, NOT to cost descending. Cost order
+        differs between nights, so a cost-sorted pair of windows would show the
+        same folder on different screen rows and defeat the whole purpose. The
+        stable default makes two files line up; one click gets cost order when
+        that is what is wanted.
+
+    .NOTES
+        Failures are swallowed, as with the other diagnostics writers.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Matrices,
+        [Parameter(Mandatory)] [string]$LogFolder,
+        [Parameter()] [datetime]$RunStartTime
+    )
+
+    try {
+        #region Build the two row sets
+        $settingRows = [System.Collections.Generic.List[object]]::new()
+        $pathRows = [System.Collections.Generic.List[object]]::new()
+
+        foreach ($m in $Matrices) {
+            if (-not $m.Telemetry) { continue }
+
+            $duration = if ($m.JobTime.Duration) {
+                [math]::Round($m.JobTime.Duration.TotalSeconds, 1)
+            }
+            else { $null }
+
+            $settingRow = [ordered]@{
+                MatrixFile = $m.FileContext.Item.Name
+                Duration_s = $duration
+            }
+            foreach ($t in $m.Telemetry.GetEnumerator()) {
+                if ($t.Key -eq 'Paths') { continue }
+                $settingRow[$t.Key] = $t.Value
+            }
+            $settingRows.Add([PSCustomObject]$settingRow)
+
+            foreach ($p in $m.Telemetry.Paths) {
+                $pathRow = [ordered]@{
+                    MatrixFile   = $m.FileContext.Item.Name
+                    ComputerName = $m.Telemetry.ComputerName
+                    SettingPath  = $m.Telemetry.Path
+                }
+                foreach ($field in $p.GetEnumerator()) {
+                    $pathRow[$field.Key] = $field.Value
+                }
+                $pathRows.Add([PSCustomObject]$pathRow)
+            }
+        }
+
+        if ($settingRows.Count -eq 0) { return }
+        #endregion
+
+        #region Embed as JSON
+        # '<' is escaped so a path containing '</script>' cannot break out of the
+        # script block. Depth 5 is ample for flat rows and keeps the file small.
+        $encode = {
+            param($Rows)
+            $json = if ($Rows.Count -eq 0) { '[]' }
+            else { @($Rows) | ConvertTo-Json -Depth 5 -Compress -AsArray }
+            return ($json -replace '<', '\u003c' -replace '>', '\u003e' -replace '&', '\u0026')
+        }
+
+        $settingsJson = & $encode $settingRows
+        $pathsJson = & $encode $pathRows
+        #endregion
+
+        $runLabel = if ($RunStartTime) {
+            $RunStartTime.ToString('yyyy-MM-dd HH:mm:ss')
+        }
+        else { Split-Path -Path $LogFolder -Leaf }
+
+        $folderLabel = [System.Net.WebUtility]::HtmlEncode((Split-Path -Path $LogFolder -Leaf))
+        $generated = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+
+        $html = @"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Diagnostics $folderLabel</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin:0; padding:16px; background:$($Script:Theme.BgPage);
+         font-family:$($Script:Theme.FontStack); color:$($Script:Theme.TextMain); font-size:13px; }
+  header { background:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain);
+           border-radius:8px; padding:12px 16px; margin-bottom:12px; }
+  h1 { margin:0 0 4px 0; font-size:16px; }
+  .run { font-family:$($Script:Theme.MonoStack); font-size:14px; font-weight:700;
+         color:$($Script:Theme.AccentInfo); }
+  .meta { color:$($Script:Theme.TextLight); font-size:12px; }
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0 0 0; }
+  .controls input[type=text] { padding:5px 8px; border:1px solid $($Script:Theme.BorderMain);
+       border-radius:4px; font-family:$($Script:Theme.MonoStack); font-size:12px; min-width:280px; }
+  button { padding:5px 10px; border:1px solid $($Script:Theme.BorderMain);
+           background:$($Script:Theme.BgAlt); border-radius:4px; cursor:pointer; font-size:12px; }
+  button.active { background:$($Script:Theme.AccentInfo); color:#fff;
+                  border-color:$($Script:Theme.AccentInfo); }
+  .wrap { background:$($Script:Theme.BgWhite); border:1px solid $($Script:Theme.BorderMain);
+          border-radius:8px; overflow:auto; max-height:78vh; }
+  table { border-collapse:collapse; width:100%; }
+  th, td { padding:4px 8px; border-bottom:1px solid $($Script:Theme.BorderLight);
+           white-space:nowrap; text-align:left; }
+  th { position:sticky; top:0; background:$($Script:Theme.BgAlt); cursor:pointer;
+       font-size:11px; text-transform:uppercase; letter-spacing:0.3px;
+       color:$($Script:Theme.TextMuted); border-bottom:2px solid $($Script:Theme.BorderMain);
+       user-select:none; }
+  th:hover { background:$($Script:Theme.BorderLight); }
+  th .arrow { color:$($Script:Theme.AccentInfo); font-weight:700; }
+  td.num { text-align:right; font-family:$($Script:Theme.MonoStack); }
+  td.path { font-family:$($Script:Theme.MonoStack); font-size:11px; }
+  tbody tr:nth-child(even) { background:$($Script:Theme.BgAlt); }
+  tbody tr:hover { background:$($Script:Theme.StatusSkipped); }
+  .warnbasis { color:$($Script:Theme.AccentWarning); font-weight:700; }
+  .zero { color:$($Script:Theme.TextLight); }
+  .count { color:$($Script:Theme.TextLight); font-size:12px; }
+  .hint { margin-top:10px; color:$($Script:Theme.TextLight); font-size:11px; line-height:1.5; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Permission matrix diagnostics</h1>
+  <div class="run">$([System.Net.WebUtility]::HtmlEncode($runLabel))</div>
+  <div class="meta">$folderLabel &nbsp;&middot;&nbsp; page generated $generated</div>
+  <div class="controls">
+    <button id="btnSettings" class="active" onclick="showGrain('settings')">Per Settings row</button>
+    <button id="btnPaths" onclick="showGrain('paths')">Per matrix folder</button>
+    <input type="text" id="filter" placeholder="filter any column&hellip;" oninput="render()">
+    <button onclick="resetView()">Reset sort &amp; filter</button>
+    <span class="count" id="count"></span>
+  </div>
+  <div class="hint">
+    Click a column to sort. Rows start in a <b>stable order</b> (computer, then path) so that two
+    runs opened side by side line up row for row &mdash; sort by cost only once you know which
+    row you are chasing. Everything is embedded in this file: no other log file is needed.
+  </div>
+</header>
+
+<div class="wrap"><table id="grid"><thead></thead><tbody></tbody></table></div>
+
+<script>
+// JSON is valid JavaScript, so the payload is embedded as an object literal
+// rather than as a quoted string handed to JSON.parse. Wrapping it in a JS
+// string would mean re-escaping every backslash in every Windows path, which is
+// exactly the kind of double-escaping that silently corrupts one row in ten
+// thousand. Direct embedding needs no escaping at all beyond the < > & already
+// neutralised server-side so no path can close this script block.
+const DATA = {
+  settings: $settingsJson,
+  paths: $pathsJson
+};
+
+// Stable default: computer, then the path being described. Cost order differs
+// between nights, so it must never be the default - see the function notes.
+const STABLE_KEYS = ['ComputerName', 'SettingPath', 'Path', 'MatrixFile'];
+
+let grain = 'settings';
+let sortCol = null;
+let sortAsc = true;
+
+function columns() {
+  const rows = DATA[grain];
+  return rows.length ? Object.keys(rows[0]) : [];
+}
+
+function stableCompare(a, b) {
+  for (const k of STABLE_KEYS) {
+    if (a[k] === undefined || b[k] === undefined) continue;
+    const r = String(a[k]).localeCompare(String(b[k]));
+    if (r !== 0) return r;
+  }
+  return 0;
+}
+
+function compare(a, b, col) {
+  const x = a[col], y = b[col];
+  const xn = (x === null || x === '' || x === undefined), yn = (y === null || y === '' || y === undefined);
+  if (xn && yn) return 0;
+  if (xn) return 1;   // blanks always last, whichever direction
+  if (yn) return -1;
+  if (typeof x === 'number' && typeof y === 'number') return x - y;
+  if (typeof x === 'boolean' && typeof y === 'boolean') return (x ? 1 : 0) - (y ? 1 : 0);
+  const nx = Number(x), ny = Number(y);
+  if (!isNaN(nx) && !isNaN(ny) && x !== '' && y !== '') return nx - ny;
+  return String(x).localeCompare(String(y));
+}
+
+function render() {
+  const cols = columns();
+  const term = document.getElementById('filter').value.toLowerCase();
+
+  let rows = DATA[grain].slice();
+  if (term) {
+    rows = rows.filter(r => cols.some(c => String(r[c] === null ? '' : r[c]).toLowerCase().includes(term)));
+  }
+
+  if (sortCol === null) {
+    rows.sort(stableCompare);
+  } else {
+    // Ties fall back to the stable order, so a sort never scrambles equal rows
+    // differently in two files.
+    rows.sort((a, b) => {
+      const c = compare(a, b, sortCol);
+      return (c !== 0) ? (sortAsc ? c : -c) : stableCompare(a, b);
+    });
+  }
+
+  const thead = document.querySelector('#grid thead');
+  thead.innerHTML = '<tr>' + cols.map(c => {
+    const arrow = (c === sortCol) ? ' <span class="arrow">' + (sortAsc ? '\u25B2' : '\u25BC') + '</span>' : '';
+    return '<th onclick="sortBy(\'' + c + '\')" title="' + c + '">' + c + arrow + '</th>';
+  }).join('') + '</tr>';
+
+  const tbody = document.querySelector('#grid tbody');
+  tbody.innerHTML = rows.map(r => '<tr>' + cols.map(c => {
+    let v = r[c];
+    let cls = '';
+    if (typeof v === 'number') { cls = 'num'; if (v === 0) cls += ' zero'; }
+    else if (c === 'Path' || c === 'SettingPath') cls = 'path';
+    else if (c === 'AclReadBasis' && (v === 'warmup+stride' || v === 'none')) cls = 'warnbasis';
+    if (v === null || v === undefined) v = '';
+    const text = String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return '<td class="' + cls + '">' + text + '</td>';
+  }).join('') + '</tr>').join('');
+
+  document.getElementById('count').textContent =
+    rows.length + ' of ' + DATA[grain].length + ' rows' + (term ? ' (filtered)' : '');
+}
+
+function sortBy(col) {
+  if (sortCol === col) { sortAsc = !sortAsc; } else { sortCol = col; sortAsc = false; }
+  render();
+}
+
+function showGrain(g) {
+  grain = g;
+  sortCol = null; sortAsc = true;
+  document.getElementById('btnSettings').className = (g === 'settings') ? 'active' : '';
+  document.getElementById('btnPaths').className = (g === 'paths') ? 'active' : '';
+  render();
+}
+
+function resetView() {
+  sortCol = null; sortAsc = true;
+  document.getElementById('filter').value = '';
+  render();
+}
+
+render();
+</script>
+</body>
+</html>
+"@
+
+        $html | Out-File `
+            -FilePath (Join-Path -Path $LogFolder -ChildPath 'Diagnostics.html') `
+            -Encoding UTF8 -Force
+    }
+    catch {
+        Write-Verbose "Failed writing the diagnostics HTML page: $_"
+    }
 }

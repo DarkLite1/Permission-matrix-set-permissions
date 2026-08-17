@@ -422,6 +422,7 @@ function Get-DiagnosticsFieldReferenceHC {
                 'Diagnostics.json'                  = 'This folder. One flat row per Settings row for the whole run. Every field is a top-level column, so the file sorts, groups and charts directly. Use this one to compare runs.'
                 'ID <guid> - Diagnostics.json'      = 'Inside each matrix subfolder. One Settings row in full, with its identity and timings. Use this one to inspect a single path.'
                 'Diagnostics.Paths.json'            = 'This folder. One flat row per MATRIX FOLDER, for the whole run. Answers "where inside the Settings row did it happen": a row covering dozens of folders can double because one child tree grew. Join to Diagnostics.json on ID.'
+                'Diagnostics.html'                  = 'This folder. Self-contained sortable page over both grains above. Open two runs side by side to compare nights: rows start in a stable order (computer, then path) so the two windows line up, and everything is embedded so no other log file is needed.'
                 'Diagnostics.Fields.json'           = 'This file.'
             }
             KeyIdea  = 'A duration on its own cannot tell you why a job got slower. Read the duration together with ItemsWalked and AclReadMsPerItem: the first says how long, the second says how much there was, the third says what each operation cost.'
@@ -433,6 +434,7 @@ function Get-DiagnosticsFieldReferenceHC {
             'AceCountMean rising run over run'                   = 'The ACLs themselves are growing, which means permissions are being appended rather than replaced. This compounds every night and is worth fixing before anything else.'
             'IncorrectItems the same non-zero value every run'   = 'The tree never converges: the same items are corrected every night. Either something outside the matrix keeps changing them back, or the fix is not taking.'
             'AclReadDenied or AclReadFailed above zero'          = 'Items were skipped or needed an ownership takeover. These are also the slowest items, so a rise here can explain a rise in duration on its own.'
+            'Comparing two nights'                              = 'Open Diagnostics.html from both run folders in two windows. Leave the sort at its default so the rows line up, filter both to the same path, and read the differences off the screen. Sort by cost only once you know which row you are chasing, since cost order differs between nights.'
             'A Settings row got slower but you cannot see why'   = 'Open Diagnostics.Paths.json and filter on that ID. Its rows are already sorted by measured cost, so the folder responsible is at the top. Compare the same folder between runs the same way you would compare a Settings row.'
             'A path row shows cost but ItemsWalked is zero'      = 'Walked is false: the folder ACL was checked but its subtree was never walked, because the folder is ignored or every child belongs to another matrix folder. Not an error.'
             TrendOneLiner                                        = "Get-ChildItem '<log root>\*\Diagnostics.json' | ForEach-Object { `$run = `$_.Directory.Name; Get-Content `$_ -Raw | ConvertFrom-Json | Where-Object Path -eq '<path>' | Select-Object @{n='Run';e={`$run}}, DurationSeconds, ItemsWalked, AclReadMsPerItem, AceCountMean }"
@@ -925,7 +927,7 @@ function Write-SystemErrorLogHC {
         [Parameter(Mandatory)][string]$LogFolder,
         [Parameter(Mandatory)][ref]$MailParams,
         [datetime]$ScriptStartTime = (Get-Date),
-        [string]$JsonFileName = 'SystemErrors'
+        [string]$JsonFileName = 'MatrixConfig' 
     )
 
     if ($SystemErrors.Count -eq 0) { return }

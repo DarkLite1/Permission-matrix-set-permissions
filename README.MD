@@ -172,6 +172,7 @@ Every run also writes volume and cost counters, so that a change in run time can
 | -------------------------- | -------------------- | ----------------------------------------------------------- |
 | `Diagnostics.json`         | One row per Settings row | Which matrix got slower.                                 |
 | `Diagnostics.Paths.json`   | One row per matrix folder | Where inside it. Joins to the above on `ID`.            |
+| `Diagnostics.html`         | Both                 | Sortable page for eyeballing and comparing two runs.         |
 | `Diagnostics.Fields.json`  | —                    | What every counter means, and the caveats.                   |
 
 Each matrix folder also gets an `ID <guid> - Diagnostics.json` holding that one Settings row in full, linked from a **Diagnostics** chip on the execution report card (with a **?** next to it pointing at the field reference).
@@ -197,6 +198,8 @@ Get-ChildItem '\\SERVER\Log\Permission matrix\*\Diagnostics.json' | ForEach-Obje
 ```
 
 If a Settings row got slower but you cannot see why, filter `Diagnostics.Paths.json` on that row's `ID`. Its rows are already sorted by measured cost, so the folder responsible is at the top.
+
+For eyeballing rather than scripting, open `Diagnostics.html` from two run folders side by side. Click any column to sort, type in the box to filter. Rows start in a stable order (computer, then path) so the two windows line up row for row — sort by cost only once you know which row you are chasing, since cost order differs between nights. The page embeds its own data, so it works from a log share with no network and needs no other file in the folder.
 
 ⚠️ **NOTE**: `AclReadMsPerItem` is a sampled mean, and carries a few percent of run-to-run noise even on identical work. Check `AclReadSamples` and `AclReadBasis` before trusting it. A single run moving 10% is not a signal; a trend across several runs is.
 

@@ -283,6 +283,16 @@ function Invoke-PermissionMatrixEndHC {
                     -LogFolder (& $ensureDatedLogFolder) `
                     -RunStartTime $Context.StartTime
 
+                # Self-contained sortable page over both grains. Built for
+                # opening two nights side by side, so it embeds its data rather
+                # than reading the JSON files next to it: a file:// page cannot
+                # fetch a local sibling, and a single file can be mailed out of
+                # the run folder and still work.
+                Write-RunDiagnosticsHtmlHC `
+                    -Matrices @($Context.AllMatrices) `
+                    -LogFolder (& $ensureDatedLogFolder) `
+                    -RunStartTime $Context.StartTime
+
                 # Companion document explaining every counter. Written beside
                 # the roll-up rather than inside it, so 'Diagnostics.json' stays
                 # a clean table that pipes straight into Export-Csv.
