@@ -272,6 +272,13 @@ function Import-MatrixFileHC {
                 Matrix      = [System.Collections.Generic.List[pscustomobject]]::new()
                 AdObjects   = @{}
                 JobTime     = @{}
+                # Volume and cost counters returned by SetPermissions.ps1.
+                # Declared here (rather than added later) so every consumer can
+                # test it without a PSObject.Properties.Match guard. Stays
+                # $null for rows that never executed — a skipped row has no
+                # telemetry, which is different from a row that walked nothing.
+                Telemetry   = $null
+                DiagnosticsFileName = $null
                 FileContext = $fileResult
             }
 

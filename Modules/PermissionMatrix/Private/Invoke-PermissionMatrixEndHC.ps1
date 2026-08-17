@@ -259,6 +259,37 @@ function Invoke-PermissionMatrixEndHC {
 
         try {
             if ($Context.FoundMatrices) {
+                #region Create the run-level diagnostics roll-up
+                # One array per run, at the root of the dated folder, holding
+                # every Settings row. This is the file to glob across nights
+                # when the question is 'is this path getting slower, and did
+                # the amount of data change with it?'.
+                #
+                # MUST run before the loop below: Build-ExecutionDetailsBlockHC
+                # only renders its 'Run diagnostics' footer link when the file
+                # already exists on disk, and that block is built inside
+                # Write-MatrixExecutionReportHC at the end of each iteration.
+                Write-RunDiagnosticsJsonHC `
+                    -Matrices @($Context.AllMatrices) `
+                    -LogFolder (& $ensureDatedLogFolder) `
+                    -RunStartTime $Context.StartTime
+
+                # Per-folder drill-down. Separate file because it holds a
+                # different grain: mixing one-row-per-setting with
+                # one-row-per-folder in one table would double-count on every
+                # aggregate. 'ID' joins the two.
+                Write-RunPathDiagnosticsJsonHC `
+                    -Matrices @($Context.AllMatrices) `
+                    -LogFolder (& $ensureDatedLogFolder) `
+                    -RunStartTime $Context.StartTime
+
+                # Companion document explaining every counter. Written beside
+                # the roll-up rather than inside it, so 'Diagnostics.json' stays
+                # a clean table that pipes straight into Export-Csv.
+                Write-DiagnosticsFieldReferenceHC `
+                    -LogFolder (& $ensureDatedLogFolder)
+                #endregion
+
                 foreach ($fileResult in $Context.FileResults) {
                     $baseName = $fileResult.Item.BaseName
 
@@ -296,6 +327,17 @@ function Invoke-PermissionMatrixEndHC {
                                 -JsonFileName "ID $($m.ID) - Detail $checkIndex.json" `
                                 -LogFolder $fileLogFolder.FullName
                         }
+                    }
+                    #endregion
+
+                    #region Create diagnostics JSON per Settings row
+                    # Runs BEFORE Write-MatrixExecutionReportHC so the report's
+                    # 'Diagnostics' link has a file to point at. Rows that never
+                    # executed write nothing and render no link.
+                    foreach ($m in $fileResult.Matrices) {
+                        Write-MatrixDiagnosticsJsonHC `
+                            -Matrix $m `
+                            -LogFolder $fileLogFolder.FullName
                     }
                     #endregion
 

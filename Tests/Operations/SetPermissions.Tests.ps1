@@ -1617,9 +1617,13 @@ Describe 'Permissions' {
                 Set-Acl -Path $testItem -AclObject $acl
                 #endregion
 
-                $Actual = .$testScript @testParams
-
-                $Actual | Where-Object Name -EQ 'Inherited permissions incorrect'
+                # Assign the FILTERED result. Previously the Where-Object line
+                # discarded its output and the assertion read .Value off every
+                # emitted object, which happened to work only while the script
+                # emitted exactly one. Selecting the object under test by name
+                # keeps the assertion valid however many others are emitted.
+                $Actual = .$testScript @testParams |
+                Where-Object Name -EQ 'Inherited permissions incorrect'
 
                 $Actual.Value | Should-Be "$($testParams.Path)\FolderB"
             }
@@ -2506,7 +2510,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning|Telemetry' } | Should-BeFalsy
             }
         }
     }
@@ -3160,7 +3164,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning|Telemetry' } | Should-BeFalsy
 
                 $testParams = @{
                     Path             = $testParentFolder
@@ -3173,7 +3177,7 @@ Describe 'when Action is' {
                     )
                 }
 
-                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning' } | Should-BeFalsy
+                .$testScript @testParams | Where-Object { $_.Type -notmatch 'Information|Warning|Telemetry' } | Should-BeFalsy
             }
         }
     }

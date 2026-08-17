@@ -524,9 +524,25 @@ function Invoke-PermissionMatrixProcessHC {
                     if ($liveMatrix) {
                         if ($res.Result) {
                             $structured = @($res.Result | ConvertTo-StructuredObjectHC)
-                            
-                            foreach ($entry in $structured) {
+
+                            # Telemetry is diagnostics, not a finding. Split it
+                            # off BEFORE anything reaches 'Check', so it cannot
+                            # turn a clean row into a card-rendering row, cannot
+                            # be counted by Format-IssueCountLabelHC, and cannot
+                            # appear in the summary mail. It lands on its own
+                            # property and is written to its own JSON file by
+                            # the END stage.
+                            $telemetryEntries, $checkEntries = $structured.Where(
+                                { $_.Type -eq 'Telemetry' }, 'Split'
+                            )
+
+                            foreach ($entry in $checkEntries) {
                                 $liveMatrix.Check.Add($entry)
+                            }
+
+                            if ($telemetryEntries) {
+                                # Last one wins; the remote script emits one.
+                                $liveMatrix.Telemetry = $telemetryEntries[-1].Value
                             }
                         }
                         $liveMatrix.JobTime.Start = $res.Start

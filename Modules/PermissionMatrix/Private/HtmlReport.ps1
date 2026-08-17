@@ -69,9 +69,39 @@ function Build-ExecutionDetailsBlockHC {
     }
     else { '' }
 
+    # Run-level diagnostics roll-up, written by the END stage at the root of
+    # the dated run folder (one level above this matrix's own folder). Linked
+    # from the footer rather than the cards because it covers the whole run,
+    # not this one matrix — it is the file to diff between nights.
+    $runDiagnosticsPath = if (
+        -not [string]::IsNullOrWhiteSpace($FileResult.LogFolder)
+    ) {
+        $candidate = Join-Path `
+            -Path (Split-Path -Path $FileResult.LogFolder -Parent) `
+            -ChildPath 'Diagnostics.json'
+
+        if (Test-Path -LiteralPath $candidate) { $candidate } else { '' }
+    }
+    else { '' }
+
+    # Companion field reference, written to the same run folder. Skipped when
+    # absent so an older log folder still renders.
+    $diagnosticsFieldsPath = if (
+        -not [string]::IsNullOrWhiteSpace($FileResult.LogFolder)
+    ) {
+        $candidateFields = Join-Path `
+            -Path (Split-Path -Path $FileResult.LogFolder -Parent) `
+            -ChildPath 'Diagnostics.Fields.json'
+
+        if (Test-Path -LiteralPath $candidateFields) { $candidateFields } else { '' }
+    }
+    else { '' }
+
     # Each row: (label, value-html, use-mono-font?)
     $items = @(
         @{ Label = 'Matrix log copy'; Value = (Convert-PathToFileLink -Path $logMatrixPath -Title 'Copy of the processed matrix file, including the AccessList, GroupManagers and AdObjects sheets'); Mono = $true }
+        @{ Label = 'Run diagnostics'; Value = (Convert-PathToFileLink -Path $runDiagnosticsPath -Title 'Volume and cost counters for every Settings row in this run — compare the same path across runs to separate data growth from storage slowdown'); Mono = $true }
+        @{ Label = 'Diagnostics fields'; Value = (Convert-PathToFileLink -Path $diagnosticsFieldsPath -Title 'What every diagnostics counter means, how to read them together, and the caveats'); Mono = $true }
         @{ Label = 'Matrix file'; Value = (Convert-PathToFileLink $matrixPath); Mono = $true }
         @{ Label = 'Defaults file'; Value = (Convert-PathToFileLink $defaultsPath); Mono = $true }
         @{ Label = 'Last change'; Value = $lastChangeValue; Mono = $false }
@@ -227,12 +257,17 @@ function Build-MatrixDetailCardHC {
             [string]$IconHtml,
             [string]$Value,
             [bool]$Mono = $false,
-            [string]$TitleAttr = ''
+            [string]$TitleAttr = '',
+            # Raw HTML appended after the value span, inside the same cell.
+            # Used for the Diagnostics chip so it can sit beside the duration
+            # without claiming a fourth grid column.
+            [string]$TrailingHtml = ''
         )
         $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
         $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
         $valueHtml = "<span$titleHtml style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</span>"
-        return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$IconHtml$valueHtml</td>"
+        $trailing = if ($TrailingHtml) { "&nbsp;&nbsp;$TrailingHtml" } else { '' }
+        return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$IconHtml$valueHtml$trailing</td>"
     }
 
     # Helper for inline "LABEL: value" cells — used by every other cell.
@@ -250,6 +285,30 @@ function Build-MatrixDetailCardHC {
         return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$labelHtml$valueHtml</td>"
     }
 
+    # Diagnostics link — a quiet outlined chip rather than a labeled metadata
+    # cell. The counters behind it are only interesting when someone is
+    # actively investigating a slow path, so putting the numbers themselves in
+    # the card would tax every reader to serve the rare one. A chip next to
+    # the duration is discoverable exactly when you are already looking at the
+    # time, and costs one line of pixels.
+    #
+    # Rendered only when the END stage actually wrote the file (rows that
+    # never executed have no telemetry), so this never links into the void.
+    $diagFile = Get-StringOrDefaultHC $MatrixItem.DiagnosticsFileName ''
+    $diagHtml = if ($diagFile) {
+        $diagHref = [System.Net.WebUtility]::HtmlEncode($diagFile)
+
+        # A '?' beside the chip, linking to the field reference in the run
+        # folder one level up. The counters are useless to anyone who does not
+        # know what they mean, and the answer should be one click away from the
+        # numbers rather than filed somewhere the reader has to go looking for.
+        # Rendered as a separate small link so the chip itself still goes
+        # straight to the data for readers who already know the fields.
+        "<a href='$diagHref' target='_blank' rel='noopener noreferrer' title='Volume and cost counters for this path (JSON)' style='display:inline-block; padding:1px 8px; border:1px solid $($Script:Theme.BorderMain); border-radius:10px; font-size:10px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; color:$($Script:Theme.TextLight); text-decoration:none; vertical-align:middle;'>Diagnostics</a>" +
+        "<a href='../Diagnostics.Fields.json' target='_blank' rel='noopener noreferrer' title='What do these counters mean?' style='display:inline-block; margin-left:4px; width:15px; height:15px; line-height:15px; text-align:center; border:1px solid $($Script:Theme.BorderMain); border-radius:50%; font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-decoration:none; vertical-align:middle;'>?</a>"
+    }
+    else { '' }
+
     # Row 1: Action          | Apply Defaults | Group
     # Row 2: Duration (icon) | ID             | Site
     $row1Cells = @(
@@ -257,8 +316,12 @@ function Build-MatrixDetailCardHC {
         (New-InlineMetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
         $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
     )
+
+    # The chip shares the Duration cell instead of taking a fourth column, so
+    # the three-column grid (and its alignment across the two rows) is
+    # untouched whether or not diagnostics were written.
     $row2Cells = @(
-        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true)
+        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true -TrailingHtml $diagHtml)
         (New-InlineMetaCellHtml -Label 'ID' -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
         $(if ($siteCode) { New-InlineMetaCellHtml -Label 'Site' -Value $siteCode } else { '<td>&nbsp;</td>' })
     )

@@ -369,6 +369,102 @@ begin {
 
         $ErrorActionPreference = 'Stop'
 
+        #region Telemetry counters (Parallel Thread)
+        <#
+         Volume and cost counters for this runspace's slice of the walk.
+         Merged by the main thread into one per-setting telemetry record.
+
+         THREE RULES, ALL OF THEM MEASURED (see Tests/Operations/
+         TelemetryOverhead.Tests.ps1 for the benchmark that produced them).
+
+         1. HOIST THE LOOKUP.
+            Reading '$telemetry' from a nested function is a DYNAMIC SCOPE
+            lookup and costs ~1us EVERY TIME — far more than the increment
+            itself, and it dwarfs the container type (a [long[]] measured no
+            better than a hashtable). Every function and scriptblock below
+            therefore copies the reference into a local '$t' once, then indexes
+            the local. Measured: 2,949ns/item unhoisted vs 777ns/item hoisted.
+            Do not "simplify" '$t' away.
+
+         2. SAMPLE THE EXPENSIVE SIGNALS.
+            Stopwatch::GetTimestamp() costs more through the PowerShell
+            interpreter than the counters do, so timing every item would make
+            the timing the dominant cost. Timing and the ACE census are taken
+            on 1 item in $sampleEvery instead, which drops the per-item cost
+            by roughly half.
+
+            WARM-UP: the first $sampleWarmup items are sampled unconditionally
+            before the 1-in-N rule takes over. Without it a small path yields
+            too few samples for the mean to mean anything — 200 items at 1-in-64
+            is 3 samples, and a 3-sample mean measured at 1.44x the true value
+            in testing. The warm-up guarantees a usable floor on small trees and
+            is reported as its own pool so it cannot skew large-tree means.
+            Always check 'AclReadSamples' and 'AclReadBasis' before trusting
+            'AclReadMsPerItem'.
+
+         3. COUNT RARE EVENTS UNCONDITIONALLY.
+            Denials, read failures, writes and incorrect items are exceptional
+            on a converged tree, so they are counted on every occurrence — no
+            sampling, no estimation. If they ever stop being rare, that is
+            itself the finding.
+
+         WHAT IS DELIBERATELY NOT COLLECTED
+         No per-item strings, no per-item log lines, no per-item paths. That is
+         what $CollectTestedPaths does, and it is the expensive pattern: a
+         dictionary holding every path walked, marshalled back across the
+         runspace boundary. Everything below is a scalar, so the whole record
+         is a few hundred bytes no matter how large the tree is.
+        #>
+
+        # Power of two so the sampling test is a bitmask, not a modulo.
+        # $sampleCounter is script-scoped to this runspace so the sample points
+        # keep advancing across the recursive Get-FolderContentHC calls instead
+        # of restarting (and re-sampling the first item) in every directory.
+        $sampleEvery = 64
+        $sampleMask = $sampleEvery - 1
+        $sampleWarmup = 300
+        $script:sampleCounter = 0
+
+        $telemetry = @{
+            # The subtree these counters describe. Each parallel job walks ONE
+            # matrix folder and skips any child that is itself a matrix folder,
+            # so the jobs form a non-overlapping partition of the tree and this
+            # label is unambiguous.
+            #
+            # Non-numeric, so the main thread's merge must not try to add it —
+            # see the merge loop, which only sums keys it already holds.
+            WalkedPath            = $Path
+            SeedOnly              = $CheckInheritedOnly
+            FoldersWalked         = 0L
+            FilesWalked           = 0L
+            # Warm-up and stride samples are kept APART on purpose. The warm-up
+            # covers the first N items CONTIGUOUSLY, which is the worst possible
+            # basis for a mean on a large tree: those items are the coldest
+            # (cache, JIT, first directory opens) and they represent a fraction
+            # of a percent of the data. Mixed into one pool they dominated the
+            # estimate and measured up to 1.9x the true value in testing.
+            # Reported separately, the stride pool gives an unbiased mean for
+            # large trees and the warm-up pool rescues small ones.
+            AclReadWarmupSamples  = 0L
+            AclReadWarmupTicks    = 0L
+            AclReadStrideSamples  = 0L
+            AclReadStrideTicks    = 0L
+            AclReadDenied      = 0L
+            AclReadFailed      = 0L
+            AclWrites          = 0L
+            AclWriteTicks      = 0L
+            AclWriteDenied     = 0L
+            IncorrectItems     = 0L
+            AceCountTotal      = 0L
+            AceCountItems      = 0L
+            AceCountMax        = 0L
+            EnumeratedDirs     = 0L
+            EnumerateTicks     = 0L
+            SampleEvery        = [long]$sampleEvery
+            SampleWarmup       = [long]$sampleWarmup
+        }
+        #endregion
+
         #region Function ConvertTo-HashtableHC (Parallel Thread)
         # Duplicated from the main-thread definition because this scriptblock is
         # rehydrated in a fresh runspace that cannot see the parent's functions.
@@ -584,6 +680,36 @@ begin {
 
             $fullName = $DirectoryInfo.FullName
 
+            # Hoist the parent-scope telemetry lookup into a local ONCE per
+            # directory. See rule 1 in the counter notes: reading $telemetry
+            # directly from inside this function is a dynamic-scope lookup
+            # costing ~1us per access, which is more than the work it measures.
+            # $t is a reference to the same hashtable, so mutating it mutates
+            # the parent's object.
+            $t = $telemetry
+
+            if ($null -eq $t) {
+                <#
+                 DIAGNOSTICS MUST NEVER BE LOAD-BEARING.
+
+                 This function is also dot-sourced standalone — the Pester suite
+                 lifts it out of this script by AST and supplies only the
+                 closure variables it needs — so $telemetry is not guaranteed to
+                 exist. Without this guard, '$t['EnumerateTicks'] += ...' throws
+                 'Cannot index into a null array', and because that sits inside
+                 the enumeration try/catch it resurfaces as the misleading
+                 'Failed retrieving the folder content of ...'.
+
+                 Counting into a throwaway hashtable keeps the walk correct and
+                 simply discards the numbers. A missing counter is a lost
+                 measurement; a thrown counter is a failed permission run, and
+                 those are not remotely the same cost.
+                #>
+                $t = @{}
+                $sampleWarmup = 0
+                $sampleMask = 0
+            }
+
             try {
                 # Perf: Write-Verbose "Get content of folder '$fullName'" removed
                 # — it fired once per folder (millions of calls on large trees)
@@ -607,7 +733,20 @@ begin {
                     return
                 }
 
+                # Telemetry: time the enumerator handle, not the iteration.
+                # EnumerateFileSystemInfos is lazy, so this measures the
+                # directory open only; the per-child cost lands in the ACL
+                # read timer below. Splitting the two is the whole point —
+                # it separates 'the tree got bigger / the disk got slower'
+                # from 'the ACL operations got more expensive'.
+                # Timed unsampled: this fires once per DIRECTORY, not per
+                # item, so its cost is amortized over every child below it.
+                $tsEnum = [System.Diagnostics.Stopwatch]::GetTimestamp()
                 $enumerator = $DirectoryInfo.EnumerateFileSystemInfos()
+                $t['EnumerateTicks'] += (
+                    [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsEnum
+                )
+                $t['EnumeratedDirs']++
             }
             catch {
                 throw "Failed retrieving the folder content of '$fullName': $_"
@@ -629,8 +768,30 @@ begin {
 
                 $isContainer = $child -is [System.IO.DirectoryInfo]
 
+                # Telemetry: the ONLY unconditional per-item cost. This is
+                # what turns 'this path got slower' into 'this path got slower
+                # AND grew by 40k files' — or did not grow at all, which is the
+                # more interesting answer.
+                if ($isContainer) { $t['FoldersWalked']++ }
+                else { $t['FilesWalked']++ }
+
+                # Sample decision, taken once and reused by the read timer and
+                # the ACE census below so the branch is only evaluated once.
+                # The warm-up term is first so that on small trees the -or
+                # short-circuits before the bitmask is ever evaluated.
+                $sampleCounter = ++$script:sampleCounter
+                $isWarmupSample = ($sampleCounter -le $sampleWarmup)
+                $isSample = (
+                    $isWarmupSample -or
+                    (($sampleCounter -band $sampleMask) -eq 0)
+                )
+
                 $accessDenied = $false
                 $acl = $null
+                $tsRead = if ($isSample) {
+                    [System.Diagnostics.Stopwatch]::GetTimestamp()
+                }
+                else { 0L }
                 try {
                     # FAST .NET API Call bypassing PowerShell provider overhead
                     if ($isContainer) {
@@ -642,6 +803,7 @@ begin {
                 }
                 catch [System.UnauthorizedAccessException] {
                     $accessDenied = $true
+                    $t['AclReadDenied']++
                 }
                 catch {
                     # FALLBACK: Use classic Get-Acl if .NET method fails
@@ -650,8 +812,11 @@ begin {
                     }
                     catch [System.UnauthorizedAccessException] {
                         $accessDenied = $true
+                        $t['AclReadDenied']++
                     }
                     catch {
+                        $t['AclReadFailed']++
+
                         if (-not (Test-Path -LiteralPath $child.FullName)) {
                             Write-Verbose "Item '$($child.FullName)' removed"
                             $Error.RemoveAt(0)
@@ -674,7 +839,34 @@ begin {
                                 $unreadableAcl.Add($child.FullName)
                             }
                         }
+
+                        # Closed here too: a 'continue' must not skip the
+                        # timer, or the slowest reads (the failing ones) would
+                        # be the only ones missing from the mean.
+                        if ($isSample) {
+                            $readTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsRead
+                            if ($isWarmupSample) {
+                                $t['AclReadWarmupSamples']++
+                                $t['AclReadWarmupTicks'] += $readTicks
+                            }
+                            else {
+                                $t['AclReadStrideSamples']++
+                                $t['AclReadStrideTicks'] += $readTicks
+                            }
+                        }
                         continue
+                    }
+                }
+
+                if ($isSample) {
+                    $readTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsRead
+                    if ($isWarmupSample) {
+                        $t['AclReadWarmupSamples']++
+                        $t['AclReadWarmupTicks'] += $readTicks
+                    }
+                    else {
+                        $t['AclReadStrideSamples']++
+                        $t['AclReadStrideTicks'] += $readTicks
                     }
                 }
 
@@ -683,6 +875,20 @@ begin {
                 }
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
+
+                # Telemetry: ACE census. Reading $diffAce.Count is free — it
+                # is already materialized on the line above for the comparison
+                # — but the three counter writes are not, so the census rides
+                # the same 1-in-N sample as the read timer. Growth in the mean
+                # or max here, run over run, is what an ACL that is being
+                # appended to rather than replaced looks like.
+                if ($isSample -and $diffAce.Count) {
+                    $t['AceCountTotal'] += $diffAce.Count
+                    $t['AceCountItems']++
+                    if ($diffAce.Count -gt $t['AceCountMax']) {
+                        $t['AceCountMax'] = $diffAce.Count
+                    }
+                }
 
                 if ($isContainer) {
                     $isIncorrect = if ($CheckInheritedOnly) {
@@ -722,6 +928,14 @@ begin {
         #region ScriptBlock IncorrectAclInheritedOnly
         $incorrectAclInheritedOnly = {
             Write-Warning "Incorrect ACL '$($child.FullName)'"
+
+            # Hoisted for the same reason as in Get-FolderContentHC, and guarded
+            # for the same reason: the Pester suite replaces this scriptblock
+            # with an empty one in some contexts and dot-sources it standalone in
+            # others, so $telemetry cannot be assumed to exist here either.
+            $t = $telemetry
+            if ($null -eq $t) { $t = @{} }
+            $t['IncorrectItems']++
 
             if ($DetailedLog) {
                 # One array element per ACE keeps the detail JSON readable
@@ -763,6 +977,13 @@ begin {
                 # untouched (still reported as fixed). Creating a new object per
                 # item guarantees the DACL protection + owner are re-marked as
                 # modified so each item is genuinely reset to inherited-only.
+                # Telemetry: writes are counted and timed separately from
+                # reads. Writes are rare relative to reads on a converged
+                # tree, so this timer is cheap by construction — and if it
+                # ever stops being cheap, that IS the finding: a tree that
+                # rewrites the same items every night is not converging.
+                $tsWrite = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
                 if ($isContainer) {
                     $dirInfo = [System.IO.DirectoryInfo]::new($child.FullName)
 
@@ -778,6 +999,7 @@ begin {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
                     }
                     catch [System.UnauthorizedAccessException] {
+                        $t['AclWriteDenied']++
                         [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $inheritedDirAcl)
                     }
@@ -797,10 +1019,20 @@ begin {
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
                     }
                     catch [System.UnauthorizedAccessException] {
+                        $t['AclWriteDenied']++
                         [TokenManipulator]::SetOwner($child.FullName, 'BUILTIN\Administrators')
                         [System.IO.FileSystemAclExtensions]::SetAccessControl($fileInfo, $inheritedFileAcl)
                     }
                 }
+
+                # Unsampled: writes are exceptional on a converged tree, so
+                # the timer runs on every one. If that ever becomes expensive,
+                # the expense IS the finding — a tree that rewrites the same
+                # items every night is not converging.
+                $t['AclWrites']++
+                $t['AclWriteTicks'] += (
+                    [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsWrite
+                )
             }
         }
         #endregion
@@ -901,9 +1133,15 @@ begin {
         }
         catch { throw "Failed setting permissions for '$Path': $_" }
         finally {
+            # 'Telemetry' rides along on the object that already crosses the
+            # runspace boundary, so it costs nothing extra to transport: a
+            # fixed ~15 integers per job regardless of tree size. Emitted from
+            # 'finally' so a job that throws still reports the volume it
+            # managed to get through before failing.
             $result = [PSCustomObject]@{
                 IncorrectInheritedAcl = $incorrectInheritedAcl
                 UnreadableAcl         = $unreadableAcl
+                Telemetry             = $telemetry
             }
             if ($CollectTestedPaths) {
                 $result | Add-Member -NotePropertyName 'TestedInheritedFilesAndFolders' -NotePropertyValue $testedInheritedFilesAndFolders
@@ -1057,6 +1295,107 @@ process {
             $incorrectAclNonInheritedFolders = [System.Collections.Generic.List[String]]::New()
             $incorrectInheritedAcl = [System.Collections.Generic.List[String]]::New()
             $unreadableAcl = [System.Collections.Generic.List[String]]::New()
+        }
+        #endregion
+
+        #region Telemetry accumulator (Main Thread)
+        <#
+         The run-wide totals for this one Settings row. Two sources feed it:
+
+         - the matrix-folder loop below, which runs on this thread and touches
+           only the folders named in the 'Permissions' worksheet (hundreds of
+           items — cold path, cost irrelevant)
+         - the parallel walker, which touches every file and folder underneath
+           them (millions of items — hot path, see the counter notes in the
+           scriptblock)
+
+         'MatrixFolders*' therefore describes the explicit ACLs, and
+         'Folders/FilesWalked' describes the inherited ones. Keeping them
+         apart matters: a matrix that grows by ten rows and a share that grows
+         by 200k files are different problems with the same symptom.
+
+         Stopwatch.Frequency is captured once and applied at the end, so no
+         tick-to-millisecond division happens per item.
+        #>
+        $telemetryStart = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
+        <#
+         Per-path breakdown, so a regression can be localised to the folder that
+         caused it instead of only to the Settings row.
+
+         Two sources, keyed on the same folder path:
+         - this thread's explicit-ACL loop (one entry per matrix folder)
+         - each parallel walker job (one job per matrix folder)
+
+         Because the walker jobs partition the tree, the per-path rows sum back
+         to the Settings-row totals. That is worth preserving: it means the
+         breakdown can be trusted as a decomposition rather than a sample.
+        #>
+        $pathTelemetry = @{}
+
+        $newPathRow = {
+            param($RowPath)
+
+            if (-not $pathTelemetry.ContainsKey($RowPath)) {
+                $pathTelemetry[$RowPath] = @{
+                    Path                   = $RowPath
+                    MatrixFolderReads      = 0L
+                    MatrixFolderReadTicks  = 0L
+                    MatrixFolderWrites     = 0L
+                    MatrixFolderWriteTicks = 0L
+                    MatrixFoldersIncorrect = 0L
+                    MatrixFoldersCreated   = 0L
+                    FoldersWalked          = 0L
+                    FilesWalked            = 0L
+                    AclReadWarmupSamples   = 0L
+                    AclReadWarmupTicks     = 0L
+                    AclReadStrideSamples   = 0L
+                    AclReadStrideTicks     = 0L
+                    AclReadDenied          = 0L
+                    AclReadFailed          = 0L
+                    AclWrites              = 0L
+                    AclWriteTicks          = 0L
+                    AclWriteDenied         = 0L
+                    IncorrectItems         = 0L
+                    AceCountTotal          = 0L
+                    AceCountItems          = 0L
+                    AceCountMax            = 0L
+                    EnumeratedDirs         = 0L
+                    EnumerateTicks         = 0L
+                    Walked                 = $false
+                }
+            }
+
+            return $pathTelemetry[$RowPath]
+        }
+
+        $telemetry = @{
+            MatrixFolders          = 0L
+            MatrixFolderReads      = 0L
+            MatrixFolderReadTicks  = 0L
+            MatrixFolderWrites     = 0L
+            MatrixFolderWriteTicks = 0L
+            MatrixFoldersIncorrect = 0L
+            MatrixFoldersCreated   = 0L
+            FoldersWalked          = 0L
+            FilesWalked            = 0L
+            AclReadWarmupSamples   = 0L
+            AclReadWarmupTicks     = 0L
+            AclReadStrideSamples   = 0L
+            AclReadStrideTicks     = 0L
+            AclReadDenied          = 0L
+            AclReadFailed          = 0L
+            AclWrites              = 0L
+            AclWriteTicks          = 0L
+            AclWriteDenied         = 0L
+            IncorrectItems         = 0L
+            AceCountTotal          = 0L
+            AceCountItems          = 0L
+            AceCountMax            = 0L
+            EnumeratedDirs         = 0L
+            EnumerateTicks         = 0L
+            SampleEvery            = 0L
+            SampleWarmup           = 0L
         }
         #endregion
 
@@ -1270,6 +1609,7 @@ process {
                 else {
                     Write-Verbose "Create missing folder '$nonExistingPath'"
                     $missingFolders.Add((New-Item -Path $nonExistingPath -ItemType Directory -Force -EA Stop).FullName)
+                    $telemetry['MatrixFoldersCreated']++
                 }
             }
 
@@ -1326,7 +1666,18 @@ process {
                 $accessDenied = $false
                 $acl = $null
 
+                $telemetry['MatrixFolders']++
+                $pathRow = & $newPathRow $folder.Path
+
+                $tsRead = [System.Diagnostics.Stopwatch]::GetTimestamp()
                 $aclRead = Get-DirectoryAclSafeHC -DirectoryInfo $dirInfo
+                $readTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsRead
+
+                $telemetry['MatrixFolderReads']++
+                $telemetry['MatrixFolderReadTicks'] += $readTicks
+                $pathRow['MatrixFolderReads']++
+                $pathRow['MatrixFolderReadTicks'] += $readTicks
+
                 $acl = $aclRead.Acl
                 $accessDenied = $aclRead.AccessDenied
 
@@ -1353,8 +1704,23 @@ process {
 
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
+                # Unsampled here: this loop covers only the folders named in
+                # the 'Permissions' worksheet — hundreds of items, not
+                # millions — so the cold-path cost is irrelevant and the census
+                # is exact.
+                if ($diffAce.Count) {
+                    $telemetry['AceCountTotal'] += $diffAce.Count
+                    $telemetry['AceCountItems']++
+                    if ($diffAce.Count -gt $telemetry['AceCountMax']) {
+                        $telemetry['AceCountMax'] = $diffAce.Count
+                    }
+                }
+
                 if ($accessDenied -or (-not $acl) -or (-not $acl.AreAccessRulesProtected) -or (-not (Test-AclEqualHC -ReferenceAce ($folder.FolderAcl).Access -DifferenceAce $diffAce))) {
                     Write-Warning "Incorrect folder ACL '$($folder.Path)'"
+
+                    $telemetry['MatrixFoldersIncorrect']++
+                    $pathRow['MatrixFoldersIncorrect']++
 
                     #region Log Incorrect ACL
                     if ($Action -ne 'New') {
@@ -1405,6 +1771,8 @@ process {
                         $newAcl.SetAccessRuleProtection($true, $false)
                         foreach ($rule in $folder.FolderAcl.Access) { $newAcl.AddAccessRule($rule) }
 
+                        $tsWrite = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
                         try {
                             [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
                         }
@@ -1412,6 +1780,13 @@ process {
                             [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators')
                             [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
                         }
+
+                        $writeTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsWrite
+
+                        $telemetry['MatrixFolderWrites']++
+                        $telemetry['MatrixFolderWriteTicks'] += $writeTicks
+                        $pathRow['MatrixFolderWrites']++
+                        $pathRow['MatrixFolderWriteTicks'] += $writeTicks
 
                         Write-Verbose 'ACL corrected'
                     }
@@ -1512,6 +1887,67 @@ process {
                 } -ThrottleLimit $JobThrottleLimit
 
                 foreach ($jobResult in $jobResults) {
+                    #region Merge telemetry from this worker
+                    # Counts and ticks are additive across workers. 'AceCountMax'
+                    # is the one exception: it is a maximum, not a sum.
+                    #
+                    # Note that the tick totals are the sum of CONCURRENT work,
+                    # so they exceed the job's wall clock by roughly the
+                    # throttle limit. That is intentional — it measures cost,
+                    # not elapsed time, and cost is what is comparable between
+                    # runs when the concurrency setting is unchanged.
+                    if ($jobResult.Telemetry) {
+                        # Per-path breakdown: fold this job's counters into the
+                        # row for the subtree it walked, before summing them into
+                        # the Settings-row totals below.
+                        $walkedPath = $jobResult.Telemetry['WalkedPath']
+
+                        if ($walkedPath) {
+                            $jobRow = & $newPathRow $walkedPath
+                            $jobRow['Walked'] = $true
+
+                            if ($jobResult.Telemetry['SeedOnly']) {
+                                $jobRow['SeedOnly'] = $true
+                            }
+
+                            foreach ($j in $jobResult.Telemetry.GetEnumerator()) {
+                                if (-not $jobRow.ContainsKey($j.Key)) { continue }
+                                if ($j.Key -eq 'AceCountMax') {
+                                    if ($j.Value -gt $jobRow['AceCountMax']) {
+                                        $jobRow['AceCountMax'] = $j.Value
+                                    }
+                                }
+                                elseif ($jobRow[$j.Key] -is [long]) {
+                                    $jobRow[$j.Key] += $j.Value
+                                }
+                            }
+                        }
+
+                        foreach ($t in $jobResult.Telemetry.GetEnumerator()) {
+                            if ($t.Key -eq 'AceCountMax') {
+                                if ($t.Value -gt $telemetry['AceCountMax']) {
+                                    $telemetry['AceCountMax'] = $t.Value
+                                }
+                            }
+                            elseif ($t.Key -in 'WalkedPath', 'SeedOnly') {
+                                # Labels, not counters. Consumed by the per-path
+                                # breakdown above; adding them here would
+                                # concatenate strings into the totals.
+                                continue
+                            }
+                            elseif ($t.Key -in 'SampleEvery', 'SampleWarmup') {
+                                # Constants, identical in every worker. Summing
+                                # them would report 'every 256th item' for a run
+                                # with four workers.
+                                $telemetry[$t.Key] = $t.Value
+                            }
+                            elseif ($telemetry.ContainsKey($t.Key)) {
+                                $telemetry[$t.Key] += $t.Value
+                            }
+                        }
+                    }
+                    #endregion
+
                     if ($CollectTestedPaths) {
                         foreach ($j in $jobResult.TestedInheritedFilesAndFolders) {
                             foreach ($i in $j.GetEnumerator()) { $testedInheritedFilesAndFolders[$i.Key] = $i.Value }
@@ -1555,6 +1991,242 @@ process {
                 Name        = 'ACL could not be read'
                 Description = "The permissions of these folders or files could not be read on the remote machine (for example the security descriptor is corrupt or the item is locked by another process). They were not checked or corrected and need manual attention."
                 Value       = if ($DetailedLog) { $unreadableAcl } else { $unreadableAcl.ToArray() }
+            }
+        }
+        #endregion
+
+        #region Emit execution telemetry
+        <#
+         Type 'Telemetry' is NOT a check. Invoke-PermissionMatrixProcessHC
+         splits it out of the result stream and parks it on the matrix
+         object's 'Telemetry' property, so it never reaches $matrix.Check and
+         never renders as a card. Anything that walks 'Check' (the pass/fail
+         tally, the summary mail, the issue report) is therefore unaffected by
+         its presence.
+
+         Ticks are converted to milliseconds here, once, using the frequency
+         of the machine that produced them — the remote file server. Doing it
+         on the orchestrator would be wrong on any host with a different
+         Stopwatch.Frequency.
+        #>
+        $tickToMs = 1000.0 / [System.Diagnostics.Stopwatch]::Frequency
+
+        $itemsWalked = $telemetry['FoldersWalked'] + $telemetry['FilesWalked']
+
+        $round = { param($v) [math]::Round($v, 2) }
+
+        <#
+         Mean cost of one ACL read, in milliseconds.
+
+         PREFERS THE STRIDE POOL. Stride samples are spread evenly across the
+         whole walk, so their mean is representative. Warm-up samples are the
+         first N items in order, which on a large tree are both unrepresentative
+         (coldest) and a tiny slice of the data — including them measured up to
+         1.9x the true per-item cost in testing.
+
+         Falls back to the combined pool only when there are too few stride
+         samples to mean anything, which is exactly the small-tree case the
+         warm-up was added for. 30 is the conventional floor for treating a
+         sample mean as usable.
+
+         Returns the mean and the basis, so the JSON can say which pool it used
+         rather than leaving the reader to guess.
+        #>
+        $strideFloor = 30
+
+        $readMean = {
+            $strideN = $telemetry['AclReadStrideSamples']
+            $warmN = $telemetry['AclReadWarmupSamples']
+
+            if ($strideN -ge $strideFloor) {
+                return @{
+                    Ms      = ($telemetry['AclReadStrideTicks'] * $tickToMs) / $strideN
+                    Basis   = 'stride'
+                    Samples = $strideN
+                }
+            }
+
+            $totalN = $strideN + $warmN
+
+            if ($totalN -gt 0) {
+                return @{
+                    Ms      = (
+                        ($telemetry['AclReadStrideTicks'] + $telemetry['AclReadWarmupTicks']) * $tickToMs
+                    ) / $totalN
+                    Basis   = 'warmup+stride'
+                    Samples = $totalN
+                }
+            }
+
+            return @{ Ms = 0; Basis = 'none'; Samples = 0 }
+        }
+
+        $aclRead = & $readMean
+
+        [PSCustomObject]@{
+            DateTime    = Get-Date
+            Type        = 'Telemetry'
+            Name        = 'Execution telemetry'
+            Description = 'Volume and cost counters for this Settings row. Compare the same path between runs: a duration that grew while ItemsWalked stayed flat points at the storage or the ACLs, not at the amount of data.'
+            Value       = [ordered]@{
+                Path                   = $Path
+                Action                 = $Action
+                ComputerName           = $env:COMPUTERNAME
+                WallClockMs            = & $round (
+                    ([System.Diagnostics.Stopwatch]::GetTimestamp() - $telemetryStart) * $tickToMs
+                )
+
+                # --- Volume: how much was there? ---
+                ItemsWalked            = $itemsWalked
+                FoldersWalked          = $telemetry['FoldersWalked']
+                FilesWalked            = $telemetry['FilesWalked']
+                MatrixFolders          = $telemetry['MatrixFolders']
+                MatrixFoldersCreated   = $telemetry['MatrixFoldersCreated']
+
+                # --- Cost: what did touching it take? ---
+                # AclReadMsPerItem is a SAMPLED mean (1 item in SampleEvery),
+                # not a total. It is the number to compare between runs: it
+                # isolates the per-operation cost of the storage from the
+                # amount of data, which a duration alone cannot do.
+                # AclReadMsEstimated scales it back up to a whole-job figure —
+                # useful for apportioning the wall clock, but it is an
+                # estimate, and it is named so nobody mistakes it for measured.
+                SampleEvery            = $telemetry['SampleEvery']
+                SampleWarmup           = $telemetry['SampleWarmup']
+                AclReadSamples         = $aclRead.Samples
+                AclReadStrideSamples   = $telemetry['AclReadStrideSamples']
+                AclReadWarmupSamples   = $telemetry['AclReadWarmupSamples']
+                AclReadBasis           = $aclRead.Basis
+                AclReadMsPerItem       = & $round $aclRead.Ms
+                AclReadMsEstimated     = & $round ($aclRead.Ms * $itemsWalked)
+                AclWrites              = $telemetry['AclWrites']
+                AclWriteMs             = & $round ($telemetry['AclWriteTicks'] * $tickToMs)
+                AclWriteMsPerItem      = & $round (
+                    $(if ($telemetry['AclWrites']) {
+                            ($telemetry['AclWriteTicks'] * $tickToMs) / $telemetry['AclWrites']
+                        }
+                        else { 0 })
+                )
+                EnumeratedDirs         = $telemetry['EnumeratedDirs']
+                EnumerateMs            = & $round ($telemetry['EnumerateTicks'] * $tickToMs)
+
+                MatrixFolderReads      = $telemetry['MatrixFolderReads']
+                MatrixFolderReadMs     = & $round ($telemetry['MatrixFolderReadTicks'] * $tickToMs)
+                MatrixFolderWrites     = $telemetry['MatrixFolderWrites']
+                MatrixFolderWriteMs    = & $round ($telemetry['MatrixFolderWriteTicks'] * $tickToMs)
+
+                # --- Convergence: is the run idempotent? ---
+                # On a settled tree these trend to zero. A path that reports
+                # the same non-zero IncorrectItems every night is being
+                # rewritten every night, and is worth investigating before
+                # blaming the storage.
+                IncorrectItems         = $telemetry['IncorrectItems']
+                MatrixFoldersIncorrect = $telemetry['MatrixFoldersIncorrect']
+                AclReadDenied          = $telemetry['AclReadDenied']
+                AclReadFailed          = $telemetry['AclReadFailed']
+                AclWriteDenied         = $telemetry['AclWriteDenied']
+
+                # --- ACE census: are the ACLs themselves growing? ---
+                # Sampled in the walker, exact for the matrix folders. A rising
+                # AceCountMean on one tree while another stays flat is what
+                # non-idempotent ACL application looks like.
+                AceCountMean           = & $round (
+                    $(if ($telemetry['AceCountItems']) {
+                            $telemetry['AceCountTotal'] / $telemetry['AceCountItems']
+                        }
+                        else { 0 })
+                )
+                AceCountMax            = $telemetry['AceCountMax']
+                AceCountItems          = $telemetry['AceCountItems']
+
+                # --- Per-path breakdown ---
+                # One entry per matrix folder, so a regression can be localised
+                # to the folder that caused it rather than only to this Settings
+                # row. Because the walker jobs partition the tree, these sum
+                # back to the totals above.
+                #
+                # Sorted by measured cost descending: the folder that got slower
+                # is the reason anyone opens this file, so it should be the first
+                # thing they read rather than something they have to sort for.
+                Paths                  = @(
+                    $pathTelemetry.Values |
+                    Sort-Object -Property @{
+                        Expression = {
+                            $_['AclReadWarmupTicks'] + $_['AclReadStrideTicks'] +
+                            $_['AclWriteTicks'] +
+                            $_['EnumerateTicks'] + $_['MatrixFolderReadTicks'] +
+                            $_['MatrixFolderWriteTicks']
+                        }
+                        Descending = $true
+                    } |
+                    ForEach-Object {
+                        $row = $_
+                        $rowItems = $row['FoldersWalked'] + $row['FilesWalked']
+
+                        if ($row['AclReadStrideSamples'] -ge $strideFloor) {
+                            $rowReadSamples = $row['AclReadStrideSamples']
+                            $rowReadBasis = 'stride'
+                            $rowReadMs = ($row['AclReadStrideTicks'] * $tickToMs) / $rowReadSamples
+                        }
+                        else {
+                            $rowReadSamples = $row['AclReadStrideSamples'] + $row['AclReadWarmupSamples']
+                            if ($rowReadSamples -gt 0) {
+                                $rowReadBasis = 'warmup+stride'
+                                $rowReadMs = (
+                                    ($row['AclReadStrideTicks'] + $row['AclReadWarmupTicks']) * $tickToMs
+                                ) / $rowReadSamples
+                            }
+                            else {
+                                $rowReadBasis = 'none'
+                                $rowReadMs = 0
+                            }
+                        }
+
+                        [ordered]@{
+                            Path                   = $row['Path']
+                            ItemsWalked            = $rowItems
+                            FoldersWalked          = $row['FoldersWalked']
+                            FilesWalked            = $row['FilesWalked']
+                            EnumeratedDirs         = $row['EnumeratedDirs']
+
+                            # Cost attributable to this folder's subtree. The
+                            # read figure is sampled, so it carries its own
+                            # sample count for the same reason as the total.
+                            # Same stride-preferred rule as the Settings-row
+                            # total. Per-path pools are smaller, so the fallback
+                            # fires more often here — hence reporting the basis
+                            # per row rather than once for the whole setting.
+                            AclReadSamples         = $rowReadSamples
+                            AclReadBasis           = $rowReadBasis
+                            AclReadMsPerItem       = & $round $rowReadMs
+                            AclWrites              = $row['AclWrites']
+                            AclWriteMs             = & $round ($row['AclWriteTicks'] * $tickToMs)
+                            EnumerateMs            = & $round ($row['EnumerateTicks'] * $tickToMs)
+                            MatrixFolderReadMs     = & $round ($row['MatrixFolderReadTicks'] * $tickToMs)
+                            MatrixFolderWriteMs    = & $round ($row['MatrixFolderWriteTicks'] * $tickToMs)
+
+                            IncorrectItems         = $row['IncorrectItems']
+                            MatrixFoldersIncorrect = $row['MatrixFoldersIncorrect']
+                            AclReadDenied          = $row['AclReadDenied']
+                            AclReadFailed          = $row['AclReadFailed']
+                            AclWriteDenied         = $row['AclWriteDenied']
+
+                            AceCountMean           = & $round (
+                                $(if ($row['AceCountItems']) {
+                                        $row['AceCountTotal'] / $row['AceCountItems']
+                                    }
+                                    else { 0 })
+                            )
+                            AceCountMax            = $row['AceCountMax']
+
+                            # False means this folder's ACL was checked but its
+                            # subtree was never walked — it is ignored, or every
+                            # child belongs to another matrix folder. Explains a
+                            # row with cost but zero ItemsWalked.
+                            Walked                 = [bool]$row['Walked']
+                        }
+                    }
+                )
             }
         }
         #endregion

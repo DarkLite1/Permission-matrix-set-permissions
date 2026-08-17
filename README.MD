@@ -164,6 +164,42 @@ The script provides three layers of feedback (configured under `Settings`):
 2. **Event Log**: Written to the Windows Event Log (e.g., `Scripts`) for system-level monitoring.
 3. **Email Reports**: Summaries sent via SMTP.
 
+### Diagnostics
+
+Every run also writes volume and cost counters, so that a change in run time can be attributed rather than guessed at. Three files land in the dated run folder:
+
+| File                       | Grain                | Answers                                                     |
+| -------------------------- | -------------------- | ----------------------------------------------------------- |
+| `Diagnostics.json`         | One row per Settings row | Which matrix got slower.                                 |
+| `Diagnostics.Paths.json`   | One row per matrix folder | Where inside it. Joins to the above on `ID`.            |
+| `Diagnostics.Fields.json`  | —                    | What every counter means, and the caveats.                   |
+
+Each matrix folder also gets an `ID <guid> - Diagnostics.json` holding that one Settings row in full, linked from a **Diagnostics** chip on the execution report card (with a **?** next to it pointing at the field reference).
+
+#### How to read them:
+
+A duration on its own cannot tell you why a job got slower. Read it together with `ItemsWalked` (how much data there was) and `AclReadMsPerItem` (what each storage operation cost):
+
+- **Duration up, `ItemsWalked` up in proportion** → the share grew. Expected, nothing to fix.
+- **Duration up, `ItemsWalked` flat, `AclReadMsPerItem` up** → each operation got more expensive. Look at the file server (backup, anti-virus, deduplication, snapshot pressure), not at the matrix.
+- **`AceCountMean` climbing run over run** → permissions are being appended rather than replaced. This compounds every night and is worth fixing before anything else.
+- **`IncorrectItems` the same non-zero value every run** → the tree never converges; the same items are corrected every night.
+
+To trend one path across every run:
+
+```powershell
+Get-ChildItem '\\SERVER\Log\Permission matrix\*\Diagnostics.json' | ForEach-Object {
+    $run = $_.Directory.Name
+    Get-Content $_ -Raw | ConvertFrom-Json |
+    Where-Object Path -eq 'E:\DEPARTMENTS\STAFF\SCM' |
+    Select-Object @{n='Run';e={$run}}, DurationSeconds, ItemsWalked, AclReadMsPerItem, AceCountMean
+}
+```
+
+If a Settings row got slower but you cannot see why, filter `Diagnostics.Paths.json` on that row's `ID`. Its rows are already sorted by measured cost, so the folder responsible is at the top.
+
+⚠️ **NOTE**: `AclReadMsPerItem` is a sampled mean, and carries a few percent of run-to-run noise even on identical work. Check `AclReadSamples` and `AclReadBasis` before trusting it. A single run moving 10% is not a signal; a trend across several runs is.
+
 ## 📈 Issue & Performance Report
 
 To look across all runs at once, use `PermissionMatrixIssueReport.ps1`. Point it at your log folder to produce a master Excel workbook that answers what went wrong, how often, where, and how long it took.

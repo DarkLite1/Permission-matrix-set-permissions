@@ -142,6 +142,410 @@ function Write-CheckDetailJsonHC {
     }
 }
 
+function Write-MatrixDiagnosticsJsonHC {
+    <#
+    .SYNOPSIS
+        Writes one Settings row's telemetry to its own JSON file.
+
+    .DESCRIPTION
+        Produces 'ID <guid> - Diagnostics.json' next to the row's detail files
+        and stamps 'DiagnosticsFileName' on the matrix object so the execution
+        report can render a link to it.
+
+        This is the DRILL-DOWN artifact: everything known about one path in one
+        run. For the cross-run view, see Write-RunDiagnosticsJsonHC.
+
+    .NOTES
+        - The passed-in matrix object is MUTATED in place.
+        - A row without telemetry (never executed, or a FatalError before the
+          remote script ran) writes nothing and leaves the property $null, so
+          the report never links to a file that is not there.
+        - Failures are swallowed. Diagnostics that cannot be written are not
+          worth failing a run over, and not worth a line in the summary mail.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [object]$Matrix,
+        [Parameter(Mandatory)] [string]$LogFolder
+    )
+
+    if (-not $Matrix.Telemetry) { return }
+
+    $fileName = "ID $($Matrix.ID) - Diagnostics.json"
+
+    try {
+        $duration = if ($Matrix.JobTime.Duration) {
+            '{0:00}:{1:00}:{2:00}' -f `
+                $Matrix.JobTime.Duration.Hours,
+            $Matrix.JobTime.Duration.Minutes,
+            $Matrix.JobTime.Duration.Seconds
+        }
+        else { $null }
+
+        # The identity fields are repeated inside the file on purpose. The
+        # file is meant to be readable on its own, and to survive being copied
+        # out of its folder into a ticket or a mail.
+        $payload = [ordered]@{
+            ID           = $Matrix.ID
+            MatrixFile   = $Matrix.FileContext.Item.Name
+            ComputerName = $Matrix.Setting.Formatted.ComputerName
+            Path         = $Matrix.Setting.Formatted.Path
+            Action       = $Matrix.Setting.Formatted.Action
+            Start        = $Matrix.JobTime.Start
+            End          = $Matrix.JobTime.End
+            Duration     = $duration
+            Telemetry    = $Matrix.Telemetry
+        }
+
+        $payload | ConvertTo-Json -Depth 10 |
+        Out-File `
+            -FilePath (Join-Path -Path $LogFolder -ChildPath $fileName) `
+            -Encoding UTF8 -Force
+
+        $Matrix.DiagnosticsFileName = $fileName
+    }
+    catch {
+        Write-Verbose "Failed writing diagnostics JSON for ID '$($Matrix.ID)': $_"
+        $Matrix.DiagnosticsFileName = $null
+    }
+}
+
+function Write-RunPathDiagnosticsJsonHC {
+    <#
+    .SYNOPSIS
+        Writes 'Diagnostics.Paths.json': one flat row per matrix folder, across
+        the whole run.
+
+    .DESCRIPTION
+        The drill-down companion to 'Diagnostics.json'.
+
+        'Diagnostics.json' answers "which Settings row got slower". This file
+        answers "and where inside it", which is the question that actually leads
+        somewhere: a Settings row covering 67 matrix folders can double because
+        one child tree grew, and the row-level total cannot tell you which.
+
+        WHY A SEPARATE FILE RATHER THAN MORE COLUMNS
+        The two files hold different GRAINS. Mixing one-row-per-setting and
+        one-row-per-folder in a single table would break every aggregate taken
+        over it — sum a column and the folders get counted twice, once on their
+        own row and once inside the setting total. Separate files keep both
+        tables individually summable, and 'ID' joins them.
+
+        WHY THE SETTINGS-LEVEL FILE KEEPS ITS SHAPE
+        Anything already written against 'Diagnostics.json' keeps working. This
+        is additive.
+
+    .NOTES
+        Failures are swallowed, as with the other diagnostics writers.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Matrices,
+        [Parameter(Mandatory)] [string]$LogFolder,
+        [Parameter()] [datetime]$RunStartTime
+    )
+
+    try {
+        $rows = foreach ($m in $Matrices) {
+            if (-not $m.Telemetry) { continue }
+            if (-not $m.Telemetry.Paths) { continue }
+
+            foreach ($pathRow in $m.Telemetry.Paths) {
+                $row = [ordered]@{
+                    RunStartTime = $(
+                        if ($RunStartTime) {
+                            $RunStartTime.ToString('yyyy-MM-ddTHH:mm:ss')
+                        }
+                        else { $null }
+                    )
+                    # Joins back to Diagnostics.json.
+                    ID           = $m.ID
+                    MatrixFile   = $m.FileContext.Item.Name
+                    ComputerName = $m.Telemetry.ComputerName
+                    Action       = $m.Telemetry.Action
+                    # The Settings-row path, so a folder can be traced to the
+                    # row that owns it without a lookup.
+                    SettingPath  = $m.Telemetry.Path
+                }
+
+                foreach ($field in $pathRow.GetEnumerator()) {
+                    $row[$field.Key] = $field.Value
+                }
+
+                [PSCustomObject]$row
+            }
+        }
+
+        $rows = @($rows)
+
+        if ($rows.Count -eq 0) { return }
+
+        $rows | ConvertTo-Json -Depth 10 -AsArray |
+        Out-File `
+            -FilePath (Join-Path -Path $LogFolder -ChildPath 'Diagnostics.Paths.json') `
+            -Encoding UTF8 -Force
+    }
+    catch {
+        Write-Verbose "Failed writing the per-path diagnostics JSON: $_"
+    }
+}
+
+function Write-RunDiagnosticsJsonHC {
+    <#
+    .SYNOPSIS
+        Writes one flat array holding every Settings row's telemetry for the
+        whole run.
+
+    .DESCRIPTION
+        Produces 'Diagnostics.json' in the dated run folder.
+
+        This is the TREND artifact, and it is the one that answers 'is this
+        getting worse?'. The per-row files are fine for inspecting a single
+        path, but comparing five nights across 101 settings means opening 505
+        files. One array per run makes that a one-liner:
+
+            Get-ChildItem '<log root>\*\Diagnostics.json' |
+                ForEach-Object {
+                    $run = $_.Directory.Name
+                    Get-Content $_ -Raw | ConvertFrom-Json |
+                    Where-Object Path -eq 'E:\DEPARTMENTS\STAFF\SCM' |
+                    Select-Object @{n='Run';e={$run}},
+                                  DurationSeconds, ItemsWalked,
+                                  AclReadMsPerItem, AceCountMean
+                }
+
+        Duration is repeated here as a plain number, not a formatted string,
+        because this file is meant to be sorted and charted rather than read.
+
+    .NOTES
+        - Failures are swallowed for the same reason as the per-row file.
+        - Rows without telemetry are skipped rather than emitted as nulls, so
+          the array holds only rows that actually executed.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]]$Matrices,
+        [Parameter(Mandatory)] [string]$LogFolder,
+        [Parameter()] [datetime]$RunStartTime
+    )
+
+    try {
+        $rows = foreach ($m in $Matrices) {
+            if (-not $m.Telemetry) { continue }
+
+            $row = [ordered]@{
+                RunStartTime    = $(
+                    if ($RunStartTime) {
+                        $RunStartTime.ToString('yyyy-MM-ddTHH:mm:ss')
+                    }
+                    else { $null }
+                )
+                ID              = $m.ID
+                MatrixFile      = $m.FileContext.Item.Name
+                DurationSeconds = $(
+                    if ($m.JobTime.Duration) {
+                        [math]::Round($m.JobTime.Duration.TotalSeconds, 1)
+                    }
+                    else { $null }
+                )
+            }
+
+            # Flatten the telemetry onto the row so every field is a
+            # top-level column. Nested objects are what make a JSON awkward to
+            # pipe into Group-Object / Export-Csv, and trending is the whole
+            # purpose of this file.
+            foreach ($t in $m.Telemetry.GetEnumerator()) {
+                # 'Paths' is the nested per-folder breakdown. It belongs in
+                # Diagnostics.Paths.json, not here: embedding an array in a
+                # column would stop this file converting cleanly to CSV, which
+                # is the whole reason it is flat.
+                if ($t.Key -eq 'Paths') { continue }
+
+                $row[$t.Key] = $t.Value
+            }
+
+            [PSCustomObject]$row
+        }
+
+        $rows = @($rows)
+
+        if ($rows.Count -eq 0) { return }
+
+        # -AsArray keeps a single-row run as a JSON array rather than
+        # collapsing to a bare object, so consumers never need to special-case
+        # the one-matrix run.
+        $rows | ConvertTo-Json -Depth 10 -AsArray |
+        Out-File `
+            -FilePath (Join-Path -Path $LogFolder -ChildPath 'Diagnostics.json') `
+            -Encoding UTF8 -Force
+    }
+    catch {
+        Write-Verbose "Failed writing the run diagnostics JSON: $_"
+    }
+}
+
+function Get-DiagnosticsFieldReferenceHC {
+    <#
+    .SYNOPSIS
+        The documented meaning of every field written to the diagnostics files.
+
+    .DESCRIPTION
+        Returns an ordered structure describing the artifacts, how to read them,
+        and every field they contain.
+
+        WHY THIS IS A SEPARATE FILE AND NOT COMMENTS IN THE DATA
+        'Diagnostics.json' is built to be piped straight into Group-Object,
+        Export-Csv or a chart. Interleaving description keys with the numbers
+        would break that: every consumer would have to filter documentation out
+        of its own data. So the data stays clean and the explanation sits beside
+        it in its own file, written once per run.
+
+        WHY IT IS REGENERATED EVERY RUN RATHER THAN CHECKED IN
+        Log folders get zipped and mailed around, and by the time someone reads
+        one they usually do not have the repository open. A run folder that
+        explains itself is worth the few KB.
+
+    .NOTES
+        Tests\Unit\Private\Diagnostics.Tests.ps1 asserts that this reference and
+        the telemetry record emitted by SetPermissions.ps1 describe exactly the
+        same field names. A field added to one and not the other fails the
+        build, because a stale field reference is worse than none at all.
+    #>
+    [CmdletBinding()]
+    [OutputType([System.Collections.Specialized.OrderedDictionary])]
+    param()
+
+    return [ordered]@{
+        About       = [ordered]@{
+            Purpose  = 'Volume and cost counters per Settings row, so a change in run time can be attributed to a change in the amount of data, the cost of each storage operation, or neither.'
+            Files    = [ordered]@{
+                'Diagnostics.json'                  = 'This folder. One flat row per Settings row for the whole run. Every field is a top-level column, so the file sorts, groups and charts directly. Use this one to compare runs.'
+                'ID <guid> - Diagnostics.json'      = 'Inside each matrix subfolder. One Settings row in full, with its identity and timings. Use this one to inspect a single path.'
+                'Diagnostics.Paths.json'            = 'This folder. One flat row per MATRIX FOLDER, for the whole run. Answers "where inside the Settings row did it happen": a row covering dozens of folders can double because one child tree grew. Join to Diagnostics.json on ID.'
+                'Diagnostics.Fields.json'           = 'This file.'
+            }
+            KeyIdea  = 'A duration on its own cannot tell you why a job got slower. Read the duration together with ItemsWalked and AclReadMsPerItem: the first says how long, the second says how much there was, the third says what each operation cost.'
+        }
+
+        HowToRead   = [ordered]@{
+            'Duration up, ItemsWalked up in proportion'          = 'The share grew. Expected, nothing to fix.'
+            'Duration up, ItemsWalked flat, AclReadMsPerItem up' = 'Each storage operation became more expensive. Look at the file server (backup, anti-virus, deduplication, snapshot pressure), not at the matrix.'
+            'AceCountMean rising run over run'                   = 'The ACLs themselves are growing, which means permissions are being appended rather than replaced. This compounds every night and is worth fixing before anything else.'
+            'IncorrectItems the same non-zero value every run'   = 'The tree never converges: the same items are corrected every night. Either something outside the matrix keeps changing them back, or the fix is not taking.'
+            'AclReadDenied or AclReadFailed above zero'          = 'Items were skipped or needed an ownership takeover. These are also the slowest items, so a rise here can explain a rise in duration on its own.'
+            'A Settings row got slower but you cannot see why'   = 'Open Diagnostics.Paths.json and filter on that ID. Its rows are already sorted by measured cost, so the folder responsible is at the top. Compare the same folder between runs the same way you would compare a Settings row.'
+            'A path row shows cost but ItemsWalked is zero'      = 'Walked is false: the folder ACL was checked but its subtree was never walked, because the folder is ignored or every child belongs to another matrix folder. Not an error.'
+            TrendOneLiner                                        = "Get-ChildItem '<log root>\*\Diagnostics.json' | ForEach-Object { `$run = `$_.Directory.Name; Get-Content `$_ -Raw | ConvertFrom-Json | Where-Object Path -eq '<path>' | Select-Object @{n='Run';e={`$run}}, DurationSeconds, ItemsWalked, AclReadMsPerItem, AceCountMean }"
+        }
+
+        Caveats     = @(
+            'Millisecond totals sum CONCURRENT work, so they can exceed the job wall clock by roughly the folders-per-matrix throttle. They measure cost, not elapsed time, and are comparable between runs only while MaxConcurrent is unchanged.'
+            'AclReadMsPerItem is a SAMPLED mean (see SampleEvery and SampleWarmup). Always check AclReadSamples and AclReadBasis before trusting it: a handful of samples can land anywhere, and a basis of warmup+stride means the figure leans on the cold early items.'
+            'Even with a few hundred samples the mean carries several percent of run-to-run noise, because ACL read times are heavy-tailed and whether the sample catches a slow outlier is luck. A single run moving 10% is not a signal; a trend across several runs is.'
+            'AclReadMsEstimated covers ACL reads only, not enumeration, comparison or loop overhead, so it sits well below the job duration by design. It is an extrapolation, not a measurement.'
+            'Items skipped before they are counted (reparse points, DFS links, system items, and folders listed in the matrix or marked to ignore) appear in EnumeratedDirs but not in ItemsWalked. EnumeratedDirs larger than ItemsWalked is normal.'
+            'Counters describe the run that produced them. A row that never executed writes no diagnostics file at all, which is different from a row that executed and walked nothing.'
+        )
+
+        PathFields   = [ordered]@{
+            SettingPath = 'Path from the Settings sheet that owns this folder, so a folder traces back to its row without a lookup.'
+            Path        = 'The matrix folder this row describes. The unit of comparison between runs when localising a regression.'
+            Walked      = 'False when the folder ACL was checked but its subtree was never walked (folder ignored, or every child belongs to another matrix folder). Explains a row with cost but no ItemsWalked.'
+            Note        = 'All other columns carry the same meaning as the matching entry under TelemetryFields, scoped to this folder subtree instead of the whole Settings row.'
+        }
+
+        RecordFields = [ordered]@{
+            ID           = 'Identifier of the Settings row, matching the ID shown on the execution report card and the "ID <guid> - Detail N.json" files.'
+            MatrixFile   = 'File name of the matrix the Settings row came from.'
+            ComputerName = 'Server the permissions were applied on. This is where the counters were measured.'
+            Path         = 'Parent folder from the Settings row. The unit of comparison between runs.'
+            Action       = 'New, Check or Fix. Check reads without writing, so its write counters stay at zero by definition.'
+            Start        = 'When this Settings row started.'
+            End          = 'When this Settings row finished.'
+            Duration     = 'Wall clock for this Settings row as hh:mm:ss (per-row file only).'
+            RunStartTime = 'When the whole run started. Identical on every row, so it can be used as the x-axis when charting several runs (roll-up only).'
+            DurationSeconds = 'Wall clock for this Settings row in seconds, as a number rather than a formatted string, so it sorts and charts (roll-up only).'
+        }
+
+        TelemetryFields = [ordered]@{
+            Path                   = [ordered]@{ Unit = 'path'; Meaning = 'Parent folder walked, repeated here so the telemetry block is readable on its own.' }
+            Action                 = [ordered]@{ Unit = 'text'; Meaning = 'New, Check or Fix, repeated for the same reason.' }
+            ComputerName           = [ordered]@{ Unit = 'text'; Meaning = 'Server the counters were measured on.' }
+            WallClockMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time spent inside the permission-setting stage on the server. Slightly less than the row Duration, which also covers the remote session setup and the return trip.' }
+
+            ItemsWalked            = [ordered]@{ Unit = 'count'; Meaning = 'Files plus folders whose ACL was examined during the inherited-permissions walk. THE volume number: compare it against Duration first.' }
+            FoldersWalked          = [ordered]@{ Unit = 'count'; Meaning = 'Folders within ItemsWalked.' }
+            FilesWalked            = [ordered]@{ Unit = 'count'; Meaning = 'Files within ItemsWalked.' }
+            MatrixFolders          = [ordered]@{ Unit = 'count'; Meaning = 'Folders named in the Permissions worksheet that were processed with an explicit ACL. Grows when the matrix grows, not when the share does.' }
+            MatrixFoldersCreated   = [ordered]@{ Unit = 'count'; Meaning = 'Matrix folders that did not exist and were created this run (Action New or Fix).' }
+
+            SampleEvery            = [ordered]@{ Unit = 'count'; Meaning = 'After the warm-up, one item in this many is timed. A constant, recorded so the sampling scheme is legible from the file.' }
+            SampleWarmup           = [ordered]@{ Unit = 'count'; Meaning = 'The first this-many items are timed unconditionally before SampleEvery takes over, so small paths still produce a usable mean.' }
+            AclReadSamples         = [ordered]@{ Unit = 'count'; Meaning = 'How many ACL reads went into AclReadMsPerItem. The confidence figure: a few hundred is solid, single digits is noise.' }
+            AclReadStrideSamples   = [ordered]@{ Unit = 'count'; Meaning = 'Samples taken by the 1-in-SampleEvery rule, spread evenly across the whole walk. These are the representative ones.' }
+            AclReadWarmupSamples   = [ordered]@{ Unit = 'count'; Meaning = 'Samples taken from the first SampleWarmup items. Contiguous and therefore unrepresentative on a large tree (coldest items, tiny slice of the data), so they are only used when there are too few stride samples.' }
+            AclReadBasis           = [ordered]@{ Unit = 'text'; Meaning = "Which pool produced AclReadMsPerItem. 'stride' is the trustworthy case. 'warmup+stride' means the subtree was too small for 30 stride samples, so the figure leans on the cold early items and should be read as indicative only. 'none' means nothing was timed." }
+            AclReadMsPerItem       = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Sampled mean cost of ONE ACL read, from the stride pool where possible (see AclReadBasis). The number that separates a slower disk from a bigger share, because it does not move when only the amount of data changes. Expect a few percent of run-to-run noise even on identical work; compare trends across several runs rather than reacting to one.' }
+            AclReadMsEstimated     = [ordered]@{ Unit = 'milliseconds'; Meaning = 'AclReadMsPerItem multiplied by ItemsWalked. An extrapolation for apportioning the run time, not a measurement.' }
+
+            AclWrites              = [ordered]@{ Unit = 'count'; Meaning = 'ACL writes during the walk, each one resetting an item to inherited-only. Zero for Action Check. On a settled tree this trends towards zero.' }
+            AclWriteMs             = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Total measured time in those writes. Timed in full rather than sampled, because writes are rare.' }
+            AclWriteMsPerItem      = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Mean cost of one ACL write, measured rather than sampled.' }
+
+            EnumeratedDirs         = [ordered]@{ Unit = 'count'; Meaning = 'Directory listings opened. Normally larger than the folder count, because skipped children are enumerated before they are filtered out.' }
+            EnumerateMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time opening those listings. Separated from ACL time so directory-metadata slowness can be told apart from security-descriptor slowness.' }
+
+            MatrixFolderReads      = [ordered]@{ Unit = 'count'; Meaning = 'ACL reads on the explicit matrix folders, on the orchestrating thread. Measured in full, not sampled.' }
+            MatrixFolderReadMs     = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time in those reads.' }
+            MatrixFolderWrites     = [ordered]@{ Unit = 'count'; Meaning = 'ACL writes on the explicit matrix folders. Zero for Action Check.' }
+            MatrixFolderWriteMs    = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time in those writes.' }
+
+            IncorrectItems         = [ordered]@{ Unit = 'count'; Meaning = 'Walked items whose ACL did not match what the matrix expects. For Check this is a finding; for Fix it is what was corrected. The same non-zero value every night means the tree is not converging.' }
+            MatrixFoldersIncorrect = [ordered]@{ Unit = 'count'; Meaning = 'Explicit matrix folders whose ACL did not match. Same reading as IncorrectItems.' }
+            AclReadDenied          = [ordered]@{ Unit = 'count'; Meaning = 'Reads that hit access-denied. Under Fix these trigger an ownership takeover, which is markedly slower than a normal read.' }
+            AclReadFailed          = [ordered]@{ Unit = 'count'; Meaning = 'Reads that failed for a reason other than access-denied (corrupt descriptor, item locked). These items were neither checked nor corrected and need manual attention.' }
+            AclWriteDenied         = [ordered]@{ Unit = 'count'; Meaning = 'Writes that hit access-denied and were retried after taking ownership.' }
+
+            AceCountMean           = [ordered]@{ Unit = 'count'; Meaning = 'Mean number of access-control entries per item inspected. THE number to watch for ACL bloat: if permissions are appended instead of replaced, this climbs run over run and everything slows with it. Sampled during the walk, exact for matrix folders.' }
+            AceCountMax            = [ordered]@{ Unit = 'count'; Meaning = 'Largest ACE count seen on any single item. Rises before the mean does when only a few folders are affected.' }
+            AceCountItems          = [ordered]@{ Unit = 'count'; Meaning = 'How many items contributed to AceCountMean, so the mean can be judged the same way as AclReadSamples.' }
+            Paths                  = [ordered]@{ Unit = 'array'; Meaning = 'Per-matrix-folder breakdown of everything above, sorted by measured cost descending. Because the parallel walker jobs partition the tree, these rows sum back to the totals. Flattened into Diagnostics.Paths.json; omitted from Diagnostics.json so that file stays CSV-convertible.' }
+        }
+    }
+}
+
+function Write-DiagnosticsFieldReferenceHC {
+    <#
+    .SYNOPSIS
+        Writes 'Diagnostics.Fields.json' next to the run diagnostics roll-up.
+
+    .DESCRIPTION
+        Makes a run folder self-explanatory: whoever opens the logs, possibly
+        months later and without the repository to hand, can read what every
+        counter means and what the combinations imply.
+
+    .NOTES
+        Failures are swallowed, like the diagnostics writers themselves. A
+        reference document that could not be written is not worth failing a run
+        over, and not worth a line in the summary mail.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string]$LogFolder
+    )
+
+    try {
+        Get-DiagnosticsFieldReferenceHC |
+        ConvertTo-Json -Depth 10 |
+        Out-File `
+            -FilePath (Join-Path -Path $LogFolder -ChildPath 'Diagnostics.Fields.json') `
+            -Encoding UTF8 -Force
+    }
+    catch {
+        Write-Verbose "Failed writing the diagnostics field reference: $_"
+    }
+}
+
 function Out-LogFileHC {
     <#
     .SYNOPSIS
@@ -521,7 +925,7 @@ function Write-SystemErrorLogHC {
         [Parameter(Mandatory)][string]$LogFolder,
         [Parameter(Mandatory)][ref]$MailParams,
         [datetime]$ScriptStartTime = (Get-Date),
-        [string]$JsonFileName = 'MatrixConfig' 
+        [string]$JsonFileName = 'SystemErrors'
     )
 
     if ($SystemErrors.Count -eq 0) { return }
