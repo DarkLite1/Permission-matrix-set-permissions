@@ -429,6 +429,7 @@ function Get-DiagnosticsFieldReferenceHC {
         }
 
         HowToRead   = [ordered]@{
+            'AccountedPct well below 100'                        = 'The counters do not explain this row: most of its time went somewhere nothing measures. Do not reason about the cost fields on a row like this, and do not conclude the storage is fine because AclReadMsPerItem looks normal. It is a gap in the instrumentation, not a finding about the share.'
             'Duration up, ItemsWalked up in proportion'          = 'The share grew. Expected, nothing to fix.'
             'Duration up, ItemsWalked flat, AclReadMsPerItem up' = 'Each storage operation became more expensive. Look at the file server (backup, anti-virus, deduplication, snapshot pressure), not at the matrix.'
             'AceCountMean rising run over run'                   = 'The ACLs themselves are growing, which means permissions are being appended rather than replaced. This compounds every night and is worth fixing before anything else.'
@@ -441,7 +442,9 @@ function Get-DiagnosticsFieldReferenceHC {
         }
 
         Caveats     = @(
-            'Millisecond totals sum CONCURRENT work, so they can exceed the job wall clock by roughly the folders-per-matrix throttle. They measure cost, not elapsed time, and are comparable between runs only while MaxConcurrent is unchanged.'
+            'Millisecond totals sum CONCURRENT work, so they can exceed the job wall clock by roughly the folders-per-matrix throttle. They measure cost, not elapsed time, and are comparable between runs only while MaxConcurrent is unchanged. This is why AccountedPct can legitimately exceed 100 and why UnaccountedMs can be negative; neither is an error.'
+            'AccountedPct is meaningless on a row that finished in about a second: fixed per-job cost (session setup, module load, matrix marshalling) dominates a wall clock that small, so the percentage reads near zero on rows where there is nothing to explain. Ignore it unless ItemsWalked and WallClockMs are large enough for the row to be worth investigating.'
+            'AccountedPct grades the instrumentation, not the run. A low value never means the server was idle: it means the time went into work that carries no counter. Compare it between runs as well, because a row whose AccountedPct falls while its duration rises has changed in a way the current fields cannot describe.'
             'AclReadMsPerItem is a SAMPLED mean (see SampleEvery and SampleWarmup). Always check AclReadSamples and AclReadBasis before trusting it: a handful of samples can land anywhere, and a basis of warmup+stride means the figure leans on the cold early items.'
             'Even with a few hundred samples the mean carries several percent of run-to-run noise, because ACL read times are heavy-tailed and whether the sample catches a slow outlier is luck. A single run moving 10% is not a signal; a trend across several runs is.'
             'AclReadMsEstimated covers ACL reads only, not enumeration, comparison or loop overhead, so it sits well below the job duration by design. It is an extrapolation, not a measurement.'
@@ -474,6 +477,10 @@ function Get-DiagnosticsFieldReferenceHC {
             Action                 = [ordered]@{ Unit = 'text'; Meaning = 'New, Check or Fix, repeated for the same reason.' }
             ComputerName           = [ordered]@{ Unit = 'text'; Meaning = 'Server the counters were measured on.' }
             WallClockMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time spent inside the permission-setting stage on the server. Slightly less than the row Duration, which also covers the remote session setup and the return trip.' }
+
+            AccountedMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'The measured and estimated cost fields added together: AclReadMsEstimated, AclWriteMs, EnumerateMs, MatrixFolderReadMs and MatrixFolderWriteMs. How much of this row the counters below claim to explain.' }
+            UnaccountedMs          = [ordered]@{ Unit = 'milliseconds'; Meaning = 'WallClockMs minus AccountedMs. Time inside the job that no counter attributes to anything. NOT clamped: a negative value means the counters overlap in time (see AccountedPct) rather than that something is wrong.' }
+            AccountedPct           = [ordered]@{ Unit = 'percent'; Meaning = 'AccountedMs as a percentage of WallClockMs. READ THIS FIRST: it grades the measurement, not the run. Well below 100 means the counters do not explain this row and the cost fields should not be used to reason about it. Around 100 means the breakdown is trustworthy. Above 100 is normal, not an error: the millisecond totals sum concurrent work across the walker runspaces while WallClockMs is elapsed time.' }
 
             ItemsWalked            = [ordered]@{ Unit = 'count'; Meaning = 'Files plus folders whose ACL was examined during the inherited-permissions walk. THE volume number: compare it against Duration first.' }
             FoldersWalked          = [ordered]@{ Unit = 'count'; Meaning = 'Folders within ItemsWalked.' }

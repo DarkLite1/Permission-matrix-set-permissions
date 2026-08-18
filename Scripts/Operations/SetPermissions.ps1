@@ -2063,6 +2063,50 @@ process {
 
         $aclRead = & $readMean
 
+        <#
+         SELF-AUDIT OF THE TELEMETRY ITSELF.
+
+         Every cost counter above measures one specific operation. Nothing
+         measures whether those operations add up to the time the job actually
+         took, and without that the reader has no way to know whether a
+         breakdown is a breakdown or a rounding error. On a row where the
+         counters cover the work, AclReadMsPerItem is the answer to 'why was
+         this slow'. On a row where they cover 15% of it, the same field is
+         a distraction, and looks identical.
+
+         So the figure is emitted rather than left for the reader to derive.
+         AccountedPct is a QUALITY INDICATOR FOR THE MEASUREMENT, not a
+         physical breakdown of the wall clock:
+
+           - Well below 100 means the counters do not explain this row. Read
+             it as 'the telemetry is not measuring the expensive thing here',
+             and do not draw conclusions from the cost fields until it is.
+           - Around 100 means the counters cover the work and the breakdown
+             can be trusted.
+           - ABOVE 100 IS NORMAL AND NOT AN ERROR. The millisecond totals sum
+             concurrent work across the walker runspaces while WallClockMs is
+             elapsed time, so overlapping work is counted more than once. See
+             the matching entry in the field reference.
+
+         UnaccountedMs is therefore allowed to be negative, and is deliberately
+         NOT clamped: a clamp would hide the concurrency case behind a zero and
+         make the two very different situations look the same.
+
+         Cost: three arithmetic operations, once per Settings row, on values
+         that already exist. Nothing is added to the walk.
+        #>
+        $wallClockMs = (
+            [System.Diagnostics.Stopwatch]::GetTimestamp() - $telemetryStart
+        ) * $tickToMs
+
+        $accountedMs = (
+            ($aclRead.Ms * $itemsWalked) +
+            ($telemetry['AclWriteTicks'] * $tickToMs) +
+            ($telemetry['EnumerateTicks'] * $tickToMs) +
+            ($telemetry['MatrixFolderReadTicks'] * $tickToMs) +
+            ($telemetry['MatrixFolderWriteTicks'] * $tickToMs)
+        )
+
         [PSCustomObject]@{
             DateTime    = Get-Date
             Type        = 'Telemetry'
@@ -2072,8 +2116,16 @@ process {
                 Path                   = $Path
                 Action                 = $Action
                 ComputerName           = $env:COMPUTERNAME
-                WallClockMs            = & $round (
-                    ([System.Diagnostics.Stopwatch]::GetTimestamp() - $telemetryStart) * $tickToMs
+                WallClockMs            = & $round $wallClockMs
+
+                # --- Does the breakdown below explain the wall clock? ---
+                # Read AccountedPct FIRST. It says whether the cost fields
+                # further down are worth reading at all on this row.
+                AccountedMs            = & $round $accountedMs
+                UnaccountedMs          = & $round ($wallClockMs - $accountedMs)
+                AccountedPct           = & $round (
+                    $(if ($wallClockMs -gt 0) { ($accountedMs / $wallClockMs) * 100 }
+                        else { 0 })
                 )
 
                 # --- Volume: how much was there? ---
