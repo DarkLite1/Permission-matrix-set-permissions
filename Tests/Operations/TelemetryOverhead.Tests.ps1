@@ -24,6 +24,24 @@
 
 Describe 'Telemetry instrumentation overhead' -Tag 'Performance' {
     BeforeAll {
+        # Parsed once and shared: the structural rules below are assertions
+        # about the shipped source, so they read it directly rather than
+        # measuring a stand-in shape.
+        $script:RepoRoot = $null
+        $candidate = [System.IO.DirectoryInfo]::new($PSScriptRoot)
+        while ($candidate) {
+            if (Test-Path -LiteralPath (Join-Path $candidate.FullName 'Scripts\Operations\SetPermissions.ps1')) {
+                $script:RepoRoot = $candidate.FullName; break
+            }
+            $candidate = $candidate.Parent
+        }
+        if (-not $script:RepoRoot) {
+            throw "Could not locate the repository root above '$PSScriptRoot'."
+        }
+        $script:SetPermissionsAst = [System.Management.Automation.Language.Parser]::ParseFile(
+            (Join-Path $script:RepoRoot 'Scripts\Operations\SetPermissions.ps1'), [ref]$null, [ref]$null
+        )
+
         # Per round, per shape. Five interleaved rounds keeps total work similar
         # to the old single 200k pass while spreading it across the window.
         $script:Iterations = 50000
@@ -160,82 +178,215 @@ Describe 'Telemetry instrumentation overhead' -Tag 'Performance' {
         }
     }
 
-    Context 'Rule 1: hoist the parent-scope lookup' {
-        It 'is materially cheaper than reading the parent scope per item' {
-            $result = Measure-ShapesMinNs -Iterations $Iterations -Rounds $Rounds -Shapes ([ordered]@{
-                    unhoisted = $UnhoistedShape
-                    hoisted   = $HoistedShape
-                })
+    Context 'Rule 1: the counters are accessed through a hoisted local' {
+        <#
+         ASSERTED FROM THE SOURCE, NOT FROM A STOPWATCH.
 
-            $unhoisted = $result.unhoisted
-            $hoisted = $result.hoisted
+         This rule was previously guarded by timing two shapes and asserting the
+         hoisted one was at least 2x cheaper. That assertion failed
+         intermittently on a shared host and could not be stabilised: across
+         runs of IDENTICAL code it produced ratios of 4.69x, 2.81x, 2.70x,
+         1.70x and 1.17x. Three separate methodology fixes (interleaving,
+         minimum-of-N, a relaxed threshold) removed the gross inversions but
+         never made the ratio itself reliable.
 
-            Write-Host ("      unhoisted {0:N0} ns/item, hoisted {1:N0} ns/item (min of {2} interleaved rounds)" -f $unhoisted, $hoisted, $Rounds)
+         The benefit of hoisting was established once, by measurement, and is
+         recorded in the notes in SetPermissions.ps1. It does not need
+         re-establishing on every CI run, and a machine under load cannot
+         re-establish it anyway. What genuinely needs guarding is that the
+         shipped code still FOLLOWS the rule — and that is a property of the
+         source, so it can be asserted exactly, in milliseconds, on any host.
 
-            # Measured 2.8x-3.8x on PowerShell 7.4 across three hosts, using the
-            # interleaved minimum above. Asserted at 2x so the test catches a
-            # regression to the unhoisted shape without depending on the exact
-            # ratio, which varies with how expensive a dynamic-scope lookup is
-            # relative to a hashtable write on the host.
-            $hoisted | Should -BeLessThan ($unhoisted / 2)
+         The measured comparison is still printed by the informational test at
+         the end of this file, for anyone who wants the numbers.
+        #>
+        BeforeAll {
+            $script:WalkerAst = $script:SetPermissionsAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.FunctionDefinitionAst]) -and
+                    ($n.Name -eq 'Get-FolderContentHC')
+                }, $true) | Select-Object -First 1
+        }
+
+        It 'finds the walker function' {
+            # Guards the guard: without this the assertions below would pass
+            # vacuously against a null AST.
+            $script:WalkerAst | Should -Not -BeNullOrEmpty
+        }
+
+        It 'references the parent-scope counter exactly once, to hoist it' {
+            # Every additional bare '$telemetry' inside this function is a
+            # dynamic-scope lookup in a loop that runs millions of times per
+            # night. One reference is the hoist; more than one is the
+            # regression this rule exists to prevent.
+            $bare = $script:WalkerAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.VariableExpressionAst]) -and
+                    ($n.VariablePath.UserPath -eq 'telemetry')
+                }, $true)
+
+            $bare.Count | Should -Be 1 -Because 'the only bare $telemetry should be the hoist "$t = $telemetry"'
+        }
+
+        It 'hoists into a local before the enumeration begins' {
+            $assignments = $script:WalkerAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.AssignmentStatementAst]) -and
+                    ($n.Left.Extent.Text -eq '$t') -and
+                    ($n.Right.Extent.Text -eq '$telemetry')
+                }, $true)
+
+            $assignments.Count | Should -Be 1
+        }
+
+        It 'indexes only the hoisted local for counters' {
+            $counterTargets = $script:WalkerAst.FindAll({ param($n)
+                    $n -is [System.Management.Automation.Language.IndexExpressionAst]
+                }, $true) |
+            Where-Object { $_.Index.Extent.Text -match "Walked|Acl|Ace|Enumerate|Incorrect|Sample" } |
+            ForEach-Object { $_.Target.Extent.Text } |
+            Sort-Object -Unique
+
+            $counterTargets | Should -Be @('$t')
         }
 
         It 'still mutates the parent object' {
-            # The whole reason a reference type is used. If this ever fails,
-            # every counter silently reports zero.
+            # The behavioural half of the rule: a hoisted reference only works
+            # because a hashtable is a reference type. If this ever fails, every
+            # counter silently reports zero.
             $result = & $HoistedShape 1000
             $result.A | Should -Be 1000
         }
     }
 
-    Context 'Rule 2: sample the expensive signals' {
-        It 'is materially cheaper than timing every item' {
-            $result = Measure-ShapesMinNs -Iterations $Iterations -Rounds $Rounds -Shapes ([ordered]@{
-                    unsampled = $UnsampledShape
-                    sampled   = $SampledShape
-                })
+    Context 'Rule 2: the expensive signals are sampled' {
+        <#
+         Structural for the same reason as Rule 1. The measured win was 2.0x to
+         6.6x across three hosts; the assertion here is that the sampling gate
+         still exists and still wraps the timers, which is what would actually
+         break if someone "simplified" the code.
+        #>
+        It 'computes a sample decision from the warm-up and the stride mask' {
+            $decision = $script:WalkerAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.AssignmentStatementAst]) -and
+                    ($n.Left.Extent.Text -eq '$isSample')
+                }, $true) | Select-Object -First 1
 
-            $unsampled = $result.unsampled
-            $sampled = $result.sampled
+            $decision | Should -Not -BeNullOrEmpty
+            $decision.Right.Extent.Text | Should -Match 'sampleWarmup|isWarmupSample'
+            $decision.Right.Extent.Text | Should -Match 'sampleMask'
+        }
 
-            Write-Host ("      unsampled {0:N0} ns/item, sampled {1:N0} ns/item (min of {2} interleaved rounds)" -f $unsampled, $sampled, $Rounds)
+        It 'gates every sample accumulator behind that decision' {
+            <#
+             Checks each ACCUMULATOR individually rather than counting gates.
 
-            # Measured 2.0x-6.6x on PowerShell 7.4 across three hosts. Asserted
-            # at 1.33x, not 2x: the size of the win depends on how expensive
-            # GetTimestamp is relative to a hashtable write on the host, and a
-            # fast host narrows the gap. 2x left only 2% of headroom on one
-            # machine, which is a flaky test, not a strict one.
-            $sampled | Should -BeLessThan ($unsampled * 0.75)
+             Counting was the obvious approach and it does not work: an earlier
+             version asserted 'more than two if(isSample) blocks', and a
+             mutation that ungated one timer left three, so the test passed
+             while the code was broken. Verified by deliberately breaking the
+             source and confirming the test now fails.
+            #>
+            $accumulators = $script:WalkerAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.AssignmentStatementAst]) -and
+                    ($n.Left.Extent.Text -match 'AclRead(Warmup|Stride)(Ticks|Samples)')
+                }, $true)
+
+            $accumulators.Count | Should -BeGreaterThan 0 -Because 'the read timer must accumulate somewhere'
+
+            foreach ($acc in $accumulators) {
+                $gated = $false
+                $node = $acc.Parent
+
+                while ($node -and $node -ne $script:WalkerAst) {
+                    if (
+                        ($node -is [System.Management.Automation.Language.IfStatementAst]) -and
+                        ($node.Clauses[0].Item1.Extent.Text -match 'isSample')
+                    ) { $gated = $true; break }
+                    $node = $node.Parent
+                }
+
+                $gated | Should -BeTrue -Because "'$($acc.Left.Extent.Text)' must sit inside an if(`$isSample) gate, or the timer runs on every item"
+            }
+        }
+
+        It 'routes warm-up and stride samples into separate pools' {
+            <#
+             The bias fix: pooling the contiguous warm-up with the stride
+             samples measured up to 1.9x the true per-item cost.
+
+             Asserts the BRANCH, not just the presence of both names. A rename
+             or a partial merge leaves the names scattered around the file, so a
+             text search passes on broken code — again confirmed by mutation.
+            #>
+            $branches = $script:WalkerAst.FindAll({ param($n)
+                    ($n -is [System.Management.Automation.Language.IfStatementAst]) -and
+                    ($n.Clauses[0].Item1.Extent.Text -match 'isWarmupSample') -and
+                    ($null -ne $n.ElseClause)
+                }, $true)
+
+            $branches.Count | Should -BeGreaterThan 0 -Because 'the two pools must be chosen by an if/else on $isWarmupSample'
+
+            foreach ($branch in $branches) {
+                $warmupBody = $branch.Clauses[0].Item2.Extent.Text
+                $strideBody = $branch.ElseClause.Extent.Text
+
+                # Each branch must touch its OWN pool and NOT the other one.
+                # Asserting only 'the warm-up branch mentions AclReadWarmup' is
+                # not enough: each branch writes both a Samples and a Ticks
+                # counter, so moving just the Samples line across still left the
+                # Ticks line matching and the test passed on broken code.
+                # Mutation testing caught this; the negative half is the fix.
+                $warmupBody | Should -Match 'AclReadWarmup'
+                $warmupBody | Should -Not -Match 'AclReadStride' -Because 'the warm-up branch must not write the stride pool'
+
+                $strideBody | Should -Match 'AclReadStride'
+                $strideBody | Should -Not -Match 'AclReadWarmup' -Because 'the stride branch must not write the warm-up pool'
+            }
         }
 
         It 'samples at exactly the configured rate' {
-            <#
-             Asserts the EXACT count, derived from $Iterations and the mask,
-             rather than a magic floor.
-
-             This previously read 'Should -BeGreaterThan 1000', a number chosen
-             when $Iterations was 200,000. Reducing $Iterations to 50,000 for the
-             interleaved rounds broke it: 50,000 / 64 = 781.25, so 781 samples —
-             a correct result failing an assertion that was silently coupled to
-             an unrelated constant.
-
-             Deriving the expectation from the inputs makes the test say what it
-             means (the sampler fires once per 64 items) and survives any future
-             change to the round size.
-            #>
             $expectedSamples = [math]::Floor($Iterations / 64)
 
             $result = & $SampledShape $Iterations
 
             $result.Items | Should -Be $Iterations
             $result.Samples | Should -Be $expectedSamples
-
-            # And prove sampling actually reduces work, expressed RELATIVE to the
-            # input. An absolute floor here would reintroduce exactly the bug
-            # above: 'Should -BeGreaterThan 100' silently requires $Iterations to
-            # be at least 6,464, which is true today and invisible if it stops
-            # being true.
             $result.Samples | Should -BeLessThan ($Iterations / 10) -Because 'sampling must be a real reduction, not near-1:1'
+        }
+    }
+
+    Context 'Measured overhead (informational)' {
+        <#
+         Prints the numbers, asserts nothing about them.
+
+         The ratios are genuinely useful to see — they are how the design rules
+         were arrived at — but on a shared host they are not a pass/fail signal.
+         Observed across runs of identical code: 4.69x, 2.81x, 2.70x, 1.70x,
+         1.17x for Rule 1. Anything asserted on that range is either so loose it
+         catches nothing or so tight it fails on a busy machine.
+
+         So: measure, print, move on. The rules themselves are enforced
+         structurally above, where the answer does not depend on what else the
+         machine is doing.
+        #>
+        It 'reports the current cost of each shape' {
+            $r1 = Measure-ShapesMinNs -Iterations $Iterations -Rounds $Rounds -Shapes ([ordered]@{
+                    unhoisted = $UnhoistedShape
+                    hoisted   = $HoistedShape
+                })
+            $r2 = Measure-ShapesMinNs -Iterations $Iterations -Rounds $Rounds -Shapes ([ordered]@{
+                    unsampled = $UnsampledShape
+                    sampled   = $SampledShape
+                })
+
+            Write-Host ("      hoisting : {0,6:N0} -> {1,6:N0} ns/item ({2:N2}x)" -f `
+                    $r1.unhoisted, $r1.hoisted, ($r1.unhoisted / $r1.hoisted))
+            Write-Host ("      sampling : {0,6:N0} -> {1,6:N0} ns/item ({2:N2}x)" -f `
+                    $r2.unsampled, $r2.sampled, ($r2.unsampled / $r2.sampled))
+            Write-Host  '      (informational only - a loaded host compresses these ratios)'
+
+            # The only thing worth asserting: the harness produced numbers at
+            # all. A zero or a NaN would mean the measurement itself broke.
+            $r1.hoisted | Should -BeGreaterThan 0
+            $r2.sampled | Should -BeGreaterThan 0
         }
     }
 
