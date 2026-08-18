@@ -449,6 +449,30 @@ begin {
             AclReadWarmupTicks    = 0L
             AclReadStrideSamples  = 0L
             AclReadStrideTicks    = 0L
+            # The two stages that sit BETWEEN the read and the verdict, and
+            # that scale with the number of ACEs on an item rather than with
+            # the number of items:
+            #
+            #   Project - materialising $acl.Access. This is not a property
+            #             read. It builds the rule collection and asks Windows
+            #             to translate every ACE's SID into an NTAccount, which
+            #             is an LSA call that can leave the machine.
+            #   Compare - turning those rules into fingerprints and testing
+            #             them against the reference set.
+            #
+            # Both were previously outside every timer, so an item carrying 30
+            # ACEs and an item carrying 3 cost the same in the telemetry while
+            # differing by an order of magnitude on the clock. Same sample
+            # decision and the same warm-up/stride split as the read timer, for
+            # the reasons given above.
+            AclProjectWarmupSamples = 0L
+            AclProjectWarmupTicks   = 0L
+            AclProjectStrideSamples = 0L
+            AclProjectStrideTicks   = 0L
+            AclCompareWarmupSamples = 0L
+            AclCompareWarmupTicks   = 0L
+            AclCompareStrideSamples = 0L
+            AclCompareStrideTicks   = 0L
             AclReadDenied      = 0L
             AclReadFailed      = 0L
             AclWrites          = 0L
@@ -859,7 +883,11 @@ begin {
                 }
 
                 if ($isSample) {
-                    $readTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsRead
+                    # Kept in a variable rather than discarded: this same
+                    # instant closes the read window and opens the projection
+                    # window below, so the next stage costs no extra clock read.
+                    $tsAfterRead = [System.Diagnostics.Stopwatch]::GetTimestamp()
+                    $readTicks = $tsAfterRead - $tsRead
                     if ($isWarmupSample) {
                         $t['AclReadWarmupSamples']++
                         $t['AclReadWarmupTicks'] += $readTicks
@@ -874,28 +902,101 @@ begin {
                     $testedInheritedFilesAndFolders[$child.FullName] = $true
                 }
 
+                <#
+                 STAGE 2: PROJECTION.
+
+                 '$acl.Access' is not a field access. It is
+                 GetAccessRules($true, $true, [NTAccount]), which materialises
+                 the whole rule collection AND translates every ACE's security
+                 identifier into an account name. That translation is an LSA
+                 lookup: cached per machine when it hits, a round trip to a
+                 domain controller when it does not.
+
+                 The cost therefore scales with the ACE count and with how many
+                 DISTINCT identities the tree uses, neither of which the item
+                 counters can see. Timing it separately is what turns 'this row
+                 is slow and we do not know why' into a number.
+                #>
                 $diffAce = if (-not $accessDenied -and $acl) { @($acl.Access) } else { @() }
 
-                # Telemetry: ACE census. Reading $diffAce.Count is free — it
-                # is already materialized on the line above for the comparison
-                # — but the three counter writes are not, so the census rides
-                # the same 1-in-N sample as the read timer. Growth in the mean
-                # or max here, run over run, is what an ACL that is being
-                # appended to rather than replaced looks like.
-                if ($isSample -and $diffAce.Count) {
-                    $t['AceCountTotal'] += $diffAce.Count
-                    $t['AceCountItems']++
-                    if ($diffAce.Count -gt $t['AceCountMax']) {
-                        $t['AceCountMax'] = $diffAce.Count
+                <#
+                 ONE SAMPLE BRANCH, THREE JOBS. Closing the projection window,
+                 taking the ACE census and opening the comparison window are
+                 all gated on the same $isSample, so they share a single test
+                 instead of three.
+
+                 Measured, interleaved minimum-of-7 at 200k iterations, census
+                 present in both shapes: three separate gates cost 455 ns per
+                 item over the previous shape; this merged form costs 97 ns
+                 (1.09x). Across the whole 2026_08_17 BNL run that is 1.2
+                 seconds for 12.2M items — 0.03% of the largest row.
+
+                 The census is taken HERE, between the two windows, so it is
+                 charged to neither. It is telemetry overhead; letting it land
+                 inside the comparison window would make the instrumentation
+                 inflate the field it exists to report.
+                #>
+                $tsCompare = 0L
+
+                if ($isSample) {
+                    $tsAfterProject = [System.Diagnostics.Stopwatch]::GetTimestamp()
+                    $projectTicks = $tsAfterProject - $tsAfterRead
+
+                    if ($isWarmupSample) {
+                        $t['AclProjectWarmupSamples']++
+                        $t['AclProjectWarmupTicks'] += $projectTicks
                     }
+                    else {
+                        $t['AclProjectStrideSamples']++
+                        $t['AclProjectStrideTicks'] += $projectTicks
+                    }
+
+                    # Telemetry: ACE census. Reading $diffAce.Count is free — it
+                    # is already materialized above for the comparison — but the
+                    # three counter writes are not, so the census rides the same
+                    # 1-in-N sample as the timers. Growth in the mean or max
+                    # here, run over run, is what an ACL that is being appended
+                    # to rather than replaced looks like.
+                    if ($diffAce.Count) {
+                        $t['AceCountTotal'] += $diffAce.Count
+                        $t['AceCountItems']++
+                        if ($diffAce.Count -gt $t['AceCountMax']) {
+                            $t['AceCountMax'] = $diffAce.Count
+                        }
+                    }
+
+                    $tsCompare = [System.Diagnostics.Stopwatch]::GetTimestamp()
                 }
 
+                <#
+                 STAGE 3: COMPARISON. Window opened at the end of the sample
+                 branch above, after the census, so the census is charged to
+                 neither stage.
+
+                 Accumulated inside each branch rather than once after the
+                 if/else, because the container branch RECURSES into
+                 Get-FolderContentHC before it ends. A single accumulator after
+                 the branch would fold the entire subtree walk into this item's
+                 comparison time and report nonsense.
+                #>
                 if ($isContainer) {
                     $isIncorrect = if ($CheckInheritedOnly) {
                         $accessDenied -or (-not $acl) -or (-not (Test-AclInheritedOnlyHC -Acl $acl))
                     }
                     else {
                         $accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $folderRulesSet -DifferenceAce $diffAce))
+                    }
+
+                    if ($isSample) {
+                        $compareTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsCompare
+                        if ($isWarmupSample) {
+                            $t['AclCompareWarmupSamples']++
+                            $t['AclCompareWarmupTicks'] += $compareTicks
+                        }
+                        else {
+                            $t['AclCompareStrideSamples']++
+                            $t['AclCompareStrideTicks'] += $compareTicks
+                        }
                     }
 
                     if ($isIncorrect) {
@@ -915,6 +1016,18 @@ begin {
                     }
                     else {
                         $accessDenied -or (-not (Test-AclEqualHC -ReferenceSet $fileRulesSet -DifferenceAce $diffAce))
+                    }
+
+                    if ($isSample) {
+                        $compareTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsCompare
+                        if ($isWarmupSample) {
+                            $t['AclCompareWarmupSamples']++
+                            $t['AclCompareWarmupTicks'] += $compareTicks
+                        }
+                        else {
+                            $t['AclCompareStrideSamples']++
+                            $t['AclCompareStrideTicks'] += $compareTicks
+                        }
                     }
 
                     if ($isIncorrect) {
@@ -1351,6 +1464,14 @@ process {
                     AclReadWarmupTicks     = 0L
                     AclReadStrideSamples   = 0L
                     AclReadStrideTicks     = 0L
+                    AclProjectWarmupSamples = 0L
+                    AclProjectWarmupTicks   = 0L
+                    AclProjectStrideSamples = 0L
+                    AclProjectStrideTicks   = 0L
+                    AclCompareWarmupSamples = 0L
+                    AclCompareWarmupTicks   = 0L
+                    AclCompareStrideSamples = 0L
+                    AclCompareStrideTicks   = 0L
                     AclReadDenied          = 0L
                     AclReadFailed          = 0L
                     AclWrites              = 0L
@@ -1383,6 +1504,14 @@ process {
             AclReadWarmupTicks     = 0L
             AclReadStrideSamples   = 0L
             AclReadStrideTicks     = 0L
+            AclProjectWarmupSamples = 0L
+            AclProjectWarmupTicks   = 0L
+            AclProjectStrideSamples = 0L
+            AclProjectStrideTicks   = 0L
+            AclCompareWarmupSamples = 0L
+            AclCompareWarmupTicks   = 0L
+            AclCompareStrideSamples = 0L
+            AclCompareStrideTicks   = 0L
             AclReadDenied          = 0L
             AclReadFailed          = 0L
             AclWrites              = 0L
@@ -2034,13 +2163,21 @@ process {
         #>
         $strideFloor = 30
 
-        $readMean = {
-            $strideN = $telemetry['AclReadStrideSamples']
-            $warmN = $telemetry['AclReadWarmupSamples']
+        <#
+         Generalised over the stage name so the read, projection and comparison
+         timers all get the same stride-preferred rule from one implementation.
+         Three copies of this logic would be three places for the fallback
+         threshold to drift apart.
+        #>
+        $poolMean = {
+            param($Stage, $Counters)
+
+            $strideN = $Counters["Acl${Stage}StrideSamples"]
+            $warmN = $Counters["Acl${Stage}WarmupSamples"]
 
             if ($strideN -ge $strideFloor) {
                 return @{
-                    Ms      = ($telemetry['AclReadStrideTicks'] * $tickToMs) / $strideN
+                    Ms      = ($Counters["Acl${Stage}StrideTicks"] * $tickToMs) / $strideN
                     Basis   = 'stride'
                     Samples = $strideN
                 }
@@ -2051,7 +2188,7 @@ process {
             if ($totalN -gt 0) {
                 return @{
                     Ms      = (
-                        ($telemetry['AclReadStrideTicks'] + $telemetry['AclReadWarmupTicks']) * $tickToMs
+                        ($Counters["Acl${Stage}StrideTicks"] + $Counters["Acl${Stage}WarmupTicks"]) * $tickToMs
                     ) / $totalN
                     Basis   = 'warmup+stride'
                     Samples = $totalN
@@ -2061,7 +2198,9 @@ process {
             return @{ Ms = 0; Basis = 'none'; Samples = 0 }
         }
 
-        $aclRead = & $readMean
+        $aclRead = & $poolMean 'Read' $telemetry
+        $aclProject = & $poolMean 'Project' $telemetry
+        $aclCompare = & $poolMean 'Compare' $telemetry
 
         <#
          SELF-AUDIT OF THE TELEMETRY ITSELF.
@@ -2101,6 +2240,8 @@ process {
 
         $accountedMs = (
             ($aclRead.Ms * $itemsWalked) +
+            ($aclProject.Ms * $itemsWalked) +
+            ($aclCompare.Ms * $itemsWalked) +
             ($telemetry['AclWriteTicks'] * $tickToMs) +
             ($telemetry['EnumerateTicks'] * $tickToMs) +
             ($telemetry['MatrixFolderReadTicks'] * $tickToMs) +
@@ -2151,6 +2292,20 @@ process {
                 AclReadBasis           = $aclRead.Basis
                 AclReadMsPerItem       = & $round $aclRead.Ms
                 AclReadMsEstimated     = & $round ($aclRead.Ms * $itemsWalked)
+
+                # The two stages that scale with ACE count rather than item
+                # count. On a row where these dominate, the answer is the ACLs
+                # (how many entries, how many distinct identities) and not the
+                # disk — which is the opposite conclusion to the one
+                # AclReadMsPerItem alone would suggest.
+                AclProjectSamples      = $aclProject.Samples
+                AclProjectBasis        = $aclProject.Basis
+                AclProjectMsPerItem    = & $round $aclProject.Ms
+                AclProjectMsEstimated  = & $round ($aclProject.Ms * $itemsWalked)
+                AclCompareSamples      = $aclCompare.Samples
+                AclCompareBasis        = $aclCompare.Basis
+                AclCompareMsPerItem    = & $round $aclCompare.Ms
+                AclCompareMsEstimated  = & $round ($aclCompare.Ms * $itemsWalked)
                 AclWrites              = $telemetry['AclWrites']
                 AclWriteMs             = & $round ($telemetry['AclWriteTicks'] * $tickToMs)
                 AclWriteMsPerItem      = & $round (
@@ -2215,24 +2370,14 @@ process {
                         $row = $_
                         $rowItems = $row['FoldersWalked'] + $row['FilesWalked']
 
-                        if ($row['AclReadStrideSamples'] -ge $strideFloor) {
-                            $rowReadSamples = $row['AclReadStrideSamples']
-                            $rowReadBasis = 'stride'
-                            $rowReadMs = ($row['AclReadStrideTicks'] * $tickToMs) / $rowReadSamples
-                        }
-                        else {
-                            $rowReadSamples = $row['AclReadStrideSamples'] + $row['AclReadWarmupSamples']
-                            if ($rowReadSamples -gt 0) {
-                                $rowReadBasis = 'warmup+stride'
-                                $rowReadMs = (
-                                    ($row['AclReadStrideTicks'] + $row['AclReadWarmupTicks']) * $tickToMs
-                                ) / $rowReadSamples
-                            }
-                            else {
-                                $rowReadBasis = 'none'
-                                $rowReadMs = 0
-                            }
-                        }
+                        # Same stride-preferred rule as the Settings-row total,
+                        # from the same helper. Per-path pools are smaller, so
+                        # the fallback fires more often here — hence reporting
+                        # the basis per row rather than once for the whole
+                        # setting.
+                        $rowRead = & $poolMean 'Read' $row
+                        $rowProject = & $poolMean 'Project' $row
+                        $rowCompare = & $poolMean 'Compare' $row
 
                         [ordered]@{
                             Path                   = $row['Path']
@@ -2244,13 +2389,13 @@ process {
                             # Cost attributable to this folder's subtree. The
                             # read figure is sampled, so it carries its own
                             # sample count for the same reason as the total.
-                            # Same stride-preferred rule as the Settings-row
-                            # total. Per-path pools are smaller, so the fallback
-                            # fires more often here — hence reporting the basis
-                            # per row rather than once for the whole setting.
-                            AclReadSamples         = $rowReadSamples
-                            AclReadBasis           = $rowReadBasis
-                            AclReadMsPerItem       = & $round $rowReadMs
+                            AclReadSamples         = $rowRead.Samples
+                            AclReadBasis           = $rowRead.Basis
+                            AclReadMsPerItem       = & $round $rowRead.Ms
+                            AclProjectBasis        = $rowProject.Basis
+                            AclProjectMsPerItem    = & $round $rowProject.Ms
+                            AclCompareBasis        = $rowCompare.Basis
+                            AclCompareMsPerItem    = & $round $rowCompare.Ms
                             AclWrites              = $row['AclWrites']
                             AclWriteMs             = & $round ($row['AclWriteTicks'] * $tickToMs)
                             EnumerateMs            = & $round ($row['EnumerateTicks'] * $tickToMs)

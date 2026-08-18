@@ -432,6 +432,8 @@ function Get-DiagnosticsFieldReferenceHC {
             'AccountedPct well below 100'                        = 'The counters do not explain this row: most of its time went somewhere nothing measures. Do not reason about the cost fields on a row like this, and do not conclude the storage is fine because AclReadMsPerItem looks normal. It is a gap in the instrumentation, not a finding about the share.'
             'Duration up, ItemsWalked up in proportion'          = 'The share grew. Expected, nothing to fix.'
             'Duration up, ItemsWalked flat, AclReadMsPerItem up' = 'Each storage operation became more expensive. Look at the file server (backup, anti-virus, deduplication, snapshot pressure), not at the matrix.'
+            'Duration up, AclReadMsPerItem flat, AclProjectMsPerItem up' = 'The ACLs got more expensive to interpret, not the disk to read. Either the entries per item grew (check AceCountMean) or the tree now references more distinct accounts and groups, so the identity translation misses its cache more often. Look at the ACLs and at domain controller responsiveness, not at the storage.'
+            'AclCompareMsPerItem large next to AclReadMsPerItem'  = 'Time is going into evaluating the matrix rather than into reading the share. This scales with ACE count, so it is another symptom of wide ACLs rather than a separate problem.'
             'AceCountMean rising run over run'                   = 'The ACLs themselves are growing, which means permissions are being appended rather than replaced. This compounds every night and is worth fixing before anything else.'
             'IncorrectItems the same non-zero value every run'   = 'The tree never converges: the same items are corrected every night. Either something outside the matrix keeps changing them back, or the fix is not taking.'
             'AclReadDenied or AclReadFailed above zero'          = 'Items were skipped or needed an ownership takeover. These are also the slowest items, so a rise here can explain a rise in duration on its own.'
@@ -456,7 +458,7 @@ function Get-DiagnosticsFieldReferenceHC {
             SettingPath = 'Path from the Settings sheet that owns this folder, so a folder traces back to its row without a lookup.'
             Path        = 'The matrix folder this row describes. The unit of comparison between runs when localising a regression.'
             Walked      = 'False when the folder ACL was checked but its subtree was never walked (folder ignored, or every child belongs to another matrix folder). Explains a row with cost but no ItemsWalked.'
-            Note        = 'All other columns carry the same meaning as the matching entry under TelemetryFields, scoped to this folder subtree instead of the whole Settings row.'
+            Note        = 'All other columns carry the same meaning as the matching entry under TelemetryFields, scoped to this folder subtree instead of the whole Settings row. AclProjectMsPerItem and AclCompareMsPerItem appear here too, so a wide-ACL subtree can be located inside a Settings row that looks unremarkable in total.'
         }
 
         RecordFields = [ordered]@{
@@ -478,7 +480,7 @@ function Get-DiagnosticsFieldReferenceHC {
             ComputerName           = [ordered]@{ Unit = 'text'; Meaning = 'Server the counters were measured on.' }
             WallClockMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Time spent inside the permission-setting stage on the server. Slightly less than the row Duration, which also covers the remote session setup and the return trip.' }
 
-            AccountedMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'The measured and estimated cost fields added together: AclReadMsEstimated, AclWriteMs, EnumerateMs, MatrixFolderReadMs and MatrixFolderWriteMs. How much of this row the counters below claim to explain.' }
+            AccountedMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'The measured and estimated cost fields added together: AclReadMsEstimated, AclProjectMsEstimated, AclCompareMsEstimated, AclWriteMs, EnumerateMs, MatrixFolderReadMs and MatrixFolderWriteMs. How much of this row the counters below claim to explain.' }
             UnaccountedMs          = [ordered]@{ Unit = 'milliseconds'; Meaning = 'WallClockMs minus AccountedMs. Time inside the job that no counter attributes to anything. NOT clamped: a negative value means the counters overlap in time (see AccountedPct) rather than that something is wrong.' }
             AccountedPct           = [ordered]@{ Unit = 'percent'; Meaning = 'AccountedMs as a percentage of WallClockMs. READ THIS FIRST: it grades the measurement, not the run. Well below 100 means the counters do not explain this row and the cost fields should not be used to reason about it. Around 100 means the breakdown is trustworthy. Above 100 is normal, not an error: the millisecond totals sum concurrent work across the walker runspaces while WallClockMs is elapsed time.' }
 
@@ -496,6 +498,16 @@ function Get-DiagnosticsFieldReferenceHC {
             AclReadBasis           = [ordered]@{ Unit = 'text'; Meaning = "Which pool produced AclReadMsPerItem. 'stride' is the trustworthy case. 'warmup+stride' means the subtree was too small for 30 stride samples, so the figure leans on the cold early items and should be read as indicative only. 'none' means nothing was timed." }
             AclReadMsPerItem       = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Sampled mean cost of ONE ACL read, from the stride pool where possible (see AclReadBasis). The number that separates a slower disk from a bigger share, because it does not move when only the amount of data changes. Expect a few percent of run-to-run noise even on identical work; compare trends across several runs rather than reacting to one.' }
             AclReadMsEstimated     = [ordered]@{ Unit = 'milliseconds'; Meaning = 'AclReadMsPerItem multiplied by ItemsWalked. An extrapolation for apportioning the run time, not a measurement.' }
+
+            AclProjectSamples      = [ordered]@{ Unit = 'count'; Meaning = 'How many projections went into AclProjectMsPerItem. Judge it the same way as AclReadSamples.' }
+            AclProjectBasis        = [ordered]@{ Unit = 'text'; Meaning = "Which pool produced AclProjectMsPerItem: 'stride', 'warmup+stride' or 'none'. Same meaning as AclReadBasis." }
+            AclProjectMsPerItem    = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Sampled mean cost of turning one item ACL into comparable rules ($acl.Access). This is NOT a property read: it builds the rule collection and translates every ACE security identifier into an account name, which is an LSA lookup that can leave the machine. Scales with ACE count and with how many DISTINCT identities the tree uses, so it rises when ACLs get wider even though ItemsWalked and AclReadMsPerItem both stay flat.' }
+            AclProjectMsEstimated  = [ordered]@{ Unit = 'milliseconds'; Meaning = 'AclProjectMsPerItem multiplied by ItemsWalked. An extrapolation, like AclReadMsEstimated.' }
+
+            AclCompareSamples      = [ordered]@{ Unit = 'count'; Meaning = 'How many comparisons went into AclCompareMsPerItem.' }
+            AclCompareBasis        = [ordered]@{ Unit = 'text'; Meaning = "Which pool produced AclCompareMsPerItem. Same meaning as AclReadBasis." }
+            AclCompareMsPerItem    = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Sampled mean cost of testing one item ACL against the matrix: building a fingerprint per ACE and set-comparing them. Also scales with ACE count. Excludes the subtree recursion and excludes the ACE census, so it measures the verdict and nothing else.' }
+            AclCompareMsEstimated  = [ordered]@{ Unit = 'milliseconds'; Meaning = 'AclCompareMsPerItem multiplied by ItemsWalked. An extrapolation.' }
 
             AclWrites              = [ordered]@{ Unit = 'count'; Meaning = 'ACL writes during the walk, each one resetting an item to inherited-only. Zero for Action Check. On a settled tree this trends towards zero.' }
             AclWriteMs             = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Total measured time in those writes. Timed in full rather than sampled, because writes are rare.' }

@@ -284,12 +284,20 @@ Describe 'Telemetry instrumentation overhead' -Tag 'Performance' {
              while the code was broken. Verified by deliberately breaking the
              source and confirming the test now fails.
             #>
+            # Covers all three timed stages. Read, projection and comparison
+            # share one sample decision, so an ungated accumulator on ANY of
+            # them puts a Stopwatch call on every item.
             $accumulators = $script:WalkerAst.FindAll({ param($n)
                     ($n -is [System.Management.Automation.Language.AssignmentStatementAst]) -and
-                    ($n.Left.Extent.Text -match 'AclRead(Warmup|Stride)(Ticks|Samples)')
+                    ($n.Left.Extent.Text -match 'Acl(Read|Project|Compare)(Warmup|Stride)(Ticks|Samples)')
                 }, $true)
 
-            $accumulators.Count | Should -BeGreaterThan 0 -Because 'the read timer must accumulate somewhere'
+            $accumulators.Count | Should -BeGreaterThan 0 -Because 'the stage timers must accumulate somewhere'
+
+            foreach ($stage in 'Read', 'Project', 'Compare') {
+                @($accumulators | Where-Object { $_.Left.Extent.Text -match "Acl$stage" }).Count |
+                Should -BeGreaterThan 0 -Because "the '$stage' stage must be timed"
+            }
 
             foreach ($acc in $accumulators) {
                 $gated = $false
@@ -315,6 +323,14 @@ Describe 'Telemetry instrumentation overhead' -Tag 'Performance' {
              Asserts the BRANCH, not just the presence of both names. A rename
              or a partial merge leaves the names scattered around the file, so a
              text search passes on broken code — again confirmed by mutation.
+
+             Stage-agnostic since the read, projection and comparison timers all
+             use this shape. An earlier version hardcoded 'AclReadWarmup' here
+             and failed the moment a second stage was added — the assertion was
+             about Read specifically while the query above returns every stage.
+             Each branch is now checked against the pool IT writes, and the
+             three stages are required to be present, so a stage that loses its
+             split fails instead of silently going unchecked.
             #>
             $branches = $script:WalkerAst.FindAll({ param($n)
                     ($n -is [System.Management.Automation.Language.IfStatementAst]) -and
@@ -324,21 +340,43 @@ Describe 'Telemetry instrumentation overhead' -Tag 'Performance' {
 
             $branches.Count | Should -BeGreaterThan 0 -Because 'the two pools must be chosen by an if/else on $isWarmupSample'
 
+            $stagesSeen = [System.Collections.Generic.HashSet[string]]::new()
+
             foreach ($branch in $branches) {
                 $warmupBody = $branch.Clauses[0].Item2.Extent.Text
                 $strideBody = $branch.ElseClause.Extent.Text
 
+                # Which stage does this branch belong to? Taken from the code
+                # rather than assumed, so adding a fourth timed stage needs no
+                # edit here.
+                $stage = ([regex]::Match($warmupBody, 'Acl(Read|Project|Compare)Warmup')).Groups[1].Value
+                $stage | Should -Not -BeNullOrEmpty -Because "each warm-up branch must write a recognised stage pool, got: $warmupBody"
+                [void]$stagesSeen.Add($stage)
+
                 # Each branch must touch its OWN pool and NOT the other one.
-                # Asserting only 'the warm-up branch mentions AclReadWarmup' is
-                # not enough: each branch writes both a Samples and a Ticks
+                # Asserting only 'the warm-up branch mentions the warm-up pool'
+                # is not enough: each branch writes both a Samples and a Ticks
                 # counter, so moving just the Samples line across still left the
                 # Ticks line matching and the test passed on broken code.
                 # Mutation testing caught this; the negative half is the fix.
-                $warmupBody | Should -Match 'AclReadWarmup'
-                $warmupBody | Should -Not -Match 'AclReadStride' -Because 'the warm-up branch must not write the stride pool'
+                #
+                # The negative half deliberately matches ANY stage's opposite
+                # pool, not just this stage's: with three near-identical blocks
+                # in the file, a copy-paste that leaves AclReadStride inside the
+                # projection branch is now the likely mistake, and a
+                # stage-scoped negative would not see it.
+                $warmupBody | Should -Match "Acl${stage}Warmup"
+                $warmupBody | Should -Not -Match 'Acl\w+Stride' -Because 'a warm-up branch must not write any stride pool'
 
-                $strideBody | Should -Match 'AclReadStride'
-                $strideBody | Should -Not -Match 'AclReadWarmup' -Because 'the stride branch must not write the warm-up pool'
+                $strideBody | Should -Match "Acl${stage}Stride"
+                $strideBody | Should -Not -Match 'Acl\w+Warmup' -Because 'a stride branch must not write any warm-up pool'
+            }
+
+            # Guards the loop: without this, a stage whose if/else was deleted
+            # outright would simply not be iterated and the test would pass.
+            foreach ($expected in 'Read', 'Project', 'Compare') {
+                $stagesSeen.Contains($expected) |
+                Should -BeTrue -Because "the '$expected' stage must split its samples into warm-up and stride pools"
             }
         }
 
