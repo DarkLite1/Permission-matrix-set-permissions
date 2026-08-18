@@ -118,6 +118,45 @@ function Get-StringOrDefaultHC {
     return $Value
 }
 
+function Get-DatedLogFolderPathCandidateHC {
+    <#
+    .SYNOPSIS
+        Builds the dated log folder path WITHOUT creating anything on disk.
+
+    .DESCRIPTION
+        Same naming rule as Get-DatedLogFolderPathHC, but read-only. Use this
+        when a caller merely needs to look inside the folder — for example to
+        decide whether a file exists and can be linked — rather than to write
+        into it.
+
+        Get-DatedLogFolderPathHC creates the folder with New-Item -Force, which
+        is correct for writers but a side effect for readers: a caller that runs
+        unconditionally would leave an empty dated folder behind on every run
+        that produced nothing.
+
+    .OUTPUTS
+        [string] The path. It may or may not exist; the caller decides.
+    #>
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory)][string]$LogFolder,
+        [Parameter(Mandatory)][datetime]$ScriptStartTime,
+        [Parameter(Mandatory)][string]$JsonFileName
+    )
+
+    return (Join-Path -Path $LogFolder -ChildPath (
+            '{0:0000}_{1:00}_{2:00}_{3:00}{4:00}{5:00} ({6})' -f
+            $ScriptStartTime.Year,
+            $ScriptStartTime.Month,
+            $ScriptStartTime.Day,
+            $ScriptStartTime.Hour,
+            $ScriptStartTime.Minute,
+            $ScriptStartTime.Second,
+            $JsonFileName
+        ))
+}
+
 function Get-DatedLogFolderPathHC {
     [CmdletBinding()]
     param(

@@ -503,19 +503,33 @@ function Invoke-PermissionMatrixEndHC {
         }
         else { '' }
 
-        # The dated run folder, so the mail can link this run's Diagnostics.html.
-        # Get-MailBodyHtmlHC has always declared -LogFolder but nothing passed
-        # it, so the parameter was silently $null and the diagnostics link never
-        # rendered. Uses the same helper as the diagnostics writers above, so
-        # the mail and the files can never disagree about which folder is 'this
-        # run'.
+        <#
+         The dated run folder, so the mail can link this run's Diagnostics.html.
+
+         Get-MailBodyHtmlHC has always declared -LogFolder but nothing passed
+         it, so the parameter was silently $null and the diagnostics link never
+         rendered.
+
+         RESOLVED, NOT CREATED. The obvious fix was to reuse
+         $ensureDatedLogFolder like the diagnostics writers do, but that helper
+         calls New-Item -Force and therefore CREATES the folder as a side
+         effect. This block runs unconditionally — the mail body is always
+         built, even when no matrices were found and no mail is sent — so
+         reusing it left an empty dated folder behind on every no-op run.
+         The mail only ever needs to FIND an existing file, never make one.
+        #>
+        $mailLogFolder = Get-DatedLogFolderPathCandidateHC `
+            -LogFolder $logFolder `
+            -ScriptStartTime $Context.StartTime `
+            -JsonFileName $Context.JsonFileName
+
         $fullHtmlBody = Get-MailBodyHtmlHC `
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -ScriptEndTime $scriptExecutionEndTime `
             -ExportedFiles $Context.ExportedFiles `
             -BrowserViewFilePath $browserViewFilePath `
-            -LogFolder (& $ensureDatedLogFolder) `
+            -LogFolder $mailLogFolder `
             -Html @{
             Style             = $htmlTemplates.Style
             MatrixTables      = $matrixHtml
