@@ -137,7 +137,11 @@ function Build-MailTopLinksBlockHC {
     #>
     param(
         [string]$BrowserViewFilePath,
-        $ExportedFiles
+        $ExportedFiles,
+        # Run-level diagnostics page. Appended to the same link line as the
+        # export files rather than given a block of its own: it is one more
+        # run artifact, and the line is already Outlook-safe.
+        [string]$DiagnosticsHtmlPath
     )
 
     $linkStyle = "color:$($Script:Theme.LinkColor); text-decoration:none; font-weight:600;"
@@ -191,6 +195,21 @@ function Build-MailTopLinksBlockHC {
         }
     }
 
+    if (-not [string]::IsNullOrWhiteSpace($DiagnosticsHtmlPath)) {
+        $diagUrl = [System.Net.WebUtility]::HtmlEncode((ConvertTo-FileUrlHC $DiagnosticsHtmlPath))
+        $diagTitle = [System.Net.WebUtility]::HtmlEncode($DiagnosticsHtmlPath)
+        $exportLinks.Add("<a href='$diagUrl' title=`"$diagTitle`" target='_blank' rel='noopener noreferrer' style='$linkStyle'>Diagnostics</a>")
+    }
+
+    # 'Export files' stops being accurate once the diagnostics page is in the
+    # list: that page is a run artifact, not one of the configured exports.
+    # The label only changes when the link is actually present, so mails for a
+    # run without diagnostics read exactly as before.
+    $linkLineLabel = if (-not [string]::IsNullOrWhiteSpace($DiagnosticsHtmlPath)) {
+        'Files'
+    }
+    else { 'Export files' }
+
     if ($exportLinks.Count -gt 0) {
         # Word ignores padding on inline spans, so the browser separator
         # (padding:0 8px) collapses in Outlook and the links run together.
@@ -203,12 +222,12 @@ function Build-MailTopLinksBlockHC {
         $rows += @"
 <!--[if mso]>
 <tr>
-    <td style='padding:0; $mutedStyle'><p style='margin:0; mso-line-height-rule:exactly; line-height:17px;'>Export files: $linksHtmlMso</p></td>
+    <td style='padding:0; $mutedStyle'><p style='margin:0; mso-line-height-rule:exactly; line-height:17px;'>${linkLineLabel}: $linksHtmlMso</p></td>
 </tr>
 <![endif]-->
 <!--[if !mso]><!-->
 <tr>
-    <td style='padding:0; $mutedStyle'>Export files: $linksHtmlBrowser</td>
+    <td style='padding:0; $mutedStyle'>${linkLineLabel}: $linksHtmlBrowser</td>
 </tr>
 <!--<![endif]-->
 "@
@@ -800,9 +819,23 @@ function Get-MailBodyHtmlHC {
         }
     }
     $systemErrorsBlock = Build-SystemErrorsBlockHC -SystemErrors $sysErrArr
+    # Diagnostics page for this run. Derived from $LogFolder rather than
+    # threaded through as a new parameter, and only linked when the file
+    # actually exists, so a run that wrote no diagnostics shows no dead link.
+    $diagnosticsHtmlPath = ''
+    if ($LogFolder) {
+        $logFolderPath = if ($LogFolder -is [string]) { $LogFolder } else { $LogFolder.FullName }
+
+        if (-not [string]::IsNullOrWhiteSpace($logFolderPath)) {
+            $candidate = Join-Path -Path $logFolderPath -ChildPath 'Diagnostics.html'
+            if (Test-Path -LiteralPath $candidate) { $diagnosticsHtmlPath = $candidate }
+        }
+    }
+
     $topLinksBlock = Build-MailTopLinksBlockHC `
         -BrowserViewFilePath $BrowserViewFilePath `
-        -ExportedFiles $ExportedFiles
+        -ExportedFiles $ExportedFiles `
+        -DiagnosticsHtmlPath $diagnosticsHtmlPath
 
     # ---- Footer with run timing: Started · Ended · Duration ----
     # Compute duration here so callers don't have to format a TimeSpan themselves.

@@ -1056,7 +1056,10 @@ function Write-RunDiagnosticsHtmlHC {
        user-select:none; }
   th:hover { background:$($Script:Theme.BorderLight); }
   th .arrow { color:$($Script:Theme.AccentInfo); font-weight:700; }
-  td.num { text-align:right; font-family:$($Script:Theme.MonoStack); }
+  /* Right-aligned + monospace + tabular figures: with a fixed decimal count
+     this puts every decimal point on the same vertical line down a column. */
+  td.num { text-align:right; font-family:$($Script:Theme.MonoStack);
+           font-variant-numeric:tabular-nums; }
   td.path { font-family:$($Script:Theme.MonoStack); font-size:11px; }
   tbody tr:nth-child(even) { background:$($Script:Theme.BgAlt); }
   tbody tr:hover { background:$($Script:Theme.StatusSkipped); }
@@ -1112,6 +1115,43 @@ function columns() {
   return rows.length ? Object.keys(rows[0]) : [];
 }
 
+// Columns whose values are decimals get a FIXED number of decimal places, so
+// the digits line up in the column and two runs opened side by side can be
+// compared by eye. A raw JSON number prints 0.6 next to 0.61 next to 1, which
+// puts the decimal point in a different place on every row and makes a column
+// of timings unreadable.
+//
+// The decision is made per column from the DATA itself rather than from a
+// hard-coded field list: any column where at least one value is a
+// non-integer number is treated as decimal, so a new counter formats
+// correctly without anyone remembering to register it here.
+const DECIMALS = 2;
+const decimalCols = {};
+
+function computeDecimalCols() {
+  for (const g of ['settings', 'paths']) {
+    decimalCols[g] = {};
+    for (const row of DATA[g]) {
+      for (const k in row) {
+        const v = row[k];
+        if (typeof v === 'number' && !Number.isInteger(v)) decimalCols[g][k] = true;
+      }
+    }
+  }
+}
+computeDecimalCols();
+
+function formatCell(v, col) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') {
+    if (decimalCols[grain][col]) return v.toFixed(DECIMALS);
+    // Thousands separators on whole numbers, so 5512094 is readable at a
+    // glance. Uses a fixed locale so two machines produce identical output.
+    return v.toLocaleString('en-US');
+  }
+  return String(v);
+}
+
 function stableCompare(a, b) {
   for (const k of STABLE_KEYS) {
     if (a[k] === undefined || b[k] === undefined) continue;
@@ -1162,13 +1202,12 @@ function render() {
 
   const tbody = document.querySelector('#grid tbody');
   tbody.innerHTML = rows.map(r => '<tr>' + cols.map(c => {
-    let v = r[c];
+    const raw = r[c];
     let cls = '';
-    if (typeof v === 'number') { cls = 'num'; if (v === 0) cls += ' zero'; }
+    if (typeof raw === 'number') { cls = 'num'; if (raw === 0) cls += ' zero'; }
     else if (c === 'Path' || c === 'SettingPath') cls = 'path';
-    else if (c === 'AclReadBasis' && (v === 'warmup+stride' || v === 'none')) cls = 'warnbasis';
-    if (v === null || v === undefined) v = '';
-    const text = String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    else if (c === 'AclReadBasis' && (raw === 'warmup+stride' || raw === 'none')) cls = 'warnbasis';
+    const text = formatCell(raw, c).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return '<td class="' + cls + '">' + text + '</td>';
   }).join('') + '</tr>').join('');
 

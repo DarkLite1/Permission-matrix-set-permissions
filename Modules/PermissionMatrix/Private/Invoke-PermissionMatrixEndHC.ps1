@@ -503,12 +503,19 @@ function Invoke-PermissionMatrixEndHC {
         }
         else { '' }
 
+        # The dated run folder, so the mail can link this run's Diagnostics.html.
+        # Get-MailBodyHtmlHC has always declared -LogFolder but nothing passed
+        # it, so the parameter was silently $null and the diagnostics link never
+        # rendered. Uses the same helper as the diagnostics writers above, so
+        # the mail and the files can never disagree about which folder is 'this
+        # run'.
         $fullHtmlBody = Get-MailBodyHtmlHC `
             -Settings $Context.Config.Settings `
             -ScriptStartTime $Context.StartTime `
             -ScriptEndTime $scriptExecutionEndTime `
             -ExportedFiles $Context.ExportedFiles `
             -BrowserViewFilePath $browserViewFilePath `
+            -LogFolder (& $ensureDatedLogFolder) `
             -Html @{
             Style             = $htmlTemplates.Style
             MatrixTables      = $matrixHtml
