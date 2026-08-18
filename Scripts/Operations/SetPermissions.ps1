@@ -369,6 +369,27 @@ begin {
 
         $ErrorActionPreference = 'Stop'
 
+        <#
+         WHEN THIS JOB RAN, not just what it cost.
+
+         Everything else in this record is a cost total summed across
+         concurrent workers, which deliberately says nothing about elapsed
+         time. That leaves the one question a partitioned parallel walk always
+         raises unanswerable: a Settings row cannot finish before its SLOWEST
+         job, so if one matrix folder holds most of the tree, the row is bound
+         by that folder and the totals will not show it.
+
+         Stopwatch::GetTimestamp() reads a process-wide monotonic counter and
+         ForEach-Object -Parallel runs its runspaces in THIS process, so raw
+         timestamps taken here are directly comparable between jobs and with
+         the main thread's own start. They are therefore emitted raw and
+         differenced on the main thread, which avoids passing the Settings-row
+         start into every job just to subtract it here.
+
+         Cost: two clock reads per JOB. Not per item.
+        #>
+        $jobStartTicks = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
         #region Telemetry counters (Parallel Thread)
         <#
          Volume and cost counters for this runspace's slice of the walk.
@@ -435,6 +456,11 @@ begin {
             # see the merge loop, which only sums keys it already holds.
             WalkedPath            = $Path
             SeedOnly              = $CheckInheritedOnly
+            # Raw timestamps, not counters. Like WalkedPath these must not be
+            # summed by the main thread's merge — see the merge loop, which
+            # excludes them explicitly.
+            JobStartTicks         = $jobStartTicks
+            JobEndTicks           = 0L
             FoldersWalked         = 0L
             FilesWalked           = 0L
             # Warm-up and stride samples are kept APART on purpose. The warm-up
@@ -1251,6 +1277,12 @@ begin {
             # fixed ~15 integers per job regardless of tree size. Emitted from
             # 'finally' so a job that throws still reports the volume it
             # managed to get through before failing.
+            #
+            # Closing the job window here for the same reason: a job that threw
+            # still consumed wall clock, and a straggler that fails late is
+            # exactly the case worth seeing.
+            $telemetry['JobEndTicks'] = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
             $result = [PSCustomObject]@{
                 IncorrectInheritedAcl = $incorrectInheritedAcl
                 UnreadableAcl         = $unreadableAcl
@@ -1452,6 +1484,13 @@ process {
             if (-not $pathTelemetry.ContainsKey($RowPath)) {
                 $pathTelemetry[$RowPath] = @{
                     Path                   = $RowPath
+                    # Job window for this subtree. MIN of starts and MAX of
+                    # ends, so a path served by more than one job still reports
+                    # the span that path occupied rather than a meaningless sum
+                    # of absolute timestamps.
+                    JobStartTicks          = 0L
+                    JobEndTicks            = 0L
+                    JobCount               = 0L
                     MatrixFolderReads      = 0L
                     MatrixFolderReadTicks  = 0L
                     MatrixFolderWrites     = 0L
@@ -2039,11 +2078,27 @@ process {
                                 $jobRow['SeedOnly'] = $true
                             }
 
+                            $jobRow['JobCount']++
+
                             foreach ($j in $jobResult.Telemetry.GetEnumerator()) {
                                 if (-not $jobRow.ContainsKey($j.Key)) { continue }
                                 if ($j.Key -eq 'AceCountMax') {
                                     if ($j.Value -gt $jobRow['AceCountMax']) {
                                         $jobRow['AceCountMax'] = $j.Value
+                                    }
+                                }
+                                elseif ($j.Key -eq 'JobStartTicks') {
+                                    # Absolute instants, so MIN/MAX rather than
+                                    # sum. Adding two timestamps produces a
+                                    # number with no meaning at all, and the
+                                    # generic branch below would happily do it.
+                                    if (($jobRow['JobStartTicks'] -eq 0) -or ($j.Value -lt $jobRow['JobStartTicks'])) {
+                                        $jobRow['JobStartTicks'] = $j.Value
+                                    }
+                                }
+                                elseif ($j.Key -eq 'JobEndTicks') {
+                                    if ($j.Value -gt $jobRow['JobEndTicks']) {
+                                        $jobRow['JobEndTicks'] = $j.Value
                                     }
                                 }
                                 elseif ($jobRow[$j.Key] -is [long]) {
@@ -2058,10 +2113,12 @@ process {
                                     $telemetry['AceCountMax'] = $t.Value
                                 }
                             }
-                            elseif ($t.Key -in 'WalkedPath', 'SeedOnly') {
-                                # Labels, not counters. Consumed by the per-path
-                                # breakdown above; adding them here would
-                                # concatenate strings into the totals.
+                            elseif ($t.Key -in 'WalkedPath', 'SeedOnly', 'JobStartTicks', 'JobEndTicks') {
+                                # Labels and absolute instants, not counters.
+                                # Consumed by the per-path breakdown above;
+                                # adding them here would concatenate strings
+                                # into the totals and sum raw clock readings
+                                # into a number with no meaning.
                                 continue
                             }
                             elseif ($t.Key -in 'SampleEvery', 'SampleWarmup') {
@@ -2238,6 +2295,45 @@ process {
             [System.Diagnostics.Stopwatch]::GetTimestamp() - $telemetryStart
         ) * $tickToMs
 
+        <#
+         STRAGGLER ANALYSIS.
+
+         A Settings row cannot finish before its slowest job. If one matrix
+         folder holds most of the tree, the row is bound by that one folder and
+         adding throttle does nothing — the fix is to split the folder, which
+         is a completely different action to "the storage is slow".
+
+         Two figures separate those cases:
+
+           JobStragglerPct     the longest single job as a share of the row.
+                               Near 100 means the row IS that job.
+           JobConcurrencyMean  total job time divided by elapsed time, i.e. how
+                               many workers were busy on average. Compare it to
+                               JobThrottleLimit: far below means the throttle is
+                               not the constraint and raising it will not help.
+
+         Derived from the per-path rows that already exist, once per Settings
+         row. Nothing is added to the walk.
+        #>
+        $jobRows = @($pathTelemetry.Values | Where-Object { $_['JobEndTicks'] -gt 0 })
+        $jobSpansMs = @($jobRows | ForEach-Object {
+                ($_['JobEndTicks'] - $_['JobStartTicks']) * $tickToMs
+            })
+
+        $jobLongestMs = 0
+        $jobLongestPath = ''
+
+        foreach ($jr in $jobRows) {
+            $spanMs = ($jr['JobEndTicks'] - $jr['JobStartTicks']) * $tickToMs
+            if ($spanMs -gt $jobLongestMs) {
+                $jobLongestMs = $spanMs
+                $jobLongestPath = $jr['Path']
+            }
+        }
+
+        $jobSpanSumMs = ($jobSpansMs | Measure-Object -Sum).Sum
+        if ($null -eq $jobSpanSumMs) { $jobSpanSumMs = 0 }
+
         $accountedMs = (
             ($aclRead.Ms * $itemsWalked) +
             ($aclProject.Ms * $itemsWalked) +
@@ -2264,6 +2360,20 @@ process {
                 # further down are worth reading at all on this row.
                 AccountedMs            = & $round $accountedMs
                 UnaccountedMs          = & $round ($wallClockMs - $accountedMs)
+                # --- Was this row bound by one slow job? ---
+                JobCount               = $jobRows.Count
+                JobWallClockMsMax      = & $round $jobLongestMs
+                JobWallClockMsSum      = & $round $jobSpanSumMs
+                JobLongestPath         = $jobLongestPath
+                JobStragglerPct        = & $round (
+                    $(if ($wallClockMs -gt 0) { ($jobLongestMs / $wallClockMs) * 100 }
+                        else { 0 })
+                )
+                JobConcurrencyMean     = & $round (
+                    $(if ($wallClockMs -gt 0) { $jobSpanSumMs / $wallClockMs }
+                        else { 0 })
+                )
+
                 AccountedPct           = & $round (
                     $(if ($wallClockMs -gt 0) { ($accountedMs / $wallClockMs) * 100 }
                         else { 0 })
@@ -2389,6 +2499,20 @@ process {
                             # Cost attributable to this folder's subtree. The
                             # read figure is sampled, so it carries its own
                             # sample count for the same reason as the total.
+                            # How long this subtree's job actually took, and
+                            # when it started relative to the Settings row. A
+                            # job that starts late was queued behind the
+                            # throttle; a job that starts at zero and runs to
+                            # the end IS the row.
+                            JobWallClockMs         = & $round (
+                                ($row['JobEndTicks'] - $row['JobStartTicks']) * $tickToMs
+                            )
+                            JobStartOffsetMs       = & $round (
+                                $(if ($row['JobStartTicks'] -gt 0) {
+                                        ($row['JobStartTicks'] - $telemetryStart) * $tickToMs
+                                    }
+                                    else { 0 })
+                            )
                             AclReadSamples         = $rowRead.Samples
                             AclReadBasis           = $rowRead.Basis
                             AclReadMsPerItem       = & $round $rowRead.Ms

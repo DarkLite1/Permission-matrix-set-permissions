@@ -429,6 +429,8 @@ function Get-DiagnosticsFieldReferenceHC {
         }
 
         HowToRead   = [ordered]@{
+            'JobStragglerPct near 100'                           = 'The row is one job. One matrix folder holds most of the subtree and everything else finished early, so the duration is that folder end to end. Split the folder named in JobLongestPath — fan out at its next level — and the row shortens roughly in proportion. Raising JobThrottleLimit changes nothing here, because there is nothing left to run in parallel.'
+            'JobConcurrencyMean far below JobThrottleLimit'      = 'The workers are not the bottleneck. Either the jobs are wildly uneven (check JobStragglerPct) or they are all waiting on the same storage. Adding throttle is unlikely to help in either case.'
             'AccountedPct well below 100'                        = 'The counters do not explain this row: most of its time went somewhere nothing measures. Do not reason about the cost fields on a row like this, and do not conclude the storage is fine because AclReadMsPerItem looks normal. It is a gap in the instrumentation, not a finding about the share.'
             'Duration up, ItemsWalked up in proportion'          = 'The share grew. Expected, nothing to fix.'
             'Duration up, ItemsWalked flat, AclReadMsPerItem up' = 'Each storage operation became more expensive. Look at the file server (backup, anti-virus, deduplication, snapshot pressure), not at the matrix.'
@@ -444,6 +446,7 @@ function Get-DiagnosticsFieldReferenceHC {
         }
 
         Caveats     = @(
+            'The Job* fields are the ONLY elapsed-time measurements in the per-path breakdown. Every other millisecond column there is a cost total, so per-path Job values overlap each other and do NOT sum to the Settings-row WallClockMs. Summing them is the one arithmetic mistake this breakdown invites.'
             'Millisecond totals sum CONCURRENT work, so they can exceed the job wall clock by roughly the folders-per-matrix throttle. They measure cost, not elapsed time, and are comparable between runs only while MaxConcurrent is unchanged. This is why AccountedPct can legitimately exceed 100 and why UnaccountedMs can be negative; neither is an error.'
             'AccountedPct is meaningless on a row that finished in about a second: fixed per-job cost (session setup, module load, matrix marshalling) dominates a wall clock that small, so the percentage reads near zero on rows where there is nothing to explain. Ignore it unless ItemsWalked and WallClockMs are large enough for the row to be worth investigating.'
             'AccountedPct grades the instrumentation, not the run. A low value never means the server was idle: it means the time went into work that carries no counter. Compare it between runs as well, because a row whose AccountedPct falls while its duration rises has changed in a way the current fields cannot describe.'
@@ -458,6 +461,8 @@ function Get-DiagnosticsFieldReferenceHC {
             SettingPath = 'Path from the Settings sheet that owns this folder, so a folder traces back to its row without a lookup.'
             Path        = 'The matrix folder this row describes. The unit of comparison between runs when localising a regression.'
             Walked      = 'False when the folder ACL was checked but its subtree was never walked (folder ignored, or every child belongs to another matrix folder). Explains a row with cost but no ItemsWalked.'
+            JobWallClockMs = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Elapsed time of the walker job for this subtree. Unlike the millisecond cost totals this IS elapsed time, so the rows do not sum to the Settings-row WallClockMs — they overlap. The largest value here is JobWallClockMsMax.' }
+            JobStartOffsetMs = [ordered]@{ Unit = 'milliseconds'; Meaning = 'How long after the Settings row began this job started. Large values mean the job was queued behind the throttle rather than running from the start, so its own duration understates how much of the row it is responsible for.' }
             Note        = 'All other columns carry the same meaning as the matching entry under TelemetryFields, scoped to this folder subtree instead of the whole Settings row. AclProjectMsPerItem and AclCompareMsPerItem appear here too, so a wide-ACL subtree can be located inside a Settings row that looks unremarkable in total.'
         }
 
@@ -482,6 +487,13 @@ function Get-DiagnosticsFieldReferenceHC {
 
             AccountedMs            = [ordered]@{ Unit = 'milliseconds'; Meaning = 'The measured and estimated cost fields added together: AclReadMsEstimated, AclProjectMsEstimated, AclCompareMsEstimated, AclWriteMs, EnumerateMs, MatrixFolderReadMs and MatrixFolderWriteMs. How much of this row the counters below claim to explain.' }
             UnaccountedMs          = [ordered]@{ Unit = 'milliseconds'; Meaning = 'WallClockMs minus AccountedMs. Time inside the job that no counter attributes to anything. NOT clamped: a negative value means the counters overlap in time (see AccountedPct) rather than that something is wrong.' }
+            JobCount               = [ordered]@{ Unit = 'count'; Meaning = 'How many parallel walker jobs ran for this Settings row. One per matrix folder, so it matches the number of folders named in the Permissions worksheet that were actually walked.' }
+            JobWallClockMsMax      = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Elapsed time of the single longest walker job. The row cannot finish before this, no matter what the throttle is set to.' }
+            JobWallClockMsSum      = [ordered]@{ Unit = 'milliseconds'; Meaning = 'Elapsed time of every walker job added together. Divided by WallClockMs this gives JobConcurrencyMean.' }
+            JobLongestPath         = [ordered]@{ Unit = 'text'; Meaning = 'The matrix folder whose job took longest. When JobStragglerPct is high this is the folder to split; nothing else in the row will move the duration.' }
+            JobStragglerPct        = [ordered]@{ Unit = 'percent'; Meaning = 'JobWallClockMsMax as a percentage of WallClockMs. Near 100 means the Settings row IS its slowest job and the other jobs finished long before it. That is a PARTITIONING problem, not a storage one: the fix is to split the folder named in JobLongestPath, and raising the throttle will do nothing.' }
+            JobConcurrencyMean     = [ordered]@{ Unit = 'workers'; Meaning = 'JobWallClockMsSum divided by WallClockMs: how many walker jobs were busy on average. Compare it to the JobThrottleLimit the run was started with. Close to the limit means the throttle is the constraint and raising it may help; far below means it is not, and the row is waiting on a straggler or on one folder that dwarfs the rest.' }
+
             AccountedPct           = [ordered]@{ Unit = 'percent'; Meaning = 'AccountedMs as a percentage of WallClockMs. READ THIS FIRST: it grades the measurement, not the run. Well below 100 means the counters do not explain this row and the cost fields should not be used to reason about it. Around 100 means the breakdown is trustworthy. Above 100 is normal, not an error: the millisecond totals sum concurrent work across the walker runspaces while WallClockMs is elapsed time.' }
 
             ItemsWalked            = [ordered]@{ Unit = 'count'; Meaning = 'Files plus folders whose ACL was examined during the inherited-permissions walk. THE volume number: compare it against Duration first.' }
