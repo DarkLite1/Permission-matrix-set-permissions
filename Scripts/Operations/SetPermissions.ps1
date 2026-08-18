@@ -446,6 +446,43 @@ begin {
         $sampleWarmup = 300
         $script:sampleCounter = 0
 
+        <#
+         IDENTITY CENSUS: A SEPARATE, MUCH RARER SAMPLE.
+
+         Translating a security identifier into an account name is an LSA
+         lookup. Windows caches it per machine, so the cost is driven by how
+         many DISTINCT identities the tree uses - a few groups repeated across
+         millions of items is nearly free, thousands of them thrash the cache -
+         and by how many identities do not resolve at all. An entry left behind
+         by a deleted account cannot be cached as a name and is the classic
+         cause of an overnight regression appearing with no code change.
+
+         Neither is visible in AceCountMean: twenty entries naming the same
+         twenty groups everywhere and twenty entries naming a different twenty
+         per folder look identical there.
+
+         WHY 1-IN-1024 AND NOT 1-IN-64. This is the only telemetry that walks
+         the ACE list, so it is the only telemetry whose cost scales with ACE
+         count rather than item count. Measured on a 20-entry list, interleaved
+         minimum-of-7 at 200k iterations: at the read timer's rate it costs 588
+         ns per item (1.55x the previous shape) - more than every other counter
+         put together. At 1-in-1024 it costs 113 ns (1.10x), which is 1.4
+         seconds across the whole 2026_08_17 run.
+
+         Cardinality does not need many samples. It needs to distinguish
+         'twenty groups' from 'thousands', and the sparse rate still recovered
+         all 20 distinct names from 495 sampled items in the same test. So it
+         gets its own gate. 1024 is a multiple of 64, so every identity sample
+         is also a read sample and the two stay in phase.
+
+         CAPPED. Beyond $identityCap distinct names the answer is already
+         'a lot'; counting further only grows what crosses the runspace
+         boundary. The cap being hit is itself reported.
+        #>
+        $identityEvery = 1024
+        $identityMask = $identityEvery - 1
+        $identityCap = 512
+
         $telemetry = @{
             # The subtree these counters describe. Each parallel job walks ONE
             # matrix folder and skips any child that is itself a matrix folder,
@@ -461,6 +498,18 @@ begin {
             # excludes them explicitly.
             JobStartTicks         = $jobStartTicks
             JobEndTicks           = 0L
+            # The distinct identity names seen by this job, capped. A set, not
+            # a counter: the main thread UNIONS these across jobs, because two
+            # jobs each seeing twenty names may be seeing the same twenty or a
+            # different twenty, and only the union can tell the difference.
+            #
+            # This is the one exception to 'no strings leave the walk', and it
+            # is bounded by $identityCap rather than by the size of the tree.
+            IdentitySet           = [System.Collections.Generic.HashSet[String]]::new()
+            IdentityObservations  = 0L
+            IdentityTruncated     = 0L
+            AceUnresolvedSids     = 0L
+            AceUnresolvedItems    = 0L
             FoldersWalked         = 0L
             FilesWalked           = 0L
             # Warm-up and stride samples are kept APART on purpose. The warm-up
@@ -989,6 +1038,46 @@ begin {
                         if ($diffAce.Count -gt $t['AceCountMax']) {
                             $t['AceCountMax'] = $diffAce.Count
                         }
+
+                        <#
+                         Identity census, on its own much rarer gate. Nested
+                         inside the sample branch rather than tested separately
+                         so non-sampled items never evaluate it at all, and
+                         placed here, between the two timing windows, so the
+                         walk over the ACE list is charged to neither stage.
+
+                         An unresolved entry is detected by TYPE, not by
+                         string-matching 'S-1-'. When Windows cannot resolve a
+                         security identifier, .NET leaves the IdentityReference
+                         as a SecurityIdentifier instead of an NTAccount, so the
+                         type is the answer and no parsing is needed.
+                        #>
+                        if ($isWarmupSample -or (($sampleCounter -band $identityMask) -eq 0)) {
+                            $identitySet = $t['IdentitySet']
+                            $itemHasUnresolved = $false
+
+                            foreach ($ace in $diffAce) {
+                                $identity = $ace.IdentityReference
+
+                                if ($identity -is [System.Security.Principal.SecurityIdentifier]) {
+                                    $t['AceUnresolvedSids']++
+                                    $itemHasUnresolved = $true
+                                }
+
+                                if ($identitySet.Count -lt $identityCap) {
+                                    [void]$identitySet.Add($identity.Value)
+                                }
+                                else {
+                                    $t['IdentityTruncated'] = 1L
+                                }
+                            }
+
+                            $t['IdentityObservations'] += $diffAce.Count
+
+                            if ($itemHasUnresolved) {
+                                $t['AceUnresolvedItems']++
+                            }
+                        }
                     }
 
                     $tsCompare = [System.Diagnostics.Stopwatch]::GetTimestamp()
@@ -1491,6 +1580,11 @@ process {
                     JobStartTicks          = 0L
                     JobEndTicks            = 0L
                     JobCount               = 0L
+                    IdentitySet            = [System.Collections.Generic.HashSet[String]]::new()
+                    IdentityObservations   = 0L
+                    IdentityTruncated      = 0L
+                    AceUnresolvedSids      = 0L
+                    AceUnresolvedItems     = 0L
                     MatrixFolderReads      = 0L
                     MatrixFolderReadTicks  = 0L
                     MatrixFolderWrites     = 0L
@@ -1539,6 +1633,11 @@ process {
             MatrixFoldersCreated   = 0L
             FoldersWalked          = 0L
             FilesWalked            = 0L
+            IdentitySet            = [System.Collections.Generic.HashSet[String]]::new()
+            IdentityObservations   = 0L
+            IdentityTruncated      = 0L
+            AceUnresolvedSids      = 0L
+            AceUnresolvedItems     = 0L
             AclReadWarmupSamples   = 0L
             AclReadWarmupTicks     = 0L
             AclReadStrideSamples   = 0L
@@ -2087,6 +2186,18 @@ process {
                                         $jobRow['AceCountMax'] = $j.Value
                                     }
                                 }
+                                elseif ($j.Key -eq 'IdentitySet') {
+                                    # Union, not sum. Falling through to the
+                                    # generic branch would silently DROP this
+                                    # (a HashSet is not [long]) and report zero
+                                    # distinct identities for every path.
+                                    $jobRow['IdentitySet'].UnionWith($j.Value)
+                                }
+                                elseif ($j.Key -eq 'IdentityTruncated') {
+                                    if ($j.Value -gt $jobRow['IdentityTruncated']) {
+                                        $jobRow['IdentityTruncated'] = $j.Value
+                                    }
+                                }
                                 elseif ($j.Key -eq 'JobStartTicks') {
                                     # Absolute instants, so MIN/MAX rather than
                                     # sum. Adding two timestamps produces a
@@ -2111,6 +2222,18 @@ process {
                             if ($t.Key -eq 'AceCountMax') {
                                 if ($t.Value -gt $telemetry['AceCountMax']) {
                                     $telemetry['AceCountMax'] = $t.Value
+                                }
+                            }
+                            elseif ($t.Key -eq 'IdentitySet') {
+                                # Union across every job, so the distinct count
+                                # is the tree's, not one worker's. '+=' on a
+                                # HashSet would build an array of sets.
+                                $telemetry['IdentitySet'].UnionWith($t.Value)
+                            }
+                            elseif ($t.Key -eq 'IdentityTruncated') {
+                                # A flag: set if ANY job hit the cap.
+                                if ($t.Value -gt $telemetry['IdentityTruncated']) {
+                                    $telemetry['IdentityTruncated'] = $t.Value
                                 }
                             }
                             elseif ($t.Key -in 'WalkedPath', 'SeedOnly', 'JobStartTicks', 'JobEndTicks') {
@@ -2443,6 +2566,22 @@ process {
                 AclReadFailed          = $telemetry['AclReadFailed']
                 AclWriteDenied         = $telemetry['AclWriteDenied']
 
+                # --- Identity census: WHY is the ACL expensive to interpret? ---
+                # AceCountMean says how many entries. These say how many
+                # DISTINCT accounts those entries name, and how many of them
+                # Windows could not resolve at all.
+                IdentityDistinct       = $telemetry['IdentitySet'].Count
+                IdentityObservations   = $telemetry['IdentityObservations']
+                IdentityTruncated      = [Boolean]$telemetry['IdentityTruncated']
+                AceUnresolvedSids      = $telemetry['AceUnresolvedSids']
+                AceUnresolvedItems     = $telemetry['AceUnresolvedItems']
+                AceUnresolvedPct       = & $round (
+                    $(if ($telemetry['IdentityObservations'] -gt 0) {
+                            ($telemetry['AceUnresolvedSids'] / $telemetry['IdentityObservations']) * 100
+                        }
+                        else { 0 })
+                )
+
                 # --- ACE census: are the ACLs themselves growing? ---
                 # Sampled in the walker, exact for the matrix folders. A rising
                 # AceCountMean on one tree while another stays flat is what
@@ -2504,6 +2643,8 @@ process {
                             # job that starts late was queued behind the
                             # throttle; a job that starts at zero and runs to
                             # the end IS the row.
+                            IdentityDistinct       = $row['IdentitySet'].Count
+                            AceUnresolvedSids      = $row['AceUnresolvedSids']
                             JobWallClockMs         = & $round (
                                 ($row['JobEndTicks'] - $row['JobStartTicks']) * $tickToMs
                             )
