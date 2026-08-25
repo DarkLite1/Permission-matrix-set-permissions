@@ -888,6 +888,33 @@ function Get-MailBodyHtmlHC {
 </style>
 <![endif]-->
 $($Html.Style)
+<!--[if !mso]><!-->
+<style type="text/css">
+    /* Browser-only width cap.
+
+       The content table below is width:100% because email clients have no
+       viewport of their own to bound it — the width comes from the mso
+       conditional wrapper (Theme.BodyWidth) in Outlook Classic, and from the
+       reading pane everywhere else. Opened as a file in a browser there is no
+       such bound, so at full screen the body grew to the whole window and the
+       settings rows stretched their columns far apart. Cap it at the same
+       900px the standalone execution report uses.
+
+       Two things make this safe for Outlook:
+       - The whole block sits inside a downlevel-revealed conditional, so
+         Outlook Classic never sees the rule at all and keeps rendering at
+         Theme.BodyWidth. Its Word engine ignores max-width regardless; the
+         conditional makes that explicit rather than incidental.
+       - Nothing about the mso wrapper or Theme.BodyWidth changes.
+
+       The selector has to out-specify the shared stylesheet's rule
+       'body > table table { max-width: 100% !important }' from
+       Initialize-HtmlStructureHC above. That rule is !important, so it beats
+       an inline style on the table — the cap must be a stylesheet rule
+       carrying a class, not a style attribute. */
+    body > table table.mail-root { max-width: 900px !important; }
+</style>
+<!--<![endif]-->
 </head>
 <body style="margin:0; padding:0;">
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="$bgPage" style="border-collapse:collapse; background-color:$bgPage;">
@@ -896,7 +923,7 @@ $($Html.Style)
             <!--[if mso]>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="$bodyWidth" align="center"><tr><td>
             <![endif]-->
-            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; width:100%; margin:0 auto;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="mail-root" style="border-collapse:collapse; width:100%; margin:0 auto;">
                 <tr><td style="padding:0 0 4px 0;"><h1>$scriptName</h1></td></tr>
                 <tr><td style="padding:0 0 16px 0; color:$($Script:Theme.TextMuted); font-size:13px; line-height:1.6;">$userBody</td></tr>
                 <tr><td style="padding:0;">$topLinksBlock</td></tr>
