@@ -244,19 +244,27 @@ function Build-MatrixDetailCardHC {
     }
     else { '' }
 
-    # Two-row compact metadata layout. Column 1 anchors short values (Action,
-    # Duration), column 2 holds short labeled values (Apply Defaults, ID),
-    # column 3 holds the potentially-long values (Group, Site).
+    # Two-column, three-row metadata layout. Three columns squeezed into the
+    # 55% meta cell left each value roughly 150px, which is less than several
+    # of them need: labels split across lines mid-phrase ("APPLY / DEFAULTS")
+    # and values broke mid-word at hyphens ("BEL ROL- / AGG-SAGREX"). Trading
+    # a column for a row roughly doubles the width available to every cell
+    # without widening the card or shrinking the ComputerName/Path block.
     #
-    #   Col 1                Col 2                Col 3
-    #   ----------------     ------------------   ---------------
-    #   ACTION: x            APPLY DEFAULTS: x    GROUP: x
-    #   [clock] Duration     ID: x                SITE: x
+    # Ordering runs most-identifying first: what the permissions apply to
+    # (Group, Site), then what was done to it (Action, Apply Defaults), then
+    # the run's bookkeeping (ID, Duration).
+    #
+    #   Col 1                Col 2
+    #   ------------------   ------------------
+    #   GROUP: x             SITE: x
+    #   ACTION: x            APPLY DEFAULTS: x
+    #   ID: x                [clock] Duration
     #
     # Duration keeps an inline SVG clock icon (universally readable as "time")
     # in place of a text label. Everything else uses inline "LABEL: value"
     # styling. Column positions are reserved (with &nbsp; fallbacks for
-    # missing optional fields) so cells align vertically across the two rows.
+    # missing optional fields) so cells align vertically down the grid.
 
     # Inline SVG clock icon — Tabler Icons (MIT). Inline rather than webfont
     # so it renders in both browser file-views and email clients that strip
@@ -273,14 +281,14 @@ function Build-MatrixDetailCardHC {
             [string]$TitleAttr = '',
             # Raw HTML appended after the value span, inside the same cell.
             # Used for the Diagnostics chip so it can sit beside the duration
-            # without claiming a fourth grid column.
+            # without claiming a grid column of its own.
             [string]$TrailingHtml = ''
         )
         $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
         $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
         $valueHtml = "<span$titleHtml style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</span>"
         $trailing = if ($TrailingHtml) { "&nbsp;&nbsp;$TrailingHtml" } else { '' }
-        return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$IconHtml$valueHtml$trailing</td>"
+        return "<td valign='middle' width='50%' style='padding:5px 20px 5px 0; white-space:nowrap;'>$IconHtml$valueHtml$trailing</td>"
     }
 
     # Helper for inline "LABEL: value" cells — used by every other cell.
@@ -293,10 +301,19 @@ function Build-MatrixDetailCardHC {
         )
         $valueStyle = if ($Mono) { "font-family:$($Script:Theme.MonoStack); font-size:11px;" } else { 'font-size:12px;' }
         $titleHtml = if ($TitleAttr) { " title=`"$TitleAttr`"" } else { '' }
-        $labelHtml = "<span style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-right:6px;'>$Label`:</span>"
+        # The label is kept non-breaking on its own: the browser stylesheet
+        # relaxes white-space on these cells so long values can wrap instead
+        # of clipping, and without this a two-word label like "Apply
+        # Defaults" would be a candidate for that wrap too. Values may wrap,
+        # labels never do.
+        $labelHtml = "<span style='font-size:10px; font-weight:700; color:$($Script:Theme.TextLight); text-transform:uppercase; letter-spacing:0.5px; margin-right:6px; white-space:nowrap;'>$Label`:</span>"
         $valueHtml = "<span$titleHtml style='color:$($Script:Theme.TextMuted); $valueStyle'>$Value</span>"
-        return "<td valign='middle' style='padding:3px 28px 3px 0; white-space:nowrap;'>$labelHtml$valueHtml</td>"
+        return "<td valign='middle' width='50%' style='padding:5px 20px 5px 0; white-space:nowrap;'>$labelHtml$valueHtml</td>"
     }
+
+    # Reserves a column position when an optional field is absent, so the two
+    # columns stay aligned down the grid instead of collapsing.
+    $emptyMetaCell = "<td valign='middle' width='50%' style='padding:5px 20px 5px 0;'>&nbsp;</td>"
 
     # Diagnostics link — a quiet outlined chip rather than a labeled metadata
     # cell. The counters behind it are only interesting when someone is
@@ -322,35 +339,49 @@ function Build-MatrixDetailCardHC {
     }
     else { '' }
 
-    # Row 1: Action          | Apply Defaults | Group
-    # Row 2: Duration (icon) | ID             | Site
-    $row1Cells = @(
+    $metaRows = @()
+
+    # Row 1: Group | Site — both optional. When neither is present the row is
+    # dropped entirely rather than rendered as two blank cells, so matrices
+    # without them do not carry an empty band of whitespace.
+    if ($groupName -or $siteCode) {
+        $row1Cells = @(
+            $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { $emptyMetaCell })
+            $(if ($siteCode) { New-InlineMetaCellHtml -Label 'Site' -Value $siteCode } else { $emptyMetaCell })
+        )
+        $metaRows += "<tr>$($row1Cells -join '')</tr>"
+    }
+
+    # Row 2: Action | Apply Defaults — always present.
+    $row2Cells = @(
         (New-InlineMetaCellHtml -Label 'Action' -Value $action)
         (New-InlineMetaCellHtml -Label 'Apply Defaults' -Value $applyDefaultStr)
-        $(if ($groupName) { New-InlineMetaCellHtml -Label 'Group' -Value $groupName } else { '<td>&nbsp;</td>' })
     )
+    $metaRows += "<tr>$($row2Cells -join '')</tr>"
 
-    # The chip shares the Duration cell instead of taking a fourth column, so
-    # the three-column grid (and its alignment across the two rows) is
-    # untouched whether or not diagnostics were written.
-    $row2Cells = @(
-        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true -TrailingHtml $diagHtml)
+    # Row 3: ID | Duration — the Diagnostics chip shares the Duration cell
+    # rather than claiming a column of its own, so the grid is identical
+    # whether or not diagnostics were written.
+    $row3Cells = @(
         (New-InlineMetaCellHtml -Label 'ID' -Value $idShortHtml -Mono $true -TitleAttr $idFullHtml)
-        $(if ($siteCode) { New-InlineMetaCellHtml -Label 'Site' -Value $siteCode } else { '<td>&nbsp;</td>' })
+        (New-IconMetaCellHtml -IconHtml $iconDuration -Value $dur -Mono $true -TrailingHtml $diagHtml)
     )
+    $metaRows += "<tr>$($row3Cells -join '')</tr>"
 
-    $metadataTable = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' style='border-collapse:collapse;'>" +
-    "<tr>$($row1Cells -join '')</tr>" +
-    "<tr>$($row2Cells -join '')</tr>" +
+    # width:100% lets the two columns split the meta cell evenly instead of
+    # shrink-wrapping to their content, which is what actually hands the space
+    # back to the values.
+    $metadataTable = "<table role='presentation' cellpadding='0' cellspacing='0' border='0' width='100%' style='border-collapse:collapse; width:100%;'>" +
+    ($metaRows -join '') +
     '</table>'
 
     # Three-column horizontal header — no visible dividers, just consistent
     # padding. table-layout:fixed plus an explicit 55% width on the metadata
-    # column gives the three pills (Action, Apply Defaults, Group) enough
-    # room to fit on one line at the report's 900px design width, and pushes
-    # the long monospace path to wrap onto its own line sooner — leaving
-    # more breathing room overall instead of forcing the whole card past
-    # the viewport edge.
+    # column gives the metadata pairs (Group/Site, Action/Apply Defaults,
+    # ID/Duration) enough room to fit on one line each at the report's 900px
+    # design width, and pushes the long monospace path to wrap onto its own
+    # line sooner — leaving more breathing room overall instead of forcing
+    # the whole card past the viewport edge.
     $headerBlock = @"
 <table role="presentation" class="rr-settings-head" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; table-layout:fixed;">
     <tr>
@@ -675,6 +706,11 @@ $matrixRowsHtml
         .report-root .rr-meta-cell table > tbody > tr > td {
             display: inline-block !important;
             padding: 3px 16px 3px 0 !important; vertical-align: top;
+            /* The desktop grid pins each cell to 50% so the two columns split
+               the meta cell evenly. Here the cells flow as chips instead, so
+               they size to their content and two short ones can share a line
+               that a 50% floor would have wasted. */
+            width: auto !important;
         }
 
         /* Check rows */
