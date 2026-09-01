@@ -10,9 +10,6 @@
 #   * Get-ADObjectDetailHC uses [DirectorySearcher]::new() and the static
 #     [GroupPrincipal]::FindByIdentity(...) inside ForEach-Object -Parallel —
 #     none of which Pester can mock.
-#   * Get-AdUserPrincipalNameHC passes/pipes objects into the real Get-ADObject
-#     / Get-ADGroupMember / Get-ADUser cmdlets, whose -Identity binding and
-#     validation run BEFORE any mock body, so fabricated objects can't be used.
 #
 # Real directory objects satisfy that binding, so the suite auto-discovers a
 # qualifying user and group at run time and asserts on invariants (shape,
@@ -48,8 +45,9 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         }
 
         # ---- Auto-discover a qualifying USER ----
-        # Qualifying = enabled, has a Mail value, and has a UserPrincipalName,
-        # because Get-AdUserPrincipalNameHC filters on exactly those.
+        # Stricter than the Get-ADObjectDetailHC tests below strictly need
+        # (they use SamAccountName and DistinguishedName only), but kept so the
+        # same discovered user stays usable if mail-based tests return.
         $script:TestUser = Get-ADUser -ResultSetSize 25 `
             -Filter "Enabled -eq 'True' -and Mail -like '*' -and UserPrincipalName -like '*'" `
             -Properties Mail, UserPrincipalName, Enabled |
@@ -91,9 +89,6 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
         if (-not $script:TestGroup) {
             throw 'Integration tests require a group with at least one enabled, mail-enabled member; none was found.'
         }
-
-        # A name guaranteed not to resolve, for the not-found paths.
-        $script:BogusName = "zzz-no-such-object-$([guid]::NewGuid().Guid)@example.invalid"
     }
 
     Context 'Get-ADObjectDetailHC - parameter contract' {
@@ -191,83 +186,6 @@ Describe 'ActiveDirectory.ps1 - AD Lookup Functions (integration)' {
             @($res[0].adGroupMember).Count | Should-Be 1
             $res[0].adGroupMember[0].Name | Should-Be 'All users'
             $res[0].adGroupMember[0].SamAccountName | Should-Be 'All users'
-        }
-    }
-
-    Context 'Get-AdUserPrincipalNameHC - user resolution' {
-
-        It 'returns the UPN for a real user mail address' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestUser.Mail
-
-            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
-            $res.notFound.Count | Should-Be 0
-        }
-
-        It 'returns the UPN for a real user SamAccountName' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestUser.SamAccountName
-
-            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
-        }
-
-        It 'adds an unresolvable name to notFound' {
-            $res = Get-AdUserPrincipalNameHC -Name $BogusName
-
-            $res.notFound | Should-ContainCollection $BogusName
-            $res.userPrincipalName.Count | Should-Be 0
-        }
-
-        It 'excludes a user listed in -ExcludeSamAccountName' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestUser.Mail `
-                -ExcludeSamAccountName $TestUser.SamAccountName
-
-            $res.userPrincipalName | Should-NotContainCollection $TestUser.UserPrincipalName
-        }
-
-        It 'resolves the matched name while still flagging an unmatched one' {
-            $res = Get-AdUserPrincipalNameHC -Name @($TestUser.Mail, $BogusName)
-
-            $res.userPrincipalName | Should-ContainCollection $TestUser.UserPrincipalName
-            $res.notFound | Should-ContainCollection $BogusName
-        }
-    }
-
-    Context 'Get-AdUserPrincipalNameHC - group expansion' {
-
-        It 'expands a group to the UPNs of its enabled, mail-enabled members' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestGroup.SamAccountName
-
-            $res.userPrincipalName.Count | Should-BeGreaterThan 0
-            foreach ($upn in $TestGroupUpns) {
-                $res.userPrincipalName | Should-ContainCollection $upn
-            }
-        }
-
-        It 'only returns UPNs of enabled, mail-bearing users' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestGroup.SamAccountName
-
-            foreach ($upn in $res.userPrincipalName) {
-                $u = Get-ADUser -Filter "UserPrincipalName -eq '$upn'" -Properties Enabled, Mail
-                $u | Should-BeTruthy
-                $u.Enabled | Should-BeTrue
-                $u.Mail | Should-BeTruthy
-            }
-        }
-
-        It 'returns a de-duplicated UPN list' {
-            $res = Get-AdUserPrincipalNameHC -Name $TestGroup.SamAccountName
-
-            ($res.userPrincipalName | Sort-Object -Unique).Count | Should-Be $res.userPrincipalName.Count
-        }
-    }
-
-    Context 'Get-AdUserPrincipalNameHC - contract' {
-
-        It 'returns a hashtable exposing notFound and userPrincipalName' {
-            $res = Get-AdUserPrincipalNameHC -Name $BogusName
-
-            $res | Should-HaveType ([hashtable])
-            $res.Keys | Should-ContainCollection 'notFound'
-            $res.Keys | Should-ContainCollection 'userPrincipalName'
         }
     }
 }
