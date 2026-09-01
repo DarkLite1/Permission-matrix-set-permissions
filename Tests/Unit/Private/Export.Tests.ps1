@@ -123,7 +123,7 @@ Describe 'Export-FilesHC' {
             }
         }
 
-        It 'forwards ExcludedSamAccountName to the consolidated writer' {
+        It 'forwards AdGroupPlaceHolders to the consolidated writer' {
             # The placeholder filter is disabled when this never arrives
             $settings = [pscustomobject]@{
                 PermissionsExcelFile        = 'TestDrive:\Permissions.xlsx'
@@ -132,10 +132,10 @@ Describe 'Export-FilesHC' {
             }
 
             Export-FilesHC -ImportedMatrix $FakeMatrices -ExportSettings $settings `
-                -ExcludedSamAccountName 'cnorris' | Out-Null
+                -AdGroupPlaceHolders 'cnorris' | Out-Null
 
             Should-Invoke Export-ConsolidatedPermissionsFileHC -Times 1 -ParameterFilter {
-                $ExcludedSamAccountName -contains 'cnorris'
+                $AdGroupPlaceHolders -contains 'cnorris'
             }
         }
     }
@@ -1216,7 +1216,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'returns nothing when the list is $null' {
             @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName $null `
+                    -AdGroupPlaceHolders $null `
                     -AccessListRow $AccessListRows
             ).Count | Should-Be 0
         }
@@ -1224,7 +1224,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'ignores blank entries in the list' {
             @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName @('', $null) `
+                    -AdGroupPlaceHolders @('', $null) `
                     -AccessListRow $AccessListRows
             ).Count | Should-Be 0
         }
@@ -1234,7 +1234,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'returns the SamAccountName and its display name' {
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' `
+                    -AdGroupPlaceHolders 'cnorris' `
                     -AccessListRow $AccessListRows
             )
 
@@ -1246,7 +1246,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'matches the SamAccountName case insensitively' {
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'CNORRIS' `
+                    -AdGroupPlaceHolders 'CNORRIS' `
                     -AccessListRow $AccessListRows
             )
 
@@ -1256,7 +1256,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'returns only the SamAccountName when it is not in the rows' {
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'svc-placeholder' `
+                    -AdGroupPlaceHolders 'svc-placeholder' `
                     -AccessListRow $AccessListRows
             )
 
@@ -1266,7 +1266,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'resolves several placeholders' {
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris', 'jdoe' `
+                    -AdGroupPlaceHolders 'cnorris', 'jdoe' `
                     -AccessListRow $AccessListRows
             )
 
@@ -1278,7 +1278,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
         It 'never returns the display name of a non-placeholder member' {
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' `
+                    -AdGroupPlaceHolders 'cnorris' `
                     -AccessListRow $AccessListRows
             )
 
@@ -1296,7 +1296,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
 
             @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+                    -AdGroupPlaceHolders 'cnorris' -AccessListRow $rows
             ) | Should-BeCollection @('cnorris')
         }
 
@@ -1309,20 +1309,20 @@ Describe 'Get-PlaceHolderFilterValueHC' {
 
             @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+                    -AdGroupPlaceHolders 'cnorris' -AccessListRow $rows
             ) | Should-BeCollection @('cnorris')
         }
 
         It 'copes with no rows at all' {
             @(
-                Get-PlaceHolderFilterValueHC -ExcludedSamAccountName 'cnorris'
+                Get-PlaceHolderFilterValueHC -AdGroupPlaceHolders 'cnorris'
             ) | Should-BeCollection @('cnorris')
         }
 
         It 'copes with a $null entry among the rows' {
             {
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' `
+                    -AdGroupPlaceHolders 'cnorris' `
                     -AccessListRow @($null, $AccessListRows[1])
             } | Should -Not -Throw
         }
@@ -1345,7 +1345,7 @@ Describe 'Get-PlaceHolderFilterValueHC' {
 
             $res = @(
                 Get-PlaceHolderFilterValueHC `
-                    -ExcludedSamAccountName 'cnorris' -AccessListRow $rows
+                    -AdGroupPlaceHolders 'cnorris' -AccessListRow $rows
             )
 
             $res | Should-NotContainCollection 'Someone Else'

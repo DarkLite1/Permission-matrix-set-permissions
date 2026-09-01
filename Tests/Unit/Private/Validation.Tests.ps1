@@ -159,7 +159,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 Get-EmptyGroupCheckHC $res | Should-BeCollection @()
             }
@@ -174,7 +174,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 Get-EmptyGroupCheckHC $res | Should-BeCollection @()
             }
@@ -187,7 +187,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 Get-EmptyGroupCheckHC $res | Should-BeCollection @()
             }
@@ -240,7 +240,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check.Count | Should-Be 1
@@ -253,7 +253,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
             }
@@ -303,12 +303,12 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
             }
 
-            It 'when no ExcludedSamAccountName is supplied at all' {
+            It 'when no AdGroupPlaceHolders is supplied at all' {
                 $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
                 $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
 
@@ -317,8 +317,8 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
             }
 
-            It 'when ExcludedSamAccountName is passed as $null' {
-                # Matrix.ExcludedSamAccountName is optional in the JSON.
+            It 'when AdGroupPlaceHolders is passed as $null' {
+                # Matrix.AdGroupPlaceHolders is optional in the JSON.
                 $matrix = New-FakeMatrixHC -AdObjectName 'GRP-HR'
                 $ad = @(
                     New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @(
@@ -327,7 +327,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName $null
+                    -AdGroupPlaceHolders $null
 
                 Get-EmptyGroupCheckHC $res | Should-BeCollection @()
             }
@@ -343,7 +343,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
             }
@@ -358,7 +358,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris', 'svc-placeholder')
+                    -AdGroupPlaceHolders @('cnorris', 'svc-placeholder')
 
                 @(Get-EmptyGroupCheckHC $res).Count | Should-Be 1
             }
@@ -380,7 +380,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check.Count | Should-Be 1
@@ -487,7 +487,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad
 
                 $check = @(Get-EmptyGroupCheckHC $res)
-                $check[0].Description | Should-MatchString 'ExcludedSamAccountName'
+                $check[0].Description | Should-MatchString 'AdGroupPlaceHolders'
                 $check[0].Description | Should-MatchString 'no effective members'
             }
 
@@ -500,7 +500,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('svc-placeholder', 'cnorris')
+                    -AdGroupPlaceHolders @('svc-placeholder', 'cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 $check[0].Description | Should-MatchString 'cnorris, svc-placeholder'
@@ -524,7 +524,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 $ad = @(New-FakeAdDetailHC -SamAccountName 'GRP-HR' -Member @())
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
@@ -561,7 +561,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
@@ -578,7 +578,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
@@ -595,7 +595,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
@@ -613,7 +613,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 $check = @(Get-EmptyGroupCheckHC $res)
                 Get-EmptyGroupReasonHC $check[0] 'GRP-HR' |
@@ -672,7 +672,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 @($res).Count | Should-Be 2
                 $res.Type | Should-ContainCollection 'FatalError'
@@ -752,7 +752,7 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 )
 
                 $res = Test-AdObjectInMatrixHC -Matrix $matrix -ADObject $ad `
-                    -ExcludedSamAccountName @('cnorris')
+                    -AdGroupPlaceHolders @('cnorris')
 
                 Get-DisabledUserCheckHC $res | Should-BeCollection @()
             }

@@ -23,7 +23,7 @@ function Set-DefaultSheetFilterHC {
           values stay visible. Used for 'MemberEnabled'.
         - An exclude criterion (ExcludeColumnName / ExcludeValue): the listed
           values are hidden and everything else stays visible. Used for the
-          placeholder accounts of 'Matrix.ExcludedSamAccountName'.
+          placeholder accounts of 'Matrix.AdGroupPlaceHolders'.
 
         Excel has no native "everything except this list" filter. The exclude
         criterion therefore reproduces what Excel itself writes when boxes are

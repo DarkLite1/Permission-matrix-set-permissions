@@ -24,7 +24,7 @@ function Resolve-ResponsibleEmailHC {
     .PARAMETER Responsible
         The raw 'MatrixResponsible' string from the matrix FormData worksheet.
 
-    .PARAMETER ExcludeSamAccountName
+    .PARAMETER AdGroupPlaceHolders
         SamAccountNames of placeholder accounts (Matrix.AdGroupPlaceHolders).
         These are never returned as recipients: they are dropped whether they
         appear as a group member or as a directly listed responsible, and they
@@ -38,10 +38,10 @@ function Resolve-ResponsibleEmailHC {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][AllowEmptyString()][string]$Responsible,
-        [string[]]$ExcludeSamAccountName = @()
+        [string[]]$AdGroupPlaceHolders = @()
     )
 
-    $exclude = @($ExcludeSamAccountName | Where-Object { $_ })
+    $exclude = @($AdGroupPlaceHolders | Where-Object { $_ })
     $emails = [System.Collections.Generic.List[string]]::new()
     $unresolved = [System.Collections.Generic.List[string]]::new()
 

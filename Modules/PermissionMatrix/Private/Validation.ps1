@@ -516,7 +516,7 @@ function Test-AdObjectInMatrixHC {
     param(
         [Parameter(Mandatory)][array]$Matrix,
         [Parameter(Mandatory)]$ADObject,
-        [string[]]$ExcludedSamAccountName = @()
+        [string[]]$AdGroupPlaceHolders = @()
     )
 
     $checks = @()
@@ -537,7 +537,7 @@ function Test-AdObjectInMatrixHC {
 
     #region Placeholder accounts, case-insensitive
     $placeHolders = [System.Collections.Generic.HashSet[string]]::new(
-        [string[]]@($ExcludedSamAccountName | Where-Object { $_ }),
+        [string[]]@($AdGroupPlaceHolders | Where-Object { $_ }),
         [System.StringComparer]::OrdinalIgnoreCase
     )
     #endregion
@@ -559,7 +559,7 @@ function Test-AdObjectInMatrixHC {
     #region Groups without effective members (warning)
     <#
      A group grants access to nobody when, after discarding the placeholder
-     accounts from 'Matrix.ExcludedSamAccountName' and the disabled accounts,
+     accounts from 'Matrix.AdGroupPlaceHolders' and the disabled accounts,
      no members are left. This covers three cases in one check:
      - the group is completely empty
      - the group only holds the placeholder account(s)
@@ -695,10 +695,10 @@ function Test-AdObjectInMatrixHC {
         $placeHolderNames = @($placeHolders) | Sort-Object
 
         $placeHolderText = if ($placeHolderNames.Count -gt 0) {
-            "Placeholder accounts configured in 'Matrix.ExcludedSamAccountName': $($placeHolderNames -join ', ')."
+            "Placeholder accounts configured in 'Matrix.AdGroupPlaceHolders': $($placeHolderNames -join ', ')."
         }
         else {
-            "No placeholder accounts are configured in 'Matrix.ExcludedSamAccountName'."
+            "No placeholder accounts are configured in 'Matrix.AdGroupPlaceHolders'."
         }
         #endregion
 

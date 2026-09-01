@@ -290,7 +290,7 @@ function Invoke-PermissionMatrixAuditReport {
             #region Resolve the responsible (e-mail / user / group) to addresses
             $resolved = Resolve-ResponsibleEmailHC `
                 -Responsible $formData.MatrixResponsible `
-                -ExcludeSamAccountName $placeHolders
+                -AdGroupPlaceHolders $placeHolders
 
             if ($resolved.Unresolved) {
                 $recipientIssues.Add(
@@ -347,7 +347,7 @@ function Invoke-PermissionMatrixAuditReport {
             -GroupManagerRows $logSheets.GroupManagers `
             -AdObjectRows $logSheets.AdObjects `
             -DefaultsAcl $context.Defaults.DefaultAcl `
-            -ExcludedSamAccountName $placeHolders
+            -AdGroupPlaceHolders $placeHolders
         #endregion
 
         #region Build and send the mail (subject + body from config, log attached)

@@ -31,7 +31,7 @@ function Build-ExportDataHC {
     param(
         [Parameter(Mandatory)]
         [array]$ImportedMatrix,
-        [string[]]$ExcludedSamAccountName = @()
+        [string[]]$AdGroupPlaceHolders = @()
     )
 
     $permissionsRows = [System.Collections.Generic.List[pscustomobject]]::new()
@@ -92,7 +92,7 @@ function Build-ExportDataHC {
                     $emailsResponsible = (
                         Resolve-ResponsibleEmailHC `
                             -Responsible $formData.MatrixResponsible `
-                            -ExcludeSamAccountName $ExcludedSamAccountName
+                            -AdGroupPlaceHolders $AdGroupPlaceHolders
                     ).Emails -join ','
 
                     foreach ($adObject in $adObjects) {
@@ -151,12 +151,12 @@ function Export-FilesHC {
         [Parameter(Mandatory)]      $ExportSettings,
         [array]$FileResults = @(),
         [array]$AdObjectDetails = @(),
-        [string[]]$ExcludedSamAccountName = @()
+        [string[]]$AdGroupPlaceHolders = @()
     )
 
     $exportData = Build-ExportDataHC `
         -ImportedMatrix $ImportedMatrix `
-        -ExcludedSamAccountName $ExcludedSamAccountName
+        -AdGroupPlaceHolders $AdGroupPlaceHolders
 
     $results = [ordered]@{
         Permissions  = $null
@@ -176,7 +176,7 @@ function Export-FilesHC {
             -GroupManagers $consolidated.GroupManagers `
             -AdObjects $consolidated.AdObjects `
             -FormData $consolidated.FormData `
-            -ExcludedSamAccountName $ExcludedSamAccountName `
+            -AdGroupPlaceHolders $AdGroupPlaceHolders `
             -Path $ExportSettings.PermissionsExcelFile
     }
 
@@ -364,8 +364,8 @@ function Get-PlaceHolderFilterValueHC {
 
     .DESCRIPTION
         Placeholder accounts are configured as SamAccountNames
-        ('Matrix.ExcludedSamAccountName', or 'Matrix.AdGroupPlaceHolders' in the
-        audit report configuration). 'AccessList' has a
+        ('Matrix.AdGroupPlaceHolders', in both the main and the audit report
+        configuration). 'AccessList' has a
         'MemberSamAccountName' column and can be matched directly, but
         'GroupManagers' only carries a display name in 'ManagerMemberName'.
 
@@ -382,12 +382,12 @@ function Get-PlaceHolderFilterValueHC {
     [CmdletBinding()]
     [OutputType([string[]])]
     param(
-        [string[]]$ExcludedSamAccountName = @(),
+        [string[]]$AdGroupPlaceHolders = @(),
         [array]$AccessListRow = @()
     )
 
     $samAccountName = [System.Collections.Generic.HashSet[string]]::new(
-        [string[]]@($ExcludedSamAccountName | Where-Object { $_ }),
+        [string[]]@($AdGroupPlaceHolders | Where-Object { $_ }),
         [System.StringComparer]::OrdinalIgnoreCase
     )
 
@@ -442,7 +442,7 @@ function Export-ConsolidatedPermissionsFileHC {
         [array]$GroupManagers = @(),
         [array]$AdObjects = @(),
         [array]$FormData = @(),
-        [string[]]$ExcludedSamAccountName = @(),
+        [string[]]$AdGroupPlaceHolders = @(),
         [Parameter(Mandatory)][string]$Path
     )
 
@@ -511,7 +511,7 @@ function Export-ConsolidatedPermissionsFileHC {
         }
 
         $placeHolderValue = Get-PlaceHolderFilterValueHC `
-            -ExcludedSamAccountName $ExcludedSamAccountName `
+            -AdGroupPlaceHolders $AdGroupPlaceHolders `
             -AccessListRow $AccessList
 
         Set-DefaultSheetFilterHC -Path $Path `
@@ -567,7 +567,7 @@ function Copy-MatrixFileToLogFolderHC {
         [array]$GroupManagerRows,
         [array]$AdObjectRows,
         [hashtable]$DefaultsAcl,
-        [string[]]$ExcludedSamAccountName = @(),
+        [string[]]$AdGroupPlaceHolders = @(),
         [string]$DestinationFileName
     )
 
@@ -661,7 +661,7 @@ function Copy-MatrixFileToLogFolderHC {
         }
 
         $placeHolderValue = Get-PlaceHolderFilterValueHC `
-            -ExcludedSamAccountName $ExcludedSamAccountName `
+            -AdGroupPlaceHolders $AdGroupPlaceHolders `
             -AccessListRow $AccessListRows
 
         Set-DefaultSheetFilterHC -Path $destinationPath `

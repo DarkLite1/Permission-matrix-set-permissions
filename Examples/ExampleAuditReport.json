@@ -46,7 +46,7 @@
       "ScriptAdmin": "(Mandatory) Array of e-mail addresses that are BCC'd on every audit mail (except in 'SendMail.To' test-override mode, where no Bcc is sent) and that receive the summary of matrices skipped for fatal errors, as well as initialization-failure notifications."
     },
     "Matrix": {
-      "AdGroupPlaceHolders": "(Optional) SamAccountNames excluded from group membership checks (placeholder accounts). Same meaning as 'ExcludedSamAccountName' in the old standalone audit script."
+      "AdGroupPlaceHolders": "(Optional) A list of AD SamAccountNames that will be excluded when checking for group memberships. These accounts are usually used as a place holder, so there are no empty groups in AD. They are also filtered out of the 'AccessList' and 'GroupManagers' worksheets and are never used as an audit mail recipient."
     },
     "Settings": {
       "SendMail": {

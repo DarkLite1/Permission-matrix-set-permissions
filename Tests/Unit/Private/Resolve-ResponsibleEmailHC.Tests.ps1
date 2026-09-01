@@ -87,7 +87,7 @@ Describe 'Resolve-ResponsibleEmailHC' {
     It 'excludes a placeholder listed directly as the responsible' {
         # No AD call: the placeholder is dropped before any lookup.
         $r = InModuleScope PermissionMatrix {
-            Resolve-ResponsibleEmailHC -Responsible 'cnorris' -ExcludeSamAccountName @('cnorris')
+            Resolve-ResponsibleEmailHC -Responsible 'cnorris' -AdGroupPlaceHolders @('cnorris')
         }
         $r.Emails     | Should-BeFalsy
         $r.Unresolved | Should-BeFalsy
@@ -108,7 +108,7 @@ Describe 'Resolve-ResponsibleEmailHC' {
             else { [pscustomobject]@{ EmailAddress = 'cnorris@x.com' } }
         }
         $r = InModuleScope PermissionMatrix {
-            Resolve-ResponsibleEmailHC -Responsible 'Some Group' -ExcludeSamAccountName @('cnorris')
+            Resolve-ResponsibleEmailHC -Responsible 'Some Group' -AdGroupPlaceHolders @('cnorris')
         }
         $r.Emails     | Should-BeCollection @('alice@x.com')
         $r.Unresolved | Should-BeFalsy

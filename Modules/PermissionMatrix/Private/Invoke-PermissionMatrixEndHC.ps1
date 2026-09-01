@@ -80,7 +80,7 @@ function Invoke-PermissionMatrixEndHC {
                 -ExportSettings $Context.Config.Export `
                 -FileResults $Context.FileResults `
                 -AdObjectDetails $Context.AdObjectDetails `
-                -ExcludedSamAccountName $Context.Config.Matrix.ExcludedSamAccountName
+                -AdGroupPlaceHolders $Context.Config.Matrix.AdGroupPlaceHolders
 
         }
         catch {
@@ -395,7 +395,7 @@ function Invoke-PermissionMatrixEndHC {
                                 -GroupManagerRows $logSheets.GroupManagers `
                                 -AdObjectRows $logSheets.AdObjects `
                                 -DefaultsAcl $Context.Defaults.DefaultAcl `
-                                -ExcludedSamAccountName @($Context.Config.Matrix.ExcludedSamAccountName)
+                                -AdGroupPlaceHolders @($Context.Config.Matrix.AdGroupPlaceHolders)
 
                             # Used by the 'Open matrix Excel file' footer
                             # link in the summary email
