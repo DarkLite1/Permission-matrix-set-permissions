@@ -284,4 +284,35 @@ Describe 'Update-MatrixCounterHC' {
 
         $context.Counter | Should-BeTruthy
     }
+
+    It "counts 'Fixed' checks separately from errors and warnings" {
+        $context = [PSCustomObject]@{
+            Counter     = $null
+            FileResults = @(
+                [PSCustomObject]@{
+                    Check    = @()
+                    Sheets   = [PSCustomObject]@{
+                        FormData    = [PSCustomObject]@{ Check = @() }
+                        Permissions = [PSCustomObject]@{ Check = @() }
+                    }
+                    Matrices = @(
+                        [PSCustomObject]@{
+                            Check = @(
+                                [PSCustomObject]@{ Type = 'Fixed' }
+                                [PSCustomObject]@{ Type = 'Fixed' }
+                                [PSCustomObject]@{ Type = 'Warning' }
+                            )
+                        }
+                    )
+                }
+            )
+        }
+
+        $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
+
+        $result.Settings.Fixed | Should-Be 2
+        $result.TotalFixed | Should-Be 2
+        $result.TotalWarnings | Should-Be 1
+        $result.TotalErrors | Should-Be 0
+    }
 }

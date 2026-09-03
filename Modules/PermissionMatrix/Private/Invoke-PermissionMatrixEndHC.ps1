@@ -656,7 +656,7 @@ function Invoke-PermissionMatrixEndHC {
             $eventData.Add(
                 [PSCustomObject]@{
                     Timestamp = (Get-Date).ToString('o')
-                    Message   = "Script execution completed with $($Context.Counter.TotalErrors) errors and $($Context.Counter.TotalWarnings) warnings across $($Context.AllMatrices.Count) matrices."
+                    Message   = "Script execution completed with $($Context.Counter.TotalErrors) errors, $($Context.Counter.TotalWarnings) warnings and $($Context.Counter.TotalFixed) corrected permissions across $($Context.AllMatrices.Count) matrices."
                     Details   = @{
                         Counters = $Context.Counter
                         Errors   = $SystemErrors.Value

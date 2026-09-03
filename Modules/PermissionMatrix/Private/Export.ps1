@@ -64,6 +64,9 @@ function Build-ExportDataHC {
                     Warnings   = @(
                         $matrixObj.Check |
                         Where-Object { $_.Type -eq 'Warning' }).Count
+                    Fixed      = @(
+                        $matrixObj.Check |
+                        Where-Object { $_.Type -eq 'Fixed' }).Count
                 }
             )
         }

@@ -380,6 +380,22 @@ Describe 'Build-ExportDataHC' {
             $res.Permissions[0].Warnings | Should-Be 1
         }
 
+        It "counts Fixed checks into Fixed, not into Warnings" {
+            $imported = @(
+                New-MatrixObject -Check @(
+                    [pscustomobject]@{ Type = 'Fixed' }
+                    [pscustomobject]@{ Type = 'Fixed' }
+                    [pscustomobject]@{ Type = 'Warning' }
+                )
+            )
+
+            $res = Build-ExportDataHC -ImportedMatrix $imported
+
+            $res.Permissions[0].Fixed | Should-Be 2
+            $res.Permissions[0].Warnings | Should-Be 1
+            $res.Permissions[0].Errors | Should-Be 0
+        }
+
         It 'reports zero Errors and Warnings when a matrix has no checks' {
             $imported = @( New-MatrixObject -Check @() )
 
@@ -387,6 +403,7 @@ Describe 'Build-ExportDataHC' {
 
             $res.Permissions[0].Errors | Should-Be 0
             $res.Permissions[0].Warnings | Should-Be 0
+            $res.Permissions[0].Fixed | Should-Be 0
         }
 
         It 'produces one permissions row per matrix object sharing a file' {

@@ -90,16 +90,86 @@ Describe 'Get-FileCheckTallyHC' {
         $tally.Warnings | Should-Be 0
     }
 
+    It 'counts Fixed checks apart from errors and warnings' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult -MatrixCheck @(
+                [pscustomobject]@{ Type = 'Fixed'; Name = 'f1' }
+                [pscustomobject]@{ Type = 'Fixed'; Name = 'f2' }
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+            ))
+        $tally.Fixed | Should-Be 2
+        $tally.Warnings | Should-Be 1
+        $tally.Errors | Should-Be 0
+    }
+
     It 'returns zeroes for a file result with no checks' {
         $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult)
         $tally.Errors | Should-Be 0
         $tally.Warnings | Should-Be 0
+        $tally.Fixed | Should-Be 0
     }
 
     It 'returns zeroes for a null file result' {
         $tally = Get-FileCheckTallyHC -FileResult $null
         $tally.Errors | Should-Be 0
         $tally.Warnings | Should-Be 0
+        $tally.Fixed | Should-Be 0
+    }
+}
+
+Describe "the check type 'Fixed'" {
+    It 'is themed green with its own FIXED label' {
+        $theme = Get-CheckThemeHC 'Fixed'
+
+        $theme.Label | Should-Be 'FIXED'
+        $theme.Accent | Should-Be '#16a34a'
+        $theme.Bg | Should-Be '#dcfce7'
+    }
+
+    It 'is not rendered as an informational notice' {
+        # Fixed keeps the white card + bullet that errors and warnings get, so
+        # a corrected permission is not buried among the grey info notices.
+        $html = Build-FileLevelCheckRowHC -Check ([pscustomobject]@{
+                Type        = 'Fixed'
+                Name        = 'Non inherited folder incorrect permissions'
+                Description = 'corrected'
+            }) -SheetLabel 'Excel File'
+
+        $html | Should-MatchString 'FIXED'
+        $html | Should-MatchString '#16a34a'
+        $html | Should-NotMatchString '&#8505;'
+    }
+
+    It 'is reported in the issue label next to errors and warnings' {
+        Format-IssueCountLabelHC -Errors 1 -Warnings 2 -Fixed 3 |
+        Should-Be '1 Error, 2 Warnings, 3 Fixed'
+    }
+
+    It 'is the only part of the label when nothing else was found' {
+        Format-IssueCountLabelHC -Errors 0 -Warnings 0 -Fixed 4 | Should-Be '4 Fixed'
+    }
+
+    It "does not turn a clean run into 'Success' when something was corrected" {
+        Format-IssueCountLabelHC -Errors 0 -Warnings 0 -Fixed 0 | Should-Be 'Success'
+    }
+
+    It "banners the count under 'Corrected' when there are no errors or warnings" {
+        $html = Build-ErrorWarningTableHC -CounterData ([pscustomobject]@{
+                TotalErrors = 0; TotalWarnings = 0; TotalFixed = 2
+            })
+
+        $html | Should-MatchString 'Corrected'
+        $html | Should-MatchString '2 Fixed'
+        $html | Should-NotMatchString 'Detected issues'
+    }
+
+    It "keeps the 'Detected issues' heading when errors or warnings remain" {
+        $html = Build-ErrorWarningTableHC -CounterData ([pscustomobject]@{
+                TotalErrors = 0; TotalWarnings = 1; TotalFixed = 2
+            })
+
+        $html | Should-MatchString 'Detected issues'
+        $html | Should-MatchString '1 Warning'
+        $html | Should-MatchString '2 Fixed'
     }
 }
 

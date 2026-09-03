@@ -141,6 +141,10 @@ function Get-FileCheckTallyHC {
             Informational checks are deliberately NOT counted. They are notices,
             not issues: they must not colour a header and must not lift a card
             out of the alphabetical run.
+
+            'Fixed' checks are tallied separately for the same reason: an
+            incorrect permission that was corrected is an outcome to report,
+            not an outstanding issue.
     #>
     param([object]$FileResult)
 
@@ -161,6 +165,7 @@ function Get-FileCheckTallyHC {
     return @{
         Errors   = @($allChecks | Where-Object Type -EQ 'FatalError').Count
         Warnings = @($allChecks | Where-Object Type -EQ 'Warning').Count
+        Fixed    = @($allChecks | Where-Object Type -EQ 'Fixed').Count
     }
 }
 
@@ -195,13 +200,16 @@ function Get-MatrixFileNameHC {
 }
 
 function Format-IssueCountLabelHC {
-    param([int]$Errors, [int]$Warnings)
+    param([int]$Errors, [int]$Warnings, [int]$Fixed = 0)
     $parts = @()
     if ($Errors -gt 0) {
         $parts += "$Errors Error" + $(if ($Errors -ne 1) { 's' })
     }
     if ($Warnings -gt 0) {
         $parts += "$Warnings Warning" + $(if ($Warnings -ne 1) { 's' })
+    }
+    if ($Fixed -gt 0) {
+        $parts += "$Fixed Fixed"
     }
     if ($parts.Count -eq 0) { return 'Success' }
     return ($parts -join ', ')
@@ -274,6 +282,17 @@ function Get-CheckThemeHC {
                 Symbol     = '⚠'
                 Label      = 'WARNING'
                 BorderLeft = $Script:Theme.AccentWarning
+            }
+        }
+        'Fixed' {
+            # Green, not amber: the matrix and the file system disagreed and
+            # the run resolved it. Nothing is left for the reader to do.
+            return @{
+                Bg         = $Script:Theme.StatusSuccess
+                Accent     = $Script:Theme.AccentSuccess
+                Symbol     = '✔'
+                Label      = 'FIXED'
+                BorderLeft = $Script:Theme.AccentSuccess
             }
         }
         default {
@@ -360,8 +379,9 @@ function Build-ErrorWarningTableHC {
 
     $errs = [int]$CounterData.TotalErrors
     $warns = [int]$CounterData.TotalWarnings
+    $fixed = [int]$CounterData.TotalFixed
 
-    if ($errs -eq 0 -and $warns -eq 0) { return '' }
+    if ($errs -eq 0 -and $warns -eq 0 -and $fixed -eq 0) { return '' }
 
     $pills = @()
     if ($errs -gt 0) {
@@ -372,6 +392,13 @@ function Build-ErrorWarningTableHC {
         $warnLabel = "$warns Warning" + $(if ($warns -ne 1) { 's' })
         $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $warnLabel -Bg $Script:Theme.AccentWarning)</td>"
     }
+    if ($fixed -gt 0) {
+        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$fixed Fixed" -Bg $Script:Theme.AccentSuccess)</td>"
+    }
+
+    # 'Detected issues' would be wrong for a run whose only finding is that it
+    # corrected something, so the heading follows what the pills actually say.
+    $heading = if ($errs -eq 0 -and $warns -eq 0) { 'Corrected' } else { 'Detected issues' }
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 16px 0;">
@@ -379,7 +406,7 @@ function Build-ErrorWarningTableHC {
         <td style='padding:4px 0;'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
                 <tr>
-                    <td style='padding:0 12px 0 0; font-size:13px; font-weight:600; color:$($Script:Theme.TextMain);'>Detected issues</td>
+                    <td style='padding:0 12px 0 0; font-size:13px; font-weight:600; color:$($Script:Theme.TextMain);'>$heading</td>
                     $($pills -join '')
                 </tr>
             </table>
@@ -414,9 +441,10 @@ function Build-FileLevelCheckRowHC {
     $themeTokens = Get-CheckThemeHC $Check.Type
     $accent = $themeTokens.Accent
 
-    # Info notices use the neutral grey card background + an "i" glyph; errors
-    # and warnings keep a white card with a bullet dot so they still stand out.
-    $isInfo = ($Check.Type -ne 'FatalError') -and ($Check.Type -ne 'Warning')
+    # Info notices use the neutral grey card background + an "i" glyph; errors,
+    # warnings and fixes keep a white card with a bullet dot so they still stand
+    # out.
+    $isInfo = $Check.Type -notin @('FatalError', 'Warning', 'Fixed')
     $cardBg = if ($isInfo) { $themeTokens.Bg } else { $Script:Theme.BgWhite }
     $icon = if ($isInfo) { '&#8505;' } else { '&#9679;' }
 

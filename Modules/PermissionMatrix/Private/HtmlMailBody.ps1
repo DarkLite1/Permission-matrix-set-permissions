@@ -257,16 +257,18 @@ function Build-SettingsRowHC {
 
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
+    $fixed = @($MatrixItem.Check | Where-Object Type -EQ 'Fixed').Count
 
-    # Notices that are neither errors nor warnings — Type 'Information', and any
-    # unknown/future type, matching how Build-FileLevelCheckRowHC decides what
-    # is "info". These live on the MATRIX (this row), not on the matrix FILE, so
-    # they never reach the file-level tallies that colour the card header, and
-    # they never earn a status pill. Before this, a matrix carrying only an
-    # info notice (e.g. 'AD groups without members') looked completely clean in
-    # the overview and the only trace of it was in the execution report.
+    # Notices that are neither errors, warnings nor fixes — Type 'Information',
+    # and any unknown/future type, matching how Build-FileLevelCheckRowHC
+    # decides what is "info". These live on the MATRIX (this row), not on the
+    # matrix FILE, so they never reach the file-level tallies that colour the
+    # card header, and they never earn a status pill. Before this, a matrix
+    # carrying only an info notice (e.g. 'AD groups without members') looked
+    # completely clean in the overview and the only trace of it was in the
+    # execution report.
     $infoCount = @($MatrixItem.Check | Where-Object {
-            $_.Type -ne 'FatalError' -and $_.Type -ne 'Warning'
+            $_.Type -notin @('FatalError', 'Warning', 'Fixed')
         }).Count
 
     # Determine row status — a row's own error/warning wins; otherwise a
@@ -351,6 +353,9 @@ function Build-SettingsRowHC {
     }
     elseif ($warn -gt 0) {
         $pillText = 'Warning'; $pillBg = $Script:Theme.AccentWarning
+    }
+    elseif ($fixed -gt 0) {
+        $pillText = 'Fixed'; $pillBg = $Script:Theme.AccentSuccess
     }
     elseif ($isSkipped) {
         $pillText = 'Skipped'; $pillBg = $Script:Theme.AccentSkipped
@@ -572,6 +577,7 @@ function Build-MatrixFileCardHC {
     $tally = Get-FileCheckTallyHC -FileResult $FileContext
     $fileErrs = $tally.Errors
     $fileWarns = $tally.Warnings
+    $fileFixed = $tally.Fixed
 
     if ($fileErrs -gt 0) {
         $headerSymbol = '✖'
@@ -610,7 +616,7 @@ function Build-MatrixFileCardHC {
     }
     catch { $gradMid = $gradTo }
 
-    $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns
+    $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns -Fixed $fileFixed
     $headerLabelHtml = "<span style=`"font-size:12px; font-weight:700; color:#e5e7eb; text-transform:uppercase; letter-spacing:0.5px;`">$headerLabel</span>"
 
     # ---- Body content: file-level issues + settings table ----

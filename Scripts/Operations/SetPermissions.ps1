@@ -1165,33 +1165,19 @@ begin {
             if ($null -eq $t) { $t = @{} }
             $t['IncorrectItems']++
 
-            if ($DetailedLog) {
+            <# The ACL found on disk, captured before the fix below overwrites
+            it. #>
+            $aclText = if ($DetailedLog) {
                 # One array element per ACE keeps the detail JSON readable
                 # instead of a single string with embedded '\n' escapes. Sort the
                 # ACE lines so 'OldAcl' has a stable order (aligns with the
                 # non-inherited 'OldAcl'/'NewAcl' warning).
-                $aclText = @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
-
-                if ($AdNames -and $AdNames.Count -gt 0) {
-                    # Key name matches the non-inherited warning: 'OldAcl' is the
-                    # current ACL found on disk. Inherited-only items have no
-                    # target ACL (goal is pure inheritance) so there is no 'NewAcl'.
-                    # Use [ordered] so the detail JSON always emits the keys in
-                    # the same order (OldAcl, NewAcl, MatrixFileAcl).
-                    $entry = [ordered]@{
-                        'OldAcl'        = $aclText
-                        'MatrixFileAcl' = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
-                    }
-                    $incorrectInheritedAcl[$child.FullName] = $entry
-                }
-                else {
-                    $incorrectInheritedAcl[$child.FullName] = $aclText
-                }
-            }
-            else {
-                $incorrectInheritedAcl.Add($child.FullName)
+                @(if ($accessDenied) { 'Access Denied' } else { $acl.AccessToString -split '\r?\n' | Where-Object { $_ } | Sort-Object })
             }
 
+            <# Runs BEFORE the logging below so that 'Action=Fix' only ever
+            records items whose ACL was really reset: a failing write throws
+            out of the walk and the item is left out of the 'Fixed' list. #>
             if ($Action -eq 'Fix') {
                 Write-Verbose "Set ACL to inherited only '$($child.FullName)'"
 
@@ -1261,6 +1247,27 @@ begin {
                 $t['AclWriteTicks'] += (
                     [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsWrite
                 )
+            }
+
+            if ($DetailedLog) {
+                if ($AdNames -and $AdNames.Count -gt 0) {
+                    # Key name matches the non-inherited warning: 'OldAcl' is the
+                    # current ACL found on disk. Inherited-only items have no
+                    # target ACL (goal is pure inheritance) so there is no 'NewAcl'.
+                    # Use [ordered] so the detail JSON always emits the keys in
+                    # the same order (OldAcl, NewAcl, MatrixFileAcl).
+                    $entry = [ordered]@{
+                        'OldAcl'        = $aclText
+                        'MatrixFileAcl' = ConvertTo-MatrixAdObjectHC -Names $AdNames -Permissions $AdPermissions
+                    }
+                    $incorrectInheritedAcl[$child.FullName] = $entry
+                }
+                else {
+                    $incorrectInheritedAcl[$child.FullName] = $aclText
+                }
+            }
+            else {
+                $incorrectInheritedAcl.Add($child.FullName)
             }
         }
         #endregion
@@ -1895,7 +1902,7 @@ process {
 
                 switch ($Action) {
                     'New' { $Obj.Name = 'Child folder created'; $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."; break }
-                    'Fix' { $Obj.Name = 'Child folder created'; $Obj.Description = 'The missing folders underneath the parent folder have been created.'; break }
+                    'Fix' { $Obj.Type = 'Fixed'; $Obj.Name = 'Child folder created'; $Obj.Description = 'The missing folders underneath the parent folder have been created.'; break }
                     'Check' { $Obj.Name = 'Child folder missing'; $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."; break }
                     default { throw "Action '$_' is not supported." }
                 }
@@ -1989,7 +1996,43 @@ process {
                     $telemetry['MatrixFoldersIncorrect']++
                     $pathRow['MatrixFoldersIncorrect']++
 
-                    #region Log Incorrect ACL
+                    #region Set corrected ACL
+                    <# Runs BEFORE the logging below so that 'Action=Fix' only
+                    ever logs paths whose ACL was really rewritten: a failing
+                    write throws out of this loop and the path is left out of
+                    the 'Fixed' list entirely. #>
+                    if ($Action -ne 'Check') {
+                        Write-Verbose 'Set correct ACL'
+
+                        if ($accessDenied) { [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators') }
+
+                        $newAcl = [System.Security.AccessControl.DirectorySecurity]::new()
+                        $newAcl.SetOwner($builtinAdmin)
+                        $newAcl.SetAccessRuleProtection($true, $false)
+                        foreach ($rule in $folder.FolderAcl.Access) { $newAcl.AddAccessRule($rule) }
+
+                        $tsWrite = [System.Diagnostics.Stopwatch]::GetTimestamp()
+
+                        try {
+                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
+                        }
+                        catch [System.UnauthorizedAccessException] {
+                            [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators')
+                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
+                        }
+
+                        $writeTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsWrite
+
+                        $telemetry['MatrixFolderWrites']++
+                        $telemetry['MatrixFolderWriteTicks'] += $writeTicks
+                        $pathRow['MatrixFolderWrites']++
+                        $pathRow['MatrixFolderWriteTicks'] += $writeTicks
+
+                        Write-Verbose 'ACL corrected'
+                    }
+                    #endregion
+
+                    #region Log Incorrect ACL ('Check') or corrected ACL ('Fix')
                     if ($Action -ne 'New') {
                         if ($DetailedLog) {
                             # Split the multi-line AccessToString into one array
@@ -2026,49 +2069,26 @@ process {
                         }
                     }
                     #endregion
-
-                    #region Set corrected ACL
-                    if ($Action -ne 'Check') {
-                        Write-Verbose 'Set correct ACL'
-
-                        if ($accessDenied) { [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators') }
-
-                        $newAcl = [System.Security.AccessControl.DirectorySecurity]::new()
-                        $newAcl.SetOwner($builtinAdmin)
-                        $newAcl.SetAccessRuleProtection($true, $false)
-                        foreach ($rule in $folder.FolderAcl.Access) { $newAcl.AddAccessRule($rule) }
-
-                        $tsWrite = [System.Diagnostics.Stopwatch]::GetTimestamp()
-
-                        try {
-                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
-                        }
-                        catch [System.UnauthorizedAccessException] {
-                            [TokenManipulator]::SetOwner($folder.Path, 'BUILTIN\Administrators')
-                            [System.IO.FileSystemAclExtensions]::SetAccessControl($dirInfo, $newAcl)
-                        }
-
-                        $writeTicks = [System.Diagnostics.Stopwatch]::GetTimestamp() - $tsWrite
-
-                        $telemetry['MatrixFolderWrites']++
-                        $telemetry['MatrixFolderWriteTicks'] += $writeTicks
-                        $pathRow['MatrixFolderWrites']++
-                        $pathRow['MatrixFolderWriteTicks'] += $writeTicks
-
-                        Write-Verbose 'ACL corrected'
-                    }
-                    #endregion
                 }
             }
             catch { throw "Failed checking/setting the permissions on non inherited folder '$($folder.Path)': $_" }
         }
 
         if ($incorrectAclNonInheritedFolders.Count -ne 0) {
+            <# The Name is deliberately identical for 'Check' and 'Fix': it is
+            the grouping key of the issue report, so the same finding must keep
+            the same label across runs. The Type is what says whether the run
+            left the problem in place ('Warning') or corrected it ('Fixed'). #>
             [PSCustomObject]@{
                 DateTime    = Get-Date
-                Type        = 'Warning'
+                Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Warning' }
                 Name        = 'Non inherited folder incorrect permissions'
-                Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
+                Description = if ($Action -eq 'Fix') {
+                    "The folders that have permissions defined in the worksheet 'Permissions' did not match the permissions found on the folders of the remote machine and have been corrected."
+                }
+                else {
+                    "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
+                }
                 Value       = if ($DetailedLog) { $incorrectAclNonInheritedFolders } else { $incorrectAclNonInheritedFolders.ToArray() }
             }
         }
@@ -2279,9 +2299,14 @@ process {
                 if ($IncorrectInheritedAcl.Count -ne 0) {
                     [PSCustomObject]@{
                         DateTime    = Get-Date
-                        Type        = 'Warning'
+                        Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Warning' }
                         Name        = 'Inherited permissions incorrect'
-                        Description = "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
+                        Description = if ($Action -eq 'Fix') {
+                            "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions. These folders and files did not comply and have been reset to inherited permissions."
+                        }
+                        else {
+                            "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
+                        }
                         Value       = if ($DetailedLog) { $IncorrectInheritedAcl } else { $IncorrectInheritedAcl.ToArray() }
                     }
                 }

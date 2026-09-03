@@ -71,8 +71,7 @@ function Get-MailSubjectHC {
         Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 1
 
         Returns '1 matrix, 1 error, 4 warnings'.
-    #>
-    [CmdletBinding()]
+    #>    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
         $SystemErrors,
@@ -98,11 +97,13 @@ function Get-MailSubjectHC {
     # No system errors: embed matrix counts + warnings/errors
     $err = $Counter.TotalErrors
     $warn = $Counter.TotalWarnings
+    $fixed = $Counter.TotalFixed
 
     $errPart = if ($err -gt 0) { ", $err error$(if ($err -ne 1) {'s'})" } else { '' }
     $warnPart = if ($warn -gt 0) { ", $warn warning$(if ($warn -ne 1) {'s'})" } else { '' }
+    $fixedPart = if ($fixed -gt 0) { ", $fixed fixed" } else { '' }
 
-    return "$MatrixCount matrix$matrixPlural$errPart$warnPart$cSuffix"
+    return "$MatrixCount matrix$matrixPlural$errPart$warnPart$fixedPart$cSuffix"
 }
 
 function Send-MailKitMessageHC {

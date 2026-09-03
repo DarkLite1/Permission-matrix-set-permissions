@@ -119,7 +119,7 @@ $parser = {
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 
     # The words used in the report pills; the icon glyphs are filtered by shape.
-    $script:TypeWords = @('ERROR', 'WARNING', 'INFORMATION', 'INFO')
+    $script:TypeWords = @('ERROR', 'WARNING', 'FIXED', 'INFORMATION', 'INFO')
 
     # Placeholder for issues that belong to the run rather than to a matrix file.
     # Scope lives here so that Type can stay a clean Error / Warning / Information:
@@ -169,11 +169,12 @@ $parser = {
     }
 
     function Get-IssueType {
-        <# The pill text of a problem row -> Error / Warning / Information. #>
+        <# The pill text of a problem row -> Error / Warning / Fixed / Information. #>
         param([string] $Raw)
         $r = (Get-CleanText $Raw).ToUpperInvariant()
         if ($r -like 'ERR*') { return 'Error' }
         if ($r -like 'WARN*') { return 'Warning' }
+        if ($r -like 'FIX*') { return 'Fixed' }
         if ($r -like 'INFO*') { return 'Information' }
         return 'Unknown'
     }
@@ -372,7 +373,7 @@ $parser = {
         # report of that run, so the only per matrix file timing is the clock value in
         # each settings card - summed here into the processing time of this matrix file
         $work = [timespan]::Zero
-        $counts = @{ Error = 0; Warning = 0; Information = 0; Unknown = 0 }
+        $counts = @{ Error = 0; Warning = 0; Fixed = 0; Information = 0; Unknown = 0 }
 
         $markers = [regex]::Matches($body, 'class="rr-(settings-head|check-row)"')
         for ($i = 0; $i -lt $markers.Count; $i++) {
@@ -414,7 +415,7 @@ $parser = {
             }
 
             # ---- problem row ---------------------------------------------
-            $pill = [regex]::Match($chunk, '>\s*(ERROR|WARNING|INFORMATION|INFO)\s*<')
+            $pill = [regex]::Match($chunk, '>\s*(ERROR|WARNING|FIXED|INFORMATION|INFO)\s*<')
             if ($pill.Success) {
                 $type = Get-IssueType $pill.Groups[1].Value
                 # cut at the '<' that opens the pill so its own tag cannot leak text
@@ -872,6 +873,7 @@ if (Test-Path -LiteralPath $OutputFile -PathType Leaf) {
 $navy = [System.Drawing.Color]::FromArgb(31, 56, 100)
 $redBg = [System.Drawing.Color]::FromArgb(252, 228, 228)
 $amber = [System.Drawing.Color]::FromArgb(255, 243, 208)
+$green = [System.Drawing.Color]::FromArgb(220, 252, 231)
 $grey = [System.Drawing.Color]::FromArgb(242, 242, 242)
 $white = [System.Drawing.Color]::White
 $linkBlue = [System.Drawing.Color]::FromArgb(5, 99, 193)
@@ -907,7 +909,8 @@ function Set-ColumnWidths {
 }
 
 function Set-RowFills {
-    <# One fill per row: red for errors, amber for warnings, grey for the rest. #>
+    <# One fill per row: red for errors, amber for warnings, green for corrected
+       permissions, grey for the rest. #>
     param($Worksheet, [object[]] $Rows, [string] $LastColumn, [switch] $GreyRemainder)
     for ($i = 0; $i -lt $Rows.Count; $i++) {
         $row = $i + 2
@@ -915,6 +918,7 @@ function Set-RowFills {
         $cells.Style.Fill.PatternType = $script:solid
         $color = if ($Rows[$i].Type -eq 'Error') { $script:redBg }
         elseif ($Rows[$i].Type -eq 'Warning') { $script:amber }
+        elseif ($Rows[$i].Type -eq 'Fixed') { $script:green }
         else { $script:grey }
         $cells.Style.Fill.BackgroundColor.SetColor($color)
     }

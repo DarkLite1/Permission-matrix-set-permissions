@@ -249,6 +249,26 @@ Describe 'Get-MailSubjectHC' {
 
             $result | Should-Be $Expected
         }
+
+        It 'reports corrected permissions for <Fixed> fixed: <Expected>' -TestCases @(
+            @{ Errors = 0; Warnings = 0; Fixed = 0; Expected = '1 matrix' }
+            @{ Errors = 0; Warnings = 0; Fixed = 1; Expected = '1 matrix, 1 fixed' }
+            @{ Errors = 0; Warnings = 0; Fixed = 5; Expected = '1 matrix, 5 fixed' }
+            @{ Errors = 1; Warnings = 2; Fixed = 3; Expected = '1 matrix, 1 error, 2 warnings, 3 fixed' }
+        ) {
+            param($Errors, $Warnings, $Fixed, $Expected)
+
+            $counter = [PSCustomObject]@{
+                TotalErrors   = $Errors
+                TotalWarnings = $Warnings
+                TotalFixed    = $Fixed
+            }
+
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+                -Counter $counter -MatrixCount 1
+
+            $result | Should-Be $Expected
+        }
     }
 }
 
