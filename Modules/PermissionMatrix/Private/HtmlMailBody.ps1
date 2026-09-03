@@ -361,11 +361,13 @@ function Build-SettingsRowHC {
     elseif ($warn -gt 0) {
         $pillText = 'Warning'; $pillBg = $Script:Theme.AccentWarning
     }
-    elseif ($fixed -gt 0) {
-        $pillText = 'Fixed'; $pillBg = $Script:Theme.AccentSuccess
-    }
+    # Skipped outranks Fixed: the accent bar is already grey, so a green 'Fixed'
+    # pill next to it would claim a success the row never had.
     elseif ($isSkipped) {
         $pillText = 'Skipped'; $pillBg = $Script:Theme.AccentSkipped
+    }
+    elseif ($fixed -gt 0) {
+        $pillText = 'Fixed'; $pillBg = $Script:Theme.AccentSuccess
     }
 
     # Table-based card so Outlook Classic (Word rendering engine, which has no

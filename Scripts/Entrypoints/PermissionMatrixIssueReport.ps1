@@ -176,7 +176,9 @@ $parser = {
            permission drift was reported as a Warning. Old logs therefore keep
            saying Warning, which is why the Runs and Settings sheets count the
            two together (see below) - only then is the trend comparable across
-           the cut-over. #>
+           the cut-over. 'Fixed' gets its own column there instead: it is not
+           an outstanding issue, but the same non-zero count every night means
+           the tree never converges. #>
         param([string] $Raw)
         $r = (Get-CleanText $Raw).ToUpperInvariant()
         if ($r -like 'ERR*') { return 'Error' }
@@ -326,6 +328,7 @@ $parser = {
             StartTime      = $StartTime
             Errors         = 0
             Warnings       = 0
+            Fixed          = 0
             Information    = 0
             LogFormat      = $LogFormat
             LogFile        = $LogFile
@@ -474,6 +477,10 @@ $parser = {
                     # cut-over date would look like the problem disappeared.
                     'Incorrect' { $current.Warnings++ }
                     'Warning' { $current.Warnings++ }
+                    # Kept apart from the warnings: a correction is an outcome,
+                    # not an outstanding issue, but a tree that keeps being
+                    # corrected every night is the signal worth spotting.
+                    'Fixed' { $current.Fixed++ }
                     'Information' { $current.Information++ }
                 }
             }
@@ -493,6 +500,7 @@ $parser = {
             Settings       = $settingCount
             Errors         = $counts['Error']
             Warnings       = $counts['Warning'] + $counts['Incorrect']
+            Fixed          = $counts['Fixed']
             Information    = $counts['Information']
             Duration       = $work
             StartTime      = $startTime
@@ -630,6 +638,8 @@ $parser = {
             Settings       = $settingFiles.Count
             Errors         = $errors
             Warnings       = $warnings
+            # Logs of this vintage have no 'Fixed' pill at all.
+            Fixed          = 0
             Information    = $information
             Duration       = $work
             StartTime      = $runStart
@@ -733,7 +743,7 @@ $parser = {
                 $runs.Add([pscustomobject] @{
                         RunFolder = $RunFolder; RunType = (Get-RunType $RunFolder)
                         MatrixFileName = "$($matrixDir.Name).xlsx"; Status = 'no log'
-                        Settings = 0; Errors = 0; Warnings = 0; Information = 0
+                        Settings = 0; Errors = 0; Warnings = 0; Fixed = 0; Information = 0
                         Duration = [timespan]::Zero
                         StartTime = (Get-RunFolderDate $RunFolder); EndTime = $null
                         LogFormat = 'none'; LogFile = ''
@@ -836,6 +846,7 @@ $runLevelIssues = @($allIssues | Where-Object MatrixFileName -EQ $script:RunLeve
 $countError = @($matrixIssues | Where-Object Type -EQ 'Error').Count
 $countIncorrect = @($matrixIssues | Where-Object Type -EQ 'Incorrect').Count
 $countWarning = @($matrixIssues | Where-Object Type -EQ 'Warning').Count
+$countFixed = @($matrixIssues | Where-Object Type -EQ 'Fixed').Count
 $countRunError = @($runLevelIssues | Where-Object Type -EQ 'Error').Count
 $countRunWarning = @($runLevelIssues | Where-Object Type -EQ 'Warning').Count
 $countInformation = @($allIssues | Where-Object Type -EQ 'Information').Count
@@ -846,8 +857,8 @@ Write-Host ('Matrix file runs : {0}   (new format {1}, old format {2}, no log {3
     @($runs | Where-Object LogFormat -EQ 'old').Count,
     $foldersWithoutLog,
     $stopwatch.Elapsed.TotalSeconds)
-Write-Host ('Errors {0} (+{1} run level)   Incorrect {2}   Warnings {3} (+{4} run level)   Information {5}' -f
-    $countError, $countRunError, $countIncorrect, $countWarning, $countRunWarning, $countInformation)
+Write-Host ('Errors {0} (+{1} run level)   Incorrect {2}   Warnings {3} (+{4} run level)   Fixed {5}   Information {6}' -f
+    $countError, $countRunError, $countIncorrect, $countWarning, $countRunWarning, $countFixed, $countInformation)
 
 if ($CsvFolder) {
     if (-not (Test-Path -LiteralPath $CsvFolder -PathType Container)) {
@@ -1157,11 +1168,13 @@ $null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:E$($row - 1)" -Name
 Set-ColumnWidths -Worksheet $ws -Widths @(56, 12, 12, 12, 12, 20)
 
 # ---- sheet: per matrix file run data (feeds the performance sheet) --------
+# 'Fixed' sits after 'Information' on purpose: the performance formulas below
+# address Errors/Warnings by column letter, so new columns go at the end.
 $runsSheet = 'Runs (per matrix file)'
 $runRows = $runs |
 Select-Object RunFolder, RunType, MatrixFileName, Status, Settings,
 @{ Name = 'Duration'; Expression = { $_.Duration.TotalDays } },
-StartTime, EndTime, Errors, Warnings, Information, LogFormat, LogFile
+StartTime, EndTime, Errors, Warnings, Information, Fixed, LogFormat, LogFile
 
 $pkg = $runRows | Export-Excel -ExcelPackage $pkg -WorksheetName $runsSheet `
     -TableName 'tblRuns' -TableStyle None -FreezeTopRow -PassThru
@@ -1169,8 +1182,8 @@ $pkg = $runRows | Export-Excel -ExcelPackage $pkg -WorksheetName $runsSheet `
 $wsRuns = $pkg.Workbook.Worksheets[$runsSheet]
 $wsRuns.Cells.Style.Font.Name = 'Arial'
 $wsRuns.Cells.Style.Font.Size = 10
-Set-HeaderStyle -Worksheet $wsRuns -Range 'A1:M1'
-Set-ColumnWidths -Worksheet $wsRuns -Widths @(34, 13, 42, 22, 9, 11, 19, 19, 8, 10, 12, 11, 80)
+Set-HeaderStyle -Worksheet $wsRuns -Range 'A1:N1'
+Set-ColumnWidths -Worksheet $wsRuns -Widths @(34, 13, 42, 22, 9, 11, 19, 19, 8, 10, 12, 8, 11, 80)
 $wsRuns.Column(6).Style.Numberformat.Format = $durationFormat
 $wsRuns.Column(7).Style.Numberformat.Format = $dateFormat
 $wsRuns.Column(8).Style.Numberformat.Format = $dateFormat
@@ -1178,9 +1191,12 @@ $wsRuns.Column(8).Style.Numberformat.Format = $dateFormat
 # only the rows that had a problem get a colour, so the sheet stays readable
 for ($i = 0; $i -lt $runs.Count; $i++) {
     $row = $i + 2
-    $color = if ($runs[$i].Errors -gt 0) { $redBg } elseif ($runs[$i].Warnings -gt 0) { $amber } else { $null }
+    $color = if ($runs[$i].Errors -gt 0) { $redBg }
+    elseif ($runs[$i].Warnings -gt 0) { $amber }
+    elseif ($runs[$i].Fixed -gt 0) { $green }
+    else { $null }
     if ($color) {
-        $cells = $wsRuns.Cells["A$row" + ":M$row"]
+        $cells = $wsRuns.Cells["A$row" + ":N$row"]
         $cells.Style.Fill.PatternType = $solid
         $cells.Style.Fill.BackgroundColor.SetColor($color)
     }
@@ -1291,7 +1307,7 @@ $settingsSheet = 'Settings (per run)'
 $settingSheetRows = $settingRows |
 Select-Object RunFolder, RunType, MatrixFileName, SettingId, ComputerName, Path, Site, Action,
 @{ Name = 'Duration'; Expression = { $_.Duration.TotalDays } },
-StartTime, Errors, Warnings, Information, LogFormat, LogFile
+StartTime, Errors, Warnings, Information, Fixed, LogFormat, LogFile
 
 $pkg = $settingSheetRows | Export-Excel -ExcelPackage $pkg -WorksheetName $settingsSheet `
     -TableName 'tblSettings' -TableStyle None -FreezeTopRow -PassThru
@@ -1299,16 +1315,19 @@ $pkg = $settingSheetRows | Export-Excel -ExcelPackage $pkg -WorksheetName $setti
 $wsSettings = $pkg.Workbook.Worksheets[$settingsSheet]
 $wsSettings.Cells.Style.Font.Name = 'Arial'
 $wsSettings.Cells.Style.Font.Size = 10
-Set-HeaderStyle -Worksheet $wsSettings -Range 'A1:O1'
-Set-ColumnWidths -Worksheet $wsSettings -Widths @(34, 13, 42, 38, 18, 46, 16, 10, 11, 19, 8, 10, 12, 11, 80)
+Set-HeaderStyle -Worksheet $wsSettings -Range 'A1:P1'
+Set-ColumnWidths -Worksheet $wsSettings -Widths @(34, 13, 42, 38, 18, 46, 16, 10, 11, 19, 8, 10, 12, 8, 11, 80)
 $wsSettings.Column(9).Style.Numberformat.Format = $durationFormat
 $wsSettings.Column(10).Style.Numberformat.Format = $dateFormat
 
 for ($i = 0; $i -lt $settingRows.Count; $i++) {
-    $color = if ($settingRows[$i].Errors -gt 0) { $redBg } elseif ($settingRows[$i].Warnings -gt 0) { $amber } else { $null }
+    $color = if ($settingRows[$i].Errors -gt 0) { $redBg }
+    elseif ($settingRows[$i].Warnings -gt 0) { $amber }
+    elseif ($settingRows[$i].Fixed -gt 0) { $green }
+    else { $null }
     if ($color) {
         $row = $i + 2
-        $cells = $wsSettings.Cells["A$row" + ":O$row"]
+        $cells = $wsSettings.Cells["A$row" + ":P$row"]
         $cells.Style.Fill.PatternType = $solid
         $cells.Style.Fill.BackgroundColor.SetColor($color)
     }

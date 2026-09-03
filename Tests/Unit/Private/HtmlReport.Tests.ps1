@@ -354,6 +354,38 @@ Describe 'Build-MatrixDetailCardHC' {
         $html | Should-NotMatchString '>Skipped</span>'
     }
 
+    It 'uses the incorrect accent for a row with an Incorrect check' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Incorrect'; Name = 'drift'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString '#ea580c'
+        $html | Should-MatchString 'INCORRECT'
+        $html | Should-MatchString 'drift'
+    }
+
+    It 'lets Incorrect outrank Warning on the card accent' {
+        # Both check rows keep their own colour, so assert on the card accent
+        # (the 8px-radius wrapper) rather than on the colour appearing at all.
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+            [pscustomobject]@{ Type = 'Incorrect'; Name = 'i'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString 'border-left:3px solid #ea580c; border-radius:8px'
+        $html | Should-NotMatchString 'border-left:3px solid #d97706; border-radius:8px'
+    }
+
+    It 'keeps a Fixed-only row green and renders it in full mode' {
+        $item = New-DetailMatrix -Check @(
+            [pscustomobject]@{ Type = 'Fixed'; Name = 'corrected'; Description = 'd' }
+        )
+        $html = Build-MatrixDetailCardHC -MatrixItem $item
+        $html | Should-MatchString '#16a34a'
+        $html | Should-MatchString 'FIXED'
+        $html | Should-MatchString 'corrected'
+    }
+
     It 'renders check rows in full mode when the row has only Information checks' {
         # Regression: these rows used to fall through to the compact
         # header-only card, so the overview showed the small 'i' but the

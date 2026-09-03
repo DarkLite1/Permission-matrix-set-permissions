@@ -281,3 +281,45 @@ Describe 'set Access Based Enumeration' {
         }
     }
 }
+Describe "when Action is 'Check'" {
+    BeforeAll {
+        # Its own share: the shares above are corrected by the tests before it.
+        $testCheckShare = @{
+            Name = 'testShare3'
+            Path = (New-Item -Path 'TestDrive:\s4' -ItemType Directory).FullName
+        }
+
+        New-SmbShare -Name $testCheckShare.Name -Path $testCheckShare.Path `
+            -FolderEnumerationMode 'Unrestricted'
+
+        Mock Set-SmbShare
+        Mock Revoke-SmbShareAccess
+        Mock Grant-SmbShareAccess
+
+        $actual = .$testScript -Path $testCheckShare.Path -Flag $true -Action 'Check'
+    }
+    AfterAll {
+        Remove-SmbShare -Name 'testShare3' -Force -EA Ignore
+    }
+    It 'the smb share is left untouched' {
+        Should-NotInvoke Set-SmbShare -Scope Describe
+        Should-NotInvoke Revoke-SmbShareAccess -Scope Describe
+        Should-NotInvoke Grant-SmbShareAccess -Scope Describe
+    }
+    It "the Access Based Enumeration deviation is reported as 'Incorrect'" {
+        $testAbe = $actual | Where-Object Name -EQ 'Access Based Enumeration'
+
+        $testAbe.Type | Should-Be 'Incorrect'
+        $testAbe.Description |
+        Should-MatchString "not corrected because the action is 'Check'"
+        $testAbe.Value[$testCheckShare.Name] | Should-Be $testCheckShare.Path
+    }
+    It "the share permission deviation is reported as 'Incorrect'" {
+        $testPermissions = $actual | Where-Object Name -EQ 'Share permissions'
+
+        $testPermissions.Type | Should-Be 'Incorrect'
+        $testPermissions.Description |
+        Should-MatchString "not corrected because the action is 'Check'"
+        $testPermissions.Value[$testCheckShare.Name] | Should-BeTruthy
+    }
+}

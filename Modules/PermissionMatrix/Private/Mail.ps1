@@ -63,14 +63,17 @@ function Get-MailSubjectHC {
 
     .NOTES
         System errors take priority: when SystemErrors holds any items the
-        per-matrix error and warning counts are NOT reported, even if Counter
-        holds non-zero totals.
+        per-matrix counts are NOT reported, even if Counter holds non-zero
+        totals. Without them the parts follow the severity order errors,
+        incorrect, warnings, fixed, and each is omitted when zero.
 
     .EXAMPLE
-        $counter = [PSCustomObject]@{ TotalErrors = 1; TotalWarnings = 4 }
+        $counter = [PSCustomObject]@{
+            TotalErrors = 1; TotalIncorrect = 2; TotalWarnings = 4; TotalFixed = 3
+        }
         Get-MailSubjectHC -SystemErrors @() -Counter $counter -MatrixCount 1
 
-        Returns '1 matrix, 1 error, 4 warnings'.
+        Returns '1 matrix, 1 error, 2 incorrect, 4 warnings, 3 fixed'.
     #>    [CmdletBinding()]
     param(
         [Parameter(Mandatory)]

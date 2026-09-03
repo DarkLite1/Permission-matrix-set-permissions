@@ -206,7 +206,7 @@ function Get-MatrixFileNameHC {
 }
 
 function Format-IssueCountLabelHC {
-    param([int]$Errors, [int]$Incorrect = 0, [int]$Warnings, [int]$Fixed = 0)
+    param([int]$Errors = 0, [int]$Incorrect = 0, [int]$Warnings = 0, [int]$Fixed = 0)
     $parts = @()
     if ($Errors -gt 0) {
         $parts += "$Errors Error" + $(if ($Errors -ne 1) { 's' })

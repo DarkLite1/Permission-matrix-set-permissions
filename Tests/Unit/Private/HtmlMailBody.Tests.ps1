@@ -150,6 +150,30 @@ Describe 'Build-SettingsRowHC' {
         $html | Should-MatchString '#d97706'
     }
 
+    It 'shows an Incorrect pill when the row has an Incorrect check' {
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Incorrect' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+        $html | Should-MatchString '>Incorrect</span>'
+        $html | Should-MatchString '#ea580c'
+    }
+
+    It 'shows a Fixed pill on a green row when the run corrected the drift' {
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Fixed' })
+        $html = Build-SettingsRowHC -MatrixItem $item
+        $html | Should-MatchString '>Fixed</span>'
+        $html | Should-MatchString '#16a34a'
+    }
+
+    It 'lets Incorrect outrank Warning on the same row' {
+        $item = New-MatrixItem -Check @(
+            [pscustomobject]@{ Type = 'Warning' }
+            [pscustomobject]@{ Type = 'Incorrect' }
+        )
+        $html = Build-SettingsRowHC -MatrixItem $item
+        $html | Should-MatchString '>Incorrect</span>'
+        $html | Should-NotMatchString '>Warning</span>'
+    }
+
     It 'uses the success accent and no status pill for a clean row' {
         $html = Build-SettingsRowHC -MatrixItem (New-MatrixItem)
         $html | Should-MatchString '#16a34a'
@@ -256,6 +280,16 @@ Describe 'Build-SettingsRowHC' {
         $html = Build-SettingsRowHC -MatrixItem $item -FileHasError $true
         $html | Should-MatchString '>Error</span>'
         $html | Should-NotMatchString '>Skipped</span>'
+    }
+
+    It 'shows Skipped rather than Fixed when the file has a fatal error' {
+        # The accent bar is grey here, so a green 'Fixed' pill beside it would
+        # claim a success this row never had.
+        $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Fixed' })
+        $html = Build-SettingsRowHC -MatrixItem $item -FileHasError $true
+        $html | Should-MatchString '>Skipped</span>'
+        $html | Should-NotMatchString '>Fixed</span>'
+        $html | Should-MatchString '#6b7280'
     }
 
     It 'middle-aligns the Outlook row chrome with exact line heights' {
@@ -684,6 +718,67 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             Get-RenderedCardOrderText -Html $out |
             Should-Be 'Errored.xlsx > Warned.xlsx > Clean.xlsx'
+        }
+
+        It 'ranks incorrect cards between the errors and the warnings' {
+            $files = @(
+                New-FileResult -Name 'Clean.xlsx'
+                New-FileResult -Name 'Warned.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+                New-FileResult -Name 'Drifted.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Incorrect'; Name = 'i'; Description = 'd' }
+                )
+                New-FileResult -Name 'Errored.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out |
+            Should-Be 'Errored.xlsx > Drifted.xlsx > Warned.xlsx > Clean.xlsx'
+        }
+
+        It 'does not promote a card that only has Fixed checks' {
+            # A corrected permission is an outcome, not an outstanding issue.
+            $files = @(
+                New-FileResult -Name 'aClean.xlsx'
+                New-FileResult -Name 'zFixed.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Fixed'; Name = 'f'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'aClean.xlsx > zFixed.xlsx'
+        }
+
+        It 'gives an incorrect-only card the orange header and its own glyph' {
+            $files = @(
+                New-FileResult -Name 'Drifted.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Incorrect'; Name = 'i'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should-MatchString '#ea580c'
+            $out | Should-MatchString '≠'
+            $out | Should-MatchString '1 Incorrect'
+        }
+
+        It 'gives a fixed-only card the success header' {
+            $files = @(
+                New-FileResult -Name 'Corrected.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Fixed'; Name = 'f'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should-MatchString '✓'
+            $out | Should-MatchString '1 Fixed'
         }
 
         It 'sorts alphabetically within each severity group' {

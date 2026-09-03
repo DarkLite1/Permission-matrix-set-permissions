@@ -168,6 +168,12 @@ function Invoke-PermissionMatrixProcessHC {
             [PSCustomObject]@{
                 ComputerName = $group.Name
                 PathsToCheck = @($group.Group.Setting.Formatted.Path)
+                <# One computer can serve several matrices, so it is only
+                audit-only when not a single one of them may change anything. #>
+                Action       = if (
+                    @($group.Group.Setting.Formatted.Action |
+                        Where-Object { $_ -ne 'Check' }).Count -eq 0
+                ) { 'Check' } else { 'Fix' }
             }
         }
 
@@ -191,7 +197,7 @@ function Invoke-PermissionMatrixProcessHC {
                 try {
                     $result = Invoke-Command `
                         -FilePath $scriptPaths.TestRequirements `
-                        -ArgumentList $dto.PathsToCheck, $true `
+                        -ArgumentList $dto.PathsToCheck, $true, $dto.Action `
                         -ConfigurationName $sessionConfig `
                         -ComputerName $dto.ComputerName `
                         -SessionOption $sessionOption `

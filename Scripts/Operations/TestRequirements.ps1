@@ -14,7 +14,7 @@
         and .NET Framework 4.6.2+ for long-path support).
 
         Additionally, it audits any SMB shares matching the provided paths. If 
-        discrepancies are found, it automatically corrects them by:
+        discrepancies are found, it corrects them (unless Action is 'Check') by:
         1. Toggling Access-Based Enumeration (ABE) to the desired state.
         2. Resetting the SMB Share Permissions to a standardized baseline 
         (defaulting to Administrators:Full, Authenticated Users:Change). 
@@ -33,6 +33,12 @@
         - $true  : ABE is enabled (Users only see files/folders they have 
         permission to access).
         - $false : ABE is disabled (Unrestricted enumeration).
+
+    .PARAMETER Action
+        Mirrors the matrix Settings action.
+        - 'Check'      : audit only, the SMB layer is never modified and every
+        deviation is reported as 'Incorrect'.
+        - 'Fix' / 'New': deviations are corrected and reported as 'Fixed'.
 
     .PARAMETER RequiredSharePermissions
         An array of hashtables defining the exact baseline permissions required 
@@ -57,6 +63,9 @@ param (
     
     [Parameter(Mandatory)]
     [Boolean]$Flag,
+    
+    [ValidateSet('Check', 'Fix', 'New')]
+    [String]$Action = 'Fix',
     
     [HashTable[]]$RequiredSharePermissions = @(
         @{
@@ -140,6 +149,8 @@ $uniquePaths = $Path | Sort-Object -Unique
 $abeCorrected = [ordered]@{}
 $permissionsCorrected = [ordered]@{}
 
+$isCheckOnly = $Action -eq 'Check'
+
 # Target enumeration mode depends only on $Flag, so resolve it once. This also
 # guarantees the value is available in the catch block below, even when a
 # failure occurs before the share is processed.
@@ -158,9 +169,11 @@ foreach ($p in $uniquePaths) {
             $isAbeEnabled = ($share.FolderEnumerationMode -eq 'AccessBased') -or ($share.FolderEnumerationMode -eq 0)
             
             if ($isAbeEnabled -ne $Flag) {
-                Write-Verbose "Set FolderEnumerationMode to '$abeMode'"
+                if (-not $isCheckOnly) {
+                    Write-Verbose "Set FolderEnumerationMode to '$abeMode'"
 
-                Set-SmbShare -Name $share.Name -FolderEnumerationMode $abeMode -ErrorAction Stop -Force
+                    Set-SmbShare -Name $share.Name -FolderEnumerationMode $abeMode -ErrorAction Stop -Force
+                }
 
                 # Use index assignment to prevent duplicate key errors
                 $abeCorrected[$share.Name] = $share.Path
@@ -209,24 +222,31 @@ foreach ($p in $uniquePaths) {
             # If the share doesn't have the EXACT match of required permissions, rebuild it
             if (($RequiredSharePermissions.Count -ne $smbShareAccess.Count) -or ($RequiredSharePermissions.Count -ne $correctPermissionsCount)) {
                 
+                # Captured before anything is revoked, so a 'Check' run reports
+                # the same 'what we found' map a 'Fix' run does.
                 $incorrectPermissions = [ordered]@{}
 
-                # Revoke all existing permissions
                 $smbSharePermissions.ForEach({
-                        Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
                         $incorrectPermissions[$_.AccountName] = [String]$_.AccessRight
-                        $null = Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction Stop -Force
                     })
 
                 $permissionsCorrected[$share.Name] = $incorrectPermissions
 
-                # Grant the exact required baseline permissions
-                $RequiredSharePermissions.ForEach({
-                        Write-Verbose "Add correct smb share permission '$($_.AccountName): $($_.AccessRight)'"
+                if (-not $isCheckOnly) {
+                    # Revoke all existing permissions
+                    $smbSharePermissions.ForEach({
+                            Write-Verbose "Remove incorrect smb share permission '$($_.AccountName):$($_.AccessRight)'"
+                            $null = Revoke-SmbShareAccess -Name $share.Name -AccountName $_.AccountName -ErrorAction Stop -Force
+                        })
+
+                    # Grant the exact required baseline permissions
+                    $RequiredSharePermissions.ForEach({
+                            Write-Verbose "Add correct smb share permission '$($_.AccountName): $($_.AccessRight)'"
                     
-                        $grantParams = $_
-                        $null = Grant-SmbShareAccess -Name $share.Name @grantParams -ErrorAction Stop -Force
-                    })
+                            $grantParams = $_
+                            $null = Grant-SmbShareAccess -Name $share.Name @grantParams -ErrorAction Stop -Force
+                        })
+                }
             }
         }
         catch {
@@ -238,11 +258,19 @@ foreach ($p in $uniquePaths) {
 #endregion
 
 #region Return Result Objects
+<# The Name is deliberately identical for both actions: it is the grouping key
+of the issue report. The Type says whether the run left the deviation in place
+('Incorrect') or corrected it ('Fixed'). #>
 if ($abeCorrected.Count -gt 0) {
     [PSCustomObject]@{
-        Type        = 'Fixed'
+        Type        = if ($isCheckOnly) { 'Incorrect' } else { 'Fixed' }
         Name        = 'Access Based Enumeration'
-        Description = "Access Based Enumeration should be set to '$Flag'. This will hide files and folders where the users don't have access to. We fixed this now."
+        Description = if ($isCheckOnly) {
+            "Access Based Enumeration should be set to '$Flag'. This will hide files and folders where the users don't have access to. It was not corrected because the action is 'Check'."
+        }
+        else {
+            "Access Based Enumeration should be set to '$Flag'. This will hide files and folders where the users don't have access to. We fixed this now."
+        }
         Value       = $abeCorrected
     }
 }
@@ -251,9 +279,14 @@ if ($permissionsCorrected.Count -gt 0) {
     $requiredString = ($RequiredSharePermissions.ForEach({ "'$($_.AccountName): $($_.AccessRight)'" })) -join ', '
     
     [PSCustomObject]@{
-        Type        = 'Fixed'
+        Type        = if ($isCheckOnly) { 'Incorrect' } else { 'Fixed' }
         Name        = 'Share permissions'
-        Description = "The share permissions are now set to $requiredString. The effective permissions are managed on NTFS level."
+        Description = if ($isCheckOnly) {
+            "The share permissions should be set to $requiredString. The effective permissions are managed on NTFS level. They were not corrected because the action is 'Check'."
+        }
+        else {
+            "The share permissions are now set to $requiredString. The effective permissions are managed on NTFS level."
+        }
         Value       = $permissionsCorrected
     }
 }

@@ -12,7 +12,21 @@ By reading a centralized Excel-based matrix and a simple JSON configuration file
 - **Automated Notifications**: Built-in SMTP support (via MailKit/MimeKit) keeps your team updated via email.
 - **ServiceNow & SharePoint Integration**: Syncs with ServiceNow for role management and optionally uploads HTML reports directly to a SharePoint Online document library.
 - **Automated Access Reviews**: A standalone, read-only audit tool e-mails folder owners their current access for periodic sign-off—without changing a single permission.
-- **Centralized Log Analysis**: Consolidate past run logs into a single, sortable Excel workbook to quickly spot errors, warnings, and processing bottlenecks.
+- **Centralized Log Analysis**: Consolidate past run logs into a single, sortable Excel workbook to quickly spot errors, incorrect permissions, corrections, and processing bottlenecks.
+
+## 🏷️ Check types
+
+Every finding carries one of five types, which drive the pill, the colour, the counters and the mail subject.
+
+| Type | Meaning | Colour |
+| --- | --- | --- |
+| `FatalError` | The run could not do its job. | Red |
+| `Incorrect` | Disk does not match the matrix and nothing was changed (`Action` is `Check`). | Orange |
+| `Warning` | An operational problem that is not permission drift, such as an ACL that could not be read. | Amber |
+| `Fixed` | Drift that this run corrected (`Action` is `Fix` or `New`). | Green |
+| `Information` | A notice only. Never colours a card and never promotes it in the overview. | Grey |
+
+`Incorrect` and `Fixed` are the same finding under a different action, so the check `Name` is identical in both. That name is the grouping key of the issue report, which is also why runs from before 2026-09 - where drift was reported as a `Warning` - keep counting `Incorrect` together with `Warning` in its trend sheets.
 
 ## 🧩 Entrypoints
 
@@ -32,7 +46,7 @@ Everything begins in the **[`Scripts/Entrypoints`](Scripts/Entrypoints)**. There
 
 ### 3. `PermissionMatrixIssueReport.ps1` (Log Analysis)
 
-- **What it does**: A reporting tool that reads the log folders of previous runs and builds a single Excel overview of errors, warnings, and durations. Needs no configuration file and doesn't load the main module.
+- **What it does**: A reporting tool that reads the log folders of previous runs and builds a single Excel overview of errors, incorrect permissions, corrections, and durations. Needs no configuration file and doesn't load the main module.
 - **Driven by**: `-LogRoot` and `-OutputFile`
 - **Typical schedule**: Ad hoc, or weekly.
 
