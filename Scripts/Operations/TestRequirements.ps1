@@ -240,7 +240,7 @@ foreach ($p in $uniquePaths) {
 #region Return Result Objects
 if ($abeCorrected.Count -gt 0) {
     [PSCustomObject]@{
-        Type        = 'Warning'
+        Type        = 'Fixed'
         Name        = 'Access Based Enumeration'
         Description = "Access Based Enumeration should be set to '$Flag'. This will hide files and folders where the users don't have access to. We fixed this now."
         Value       = $abeCorrected
@@ -251,7 +251,7 @@ if ($permissionsCorrected.Count -gt 0) {
     $requiredString = ($RequiredSharePermissions.ForEach({ "'$($_.AccountName): $($_.AccessRight)'" })) -join ', '
     
     [PSCustomObject]@{
-        Type        = 'Warning'
+        Type        = 'Fixed'
         Name        = 'Share permissions'
         Description = "The share permissions are now set to $requiredString. The effective permissions are managed on NTFS level."
         Value       = $permissionsCorrected

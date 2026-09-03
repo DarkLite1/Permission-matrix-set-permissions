@@ -191,13 +191,14 @@ function New-CounterObjectHC {
     param()
 
     return [PSCustomObject]@{
-        TotalErrors   = 0
-        TotalWarnings = 0
-        TotalFixed    = 0
-        FormData      = [PSCustomObject]@{ Errors = 0; Warnings = 0; Fixed = 0 }
-        Permissions   = [PSCustomObject]@{ Errors = 0; Warnings = 0; Fixed = 0 }
-        Settings      = [PSCustomObject]@{ Errors = 0; Warnings = 0; Fixed = 0 }
-        File          = [PSCustomObject]@{ Errors = 0; Warnings = 0; Fixed = 0 }
+        TotalErrors    = 0
+        TotalIncorrect = 0
+        TotalWarnings  = 0
+        TotalFixed     = 0
+        FormData       = [PSCustomObject]@{ Errors = 0; Incorrect = 0; Warnings = 0; Fixed = 0 }
+        Permissions    = [PSCustomObject]@{ Errors = 0; Incorrect = 0; Warnings = 0; Fixed = 0 }
+        Settings       = [PSCustomObject]@{ Errors = 0; Incorrect = 0; Warnings = 0; Fixed = 0 }
+        File           = [PSCustomObject]@{ Errors = 0; Incorrect = 0; Warnings = 0; Fixed = 0 }
     }
 }
 
@@ -238,20 +239,24 @@ function Update-MatrixCounterHC {
     if ($Context.FileResults) {
         foreach ($fileResult in $Context.FileResults) {
             $Context.Counter.File.Errors += & $countByType $fileResult.Check 'FatalError'
+            $Context.Counter.File.Incorrect += & $countByType $fileResult.Check 'Incorrect'
             $Context.Counter.File.Warnings += & $countByType $fileResult.Check 'Warning'
             $Context.Counter.File.Fixed += & $countByType $fileResult.Check 'Fixed'
 
             $Context.Counter.FormData.Errors += & $countByType $fileResult.Sheets.FormData.Check 'FatalError'
+            $Context.Counter.FormData.Incorrect += & $countByType $fileResult.Sheets.FormData.Check 'Incorrect'
             $Context.Counter.FormData.Warnings += & $countByType $fileResult.Sheets.FormData.Check 'Warning'
             $Context.Counter.FormData.Fixed += & $countByType $fileResult.Sheets.FormData.Check 'Fixed'
 
             $Context.Counter.Permissions.Errors += & $countByType $fileResult.Sheets.Permissions.Check 'FatalError'
+            $Context.Counter.Permissions.Incorrect += & $countByType $fileResult.Sheets.Permissions.Check 'Incorrect'
             $Context.Counter.Permissions.Warnings += & $countByType $fileResult.Sheets.Permissions.Check 'Warning'
             $Context.Counter.Permissions.Fixed += & $countByType $fileResult.Sheets.Permissions.Check 'Fixed'
 
             if ($fileResult.Matrices) {
                 foreach ($m in $fileResult.Matrices) {
                     $Context.Counter.Settings.Errors += & $countByType $m.Check 'FatalError'
+                    $Context.Counter.Settings.Incorrect += & $countByType $m.Check 'Incorrect'
                     $Context.Counter.Settings.Warnings += & $countByType $m.Check 'Warning'
                     $Context.Counter.Settings.Fixed += & $countByType $m.Check 'Fixed'
                 }
@@ -276,8 +281,14 @@ function Update-MatrixCounterHC {
     $Context.Counter.Settings.Warnings +
     $systemWarnCount
 
-    <# System errors have no 'Fixed' equivalent: Add-ErrorHC only ever records
-    'FatalError' or 'Warning'. #>
+    <# System errors have no 'Incorrect' or 'Fixed' equivalent: Add-ErrorHC
+    only ever records 'FatalError' or 'Warning'. #>
+    $Context.Counter.TotalIncorrect =
+    $Context.Counter.File.Incorrect +
+    $Context.Counter.FormData.Incorrect +
+    $Context.Counter.Permissions.Incorrect +
+    $Context.Counter.Settings.Incorrect
+
     $Context.Counter.TotalFixed =
     $Context.Counter.File.Fixed +
     $Context.Counter.FormData.Fixed +

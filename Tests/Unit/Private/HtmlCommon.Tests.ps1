@@ -101,9 +101,23 @@ Describe 'Get-FileCheckTallyHC' {
         $tally.Errors | Should-Be 0
     }
 
+    It 'counts Incorrect checks apart from warnings' {
+        $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult -MatrixCheck @(
+                [pscustomobject]@{ Type = 'Incorrect'; Name = 'i1' }
+                [pscustomobject]@{ Type = 'Incorrect'; Name = 'i2' }
+                [pscustomobject]@{ Type = 'Incorrect'; Name = 'i3' }
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+            ))
+        $tally.Incorrect | Should-Be 3
+        $tally.Warnings | Should-Be 1
+        $tally.Errors | Should-Be 0
+        $tally.Fixed | Should-Be 0
+    }
+
     It 'returns zeroes for a file result with no checks' {
         $tally = Get-FileCheckTallyHC -FileResult (New-TallyFileResult)
         $tally.Errors | Should-Be 0
+        $tally.Incorrect | Should-Be 0
         $tally.Warnings | Should-Be 0
         $tally.Fixed | Should-Be 0
     }
@@ -111,8 +125,54 @@ Describe 'Get-FileCheckTallyHC' {
     It 'returns zeroes for a null file result' {
         $tally = Get-FileCheckTallyHC -FileResult $null
         $tally.Errors | Should-Be 0
+        $tally.Incorrect | Should-Be 0
         $tally.Warnings | Should-Be 0
         $tally.Fixed | Should-Be 0
+    }
+}
+
+Describe "the check type 'Incorrect'" {
+    It 'is themed orange with its own INCORRECT label' {
+        $theme = Get-CheckThemeHC 'Incorrect'
+
+        $theme.Label | Should-Be 'INCORRECT'
+        $theme.Accent | Should-Be '#ea580c'
+        $theme.Bg | Should-Be '#ffedd5'
+    }
+
+    It 'is visually distinct from a warning' {
+        $incorrect = Get-CheckThemeHC 'Incorrect'
+        $warning = Get-CheckThemeHC 'Warning'
+
+        $incorrect.Accent | Should-NotBe $warning.Accent
+        $incorrect.Label | Should-NotBe $warning.Label
+        $incorrect.Symbol | Should-NotBe $warning.Symbol
+    }
+
+    It 'is not rendered as an informational notice' {
+        $html = Build-FileLevelCheckRowHC -Check ([pscustomobject]@{
+                Type        = 'Incorrect'
+                Name        = 'Non inherited folder incorrect permissions'
+                Description = 'do not match'
+            }) -SheetLabel 'Excel File'
+
+        $html | Should-MatchString 'INCORRECT'
+        $html | Should-MatchString '#ea580c'
+        $html | Should-NotMatchString '&#8505;'
+    }
+
+    It 'is listed before warnings in the issue label' {
+        Format-IssueCountLabelHC -Errors 1 -Incorrect 2 -Warnings 3 -Fixed 4 |
+        Should-Be '1 Error, 2 Incorrect, 3 Warnings, 4 Fixed'
+    }
+
+    It 'gets its own pill in the banner' {
+        $html = Build-ErrorWarningTableHC -CounterData ([pscustomobject]@{
+                TotalErrors = 0; TotalIncorrect = 2; TotalWarnings = 0; TotalFixed = 0
+            })
+
+        $html | Should-MatchString 'Detected issues'
+        $html | Should-MatchString '2 Incorrect'
     }
 }
 
@@ -154,7 +214,7 @@ Describe "the check type 'Fixed'" {
 
     It "banners the count under 'Corrected' when there are no errors or warnings" {
         $html = Build-ErrorWarningTableHC -CounterData ([pscustomobject]@{
-                TotalErrors = 0; TotalWarnings = 0; TotalFixed = 2
+                TotalErrors = 0; TotalIncorrect = 0; TotalWarnings = 0; TotalFixed = 2
             })
 
         $html | Should-MatchString 'Corrected'
@@ -164,7 +224,7 @@ Describe "the check type 'Fixed'" {
 
     It "keeps the 'Detected issues' heading when errors or warnings remain" {
         $html = Build-ErrorWarningTableHC -CounterData ([pscustomobject]@{
-                TotalErrors = 0; TotalWarnings = 1; TotalFixed = 2
+                TotalErrors = 0; TotalIncorrect = 0; TotalWarnings = 1; TotalFixed = 2
             })
 
         $html | Should-MatchString 'Detected issues'

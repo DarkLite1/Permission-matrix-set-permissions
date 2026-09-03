@@ -28,14 +28,14 @@ BeforeAll {
     #endregion
 
     $ExpectedIncorrectAclNonInheritedFolders = [PSCustomObject]@{
-        Type        = 'Warning'
+        Type        = 'Incorrect'
         Name        = 'Non inherited folder incorrect permissions'
         Description = "The folders that have permissions defined in the worksheet 'Permissions' are not matching with the permissions found on the folders of the remote machine."
         Value       = $null
     }
 
     $ExpectedIncorrectAclInheritedFolders = [PSCustomObject]@{
-        Type        = 'Warning'
+        Type        = 'Incorrect'
         Name        = 'Inherited permissions incorrect'
         Description = "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions."
         Value       = $null
@@ -1829,7 +1829,7 @@ Describe 'when Action is' {
                 Test-Path -LiteralPath ($testParams.Path + '\FolderA') | Should-BeTrue
                 Test-Path -LiteralPath ($testParams.Path + '\FolderB\FolderC') | Should-BeTrue
             }
-            It 'are registered in a Warning object' {
+            It 'are registered in an Information object' {
                 $testParams = @{
                     Path             = $testParentFolder
                     Action           = 'New'
@@ -1843,7 +1843,7 @@ Describe 'when Action is' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -Like '*child folder*'
 
-                $Actual.Type | Should-Be 'Warning'
+                $Actual.Type | Should-Be 'Information' -Because 'creating the folder structure is what Action New is for'
                 $Actual.Name | Should-Be 'Child folder created'
 
                 @(
@@ -2556,7 +2556,7 @@ Describe 'when Action is' {
                 Test-Path -LiteralPath ($testParams.Path + '\' + $testParams.Matrix[1].Path) | Should-BeFalse
                 Test-Path -LiteralPath ($testParams.Path + '\' + $testParams.Matrix[2].Path) | Should-BeFalse
             }
-            It 'are registered in a Warning object' {
+            It 'are registered in an Incorrect object' {
                 $testParams = @{
                     Path             = $testParentFolder
                     Action           = 'Check'
@@ -2571,7 +2571,7 @@ Describe 'when Action is' {
 
                 $Actual = .$testScript @testParams | Where-Object Name -Like '*child folder*'
 
-                $Actual.Type | Should-Be 'Warning'
+                $Actual.Type | Should-Be 'Incorrect'
                 $Actual.Name | Should-Be 'Child folder missing'
                 $Actual.Value[0] | Should-Be "$($testParams.Path)\FolderA"
                 $Actual.Value[1] | Should-Be "$($testParams.Path)\FolderB\FolderC"
@@ -2678,7 +2678,7 @@ Describe 'when Action is' {
                         $Actual | Should-Be $Expected
                     }
                 }
-                Context 'are registered in a Warning object when' {
+                Context 'are registered in an Incorrect object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
                             Path             = $testParentFolder
@@ -2792,7 +2792,7 @@ Describe 'when Action is' {
                         $Actual | Should-Be $Expected
                     }
                 }
-                Context 'are registered in a Warning object when' {
+                Context 'are registered in an Incorrect object when' {
                     It 'DetailedLog is False only the folder name is saved' {
                         $testParams = @{
                             Path             = $testParentFolder
@@ -2947,10 +2947,10 @@ Describe 'when Action is' {
                     $a | Should-Be $b
                 }
             }
-            Context 'are registered in a Warning object when' {
+            Context 'are registered in an Incorrect object when' {
                 BeforeAll {
                     $Expected = [PSCustomObject]@{
-                        Type = 'Warning'
+                        Type = 'Incorrect'
                         Name = 'Inherited permissions incorrect'
                     }
                 }
@@ -3233,7 +3233,7 @@ Describe "the check type 'Fixed'" {
         $Actual | Where-Object Type -EQ 'Fixed' | Should-BeFalsy
 
         @($Actual | Where-Object Name -EQ 'Non inherited folder incorrect permissions').Type |
-        Should-Be 'Warning' -Because 'Check reports what it found but changed nothing'
+        Should-Be 'Incorrect' -Because 'Check reports what it found but changed nothing'
     }
 
     It "is used when Action is 'Fix' and the permissions were really corrected" {
@@ -3302,6 +3302,96 @@ Describe "the check type 'Fixed'" {
         $scriptText = Get-Content -LiteralPath $testScript -Raw
 
         $scriptText | Should-MatchString "Runs BEFORE the logging below"
+    }
+}
+Describe "the check type 'Incorrect'" {
+    BeforeEach {
+        Remove-Item $testParentFolder -Recurse -Force -EA Ignore
+    }
+
+    BeforeAll {
+        $script:newTestParams = {
+            @{
+                Path             = $testParentFolder
+                JobThrottleLimit = 2
+                Matrix           = @(
+                    [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser = 'L' }; Parent = $true }
+                    [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser2 = 'R' } }
+                )
+            }
+        }
+
+        $script:driftedMatrix = {
+            @(
+                [PSCustomObject]@{Path = 'Path'; ACL = @{$testUser2 = 'R' }; Parent = $true }
+                [PSCustomObject]@{Path = 'FolderA'; ACL = @{$testUser = 'L' } }
+            )
+        }
+    }
+
+    It "is used when Action is 'Check' and the permissions do not match the matrix" {
+        $testParams = & $newTestParams
+        $testParams.Action = 'New'
+        .$testScript @testParams
+
+        $testParams = & $newTestParams
+        $testParams.Action = 'Check'
+        $testParams.Matrix = & $driftedMatrix
+
+        $Actual = .$testScript @testParams |
+        Where-Object Name -EQ 'Non inherited folder incorrect permissions'
+
+        $Actual.Type | Should-Be 'Incorrect'
+
+        # Check must not touch the disk: the drifted ACL is still there.
+        $acl = (Get-Acl -LiteralPath "$testParentFolder\FolderA").Access
+        $acl.IdentityReference | Should-ContainCollection "$env:USERDOMAIN\$testUser2"
+    }
+
+    It "is not used when Action is 'Fix': the same finding becomes 'Fixed'" {
+        $testParams = & $newTestParams
+        $testParams.Action = 'New'
+        .$testScript @testParams
+
+        $testParams = & $newTestParams
+        $testParams.Action = 'Fix'
+        $testParams.Matrix = & $driftedMatrix
+
+        $Actual = .$testScript @testParams
+
+        $Actual | Where-Object Type -EQ 'Incorrect' | Should-BeFalsy
+        @($Actual | Where-Object Type -EQ 'Fixed').Count | Should-BeGreaterThan 0
+    }
+
+    It "is not used when Action is 'New'" {
+        $testParams = & $newTestParams
+        $testParams.Action = 'New'
+
+        $Actual = .$testScript @testParams
+
+        $Actual | Where-Object Type -EQ 'Incorrect' | Should-BeFalsy
+    }
+
+    It "is not used when Action is 'Check' and everything matches the matrix" {
+        $testParams = & $newTestParams
+        $testParams.Action = 'New'
+        .$testScript @testParams
+
+        $testParams = & $newTestParams
+        $testParams.Action = 'Check'
+
+        $Actual = .$testScript @testParams
+
+        $Actual | Where-Object Type -EQ 'Incorrect' | Should-BeFalsy
+    }
+
+    It "is not used for problems the run could not verify, which stay a 'Warning'" {
+        <# An unreadable ACL is not drift: the item was never compared. The
+        generic ACL-read failure cannot be triggered behaviorally (see the
+        Get-FolderContentHC block below), so this is guarded on the source. #>
+        $scriptText = Get-Content -LiteralPath $testScript -Raw
+
+        $scriptText | Should-MatchString "Type        = 'Warning'\s+Name        = 'ACL could not be read'"
     }
 }
 Describe 'when ACL keys are SIDs (cross-domain support)' {

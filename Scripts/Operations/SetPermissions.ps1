@@ -1894,16 +1894,16 @@ process {
             if ($missingFolders.Count -ne 0) {
                 $Obj = [PSCustomObject]@{
                     DateTime    = Get-Date
-                    Type        = 'Warning'
+                    Type        = $null
                     Name        = $null
                     Description = $null
                     Value       = $missingFolders.ToArray()
                 }
 
                 switch ($Action) {
-                    'New' { $Obj.Name = 'Child folder created'; $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."; break }
+                    'New' { $Obj.Type = 'Information'; $Obj.Name = 'Child folder created'; $Obj.Description = "All folders defined in the worksheet 'Permissions' have been created with the correct permissions underneath the parent folder defined in the worksheet 'Settings'."; break }
                     'Fix' { $Obj.Type = 'Fixed'; $Obj.Name = 'Child folder created'; $Obj.Description = 'The missing folders underneath the parent folder have been created.'; break }
-                    'Check' { $Obj.Name = 'Child folder missing'; $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."; break }
+                    'Check' { $Obj.Type = 'Incorrect'; $Obj.Name = 'Child folder missing'; $Obj.Description = "Not all folders defined in the worksheet 'Permissions' were found underneath the parent folder."; break }
                     default { throw "Action '$_' is not supported." }
                 }
 
@@ -2078,10 +2078,10 @@ process {
             <# The Name is deliberately identical for 'Check' and 'Fix': it is
             the grouping key of the issue report, so the same finding must keep
             the same label across runs. The Type is what says whether the run
-            left the problem in place ('Warning') or corrected it ('Fixed'). #>
+            left the problem in place ('Incorrect') or corrected it ('Fixed'). #>
             [PSCustomObject]@{
                 DateTime    = Get-Date
-                Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Warning' }
+                Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Incorrect' }
                 Name        = 'Non inherited folder incorrect permissions'
                 Description = if ($Action -eq 'Fix') {
                     "The folders that have permissions defined in the worksheet 'Permissions' did not match the permissions found on the folders of the remote machine and have been corrected."
@@ -2299,7 +2299,7 @@ process {
                 if ($IncorrectInheritedAcl.Count -ne 0) {
                     [PSCustomObject]@{
                         DateTime    = Get-Date
-                        Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Warning' }
+                        Type        = if ($Action -eq 'Fix') { 'Fixed' } else { 'Incorrect' }
                         Name        = 'Inherited permissions incorrect'
                         Description = if ($Action -eq 'Fix') {
                             "All folders that don't have permissions assigned to them in the worksheet 'Permissions' are supposed to inherit their permissions from the parent folder. Files can only inherit permissions from the parent folder and are not allowed to have explicit permissions. These folders and files did not comply and have been reset to inherited permissions."

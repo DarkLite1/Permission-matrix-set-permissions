@@ -178,27 +178,31 @@ function Build-MatrixDetailCardHC {
 
     # Determine card status
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
+    $incorrect = @($MatrixItem.Check | Where-Object Type -EQ 'Incorrect').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
     $fixed = @($MatrixItem.Check | Where-Object Type -EQ 'Fixed').Count
 
-    # Notices that are neither errors, warnings nor fixes — Type 'Information',
+    # Notices that carry none of the four verdicts above — Type 'Information',
     # and any unknown/future type. Counted with the same rule
     # Build-SettingsRowHC uses for the overview's small blue 'i', so the two
     # views agree: if the overview shows an 'i' for a matrix, opening its
     # execution report must show the matching notice cards.
     $info = @($MatrixItem.Check | Where-Object {
-            $_.Type -notin @('FatalError', 'Warning', 'Fixed')
+            $_.Type -notin @('FatalError', 'Incorrect', 'Warning', 'Fixed')
         }).Count
 
     # Render the full card whenever the row carries ANY check. Info notices
     # used to be excluded here, so a row whose only checks were informational
     # fell through to the compact header-only card and its notices were
     # silently dropped — visible only in the log folder's JSON detail files.
-    $hasChecks = ($err + $warn + $fixed + $info) -gt 0
+    $hasChecks = ($err + $incorrect + $warn + $fixed + $info) -gt 0
 
     $isSkipped = $false
     if ($err -gt 0) {
         $accent = $Script:Theme.AccentError
+    }
+    elseif ($incorrect -gt 0) {
+        $accent = $Script:Theme.AccentIncorrect
     }
     elseif ($warn -gt 0) {
         $accent = $Script:Theme.AccentWarning
@@ -211,7 +215,7 @@ function Build-MatrixDetailCardHC {
         # A row whose only finding is 'Fixed' is green: the run resolved it.
         $accent = $Script:Theme.AccentSuccess
     }
-    $statusLabel = Format-IssueCountLabelHC -Errors $err -Warnings $warn -Fixed $fixed
+    $statusLabel = Format-IssueCountLabelHC -Errors $err -Incorrect $incorrect -Warnings $warn -Fixed $fixed
 
     # Extract & encode row values
     $idFull = Get-StringOrDefaultHC $MatrixItem.ID 'N/A'
@@ -496,12 +500,17 @@ function Write-MatrixExecutionReportHC {
     # header and the overview card agree on a file's status.
     $tally = Get-FileCheckTallyHC -FileResult $FileResult
     $fileErrs = $tally.Errors
+    $fileIncorrect = $tally.Incorrect
     $fileWarns = $tally.Warnings
     $fileFixed = $tally.Fixed
 
     if ($fileErrs -gt 0) {
         $hdrSymbol = '✖'
         $gradFrom, $gradTo = $Script:Theme.GradError
+    }
+    elseif ($fileIncorrect -gt 0) {
+        $hdrSymbol = '≠'
+        $gradFrom, $gradTo = $Script:Theme.GradIncorrect
     }
     elseif ($fileWarns -gt 0) {
         $hdrSymbol = '⚠'
@@ -512,7 +521,7 @@ function Write-MatrixExecutionReportHC {
         $gradFrom, $gradTo = $Script:Theme.GradSuccess
     }
 
-    $hdrLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns -Fixed $fileFixed
+    $hdrLabel = Format-IssueCountLabelHC -Errors $fileErrs -Incorrect $fileIncorrect -Warnings $fileWarns -Fixed $fileFixed
 
     # ---- File Issues block: render each file-level check as a detailed card ----
     $fileIssuesHtml = ''

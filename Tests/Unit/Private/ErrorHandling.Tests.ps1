@@ -315,4 +315,38 @@ Describe 'Update-MatrixCounterHC' {
         $result.TotalWarnings | Should-Be 1
         $result.TotalErrors | Should-Be 0
     }
+
+    It "counts 'Incorrect' checks separately from warnings" {
+        $script:errors.Add([PSCustomObject]@{ Type = 'Warning' })
+
+        $context = [PSCustomObject]@{
+            Counter     = $null
+            FileResults = @(
+                [PSCustomObject]@{
+                    Check    = @()
+                    Sheets   = [PSCustomObject]@{
+                        FormData    = [PSCustomObject]@{ Check = @() }
+                        Permissions = [PSCustomObject]@{ Check = @() }
+                    }
+                    Matrices = @(
+                        [PSCustomObject]@{
+                            Check = @(
+                                [PSCustomObject]@{ Type = 'Incorrect' }
+                                [PSCustomObject]@{ Type = 'Incorrect' }
+                                [PSCustomObject]@{ Type = 'Incorrect' }
+                                [PSCustomObject]@{ Type = 'Warning' }
+                            )
+                        }
+                    )
+                }
+            )
+        }
+
+        $result = Update-MatrixCounterHC -Context $context -SystemErrors ([ref]$script:errors)
+
+        $result.Settings.Incorrect | Should-Be 3
+        $result.TotalIncorrect | Should-Be 3
+        $result.TotalWarnings | Should-Be 2 -Because 'one matrix warning plus one system warning'
+        $result.TotalErrors | Should-Be 0
+    }
 }

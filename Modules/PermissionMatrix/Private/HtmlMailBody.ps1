@@ -256,10 +256,11 @@ function Build-SettingsRowHC {
     )
 
     $err = @($MatrixItem.Check | Where-Object Type -EQ 'FatalError').Count
+    $incorrect = @($MatrixItem.Check | Where-Object Type -EQ 'Incorrect').Count
     $warn = @($MatrixItem.Check | Where-Object Type -EQ 'Warning').Count
     $fixed = @($MatrixItem.Check | Where-Object Type -EQ 'Fixed').Count
 
-    # Notices that are neither errors, warnings nor fixes — Type 'Information',
+    # Notices that carry none of the four verdicts above — Type 'Information',
     # and any unknown/future type, matching how Build-FileLevelCheckRowHC
     # decides what is "info". These live on the MATRIX (this row), not on the
     # matrix FILE, so they never reach the file-level tallies that colour the
@@ -268,7 +269,7 @@ function Build-SettingsRowHC {
     # completely clean in the overview and the only trace of it was in the
     # execution report.
     $infoCount = @($MatrixItem.Check | Where-Object {
-            $_.Type -notin @('FatalError', 'Warning', 'Fixed')
+            $_.Type -notin @('FatalError', 'Incorrect', 'Warning', 'Fixed')
         }).Count
 
     # Determine row status — a row's own error/warning wins; otherwise a
@@ -277,6 +278,9 @@ function Build-SettingsRowHC {
     $isSkipped = $false
     if ($err -gt 0) {
         $accent = $Script:Theme.AccentError
+    }
+    elseif ($incorrect -gt 0) {
+        $accent = $Script:Theme.AccentIncorrect
     }
     elseif ($warn -gt 0) {
         $accent = $Script:Theme.AccentWarning
@@ -350,6 +354,9 @@ function Build-SettingsRowHC {
     $pillBg = $null
     if ($err -gt 0) {
         $pillText = 'Error'; $pillBg = $Script:Theme.AccentError
+    }
+    elseif ($incorrect -gt 0) {
+        $pillText = 'Incorrect'; $pillBg = $Script:Theme.AccentIncorrect
     }
     elseif ($warn -gt 0) {
         $pillText = 'Warning'; $pillBg = $Script:Theme.AccentWarning
@@ -576,12 +583,17 @@ function Build-MatrixFileCardHC {
     # always tell the same story.
     $tally = Get-FileCheckTallyHC -FileResult $FileContext
     $fileErrs = $tally.Errors
+    $fileIncorrect = $tally.Incorrect
     $fileWarns = $tally.Warnings
     $fileFixed = $tally.Fixed
 
     if ($fileErrs -gt 0) {
         $headerSymbol = '✖'
         $gradFrom, $gradTo = $Script:Theme.GradError
+    }
+    elseif ($fileIncorrect -gt 0) {
+        $headerSymbol = '≠'
+        $gradFrom, $gradTo = $Script:Theme.GradIncorrect
     }
     elseif ($fileWarns -gt 0) {
         $headerSymbol = '⚠'
@@ -616,7 +628,7 @@ function Build-MatrixFileCardHC {
     }
     catch { $gradMid = $gradTo }
 
-    $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Warnings $fileWarns -Fixed $fileFixed
+    $headerLabel = Format-IssueCountLabelHC -Errors $fileErrs -Incorrect $fileIncorrect -Warnings $fileWarns -Fixed $fileFixed
     $headerLabelHtml = "<span style=`"font-size:12px; font-weight:700; color:#e5e7eb; text-transform:uppercase; letter-spacing:0.5px;`">$headerLabel</span>"
 
     # ---- Body content: file-level issues + settings table ----
@@ -752,15 +764,17 @@ function Build-MatrixEmailHtmlHC {
 
     <#
      Order the cards so the ones needing attention are reachable without
-     scrolling: files with an ERROR first, then files with a WARNING, then
-     everything else — each of those three groups sorted alphabetically by
-     matrix file name (the same string the gradient header shows and links).
+     scrolling: files with an ERROR first, then files with INCORRECT
+     permissions, then files with a WARNING, then everything else — each of
+     those groups sorted alphabetically by matrix file name (the same string
+     the gradient header shows and links).
 
-     Rank 0/1/2 is computed from Get-FileCheckTallyHC, the exact tally that
-     colours the header, so the run of red cards, then amber, then green
-     matches the sequence a reader sees. Informational notices deliberately
-     do NOT promote a card: they are notices, not issues, so an info-only
-     matrix stays in the alphabetical run with the other clean files.
+     The rank is computed from Get-FileCheckTallyHC, the exact tally that
+     colours the header, so the run of red cards, then orange, then amber,
+     then green matches the sequence a reader sees. Informational notices and
+     corrected permissions deliberately do NOT promote a card: neither is an
+     outstanding issue, so those files stay in the alphabetical run with the
+     other clean files.
 
      Sort-Object is stable and the name is the second key, so ties inside a
      rank resolve alphabetically and the whole output is deterministic.
@@ -779,8 +793,9 @@ function Build-MatrixEmailHtmlHC {
             $tally = Get-FileCheckTallyHC -FileResult $_
 
             if ($tally.Errors -gt 0) { 0 }
-            elseif ($tally.Warnings -gt 0) { 1 }
-            else { 2 }
+            elseif ($tally.Incorrect -gt 0) { 1 }
+            elseif ($tally.Warnings -gt 0) { 2 }
+            else { 3 }
         }
     }, @{
         Expression = { Get-MatrixFileNameHC -FileResult $_ }

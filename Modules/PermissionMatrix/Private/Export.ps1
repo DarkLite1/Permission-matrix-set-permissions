@@ -61,6 +61,9 @@ function Build-ExportDataHC {
                     Errors     = @(
                         $matrixObj.Check |
                         Where-Object { $_.Type -eq 'FatalError' }).Count
+                    Incorrect  = @(
+                        $matrixObj.Check |
+                        Where-Object { $_.Type -eq 'Incorrect' }).Count
                     Warnings   = @(
                         $matrixObj.Check |
                         Where-Object { $_.Type -eq 'Warning' }).Count

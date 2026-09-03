@@ -119,7 +119,7 @@ $parser = {
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
 
     # The words used in the report pills; the icon glyphs are filtered by shape.
-    $script:TypeWords = @('ERROR', 'WARNING', 'FIXED', 'INFORMATION', 'INFO')
+    $script:TypeWords = @('ERROR', 'INCORRECT', 'WARNING', 'FIXED', 'INFORMATION', 'INFO')
 
     # Placeholder for issues that belong to the run rather than to a matrix file.
     # Scope lives here so that Type can stay a clean Error / Warning / Information:
@@ -169,10 +169,18 @@ $parser = {
     }
 
     function Get-IssueType {
-        <# The pill text of a problem row -> Error / Warning / Fixed / Information. #>
+        <# The pill text of a problem row -> Error / Incorrect / Warning /
+           Fixed / Information.
+
+           'Incorrect' only exists in runs from 2026-09 onwards; before that,
+           permission drift was reported as a Warning. Old logs therefore keep
+           saying Warning, which is why the Runs and Settings sheets count the
+           two together (see below) - only then is the trend comparable across
+           the cut-over. #>
         param([string] $Raw)
         $r = (Get-CleanText $Raw).ToUpperInvariant()
         if ($r -like 'ERR*') { return 'Error' }
+        if ($r -like 'INCORRECT*') { return 'Incorrect' }
         if ($r -like 'WARN*') { return 'Warning' }
         if ($r -like 'FIX*') { return 'Fixed' }
         if ($r -like 'INFO*') { return 'Information' }
@@ -373,7 +381,7 @@ $parser = {
         # report of that run, so the only per matrix file timing is the clock value in
         # each settings card - summed here into the processing time of this matrix file
         $work = [timespan]::Zero
-        $counts = @{ Error = 0; Warning = 0; Fixed = 0; Information = 0; Unknown = 0 }
+        $counts = @{ Error = 0; Incorrect = 0; Warning = 0; Fixed = 0; Information = 0; Unknown = 0 }
 
         $markers = [regex]::Matches($body, 'class="rr-(settings-head|check-row)"')
         for ($i = 0; $i -lt $markers.Count; $i++) {
@@ -415,7 +423,7 @@ $parser = {
             }
 
             # ---- problem row ---------------------------------------------
-            $pill = [regex]::Match($chunk, '>\s*(ERROR|WARNING|FIXED|INFORMATION|INFO)\s*<')
+            $pill = [regex]::Match($chunk, '>\s*(ERROR|INCORRECT|WARNING|FIXED|INFORMATION|INFO)\s*<')
             if ($pill.Success) {
                 $type = Get-IssueType $pill.Groups[1].Value
                 # cut at the '<' that opens the pill so its own tag cannot leak text
@@ -460,6 +468,11 @@ $parser = {
             if ($null -ne $current) {
                 switch ($type) {
                     'Error' { $current.Errors++ }
+                    # Counted as a warning on purpose: runs before 2026-09
+                    # reported drift as a Warning, and the Runs / Settings
+                    # sheets are trend sheets. Splitting the series at the
+                    # cut-over date would look like the problem disappeared.
+                    'Incorrect' { $current.Warnings++ }
                     'Warning' { $current.Warnings++ }
                     'Information' { $current.Information++ }
                 }
@@ -479,7 +492,7 @@ $parser = {
             Status         = $status
             Settings       = $settingCount
             Errors         = $counts['Error']
-            Warnings       = $counts['Warning']
+            Warnings       = $counts['Warning'] + $counts['Incorrect']
             Information    = $counts['Information']
             Duration       = $work
             StartTime      = $startTime
@@ -812,7 +825,7 @@ $settingRows = @($settingRows | Sort-Object -Stable RunFolder, MatrixFileName, S
 
 $errorsAndWarnings = @(
     $allIssues | Where-Object { 
-        $_.Type -eq 'Error' -or $_.Type -eq 'Warning' 
+        $_.Type -eq 'Error' -or $_.Type -eq 'Incorrect' -or $_.Type -eq 'Warning' 
     }
 )
 
@@ -821,6 +834,7 @@ $matrixIssues = @($allIssues | Where-Object MatrixFileName -NE $script:RunLevelN
 $runLevelIssues = @($allIssues | Where-Object MatrixFileName -EQ $script:RunLevelName)
 
 $countError = @($matrixIssues | Where-Object Type -EQ 'Error').Count
+$countIncorrect = @($matrixIssues | Where-Object Type -EQ 'Incorrect').Count
 $countWarning = @($matrixIssues | Where-Object Type -EQ 'Warning').Count
 $countRunError = @($runLevelIssues | Where-Object Type -EQ 'Error').Count
 $countRunWarning = @($runLevelIssues | Where-Object Type -EQ 'Warning').Count
@@ -832,8 +846,8 @@ Write-Host ('Matrix file runs : {0}   (new format {1}, old format {2}, no log {3
     @($runs | Where-Object LogFormat -EQ 'old').Count,
     $foldersWithoutLog,
     $stopwatch.Elapsed.TotalSeconds)
-Write-Host ('Errors {0} (+{1} run level)   Warnings {2} (+{3} run level)   Information {4}' -f
-    $countError, $countRunError, $countWarning, $countRunWarning, $countInformation)
+Write-Host ('Errors {0} (+{1} run level)   Incorrect {2}   Warnings {3} (+{4} run level)   Information {5}' -f
+    $countError, $countRunError, $countIncorrect, $countWarning, $countRunWarning, $countInformation)
 
 if ($CsvFolder) {
     if (-not (Test-Path -LiteralPath $CsvFolder -PathType Container)) {
@@ -872,6 +886,7 @@ if (Test-Path -LiteralPath $OutputFile -PathType Leaf) {
 
 $navy = [System.Drawing.Color]::FromArgb(31, 56, 100)
 $redBg = [System.Drawing.Color]::FromArgb(252, 228, 228)
+$orange = [System.Drawing.Color]::FromArgb(255, 237, 213)
 $amber = [System.Drawing.Color]::FromArgb(255, 243, 208)
 $green = [System.Drawing.Color]::FromArgb(220, 252, 231)
 $grey = [System.Drawing.Color]::FromArgb(242, 242, 242)
@@ -909,14 +924,15 @@ function Set-ColumnWidths {
 }
 
 function Set-RowFills {
-    <# One fill per row: red for errors, amber for warnings, green for corrected
-       permissions, grey for the rest. #>
+    <# One fill per row: red for errors, orange for incorrect permissions,
+       amber for warnings, green for corrected permissions, grey for the rest. #>
     param($Worksheet, [object[]] $Rows, [string] $LastColumn, [switch] $GreyRemainder)
     for ($i = 0; $i -lt $Rows.Count; $i++) {
         $row = $i + 2
         $cells = $Worksheet.Cells["A$row" + ":$LastColumn$row"]
         $cells.Style.Fill.PatternType = $script:solid
         $color = if ($Rows[$i].Type -eq 'Error') { $script:redBg }
+        elseif ($Rows[$i].Type -eq 'Incorrect') { $script:orange }
         elseif ($Rows[$i].Type -eq 'Warning') { $script:amber }
         elseif ($Rows[$i].Type -eq 'Fixed') { $script:green }
         else { $script:grey }
@@ -1015,7 +1031,7 @@ $dtCol = "$det!`$B`$2:`$B`$$detailLast"
 $ws = $pkg.Workbook.Worksheets.Add('Summary')
 $ws.Cells.Style.Font.Name = 'Arial'
 $ws.Cells.Style.Font.Size = 10
-$ws.Cells['A1'].Value = 'Permission matrix - errors & warnings overview'
+$ws.Cells['A1'].Value = 'Permission matrix - errors, incorrect permissions & warnings overview'
 $ws.Cells['A1'].Style.Font.Bold = $true
 $ws.Cells['A1'].Style.Font.Size = 13
 $ws.Cells['A1'].Style.Font.Color.SetColor($navy)
@@ -1052,6 +1068,7 @@ $runLevel = """$script:RunLevelName"""
 $notRunLevel = """<>$script:RunLevelName"""
 foreach ($pair in @(
         @('Errors (matrix files)', "COUNTIFS($typeCol,""Error"",$matCol,$notRunLevel)"),
+        @('Incorrect permissions (matrix files)', "COUNTIFS($typeCol,""Incorrect"",$matCol,$notRunLevel)"),
         @('Warnings (matrix files)', "COUNTIFS($typeCol,""Warning"",$matCol,$notRunLevel)"),
         @('Errors (run level)', "COUNTIFS($typeCol,""Error"",$matCol,$runLevel)"),
         @('Warnings (run level)', "COUNTIFS($typeCol,""Warning"",$matCol,$runLevel)"),
@@ -1061,8 +1078,8 @@ foreach ($pair in @(
     $ws.Cells[$row, 2].Style.Font.Bold = $true
     $row++
 }
-$ws.Cells[$row, 1].Value = 'Errors + warnings (rows on sheet 1)'
-$ws.Cells[$row, 2].Formula = "COUNTIF($typeCol,""Error"")+COUNTIF($typeCol,""Warning"")"
+$ws.Cells[$row, 1].Value = 'Errors + incorrect + warnings (rows on sheet 1)'
+$ws.Cells[$row, 2].Formula = "COUNTIF($typeCol,""Error"")+COUNTIF($typeCol,""Incorrect"")+COUNTIF($typeCol,""Warning"")"
 $ws.Cells[$row, 2].Style.Font.Bold = $true
 $row++
 foreach ($pair in @(@('First issue timestamp', 'MIN'), @('Last issue timestamp', 'MAX'))) {
@@ -1078,63 +1095,66 @@ $row++
 # per matrix file
 $byMatrix = @($errorsAndWarnings | Group-Object MatrixFileName | Sort-Object Count -Descending)
 Add-BlockTitle -Worksheet $ws -Row $row `
-    -Text "Per matrix file ($($byMatrix.Count) with at least one error or warning)"
+    -Text "Per matrix file ($($byMatrix.Count) with at least one error, incorrect permission or warning)"
 $row++
 $blockHeader = $row
-Add-BlockHeader -Worksheet $ws -Row $row -Headers @('MatrixFileName', 'Errors', 'Warnings', 'Total', 'Last occurrence')
+Add-BlockHeader -Worksheet $ws -Row $row -Headers @('MatrixFileName', 'Errors', 'Incorrect', 'Warnings', 'Total', 'Last occurrence')
 $row++
 foreach ($g in $byMatrix) {
     $ws.Cells[$row, 1].Value = $g.Name
     $ws.Cells[$row, 2].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Warning"")"
-    $ws.Cells[$row, 4].Formula = "B$row+C$row"
-    $ws.Cells[$row, 4].Style.Font.Bold = $true
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Incorrect"")"
+    $ws.Cells[$row, 4].Formula = "COUNTIFS($matCol,`$A$row,$typeCol,""Warning"")"
+    $ws.Cells[$row, 5].Formula = "B$row+C$row+D$row"
+    $ws.Cells[$row, 5].Style.Font.Bold = $true
     # SUMPRODUCT keeps this a normal formula - no Ctrl+Shift+Enter needed
-    $ws.Cells[$row, 5].Formula = "SUMPRODUCT(MAX(($matCol=`$A$row)*$dtCol))"
-    $ws.Cells[$row, 5].Style.Numberformat.Format = $dateFormat
+    $ws.Cells[$row, 6].Formula = "SUMPRODUCT(MAX(($matCol=`$A$row)*$dtCol))"
+    $ws.Cells[$row, 6].Style.Numberformat.Format = $dateFormat
     # the name links to the most recent log for that matrix file
     $newest = @($g.Group | Sort-Object DateTime -Descending)[0]
     Set-CellLink -Worksheet $ws -Row $row -Column 1 -Target $newest.LogFile
     $row++
 }
-$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:E$($row - 1)" -Name 'tblSummaryPerMatrix'
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:F$($row - 1)" -Name 'tblSummaryPerMatrix'
 $row++
 
 # per issue name
 Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per issue name'
 $row++
 $blockHeader = $row
-Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Name', 'Errors', 'Warnings', 'Total')
+Add-BlockHeader -Worksheet $ws -Row $row -Headers @('Name', 'Errors', 'Incorrect', 'Warnings', 'Total')
 $row++
 foreach ($g in ($errorsAndWarnings | Group-Object Name | Sort-Object Count -Descending)) {
     $ws.Cells[$row, 1].Value = $g.Name
     $ws.Cells[$row, 2].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Warning"")"
-    $ws.Cells[$row, 4].Formula = "B$row+C$row"
-    $ws.Cells[$row, 4].Style.Font.Bold = $true
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Incorrect"")"
+    $ws.Cells[$row, 4].Formula = "COUNTIFS($nameCol,`$A$row,$typeCol,""Warning"")"
+    $ws.Cells[$row, 5].Formula = "B$row+C$row+D$row"
+    $ws.Cells[$row, 5].Style.Font.Bold = $true
     $row++
 }
-$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:D$($row - 1)" -Name 'tblSummaryPerName'
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:E$($row - 1)" -Name 'tblSummaryPerName'
 $row++
 
 # per computer
 Add-BlockTitle -Worksheet $ws -Row $row -Text 'Per computer'
 $row++
 $blockHeader = $row
-Add-BlockHeader -Worksheet $ws -Row $row -Headers @('ComputerName', 'Errors', 'Warnings', 'Total')
+Add-BlockHeader -Worksheet $ws -Row $row -Headers @('ComputerName', 'Errors', 'Incorrect', 'Warnings', 'Total')
 $row++
 foreach ($g in ($errorsAndWarnings | Group-Object ComputerName | Sort-Object Count -Descending)) {
     $label = if ([string]::IsNullOrEmpty($g.Name)) { '(no computer / file level issue)' } else { $g.Name }
     $criteria = """$($g.Name)"""
     $ws.Cells[$row, 1].Value = $label
     $ws.Cells[$row, 2].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Error"")"
-    $ws.Cells[$row, 3].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Warning"")"
-    $ws.Cells[$row, 4].Formula = "B$row+C$row"
-    $ws.Cells[$row, 4].Style.Font.Bold = $true
+    $ws.Cells[$row, 3].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Incorrect"")"
+    $ws.Cells[$row, 4].Formula = "COUNTIFS($compCol,$criteria,$typeCol,""Warning"")"
+    $ws.Cells[$row, 5].Formula = "B$row+C$row+D$row"
+    $ws.Cells[$row, 5].Style.Font.Bold = $true
     $row++
 }
-$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:D$($row - 1)" -Name 'tblSummaryPerComputer'
-Set-ColumnWidths -Worksheet $ws -Widths @(56, 12, 12, 12, 20)
+$null = Add-BlockTable -Worksheet $ws -Range "A$blockHeader`:E$($row - 1)" -Name 'tblSummaryPerComputer'
+Set-ColumnWidths -Worksheet $ws -Widths @(56, 12, 12, 12, 12, 20)
 
 # ---- sheet: per matrix file run data (feeds the performance sheet) --------
 $runsSheet = 'Runs (per matrix file)'
@@ -1419,8 +1439,9 @@ $linkBase = if ($LinkRoot) { $LinkRoot } else { $root }
 $notes = @(
     @('Generated', "$(Get-Date -Format 'dd/MM/yyyy HH:mm:ss') by $($MyInvocation.MyCommand.Name) on $env:COMPUTERNAME"),
     @('Source', "$root - $($runs.Count) matrix file runs in $($runFolders.Count) run folders"),
-    @('Sheet 1', 'One row per logged error or warning, newest first: Type says which of the two it is, Name and Description say what happened. Information level entries are not on this sheet.'),
-    @('Sheet 3', 'Same columns plus Information level entries and the full context (path, site, run folder, setting id, detail file).'),
+    @('Sheet 1', 'One row per logged error, incorrect permission or warning, newest first: Type says which of the three it is, Name and Description say what happened. Information and Fixed level entries are not on this sheet.'),
+    @('Sheet 3', 'Same columns plus Information and Fixed level entries and the full context (path, site, run folder, setting id, detail file).'),
+    @('Type', 'Error means the item could not be processed at all. Incorrect means the permissions on disk do not match the matrix and nothing was changed (Action=Check). Fixed means they did not match and the run corrected them (Action=Fix). Warning means the run could not verify or complete something, for example an ACL it could not read or an export that failed. Runs before September 2026 had no Incorrect or Fixed type and reported all of these as Warning, which is why the Runs and Settings sheets count Incorrect together with Warning - only then is the trend comparable across that cut-over.'),
     @('Links', "Blue underlined cells open the log itself: the matrix file name on sheet 1 and on the summary, and the DetailFile and LogFile columns on sheet 3. They point at $linkBase, so they keep working for anyone who can reach that path. Old format rows link to the 'ID <n> - Settings.html' of the computer concerned; new format rows link to the execution report."),
     @('Sorting', 'Every block is a real Excel table, so the header row has filter buttons and sorting a block only reorders that block. Sorting is safe: the figures are formulas that either travel with their row or match on the value in the row, and the totals elsewhere read fixed ranges, so nothing shifts when you reorder.'),
     @('Per computer and path', 'A setting is one computer plus one path, and it is the setting that carries the duration, so that sheet is the finest grain available. A matrix file can hold many settings, which is why the per computer totals do not add up to the per matrix file totals.'),

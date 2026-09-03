@@ -96,14 +96,16 @@ function Get-MailSubjectHC {
 
     # No system errors: embed matrix counts + warnings/errors
     $err = $Counter.TotalErrors
+    $incorrect = $Counter.TotalIncorrect
     $warn = $Counter.TotalWarnings
     $fixed = $Counter.TotalFixed
 
     $errPart = if ($err -gt 0) { ", $err error$(if ($err -ne 1) {'s'})" } else { '' }
+    $incorrectPart = if ($incorrect -gt 0) { ", $incorrect incorrect" } else { '' }
     $warnPart = if ($warn -gt 0) { ", $warn warning$(if ($warn -ne 1) {'s'})" } else { '' }
     $fixedPart = if ($fixed -gt 0) { ", $fixed fixed" } else { '' }
 
-    return "$MatrixCount matrix$matrixPlural$errPart$warnPart$fixedPart$cSuffix"
+    return "$MatrixCount matrix$matrixPlural$errPart$incorrectPart$warnPart$fixedPart$cSuffix"
 }
 
 function Send-MailKitMessageHC {

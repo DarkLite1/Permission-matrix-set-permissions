@@ -269,6 +269,20 @@ Describe 'Get-MailSubjectHC' {
 
             $result | Should-Be $Expected
         }
+
+        It 'lists incorrect permissions between the errors and the warnings' {
+            $counter = [PSCustomObject]@{
+                TotalErrors    = 1
+                TotalIncorrect = 2
+                TotalWarnings  = 3
+                TotalFixed     = 4
+            }
+
+            $result = Get-MailSubjectHC -SystemErrors (New-SystemErrors 0) `
+                -Counter $counter -MatrixCount 1
+
+            $result | Should-Be '1 matrix, 1 error, 2 incorrect, 3 warnings, 4 fixed'
+        }
     }
 }
 

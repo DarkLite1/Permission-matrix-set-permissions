@@ -546,6 +546,7 @@ function Invoke-PermissionMatrixEndHC {
     #region Send Summary Email
     $hasErrors = ($SystemErrors.Value.Count -gt 0 -or
         $Context.Counter.TotalErrors -gt 0 -or
+        $Context.Counter.TotalIncorrect -gt 0 -or
         $Context.Counter.TotalWarnings -gt 0)
 
     if (
@@ -656,7 +657,7 @@ function Invoke-PermissionMatrixEndHC {
             $eventData.Add(
                 [PSCustomObject]@{
                     Timestamp = (Get-Date).ToString('o')
-                    Message   = "Script execution completed with $($Context.Counter.TotalErrors) errors, $($Context.Counter.TotalWarnings) warnings and $($Context.Counter.TotalFixed) corrected permissions across $($Context.AllMatrices.Count) matrices."
+                    Message   = "Script execution completed with $($Context.Counter.TotalErrors) errors, $($Context.Counter.TotalIncorrect) incorrect permissions, $($Context.Counter.TotalWarnings) warnings and $($Context.Counter.TotalFixed) corrected permissions across $($Context.AllMatrices.Count) matrices."
                     Details   = @{
                         Counters = $Context.Counter
                         Errors   = $SystemErrors.Value

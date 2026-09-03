@@ -148,9 +148,9 @@ Describe 'when the smb share permissions are' {
             }
         }
         Context 'return an object of type' {
-            It 'Warning' {
+            It 'Fixed' {
                 $expected = [PSCustomObject]@{
-                    Type        = 'Warning'
+                    Type        = 'Fixed'
                     Name        = 'Share permissions'
                     Description = "The share permissions are now set to 'BUILTIN\Administrators: Full', 'NT AUTHORITY\Authenticated Users: Change'. The effective permissions are managed on NTFS level."
                     Value       = @{$testSmbShare[0].Name = [ordered]@{
@@ -235,9 +235,9 @@ Describe 'set Access Based Enumeration' {
                 throw 'Expected AccessBased'
             }
         }
-        It 'and return a Warning object' {
+        It 'and return a Fixed object' {
             $expected = [PSCustomObject]@{
-                Type        = 'Warning'
+                Type        = 'Fixed'
                 Name        = 'Access Based Enumeration'
                 Description = "Access Based Enumeration should be set to '$true'. This will hide files and folders where the users don't have access to. We fixed this now."
                 Value       = @{
@@ -264,9 +264,9 @@ Describe 'set Access Based Enumeration' {
                 throw 'Expected AccessBased'
             }
         }
-        It 'and return a Warning object' {
+        It 'and return a Fixed object' {
             $expected = [PSCustomObject]@{
-                Type        = 'Warning'
+                Type        = 'Fixed'
                 Name        = 'Access Based Enumeration'
                 Description = "Access Based Enumeration should be set to '$false'. This will hide files and folders where the users don't have access to. We fixed this now."
                 Value       = @{

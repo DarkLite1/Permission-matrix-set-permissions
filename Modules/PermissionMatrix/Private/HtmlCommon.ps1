@@ -21,48 +21,53 @@
 # =====================================================================
 $Script:Theme = @{
     # Status backgrounds (soft tints)
-    StatusError    = '#fee2e2'
-    StatusWarning  = '#fef3c7' # Amber tint
-    StatusSuccess  = '#dcfce7'
-    StatusSkipped  = '#f3f4f6'
+    StatusError     = '#fee2e2'
+    StatusIncorrect = '#ffedd5' # Orange tint
+    StatusWarning   = '#fef3c7' # Amber tint
+    StatusSuccess   = '#dcfce7'
+    StatusSkipped   = '#f3f4f6'
 
     # Accent colors (used for icons, pills, left borders, status dots)
-    AccentError    = '#dc2626'
-    AccentWarning  = '#d97706' # Amber
-    AccentSuccess  = '#16a34a'
-    AccentSkipped  = '#6b7280'
-    AccentInfo     = '#2563eb'
-    AccentSystem   = '#7c2d12' # Maroon for system errors
+    AccentError     = '#dc2626'
+    # Orange, deliberately hotter than the amber warning: a permission that
+    # does not match the matrix outranks an operational warning.
+    AccentIncorrect = '#ea580c'
+    AccentWarning   = '#d97706' # Amber
+    AccentSuccess   = '#16a34a'
+    AccentSkipped   = '#6b7280'
+    AccentInfo      = '#2563eb'
+    AccentSystem    = '#7c2d12' # Maroon for system errors
 
     # Gradient stops for card headers (dark, mid)
-    GradError      = @('#7f1d1d', '#dc2626')
-    GradWarning    = @('#78350f', '#d97706')
-    GradSuccess    = @('#14532d', '#16a34a')
+    GradError       = @('#7f1d1d', '#dc2626')
+    GradIncorrect   = @('#7c2d12', '#ea580c')
+    GradWarning     = @('#78350f', '#d97706')
+    GradSuccess     = @('#14532d', '#16a34a')
 
     # Text colors
-    TextMain       = '#111827'
-    TextMuted      = '#374151'
-    TextLight      = '#6b7280'
+    TextMain        = '#111827'
+    TextMuted       = '#374151'
+    TextLight       = '#6b7280'
 
     # Page and surface colors
-    BgPage         = '#e5e7eb' # Page background — slightly darker so cards pop
-    BgWhite        = '#ffffff'
-    BgAlt          = '#f9fafb' # Off-white for muted backgrounds
+    BgPage          = '#e5e7eb' # Page background — slightly darker so cards pop
+    BgWhite         = '#ffffff'
+    BgAlt           = '#f9fafb' # Off-white for muted backgrounds
 
     # Borders
-    BorderMain     = '#d1d5db'
-    BorderLight    = '#e5e7eb'
+    BorderMain      = '#d1d5db'
+    BorderLight     = '#e5e7eb'
 
     # Links
-    LinkColor      = '#2563eb'
-    LinkHoverColor = '#1d4ed8'
+    LinkColor       = '#2563eb'
+    LinkHoverColor  = '#1d4ed8'
 
     # Typography stacks
-    FontStack      = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
-    MonoStack      = "Consolas, Menlo, monospace"
+    FontStack       = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+    MonoStack       = "Consolas, Menlo, monospace"
 
     # Body width — narrow enough to coexist with inbox sidebars on small laptops
-    BodyWidth      = 620
+    BodyWidth       = 620
 }
 
 function Initialize-HtmlStructureHC {
@@ -130,9 +135,9 @@ function Initialize-HtmlStructureHC {
 function Get-FileCheckTallyHC {
     <#
         .DESCRIPTION
-            Tally the FatalError and Warning checks a matrix file carries, from
-            every place a check can live: the file itself, its 'FormData' and
-            'Permissions' sheets, and each of its matrices.
+            Tally the FatalError, Incorrect, Warning and Fixed checks a matrix
+            file carries, from every place a check can live: the file itself,
+            its 'FormData' and 'Permissions' sheets, and each of its matrices.
 
             This tally decides a card's header colour, glyph and status pill AND
             is the sort key that floats problem cards to the top of the
@@ -163,9 +168,10 @@ function Get-FileCheckTallyHC {
     }
 
     return @{
-        Errors   = @($allChecks | Where-Object Type -EQ 'FatalError').Count
-        Warnings = @($allChecks | Where-Object Type -EQ 'Warning').Count
-        Fixed    = @($allChecks | Where-Object Type -EQ 'Fixed').Count
+        Errors    = @($allChecks | Where-Object Type -EQ 'FatalError').Count
+        Incorrect = @($allChecks | Where-Object Type -EQ 'Incorrect').Count
+        Warnings  = @($allChecks | Where-Object Type -EQ 'Warning').Count
+        Fixed     = @($allChecks | Where-Object Type -EQ 'Fixed').Count
     }
 }
 
@@ -200,10 +206,13 @@ function Get-MatrixFileNameHC {
 }
 
 function Format-IssueCountLabelHC {
-    param([int]$Errors, [int]$Warnings, [int]$Fixed = 0)
+    param([int]$Errors, [int]$Incorrect = 0, [int]$Warnings, [int]$Fixed = 0)
     $parts = @()
     if ($Errors -gt 0) {
         $parts += "$Errors Error" + $(if ($Errors -ne 1) { 's' })
+    }
+    if ($Incorrect -gt 0) {
+        $parts += "$Incorrect Incorrect"
     }
     if ($Warnings -gt 0) {
         $parts += "$Warnings Warning" + $(if ($Warnings -ne 1) { 's' })
@@ -273,6 +282,16 @@ function Get-CheckThemeHC {
                 Symbol     = '✖'
                 Label      = 'ERROR'
                 BorderLeft = $Script:Theme.AccentError
+            }
+        }
+        'Incorrect' {
+            # The disk does not match the matrix and nothing was changed.
+            return @{
+                Bg         = $Script:Theme.StatusIncorrect
+                Accent     = $Script:Theme.AccentIncorrect
+                Symbol     = '≠'
+                Label      = 'INCORRECT'
+                BorderLeft = $Script:Theme.AccentIncorrect
             }
         }
         'Warning' {
@@ -365,10 +384,12 @@ function Build-ErrorWarningTableHC {
     <#
         .DESCRIPTION
             Build the global "Detected issues" banner shown at the top of the
-            email. Renders one red pill for errors and one amber pill for
-            warnings. Both counts include matrix-level checks AND script-level
-            system errors, (filtered by Type) — the counter object passed in
-            is the single source of truth (see Update-MatrixCounterHC).
+            email. Renders one pill per check type that has a non-zero count:
+            red for errors, orange for incorrect permissions, amber for
+            warnings and green for corrected permissions. Every count includes
+            matrix-level checks AND script-level system errors (filtered by
+            Type) — the counter object passed in is the single source of truth
+            (see Update-MatrixCounterHC).
 
             Outlook (Word engine) ignores 'margin' on <table>, so the wrapping
             table's 'margin:0 0 16px 0' — the gap below the banner — never
@@ -378,15 +399,19 @@ function Build-ErrorWarningTableHC {
     param($CounterData)
 
     $errs = [int]$CounterData.TotalErrors
+    $incorrect = [int]$CounterData.TotalIncorrect
     $warns = [int]$CounterData.TotalWarnings
     $fixed = [int]$CounterData.TotalFixed
 
-    if ($errs -eq 0 -and $warns -eq 0 -and $fixed -eq 0) { return '' }
+    if ($errs -eq 0 -and $incorrect -eq 0 -and $warns -eq 0 -and $fixed -eq 0) { return '' }
 
     $pills = @()
     if ($errs -gt 0) {
         $errLabel = "$errs Error" + $(if ($errs -ne 1) { 's' })
         $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $errLabel -Bg $Script:Theme.AccentError)</td>"
+    }
+    if ($incorrect -gt 0) {
+        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$incorrect Incorrect" -Bg $Script:Theme.AccentIncorrect)</td>"
     }
     if ($warns -gt 0) {
         $warnLabel = "$warns Warning" + $(if ($warns -ne 1) { 's' })
@@ -398,7 +423,7 @@ function Build-ErrorWarningTableHC {
 
     # 'Detected issues' would be wrong for a run whose only finding is that it
     # corrected something, so the heading follows what the pills actually say.
-    $heading = if ($errs -eq 0 -and $warns -eq 0) { 'Corrected' } else { 'Detected issues' }
+    $heading = if ($errs -eq 0 -and $incorrect -eq 0 -and $warns -eq 0) { 'Corrected' } else { 'Detected issues' }
 
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 16px 0;">
@@ -441,10 +466,9 @@ function Build-FileLevelCheckRowHC {
     $themeTokens = Get-CheckThemeHC $Check.Type
     $accent = $themeTokens.Accent
 
-    # Info notices use the neutral grey card background + an "i" glyph; errors,
-    # warnings and fixes keep a white card with a bullet dot so they still stand
-    # out.
-    $isInfo = $Check.Type -notin @('FatalError', 'Warning', 'Fixed')
+    # Info notices use the neutral grey card background + an "i" glyph; every
+    # other type keeps a white card with a bullet dot so it still stands out.
+    $isInfo = $Check.Type -notin @('FatalError', 'Incorrect', 'Warning', 'Fixed')
     $cardBg = if ($isInfo) { $themeTokens.Bg } else { $Script:Theme.BgWhite }
     $icon = if ($isInfo) { '&#8505;' } else { '&#9679;' }
 
