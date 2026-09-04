@@ -175,6 +175,41 @@ function Get-FileCheckTallyHC {
     }
 }
 
+function Get-MatrixStatusRankHC {
+    <#
+        .DESCRIPTION
+            Sort rank of a single matrix (a settings row) - lower sorts first.
+
+            The chain is a copy of the one Build-SettingsRowHC uses to pick the
+            row's status pill, so a row's position and the pill it shows can
+            never disagree: every row carrying a pill floats above the clean
+            rows, in the pill's own order of urgency.
+
+            Information notices earn no pill (only the small blue 'i'), so they
+            do not lift a row out of the clean run - matching how the overview
+            refuses to promote an info-only card.
+
+        .PARAMETER FileHasError
+            True when the parent matrix file hit a file-level FatalError. Its
+            settings never executed, so a clean row is shown as grey "Skipped"
+            rather than green - and ranks accordingly.
+    #>
+    param(
+        [object]$MatrixItem,
+        [bool]$FileHasError = $false
+    )
+
+    $checks = @($MatrixItem.Check)
+
+    if (@($checks | Where-Object Type -EQ 'FatalError').Count -gt 0) { return 0 }
+    if (@($checks | Where-Object Type -EQ 'Incorrect').Count -gt 0) { return 1 }
+    if (@($checks | Where-Object Type -EQ 'Warning').Count -gt 0) { return 2 }
+    if ($FileHasError) { return 3 }
+    if (@($checks | Where-Object Type -EQ 'Fixed').Count -gt 0) { return 4 }
+
+    return 5
+}
+
 function Get-MatrixFileNameHC {
     <#
         .DESCRIPTION

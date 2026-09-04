@@ -573,10 +573,16 @@ $issueRows
     # ---- Per-matrix detail sections: each matrix row gets a full card showing every check ----
     # Cards now return <tr> markup wrapped in a 16px-inset padding cell, so we wrap them in
     # a <table> to make the inset apply correctly (matching the File Issues table).
+    # Same order as the overview card in the mail: matrices with findings
+    # first (error, incorrect, warning, skipped, fixed), then the clean ones
+    # alphabetically, so a reader who clicks through from the mail finds the
+    # rows in the position they expect.
     $matrixDetailsHtml = ''
     if ($FileResult.Matrices) {
         $sortedMatrices = $FileResult.Matrices |
-        Sort-Object { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
+        Sort-Object `
+            { Get-MatrixStatusRankHC -MatrixItem $_ -FileHasError $fileHasFatalError },
+        { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
 
         $matrixRowsHtml = ''
         foreach ($m in $sortedMatrices) {

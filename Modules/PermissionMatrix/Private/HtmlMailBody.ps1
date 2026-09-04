@@ -673,10 +673,19 @@ function Build-MatrixFileCardHC {
         }
     }
 
-    # Settings rows — each row is a self-contained fluid flex card
+    # Settings rows — each row is a self-contained fluid flex card.
+    # Rows carrying a status pill (Error, Incorrect, Warning, Skipped, Fixed)
+    # come first, in that order, so the reader meets the rows that changed or
+    # need attention without scrolling past the clean ones. The rank comes
+    # from the same chain that picks the pill, and ComputerName/Path/ID stay
+    # as tie-breakers so the clean run is still alphabetical and the whole
+    # card is deterministic. Ordering only — every row is still rendered by
+    # the untouched Build-SettingsRowHC, so the Outlook markup is unchanged.
     if ($FileContext.Matrices -and $FileContext.Matrices.Count -gt 0) {
         $sortedMatrices = $FileContext.Matrices |
-        Sort-Object { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
+        Sort-Object `
+            { Get-MatrixStatusRankHC -MatrixItem $_ -FileHasError $fileHasError },
+        { $_.Setting.Formatted.ComputerName }, { $_.Setting.Formatted.Path }, { $_.ID }
 
         $settingsRowsHtml = ''
         $settingsIndex = 0
@@ -767,16 +776,19 @@ function Build-MatrixEmailHtmlHC {
     <#
      Order the cards so the ones needing attention are reachable without
      scrolling: files with an ERROR first, then files with INCORRECT
-     permissions, then files with a WARNING, then everything else — each of
-     those groups sorted alphabetically by matrix file name (the same string
-     the gradient header shows and links).
+     permissions, then files with a WARNING, then files where the run FIXED
+     something, then everything else — each of those groups sorted
+     alphabetically by matrix file name (the same string the gradient header
+     shows and links).
 
      The rank is computed from Get-FileCheckTallyHC, the exact tally that
      colours the header, so the run of red cards, then orange, then amber,
-     then green matches the sequence a reader sees. Informational notices and
-     corrected permissions deliberately do NOT promote a card: neither is an
-     outstanding issue, so those files stay in the alphabetical run with the
-     other clean files.
+     then green matches the sequence a reader sees. A file whose only finding
+     is 'Fixed' keeps its green header — nothing is outstanding — but it still
+     ranks above the untouched files, because a run that changed permissions
+     is the other thing a reader opens this mail to see. Informational notices
+     deliberately do NOT promote a card: they are notices, not outcomes, so
+     those files stay in the alphabetical run with the other clean files.
 
      Sort-Object is stable and the name is the second key, so ties inside a
      rank resolve alphabetically and the whole output is deterministic.
@@ -797,7 +809,8 @@ function Build-MatrixEmailHtmlHC {
             if ($tally.Errors -gt 0) { 0 }
             elseif ($tally.Incorrect -gt 0) { 1 }
             elseif ($tally.Warnings -gt 0) { 2 }
-            else { 3 }
+            elseif ($tally.Fixed -gt 0) { 3 }
+            else { 4 }
         }
     }, @{
         Expression = { Get-MatrixFileNameHC -FileResult $_ }

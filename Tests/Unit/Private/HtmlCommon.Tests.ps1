@@ -131,6 +131,55 @@ Describe 'Get-FileCheckTallyHC' {
     }
 }
 
+Describe 'Get-MatrixStatusRankHC' {
+    BeforeAll {
+        function New-RankMatrix {
+            param([object[]]$Check = @())
+            return [pscustomobject]@{ Check = $Check }
+        }
+    }
+
+    It 'ranks <Type> as <Expected>' -ForEach @(
+        @{ Type = 'FatalError'; Expected = 0 }
+        @{ Type = 'Incorrect'; Expected = 1 }
+        @{ Type = 'Warning'; Expected = 2 }
+        @{ Type = 'Fixed'; Expected = 4 }
+    ) {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix -Check @(
+                [pscustomobject]@{ Type = $Type; Name = 'n' }
+            )) | Should-Be $Expected
+    }
+
+    It 'ranks the most severe check when several are present' {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix -Check @(
+                [pscustomobject]@{ Type = 'Fixed'; Name = 'f' }
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+                [pscustomobject]@{ Type = 'Incorrect'; Name = 'i' }
+            )) | Should-Be 1
+    }
+
+    It 'ranks an info-only matrix with the clean ones' {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix -Check @(
+                [pscustomobject]@{ Type = 'Information'; Name = 'i' }
+            )) | Should-Be 5
+    }
+
+    It 'ranks a clean matrix last' {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix) | Should-Be 5
+    }
+
+    It 'ranks a clean matrix as Skipped when the file errored' {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix) -FileHasError $true |
+        Should-Be 3
+    }
+
+    It 'lets its own warning outrank a file-level error' {
+        Get-MatrixStatusRankHC -MatrixItem (New-RankMatrix -Check @(
+                [pscustomobject]@{ Type = 'Warning'; Name = 'w' }
+            )) -FileHasError $true | Should-Be 2
+    }
+}
+
 Describe "the check type 'Incorrect'" {
     It 'is themed orange with its own INCORRECT label' {
         $theme = Get-CheckThemeHC 'Incorrect'

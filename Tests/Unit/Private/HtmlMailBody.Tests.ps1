@@ -740,8 +740,10 @@ Describe 'Build-MatrixEmailHtmlHC' {
             Should-Be 'Errored.xlsx > Drifted.xlsx > Warned.xlsx > Clean.xlsx'
         }
 
-        It 'does not promote a card that only has Fixed checks' {
-            # A corrected permission is an outcome, not an outstanding issue.
+        It 'floats a card that only has Fixed checks above the clean cards' {
+            # A corrected permission is not an outstanding issue - the header
+            # stays green - but a run that changed something is what the
+            # reader opens this mail to see, so it outranks an untouched file.
             $files = @(
                 New-FileResult -Name 'aClean.xlsx'
                 New-FileResult -Name 'zFixed.xlsx' -Check @(
@@ -751,7 +753,22 @@ Describe 'Build-MatrixEmailHtmlHC' {
 
             $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
 
-            Get-RenderedCardOrderText -Html $out | Should-Be 'aClean.xlsx > zFixed.xlsx'
+            Get-RenderedCardOrderText -Html $out | Should-Be 'zFixed.xlsx > aClean.xlsx'
+        }
+
+        It 'ranks a fixed card below the warnings' {
+            $files = @(
+                New-FileResult -Name 'zWarned.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                )
+                New-FileResult -Name 'aFixed.xlsx' -Check @(
+                    [pscustomobject]@{ Type = 'Fixed'; Name = 'f'; Description = 'd' }
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedCardOrderText -Html $out | Should-Be 'zWarned.xlsx > aFixed.xlsx'
         }
 
         It 'gives an incorrect-only card the orange header and its own glyph' {
@@ -894,6 +911,93 @@ Describe 'Build-MatrixEmailHtmlHC' {
             )
 
             Get-RenderedCardOrderText -Html $out | Should-Be 'Only.xlsx'
+        }
+    }
+
+    Context 'settings row ordering' {
+        BeforeAll {
+            # Rows are identified by their ComputerName link, which is the only
+            # link painted in the theme's TextMain colour.
+            function Get-RenderedRowOrderText {
+                param([string]$Html)
+                return ((
+                        [regex]::Matches($Html, "text-decoration:none; color:#111827;'>([^<]+)</a>") |
+                        ForEach-Object { $_.Groups[1].Value }
+                    ) -join ' > ')
+            }
+        }
+
+        It 'floats the rows carrying a pill above the clean rows' {
+            $files = @(
+                New-FileResult -Matrices @(
+                    New-MatrixRow -ID 1 -ComputerName 'CLEAN'
+                    New-MatrixRow -ID 2 -ComputerName 'FIXED' -Check @(
+                        [pscustomobject]@{ Type = 'Fixed'; Name = 'f'; Description = 'd' }
+                    )
+                    New-MatrixRow -ID 3 -ComputerName 'WARNED' -Check @(
+                        [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                    )
+                    New-MatrixRow -ID 4 -ComputerName 'ERRORED' -Check @(
+                        [pscustomobject]@{ Type = 'FatalError'; Name = 'e'; Description = 'd' }
+                    )
+                    New-MatrixRow -ID 5 -ComputerName 'DRIFTED' -Check @(
+                        [pscustomobject]@{ Type = 'Incorrect'; Name = 'i'; Description = 'd' }
+                    )
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedRowOrderText -Html $out |
+            Should-Be 'ERRORED > DRIFTED > WARNED > FIXED > CLEAN'
+        }
+
+        It 'does not promote a row that only has Information checks' {
+            # An info notice earns the small blue 'i', not a pill, so it must
+            # not lift the row out of the alphabetical clean run.
+            $files = @(
+                New-FileResult -Matrices @(
+                    New-MatrixRow -ID 1 -ComputerName 'zInfo' -Check @(
+                        [pscustomobject]@{ Type = 'Information'; Name = 'i'; Description = 'd' }
+                    )
+                    New-MatrixRow -ID 2 -ComputerName 'aClean'
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedRowOrderText -Html $out | Should-Be 'aClean > zInfo'
+        }
+
+        It 'sorts by ComputerName within the same status' {
+            $files = @(
+                New-FileResult -Matrices @(
+                    New-MatrixRow -ID 1 -ComputerName 'SRV03'
+                    New-MatrixRow -ID 2 -ComputerName 'SRV01'
+                    New-MatrixRow -ID 3 -ComputerName 'SRV02'
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            Get-RenderedRowOrderText -Html $out | Should-Be 'SRV01 > SRV02 > SRV03'
+        }
+
+        It 'renders every settings row exactly once' {
+            $files = @(
+                New-FileResult -Matrices @(
+                    New-MatrixRow -ID 1 -ComputerName 'SRV01' -Check @(
+                        [pscustomobject]@{ Type = 'Warning'; Name = 'w'; Description = 'd' }
+                    )
+                    New-MatrixRow -ID 2 -ComputerName 'SRV02'
+                    New-MatrixRow -ID 3 -ComputerName 'SRV03'
+                )
+            )
+
+            $out = Build-MatrixEmailHtmlHC -FileResults $files -Html $html
+
+            $out | Should-MatchString 'Settings \(3\)'
+            (Get-RenderedRowOrderText -Html $out).Split(' > ').Count | Should-Be 3
         }
     }
 }
