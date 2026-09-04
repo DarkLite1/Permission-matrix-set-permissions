@@ -376,12 +376,12 @@ Describe 'Build-MatrixDetailCardHC' {
         $html | Should-NotMatchString 'border-left:3px solid #d97706; border-radius:8px'
     }
 
-    It 'keeps a Fixed-only row green and renders it in full mode' {
+    It 'gives a Fixed-only row its own darker green and renders it in full mode' {
         $item = New-DetailMatrix -Check @(
             [pscustomobject]@{ Type = 'Fixed'; Name = 'corrected'; Description = 'd' }
         )
         $html = Build-MatrixDetailCardHC -MatrixItem $item
-        $html | Should-MatchString '#16a34a'
+        $html | Should-MatchString 'border-left:3px solid #047857; border-radius:8px'
         $html | Should-MatchString 'FIXED'
         $html | Should-MatchString 'corrected'
     }

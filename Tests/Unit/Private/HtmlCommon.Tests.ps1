@@ -226,12 +226,18 @@ Describe "the check type 'Incorrect'" {
 }
 
 Describe "the check type 'Fixed'" {
-    It 'is themed green with its own FIXED label' {
+    It 'is themed in its own darker green with a FIXED label' {
         $theme = Get-CheckThemeHC 'Fixed'
 
         $theme.Label | Should-Be 'FIXED'
-        $theme.Accent | Should-Be '#16a34a'
-        $theme.Bg | Should-Be '#dcfce7'
+        $theme.Accent | Should-Be '#047857'
+        $theme.Bg | Should-Be '#d1fae5'
+    }
+
+    It 'does not reuse the green of an already correct matrix' {
+        # A matrix the run had to correct must be distinguishable at a glance
+        # from one that was correct to begin with (AccentSuccess #16a34a).
+        (Get-CheckThemeHC 'Fixed').Accent | Should-NotBe '#16a34a'
     }
 
     It 'is not rendered as an informational notice' {
@@ -244,7 +250,7 @@ Describe "the check type 'Fixed'" {
             }) -SheetLabel 'Excel File'
 
         $html | Should-MatchString 'FIXED'
-        $html | Should-MatchString '#16a34a'
+        $html | Should-MatchString '#047857'
         $html | Should-NotMatchString '&#8505;'
     }
 

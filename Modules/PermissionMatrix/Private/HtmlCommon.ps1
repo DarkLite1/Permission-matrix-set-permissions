@@ -25,6 +25,7 @@ $Script:Theme = @{
     StatusIncorrect = '#ffedd5' # Orange tint
     StatusWarning   = '#fef3c7' # Amber tint
     StatusSuccess   = '#dcfce7'
+    StatusFixed     = '#d1fae5' # Emerald tint
     StatusSkipped   = '#f3f4f6'
 
     # Accent colors (used for icons, pills, left borders, status dots)
@@ -34,6 +35,10 @@ $Script:Theme = @{
     AccentIncorrect = '#ea580c'
     AccentWarning   = '#d97706' # Amber
     AccentSuccess   = '#16a34a'
+    # Darker emerald green, deliberately NOT AccentSuccess: a matrix the run had
+    # to CORRECT must be distinguishable at a glance from one that was already
+    # correct, while still reading as "resolved".
+    AccentFixed     = '#047857'
     AccentSkipped   = '#6b7280'
     AccentInfo      = '#2563eb'
     AccentSystem    = '#7c2d12' # Maroon for system errors
@@ -43,6 +48,7 @@ $Script:Theme = @{
     GradIncorrect   = @('#7c2d12', '#ea580c')
     GradWarning     = @('#78350f', '#d97706')
     GradSuccess     = @('#14532d', '#16a34a')
+    GradFixed       = @('#064e3b', '#047857')
 
     # Text colors
     TextMain        = '#111827'
@@ -340,13 +346,14 @@ function Get-CheckThemeHC {
         }
         'Fixed' {
             # Green, not amber: the matrix and the file system disagreed and
-            # the run resolved it. Nothing is left for the reader to do.
+            # the run resolved it. Nothing is left for the reader to do. A
+            # darker green than a clean matrix so the two are not confused.
             return @{
-                Bg         = $Script:Theme.StatusSuccess
-                Accent     = $Script:Theme.AccentSuccess
+                Bg         = $Script:Theme.StatusFixed
+                Accent     = $Script:Theme.AccentFixed
                 Symbol     = '✔'
                 Label      = 'FIXED'
-                BorderLeft = $Script:Theme.AccentSuccess
+                BorderLeft = $Script:Theme.AccentFixed
             }
         }
         default {
@@ -453,7 +460,7 @@ function Build-ErrorWarningTableHC {
         $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $warnLabel -Bg $Script:Theme.AccentWarning)</td>"
     }
     if ($fixed -gt 0) {
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$fixed Fixed" -Bg $Script:Theme.AccentSuccess)</td>"
+        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$fixed Fixed" -Bg $Script:Theme.AccentFixed)</td>"
     }
 
     # 'Detected issues' would be wrong for a run whose only finding is that it

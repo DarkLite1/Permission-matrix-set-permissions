@@ -23,7 +23,7 @@ Every finding carries one of five types, which drive the pill, the colour, the c
 | `FatalError` | The run could not do its job. | Red |
 | `Incorrect` | Disk does not match the matrix and nothing was changed (`Action` is `Check`). | Orange |
 | `Warning` | An operational problem that is not permission drift, such as an ACL that could not be read. | Amber |
-| `Fixed` | Drift that this run corrected (`Action` is `Fix` or `New`). | Green |
+| `Fixed` | Drift that this run corrected (`Action` is `Fix` or `New`). | Dark green, deliberately darker than a clean matrix |
 | `Information` | A notice only. Never colours a card and never promotes it in the overview. | Grey |
 
 `Incorrect` and `Fixed` are the same finding under a different action, so the check `Name` is identical in both. That name is the grouping key of the issue report, which is also why runs from before 2026-09 - where drift was reported as a `Warning` - keep counting `Incorrect` together with `Warning` in its trend sheets.

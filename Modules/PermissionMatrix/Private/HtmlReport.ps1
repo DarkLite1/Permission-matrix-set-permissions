@@ -211,8 +211,12 @@ function Build-MatrixDetailCardHC {
         $accent = $Script:Theme.AccentSkipped
         $isSkipped = $true
     }
-    else {
+    elseif ($fixed -gt 0) {
         # A row whose only finding is 'Fixed' is green: the run resolved it.
+        # A DARKER green than a clean row, so the two are told apart.
+        $accent = $Script:Theme.AccentFixed
+    }
+    else {
         $accent = $Script:Theme.AccentSuccess
     }
     $statusLabel = Format-IssueCountLabelHC -Errors $err -Incorrect $incorrect -Warnings $warn -Fixed $fixed
@@ -515,6 +519,12 @@ function Write-MatrixExecutionReportHC {
     elseif ($fileWarns -gt 0) {
         $hdrSymbol = '⚠'
         $gradFrom, $gradTo = $Script:Theme.GradWarning
+    }
+    elseif ($fileFixed -gt 0) {
+        # Still a success header, but a darker green than a file that needed
+        # no correction at all.
+        $hdrSymbol = '✓'
+        $gradFrom, $gradTo = $Script:Theme.GradFixed
     }
     else {
         $hdrSymbol = '✓'

@@ -157,11 +157,13 @@ Describe 'Build-SettingsRowHC' {
         $html | Should-MatchString '#ea580c'
     }
 
-    It 'shows a Fixed pill on a green row when the run corrected the drift' {
+    It 'shows a Fixed pill in its own darker green when the run corrected the drift' {
         $item = New-MatrixItem -Check @([pscustomobject]@{ Type = 'Fixed' })
         $html = Build-SettingsRowHC -MatrixItem $item
         $html | Should-MatchString '>Fixed</span>'
-        $html | Should-MatchString '#16a34a'
+        $html | Should-MatchString '#047857'
+        # Not the clean-row green: the two must be told apart at a glance.
+        $html | Should-NotMatchString '#16a34a'
     }
 
     It 'lets Incorrect outrank Warning on the same row' {

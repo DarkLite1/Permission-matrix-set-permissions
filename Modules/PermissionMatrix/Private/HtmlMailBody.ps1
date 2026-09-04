@@ -289,6 +289,10 @@ function Build-SettingsRowHC {
         $accent = $Script:Theme.AccentSkipped
         $isSkipped = $true
     }
+    elseif ($fixed -gt 0) {
+        # Darker green than a clean row: the run had to correct something here.
+        $accent = $Script:Theme.AccentFixed
+    }
     else {
         $accent = $Script:Theme.AccentSuccess
     }
@@ -367,7 +371,7 @@ function Build-SettingsRowHC {
         $pillText = 'Skipped'; $pillBg = $Script:Theme.AccentSkipped
     }
     elseif ($fixed -gt 0) {
-        $pillText = 'Fixed'; $pillBg = $Script:Theme.AccentSuccess
+        $pillText = 'Fixed'; $pillBg = $Script:Theme.AccentFixed
     }
 
     # Table-based card so Outlook Classic (Word rendering engine, which has no
@@ -600,6 +604,12 @@ function Build-MatrixFileCardHC {
     elseif ($fileWarns -gt 0) {
         $headerSymbol = '⚠'
         $gradFrom, $gradTo = $Script:Theme.GradWarning
+    }
+    elseif ($fileFixed -gt 0) {
+        # Still a success header, but a darker green than a file that needed
+        # no correction at all.
+        $headerSymbol = '✓'
+        $gradFrom, $gradTo = $Script:Theme.GradFixed
     }
     else {
         $headerSymbol = '✓'
