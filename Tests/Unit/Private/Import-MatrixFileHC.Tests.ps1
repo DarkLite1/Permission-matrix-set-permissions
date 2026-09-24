@@ -154,6 +154,54 @@ Describe 'Import-MatrixFileHC' {
         }
     }
 
+    Context 'empty columns and rows in the Permissions sheet' {
+        It 'removes them right after import' {
+            New-MatrixExcelFixture -Path $matrixPath
+
+            $pkg = Open-ExcelPackage -Path $matrixPath
+            $ws = $pkg.Workbook.Worksheets['Permissions']
+            $ws.InsertColumn(3, 1)
+            $ws.Cells['C2'].Value = ' '
+            $ws.InsertRow(6, 1)
+            Close-ExcelPackage $pkg
+
+            $result = Import-MatrixFileHC `
+                -MatrixFile (Get-Item -LiteralPath $matrixPath) `
+                -Context (New-TestContext)
+
+            $raw = $result.Sheets.Permissions.Raw
+            $raw | Should-BeCollection -Count 6
+            $raw[0].PSObject.Properties.Name | Should-BeCollection @('P1', 'P2', 'P3')
+            $raw[2].P2 | Should-Be 'Bob'
+            $raw[2].P3 | Should-Be 'Mike'
+            $raw[3].P1 | Should-Be 'Path'
+            $raw[4].P1 | Should-Be 'Finance'
+            $raw[5].P1 | Should-Be 'Finance\Docs'
+        }
+
+        It 'never removes the 3 header rows and the Path row, even when fully empty' {
+            New-MatrixExcelFixture -Path $matrixPath
+
+            $pkg = Open-ExcelPackage -Path $matrixPath
+            $ws = $pkg.Workbook.Worksheets['Permissions']
+            $ws.Cells['A1:C4'].Clear()
+            Close-ExcelPackage $pkg
+
+            $result = Import-MatrixFileHC `
+                -MatrixFile (Get-Item -LiteralPath $matrixPath) `
+                -Context (New-TestContext)
+
+            $raw = $result.Sheets.Permissions.Raw
+            $raw | Should-BeCollection -Count 6
+            foreach ($i in 0..3) {
+                @($raw[$i].PSObject.Properties.Value.Where({ $null -ne $_ })).Count |
+                Should-Be 0
+            }
+            $raw[4].P1 | Should-Be 'Finance'
+            $raw[5].P1 | Should-Be 'Finance\Docs'
+        }
+    }
+
     Context 'Status with surrounding whitespace' {
         It 'creates a matrix when only the first Settings row is enabled' {
             <# Guard: enabled rows are tracked by index, and index 0 is falsy

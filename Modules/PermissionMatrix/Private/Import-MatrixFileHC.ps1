@@ -215,10 +215,9 @@ function Import-MatrixFileHC {
             -Path $tempMatrixFile `
             -Sheet 'Permissions' `
             -NoHeader `
-            -DataOnly `
             -ErrorAction Stop
 
-        $fileResult.Sheets.Permissions.Raw = $permissionsSheet 
+        $fileResult.Sheets.Permissions.Raw = Remove-PermissionsEmptyRowAndColumnHC -Rows @($permissionsSheet)
 
         $fileResult.Sheets.Permissions.Formatted = $fileResult.Sheets.Permissions.Raw | Format-PermissionsStringsHC
         #endregion

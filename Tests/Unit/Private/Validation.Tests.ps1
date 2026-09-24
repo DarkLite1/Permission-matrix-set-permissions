@@ -879,6 +879,46 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
             }
         }
 
+        Context 'Missing AD object name' {
+            BeforeAll {
+                function New-RowHC {
+                    param($P1, $P2, $P3, $P4)
+                    [pscustomobject]@{ P1 = $P1; P2 = $P2; P3 = $P3; P4 = $P4 }
+                }
+            }
+
+            It 'flags a column without header that has a permission on a folder row' {
+                $perms = @(
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null 'Bob' $null 'Mike'
+                    New-RowHC 'Path' 'L' $null 'L'
+                    New-RowHC 'Finance' 'W' 'R' 'R'
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                $err = $result | Where-Object Name -EQ 'Missing AD object name'
+                $err | Should-BeTruthy
+                $err.Value | Should-Be 'Columns: P3'
+            }
+
+            It 'flags a column without header that has a permission on the parent row' {
+                $perms = @(
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null 'Bob' $null 'Mike'
+                    New-RowHC 'Path' 'L' 'L' 'L'
+                    New-RowHC 'Finance' 'W' $null 'R'
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                ($result | Where-Object Name -EQ 'Missing AD object name').Value |
+                Should-Be 'Columns: P3'
+            }
+        }
+
         Context 'Check types are correct' {
             It 'classifies InaccessibleFolders as a Warning, not a FatalError' {
                 $perms = Get-RoundTripPermissions -Scenario 'InaccessibleFolders'

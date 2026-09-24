@@ -37,6 +37,69 @@ function Format-FormDataStringsHC {
     }
 }
 
+function Remove-PermissionsEmptyRowAndColumnHC {
+    <#
+    .SYNOPSIS
+        Remove fully empty columns and fully empty folder rows from the
+        Permissions sheet and renumber the remaining columns P1..Pn.
+
+    .DESCRIPTION
+        A cell is empty when it is $null or whitespace only. The first 4 rows
+        (3 header rows + the parent folder row) are positional and always kept,
+        as is column P1 (the folder path). Columns are renumbered without gaps
+        because Get-MatrixADObjectsMapHC stops at the first missing column.
+
+    .PARAMETER Rows
+        The Permissions sheet rows as returned by 'Import-Excel -NoHeader'.
+
+    .EXAMPLE
+        $rows = Import-Excel $file -WorksheetName 'Permissions' -NoHeader
+        Remove-PermissionsEmptyRowAndColumnHC -Rows @($rows)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [array]$Rows
+    )
+
+    if ($Rows.Count -eq 0) { return , @() }
+
+    $keptRows = for ($i = 0; $i -lt $Rows.Count; $i++) {
+        $row = $Rows[$i]
+        if (
+            ($i -lt 4) -or
+            $row.PSObject.Properties.Where(
+                { -not [string]::IsNullOrWhiteSpace([string]$_.Value) }, 'First'
+            ).Count
+        ) {
+            $row
+        }
+    }
+
+    $allColumns = @($Rows[0].PSObject.Properties.Name)
+
+    $keptColumns = @(
+        $allColumns[0]
+        $allColumns | Select-Object -Skip 1 | Where-Object {
+            $col = $_
+            $keptRows.Where(
+                { -not [string]::IsNullOrWhiteSpace([string]$_.$col) }, 'First'
+            ).Count
+        }
+    )
+
+    $result = foreach ($row in $keptRows) {
+        $new = [ordered]@{}
+        for ($c = 0; $c -lt $keptColumns.Count; $c++) {
+            $new["P$($c + 1)"] = $row.($keptColumns[$c])
+        }
+        [pscustomobject]$new
+    }
+
+    return , @($result)
+}
+
 function Format-PermissionsStringsHC {
     <#
     .SYNOPSIS

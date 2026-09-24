@@ -115,6 +115,101 @@ Describe 'Format-PermissionsStringsHC' {
     }
 }
 
+Describe 'Remove-PermissionsEmptyRowAndColumnHC' {
+    BeforeAll {
+        function New-RowHC {
+            param($P1, $P2, $P3, $P4)
+            [pscustomobject]@{ P1 = $P1; P2 = $P2; P3 = $P3; P4 = $P4 }
+        }
+    }
+
+    It 'removes a fully empty column and renumbers the columns without gaps' {
+        $rows = @(
+            New-RowHC 'H1' $null $null $null
+            New-RowHC 'H2' $null '  ' $null
+            New-RowHC 'H3' 'Bob' $null 'Mike'
+            New-RowHC 'Path' 'L' $null 'L'
+            New-RowHC 'Finance' 'W' '' 'R'
+        )
+
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows $rows
+
+        $res | Should-BeCollection -Count 5
+        $res[0].PSObject.Properties.Name | Should-BeCollection @('P1', 'P2', 'P3')
+        $res[2].P2 | Should-Be 'Bob'
+        $res[2].P3 | Should-Be 'Mike'
+        $res[4].P3 | Should-Be 'R'
+    }
+
+    It 'keeps a column without header that has a permission' {
+        $rows = @(
+            New-RowHC 'H1' $null $null $null
+            New-RowHC 'H2' $null $null $null
+            New-RowHC 'H3' 'Bob' $null 'Mike'
+            New-RowHC 'Path' 'L' $null 'L'
+            New-RowHC 'Finance' 'W' 'R' 'R'
+        )
+
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows $rows
+
+        $res[0].PSObject.Properties.Name | Should-BeCollection @('P1', 'P2', 'P3', 'P4')
+    }
+
+    It 'removes fully empty folder rows but keeps the first 4 rows' {
+        $rows = @(
+            New-RowHC $null $null $null $null
+            New-RowHC $null $null $null $null
+            New-RowHC $null 'Bob' $null 'Mike'
+            New-RowHC 'Path' 'L' $null 'L'
+            New-RowHC $null ' ' $null $null
+            New-RowHC 'Finance' 'W' $null 'R'
+            New-RowHC $null $null $null $null
+            New-RowHC 'InheritOnly' $null $null $null
+        )
+
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows $rows
+
+        $res | Should-BeCollection -Count 6
+        $res[3].P1 | Should-Be 'Path'
+        $res[4].P1 | Should-Be 'Finance'
+        $res[5].P1 | Should-Be 'InheritOnly'
+    }
+
+    It 'keeps the first 4 rows even when they are all fully empty' {
+        $rows = @(
+            New-RowHC $null $null $null $null
+            New-RowHC '' ' ' $null $null
+            New-RowHC $null $null $null $null
+            New-RowHC $null $null $null $null
+            New-RowHC 'Finance' 'W' $null $null
+        )
+
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows $rows
+
+        $res | Should-BeCollection -Count 5
+        $res[4].P1 | Should-Be 'Finance'
+    }
+
+    It 'always keeps column P1' {
+        $rows = @(
+            New-RowHC $null 'Bob' $null $null
+            New-RowHC $null $null $null $null
+            New-RowHC $null $null $null $null
+            New-RowHC $null 'L' $null $null
+        )
+
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows $rows
+
+        $res[0].PSObject.Properties.Name | Should-BeCollection @('P1', 'P2')
+    }
+
+    It 'returns an empty array for no rows' {
+        $res = Remove-PermissionsEmptyRowAndColumnHC -Rows @()
+
+        $res | Should-BeCollection -Count 0
+    }
+}
+
 Describe 'Format-SettingStringsHC' {
     It 'trims all strings and title-cases the action' {
         $settings = [pscustomobject]@{
