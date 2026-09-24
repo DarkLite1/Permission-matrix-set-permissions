@@ -917,6 +917,38 @@ Describe 'Validation.ps1 - Updated Validation Functions' {
                 ($result | Where-Object Name -EQ 'Missing AD object name').Value |
                 Should-Be 'Columns: P3'
             }
+
+            It "does not flag a column without header that only contains 'I'" {
+                $perms = @(
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null 'Bob' $null 'Mike'
+                    New-RowHC 'Path' 'L' $null 'L'
+                    New-RowHC 'Finance' 'W' $null 'R'
+                    New-RowHC 'Archive' 'W' 'I' 'R'
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                @($result | Where-Object Name -EQ 'Missing AD object name').Count |
+                Should-Be 0
+            }
+
+            It "flags a column without header that contains 'I' and a permission" {
+                $perms = @(
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null $null $null $null
+                    New-RowHC $null 'Bob' $null 'Mike'
+                    New-RowHC 'Path' 'L' $null 'L'
+                    New-RowHC 'Finance' 'W' 'R' 'R'
+                    New-RowHC 'Archive' 'W' 'I' 'R'
+                )
+
+                $result = Test-MatrixPermissionsHC -Permissions $perms
+
+                ($result | Where-Object Name -EQ 'Missing AD object name').Value |
+                Should-Be 'Columns: P3'
+            }
         }
 
         Context 'Check types are correct' {

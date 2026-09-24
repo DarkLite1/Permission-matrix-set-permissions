@@ -438,9 +438,10 @@ function ConvertTo-MatrixAclHC {
 
     .DESCRIPTION
         Emits one object per data row with a non-empty P1, each carrying Path,
-        ACL (resolved AD name to permission character) and Ignore. Only the
-        columns present in AdObjectsMap are read; anything else on the row is
-        ignored.
+        ACL (resolved AD name to permission character) and Ignore. Permissions
+        are only read from the columns present in AdObjectsMap, but an 'I' in
+        any column except P1 flags the row as ignored, so a column without an
+        AD object name can still be used to ignore folders.
 
     .NOTES
         - Permission values are NOT validated against a permitted set here,
@@ -487,24 +488,22 @@ function ConvertTo-MatrixAclHC {
         if (-not $row.P1) { continue }
 
         $acl = @{}
-        $isIgnored = $false
+
+        # 'I' (Ignore) marks the whole folder entry to be skipped: the script
+        # must not touch it or apply any permissions, whether from the matrix
+        # or the defaults. A single 'I' in any permission column flags the row,
+        # matching the ignore detection in the validation stage and the
+        # documented behaviour in the README.
+        $isIgnored = [bool]$row.PSObject.Properties.Where({
+                $_.Name -ne 'P1' -and "$($_.Value)".Trim().ToUpper() -eq 'I'
+            }, 'First').Count
 
         foreach ($colName in $AdObjectsMap.Keys) {
+            if ($isIgnored) { break }
+
             $perm = $row.$colName
 
             if (-not $perm) { continue }
-
-            # 'I' (Ignore) marks the whole folder entry to be skipped: the
-            # script must not touch it or apply any permissions, whether from
-            # the matrix or the defaults. A single 'I' in any permission column
-            # flags the row, matching the ignore detection in the validation
-            # stage and the documented behaviour in the README. Values reaching
-            # here are already trimmed and upper-cased by
-            # Format-PermissionsStringsHC.
-            if ("$perm".Trim().ToUpper() -eq 'I') {
-                $isIgnored = $true
-                continue
-            }
 
             # Map the permission to the resolved AD Object name
             $acl[$AdObjectsMap[$colName]] = $perm

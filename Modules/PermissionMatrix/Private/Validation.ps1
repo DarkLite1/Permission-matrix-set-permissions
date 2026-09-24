@@ -60,7 +60,17 @@ function Test-MatrixPermissionsHC {
             if ([string]::IsNullOrWhiteSpace($Permissions[0].$col) -and
                 [string]::IsNullOrWhiteSpace($Permissions[1].$col) -and
                 [string]::IsNullOrWhiteSpace($Permissions[2].$col)) {
-                $missingSamAccountNames.Add($col)
+                # 'I' needs no AD object: it only marks the folder as ignored
+                $hasPermission = $Permissions | Select-Object -Skip 3 |
+                Where-Object {
+                    (-not [string]::IsNullOrWhiteSpace($_.$col)) -and
+                    ($_.$col -ne 'I')
+                } |
+                Select-Object -First 1
+
+                if ($hasPermission) {
+                    $missingSamAccountNames.Add($col)
+                }
             }
         }
 

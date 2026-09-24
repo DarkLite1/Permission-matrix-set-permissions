@@ -390,6 +390,20 @@ Describe 'ConvertTo-MatrixAclHC' {
         $res[0].ACL.Count | Should-Be 0
     }
 
+    It "flags a row with 'I' in a column without AD object name" {
+        $rows = @(
+            [pscustomobject]@{ P1 = 'Folder4'; P2 = 'R'; P3 = ''; P4 = 'I' }
+            [pscustomobject]@{ P1 = 'Folder5'; P2 = 'R'; P3 = ''; P4 = '' }
+        )
+
+        $res = ConvertTo-MatrixAclHC -DataRows $rows -AdObjectsMap $script:adMap
+
+        $res[0].Ignore | Should-BeTrue
+        $res[0].ACL.Count | Should-Be 0
+        $res[1].Ignore | Should-BeFalse
+        $res[1].ACL['Obj1'] | Should-Be 'R'
+    }
+
     It 'skips rows with no path (P1 empty)' {
         $rows = @(
             [pscustomobject]@{ P1 = ''; P2 = 'R'; P3 = 'W' }
