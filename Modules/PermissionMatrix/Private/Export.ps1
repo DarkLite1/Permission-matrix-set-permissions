@@ -14,9 +14,9 @@ function Build-ExportDataHC {
         while permissions rows are emitted for every matrix object.
 
     .NOTES
-        - The dedupe means the ServiceNow rows are built from whichever matrix
-          object reached the file FIRST; its Matrix.AdNames alone supply the AD
-          objects for that file.
+        - The ServiceNow rows of a file combine the Matrix.AdNames of EVERY
+          matrix object (Settings row) of that file, because placeholders such
+          as SiteCode/GroupName resolve to different AD objects per row.
         - A file whose FormData is $null produces no FormData and no ServiceNow
           rows, but is still marked as seen.
         - The FormData row is MUTATED: 'MatrixFileName' is added to the file's
@@ -43,6 +43,9 @@ function Build-ExportDataHC {
     $seenFiles = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::OrdinalIgnoreCase
     )
+
+    # Per file: its FormData and the AD objects of all its Settings rows
+    $serviceNowFiles = [ordered]@{}
 
     foreach ($matrixObj in $ImportedMatrix) {
 
@@ -89,36 +92,46 @@ function Build-ExportDataHC {
                     
                     $formDataRows.Add([pscustomobject]$formData)
 
-                    #region Create ServiceNow upload data
-                    $adObjects = @(
-                        $matrixObj.Matrix.AdNames.Values | 
-                        Sort-Object -Unique
-                    )
-
-                    $emailsResponsible = (
-                        Resolve-ResponsibleEmailHC `
-                            -Responsible $formData.MatrixResponsible `
-                            -AdGroupPlaceHolders $AdGroupPlaceHolders
-                    ).Emails -join ','
-
-                    foreach ($adObject in $adObjects) {
-                        $serviceNowData.Add(
-                            [pscustomobject]@{
-                                u_matrixfilename        = $formData.MatrixFileName
-                                u_matrixfolderpath      = $formData.MatrixFolderPath
-                                u_matrixcategoryname    = $formData.MatrixCategoryName
-                                u_matrixsubcategoryname = $formData.MatrixSubCategoryName
-                                u_matrixresponsible     = $emailsResponsible
-                                u_adobjectname          = $adObject
-                            }
-                        )
+                    $serviceNowFiles[$fileKey] = [pscustomobject]@{
+                        FormData  = $formData
+                        AdObjects = [System.Collections.Generic.List[string]]::new()
                     }
-                    #endregion
+                }
+            }
+
+            if ($fileKey -and $serviceNowFiles.Contains($fileKey)) {
+                foreach ($adName in $matrixObj.Matrix.AdNames.Values) {
+                    if ($adName) { $serviceNowFiles[$fileKey].AdObjects.Add($adName) }
                 }
             }
         }
         #endregion
     }
+
+    #region Create ServiceNow upload data
+    foreach ($file in $serviceNowFiles.Values) {
+        $formData = $file.FormData
+
+        $emailsResponsible = (
+            Resolve-ResponsibleEmailHC `
+                -Responsible $formData.MatrixResponsible `
+                -AdGroupPlaceHolders $AdGroupPlaceHolders
+        ).Emails -join ','
+
+        foreach ($adObject in ($file.AdObjects | Sort-Object -Unique)) {
+            $serviceNowData.Add(
+                [pscustomobject]@{
+                    u_matrixfilename        = $formData.MatrixFileName
+                    u_matrixfolderpath      = $formData.MatrixFolderPath
+                    u_matrixcategoryname    = $formData.MatrixCategoryName
+                    u_matrixsubcategoryname = $formData.MatrixSubCategoryName
+                    u_matrixresponsible     = $emailsResponsible
+                    u_adobjectname          = $adObject
+                }
+            )
+        }
+    }
+    #endregion
 
     return [pscustomobject]@{
         Permissions    = $permissionsRows.ToArray()

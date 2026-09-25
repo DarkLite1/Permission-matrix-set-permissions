@@ -487,6 +487,29 @@ Describe 'Build-ExportDataHC' {
             $res.FormData.Count | Should-Be 1
             $res.FormData[0].Value | Should-Be 'alice'
         }
+
+        It 'emits ServiceNow rows for the AD objects of EVERY settings row of a file' {
+            $fc = New-FileContext -FileName 'Site.xlsx' `
+                -FormDataFormatted ([pscustomobject]@{ MatrixResponsible = $null })
+            $one = New-MatrixObject -FileContext $fc -ComputerName 'PC1'
+            $one | Add-Member -NotePropertyName Matrix -NotePropertyValue @(
+                [pscustomobject]@{ AdNames = @{ s1 = 'ROL Brussel'; s2 = 'ROL Shared' } }
+            )
+            $two = New-MatrixObject -FileContext $fc -ComputerName 'PC2'
+            $two | Add-Member -NotePropertyName Matrix -NotePropertyValue @(
+                [pscustomobject]@{ AdNames = @{ s3 = 'ROL Tienen'; s2 = 'ROL Shared' } }
+                [pscustomobject]@{ AdNames = @{ s4 = 'ROL Tienen Sales' } }
+            )
+
+            $res = Build-ExportDataHC -ImportedMatrix @($one, $two)
+
+            $res.FormData.Count | Should-Be 1
+            $res.ServiceNowData.u_adobjectname | Should-BeCollection @(
+                'ROL Brussel', 'ROL Shared', 'ROL Tienen', 'ROL Tienen Sales'
+            )
+            $res.ServiceNowData.u_matrixfilename |
+            Sort-Object -Unique | Should-Be 'Site.xlsx'
+        }
     }
 
     Context 'FormData edge cases' {
