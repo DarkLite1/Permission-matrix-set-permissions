@@ -484,6 +484,15 @@ Describe 'Build-ErrorWarningTableHC' {
         $html | Should-MatchString '1 Error'
         $html | Should-MatchString '3 Warnings'
     }
+
+    It 'puts every pill in a padded, middle-aligned, font-size:0 cell so Outlook shows the label' {
+        $counter = [pscustomobject]@{ TotalErrors = 1; TotalIncorrect = 1; TotalWarnings = 1; TotalFixed = 1 }
+        $html = Build-ErrorWarningTableHC -CounterData $counter
+
+        $cell = "<td valign='middle' style='vertical-align:middle; padding:4px 6px 4px 0; white-space:nowrap; font-size:0;'><!--\[if mso\]><v:roundrect"
+        ([regex]::Matches($html, $cell)).Count | Should-Be 4
+        $html | Should-NotMatchString "padding:0 6px 0 0"
+    }
 }
 
 Describe 'Build-FileLevelCheckRowHC' {

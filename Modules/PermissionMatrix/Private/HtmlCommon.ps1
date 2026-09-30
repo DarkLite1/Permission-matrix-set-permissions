@@ -447,20 +447,26 @@ function Build-ErrorWarningTableHC {
 
     if ($errs -eq 0 -and $incorrect -eq 0 -and $warns -eq 0 -and $fixed -eq 0) { return '' }
 
+    # Same cell recipe as the settings-row pill; a bare zero-padding cell hid the VML label in Outlook.
+    $newPillTd = {
+        param([string]$Text, [string]$Bg)
+        "<td valign='middle' style='vertical-align:middle; padding:4px 6px 4px 0; white-space:nowrap; font-size:0;'>$(New-PillHtmlHC -Text $Text -Bg $Bg)</td>"
+    }
+
     $pills = @()
     if ($errs -gt 0) {
         $errLabel = "$errs Error" + $(if ($errs -ne 1) { 's' })
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $errLabel -Bg $Script:Theme.AccentError)</td>"
+        $pills += & $newPillTd $errLabel $Script:Theme.AccentError
     }
     if ($incorrect -gt 0) {
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$incorrect Incorrect" -Bg $Script:Theme.AccentIncorrect)</td>"
+        $pills += & $newPillTd "$incorrect Incorrect" $Script:Theme.AccentIncorrect
     }
     if ($warns -gt 0) {
         $warnLabel = "$warns Warning" + $(if ($warns -ne 1) { 's' })
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text $warnLabel -Bg $Script:Theme.AccentWarning)</td>"
+        $pills += & $newPillTd $warnLabel $Script:Theme.AccentWarning
     }
     if ($fixed -gt 0) {
-        $pills += "<td style='padding:0 6px 0 0;'>$(New-PillHtmlHC -Text "$fixed Fixed" -Bg $Script:Theme.AccentFixed)</td>"
+        $pills += & $newPillTd "$fixed Fixed" $Script:Theme.AccentFixed
     }
 
     # 'Detected issues' would be wrong for a run whose only finding is that it
@@ -470,10 +476,10 @@ function Build-ErrorWarningTableHC {
     return @"
 <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse; margin:0 0 16px 0;">
     <tr>
-        <td style='padding:4px 0;'>
+        <td style='padding:0;'>
             <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
                 <tr>
-                    <td style='padding:0 12px 0 0; font-size:13px; font-weight:600; color:$($Script:Theme.TextMain);'>$heading</td>
+                    <td valign='middle' style='vertical-align:middle; padding:4px 12px 4px 0; font-size:13px; font-weight:600; color:$($Script:Theme.TextMain);'>$heading</td>
                     $($pills -join '')
                 </tr>
             </table>
